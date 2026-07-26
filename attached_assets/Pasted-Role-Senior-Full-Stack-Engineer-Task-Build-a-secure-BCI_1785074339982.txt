@@ -1,0 +1,29 @@
+Role: Senior Full-Stack Engineer.
+Task: Build a secure, BCI-compliant Private Practice Management & Client Portal SaaS for advocates and consultants.
+Stack: Next.js (React), Node.js, PostgreSQL (Prisma), TailwindCSS.
+
+Design System & Interactivity:
+- Color Scheme: Exclusively Dark Grey and Light Grey. Avoid stark whites or harsh blacks to maintain a professional, low-fatigue monochrome aesthetic.
+- Highly Interactive UX: Implement optimistic UI updates, smooth hover states, animated transitions, and real-time dashboard updates without requiring full page reloads.
+
+Replit Environment Fix (CRITICAL):
+- Ensure the development server binds to all network interfaces so the Replit Webview Preview works out of the box. Update the `package.json` dev script strictly to: `"dev": "next dev -H 0.0.0.0 -p 3000"`.
+- Provide a robust, error-free `app/page.tsx` default export immediately so the preview does not render a blank screen on the first run.
+
+Roles & RBAC (Private Access Only):
+1. Firm Admin / Advocate / Consultant (Manages chambers, invites existing clients, assigns tasks).
+2. Clerk / Intern (Executes procedural tasks, files applications, updates timelines).
+3. Invited Client (Private portal to view case updates and schedule consultations).
+
+Core Modules & Features:
+1. Client Portal: Invite-only SaaS architecture. Zero fee-splitting or public marketplace features.
+2. Case Management System (CMS): Encrypted document vault, filing logs, and real-time interactive case status tracking.
+3. Consultation Recorder: In-app audio recorder for client consultations (requires explicit digital consent dialog), integrated with a Speech-to-Text API.
+4. Task Pipeline & SLA Timelines: Workflow engine assigning work to Clerks/Interns with strict deadlines.
+5. Mandatory Delay Logging: If task `completion_date` > `deadline`, force a mandatory "Reason for Delay" dropdown + Reference Proof file upload before it can be marked complete.
+6. Internal KPI Engine: Dashboard tracking task turnaround times and SLA adherence (Visible ONLY to Firm Admins).
+
+Initial Action:
+1. Update package.json to ensure the Replit preview binding works.
+2. Generate the PostgreSQL schema (Prisma) and project folder architecture.
+3. Output the foundational RBAC routing logic and a working, highly interactive dummy landing page in Dark/Light Grey to verify the preview is functioning immediately.
