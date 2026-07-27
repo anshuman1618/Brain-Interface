@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Practice Management Portal"
+version = "1.0.0"
+id = "artifacts/practice-portal"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24783
+
+[services.development]
+run = "pnpm --filter @workspace/practice-portal run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/practice-portal", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/practice-portal/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24783"
+BASE_PATH = "/"
