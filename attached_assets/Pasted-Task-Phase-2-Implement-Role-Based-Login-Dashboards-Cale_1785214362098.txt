@@ -1,0 +1,43 @@
+Task: Phase 2 - Implement Role-Based Login, Dashboards, Calendar, Consultations, and Subscription UI.
+Context: Build upon existing Next.js/Tailwind architecture. Maintain highly interactive optimistic UI, the Dark/Light Grey design system, and uncluttered UX.
+
+1. Login Page Update:
+- Mandatory "Select Role" dropdown at login: [Firm Admin / Senior Advocate, Junior Advocate, Clerk, Intern, Client].
+- Dynamic routing to role-specific dashboards upon authentication.
+
+2. Dashboard Layout & Button Color Mapping (Tailwind Classes):
+Unified sidebar/grid UI using distinct monochrome shades:
+- "Interactive Master Calendar" (`bg-slate-800 border-l-4 border-slate-400 text-white`)
+- "Priority / Urgent Cases" (`bg-zinc-800 text-gray-200`)
+- "Pending Cases / Cause List" (`bg-slate-700 hover:bg-slate-600`)
+- "My Assigned Work" (`bg-stone-700 hover:bg-stone-600`)
+- "Work Completed" (`bg-gray-800 text-gray-400`)
+- "Case Briefs & Drafting" (`bg-neutral-700 hover:bg-neutral-600`)
+- "Upload Digital Copy" (`bg-zinc-700 hover:bg-zinc-600`)
+- "Request Client Document" (NEW) (`bg-slate-600 border border-slate-500 hover:bg-slate-500 text-white`) - Opens a modal to select a client, specify the required document, and send a push request.
+
+3. Consultation Categorization (NEW):
+- When scheduling a consultation or case, mandate a "Category" dropdown selection.
+- Categories: [Legal Solution, Regulatory Solution, Business Consultation, Procedural Compliance].
+- UI Implementation: Display these categories as distinct visual tags (using light/dark grey pill badges) on the Master Calendar, Cause List, and Case Briefs.
+
+4. Interactive Calendar & Task Engine:
+- Full-page grid calendar component. Click any date to open the "New Task/Hearing/Consultation" modal. 
+- Drag-and-drop to reschedule. Auto-syncs to the assignee's "My Assigned Work".
+
+5. Reminder & Notification System:
+- In-app notification bell with unread badge counters.
+- Automated Reminders (T-24 hours, T-2 hours) for deadlines/hearings.
+- Workflow: "Request Client Document" instantly pushes an alert to the notification bell and sends an email trigger.
+
+6. Role-Specific Views:
+- Admin / Senior: Full access, firm-wide calendar, consultation management, sends Document Requests.
+- Junior Advocate: View assigned cases, manage own tasks/calendar, send Document Requests to assigned clients.
+- Clerk / Intern: Limited to procedural tasks, upload portal, own calendar view.
+- Client: Read-only case status, secure download/upload zone. Includes a prominent "Action Required: Pending Document Requests" widget at the top of their dashboard for fast compliance.
+
+7. Firm Efficiency & Monetization:
+- Global Search Bar: Search across cases, clients, files, and consultation categories.
+- Subscription UI (Admin only): "Manage Subscription" button (`bg-gradient-to-r from-gray-300 to-gray-500 text-black font-bold`) and a "1-Month Free Trial Active" status banner linking to a pricing modal.
+
+Action: Generate the UI components for the Dashboard layouts, Calendar, and Role views. Implement the mock state for Consultation Categorization and the Advocate-to-Client Document Request flow.
