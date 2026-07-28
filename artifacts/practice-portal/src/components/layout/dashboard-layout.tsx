@@ -10,14 +10,19 @@ import ConsultationsPage from "@/pages/consultations"
 import KpiPage from "@/pages/kpi"
 import InvitesPage from "@/pages/invites"
 import ClientPortalPage from "@/pages/client-portal"
+import CalendarPage from "@/pages/calendar"
 import NotFound from "@/pages/not-found"
-import { Briefcase, LayoutDashboard, CheckSquare, PhoneCall, BarChart2, Users, LogOut, Loader2, ChevronRight } from "lucide-react"
+import { Briefcase, LayoutDashboard, CheckSquare, PhoneCall, BarChart2, Users, LogOut, Loader2, ChevronRight, Calendar as CalendarIcon, CreditCard } from "lucide-react"
+import { PricingModalProvider, usePricingModal } from "@/components/pricing-modal"
+import { NotificationBell } from "@/components/notification-bell"
+import { GlobalSearch } from "@/components/global-search"
 
-export default function DashboardLayout() {
+function DashboardLayoutContent() {
   const { isLoaded, isSignedIn, user } = useUser();
-  const { role, isAdmin, isClerk, isClient } = useUserRole();
+  const { role, isAdmin, isSenior, isJunior, isClerk, isClient, isStaff } = useUserRole();
   const { signOut } = useAuth();
   const [location] = useLocation();
+  const { setOpen: setPricingModalOpen } = usePricingModal();
 
   if (!isLoaded) {
     return (
@@ -34,12 +39,13 @@ export default function DashboardLayout() {
 
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
-    { href: "/client-portal", label: "My Portal", icon: Briefcase, show: isClient && !isAdmin && !isClerk },
-    { href: "/cases", label: "Cases", icon: Briefcase, show: isAdmin || isClerk },
-    { href: "/tasks", label: "Tasks", icon: CheckSquare, show: isAdmin || isClerk },
-    { href: "/consultations", label: "Consultations", icon: PhoneCall, show: isAdmin || isClerk },
-    { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: isAdmin },
-    { href: "/invites", label: "Access Control", icon: Users, show: isAdmin },
+    { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: isStaff },
+    { href: "/client-portal", label: "My Portal", icon: Briefcase, show: isClient },
+    { href: "/cases", label: "Cases", icon: Briefcase, show: isAdmin || isSenior || isJunior },
+    { href: "/tasks", label: "Tasks", icon: CheckSquare, show: isStaff },
+    { href: "/consultations", label: "Consultations", icon: PhoneCall, show: isAdmin || isSenior || isJunior },
+    { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: isAdmin || isSenior },
+    { href: "/invites", label: "Access Control", icon: Users, show: isAdmin || isSenior },
   ].filter(item => item.show);
 
   return (
@@ -64,7 +70,7 @@ export default function DashboardLayout() {
             </p>
           </div>
           {navItems.map((item) => {
-            const isActive = location.startsWith(item.href);
+            const isActive = location.startsWith(item.href) && item.href !== "/" && (item.href !== "/dashboard" || location === "/dashboard");
             return (
               <Link 
                 key={item.href} 
@@ -82,7 +88,16 @@ export default function DashboardLayout() {
           })}
         </div>
 
-        <div className="p-4 border-t border-sidebar-border">
+        <div className="p-4 border-t border-sidebar-border flex flex-col gap-2">
+          {isAdmin && (
+            <button 
+              onClick={() => setPricingModalOpen(true)}
+              className="flex items-center justify-center gap-2 w-full py-2 bg-gradient-to-r from-gray-300 to-gray-500 text-black font-bold rounded-none uppercase text-xs tracking-wider mb-2 hover:opacity-90 transition-opacity"
+            >
+              <CreditCard className="h-4 w-4" />
+              Manage Subscription
+            </button>
+          )}
           <div className="flex items-center gap-3 px-3 py-3 border border-border bg-background shadow-sm">
             <div className="h-8 w-8 bg-muted flex items-center justify-center text-xs font-medium uppercase shrink-0">
               {user?.firstName?.charAt(0) || user?.emailAddresses[0]?.emailAddress?.charAt(0)}
@@ -104,11 +119,16 @@ export default function DashboardLayout() {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 border-b border-border bg-background flex items-center px-8 z-10 sticky top-0">
+        <header className="h-16 border-b border-border bg-background flex items-center px-8 z-10 sticky top-0 justify-between">
           <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground">
             <span className="uppercase tracking-widest">{role}</span>
             <ChevronRight className="h-3 w-3" />
             <span className="text-foreground capitalize">{location.split('/')[1] || 'Dashboard'}</span>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <GlobalSearch />
+            <NotificationBell />
           </div>
         </header>
         
@@ -117,6 +137,7 @@ export default function DashboardLayout() {
           <div className="relative z-10 max-w-6xl mx-auto animate-in fade-in duration-500">
             <Switch>
               <Route path="/dashboard" component={DashboardPage} />
+              <Route path="/calendar" component={CalendarPage} />
               <Route path="/cases" component={CasesPage} />
               <Route path="/cases/:id" component={CaseDetailPage} />
               <Route path="/tasks" component={TasksPage} />
@@ -130,5 +151,13 @@ export default function DashboardLayout() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function DashboardLayout() {
+  return (
+    <PricingModalProvider>
+      <DashboardLayoutContent />
+    </PricingModalProvider>
   );
 }

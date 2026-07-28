@@ -20,6 +20,12 @@ tags:
     description: Task pipeline and SLA
   - name: delay-logs
     description: Mandatory delay logging
+  - name: notifications
+    description: In-app notification centre
+  - name: document-requests
+    description: Advocate-to-client document requests
+  - name: search
+    description: Global search
   - name: consultations
     description: Consultation recorder
   - name: kpi
@@ -585,6 +591,123 @@ paths:
                 $ref: "#/components/schemas/DashboardSummary"
 
   # ── Invites ────────────────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List notifications for current user
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: All notifications marked read
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarkAllReadResult"
+  /document-requests:
+    get:
+      operationId: listDocumentRequests
+      tags: [document-requests]
+      summary: List document requests (staff sees all; clients see their own)
+      responses:
+        "200":
+          description: List of document requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentRequest"
+    post:
+      operationId: createDocumentRequest
+      tags: [document-requests]
+      summary: Create a document request for a client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentRequestInput"
+      responses:
+        "201":
+          description: Created document request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentRequest"
+  /document-requests/{id}:
+    patch:
+      operationId: updateDocumentRequest
+      tags: [document-requests]
+      summary: Update document request status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentRequestUpdate"
+      responses:
+        "200":
+          description: Updated document request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentRequest"
+  /search:
+    get:
+      operationId: globalSearch
+      tags: [search]
+      summary: Global search across cases, tasks, consultations, clients
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Grouped search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResults"
   /invites:
     get:
       operationId: listInvites
@@ -924,6 +1047,9 @@ components:
         status:
           type: string
           enum: [scheduled, recording, completed, cancelled]
+        category:
+          type: ["string", "null"]
+          enum: [legal_solution, regulatory_solution, business_consultation, procedural_compliance, null]
         scheduledAt:
           type: ["string", "null"]
           format: date-time
@@ -933,7 +1059,7 @@ components:
 
     ConsultationInput:
       type: object
-      required: [caseId, title, consentGiven]
+      required: [caseId, title, consentGiven, category]
       properties:
         caseId:
           type: integer
@@ -944,6 +1070,9 @@ components:
           type: string
         consentGiven:
           type: boolean
+        category:
+          type: string
+          enum: [legal_solution, regulatory_solution, business_consultation, procedural_compliance]
         scheduledAt:
           type: string
           format: date-time
@@ -962,6 +1091,9 @@ components:
         status:
           type: string
           enum: [scheduled, recording, completed, cancelled]
+        category:
+          type: string
+          enum: [legal_solution, regulatory_solution, business_consultation, procedural_compliance]
         scheduledAt:
           type: string
           format: date-time
@@ -1081,3 +1213,118 @@ components:
           enum: [admin, clerk, client]
         caseId:
           type: integer
+
+    # ── Notifications ───────────────────────────────────────────────────────
+    Notification:
+      type: object
+      required: [id, userId, type, message, read, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: string
+        type:
+          type: string
+          enum: [reminder, document_request, general]
+        message:
+          type: string
+        read:
+          type: boolean
+        link:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    MarkAllReadResult:
+      type: object
+      required: [updated]
+      properties:
+        updated:
+          type: integer
+
+    # ── Document Requests ───────────────────────────────────────────────────
+    DocumentRequest:
+      type: object
+      required: [id, clientId, clientClerkId, requestedBy, documentName, status, createdAt]
+      properties:
+        id:
+          type: integer
+        clientId:
+          type: integer
+        clientClerkId:
+          type: string
+        clientName:
+          type: ["string", "null"]
+        requestedBy:
+          type: string
+        documentName:
+          type: string
+        note:
+          type: ["string", "null"]
+        caseId:
+          type: ["integer", "null"]
+        status:
+          type: string
+          enum: [pending, fulfilled, dismissed]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    DocumentRequestInput:
+      type: object
+      required: [clientId, documentName]
+      properties:
+        clientId:
+          type: integer
+        documentName:
+          type: string
+          minLength: 1
+        note:
+          type: string
+        caseId:
+          type: integer
+
+    DocumentRequestUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, fulfilled, dismissed]
+
+    # ── Search ──────────────────────────────────────────────────────────────
+    SearchResultItem:
+      type: object
+      required: [id, title, subtitle]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        subtitle:
+          type: string
+
+    SearchResults:
+      type: object
+      required: [cases, tasks, consultations, clients]
+      properties:
+        cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResultItem"
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResultItem"
+        consultations:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResultItem"
+        clients:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResultItem"

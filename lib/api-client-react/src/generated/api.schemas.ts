@@ -317,6 +317,19 @@ export const ConsultationStatus = {
   cancelled: 'cancelled',
 } as const;
 
+/**
+ * @nullable
+ */
+export type ConsultationCategory = typeof ConsultationCategory[keyof typeof ConsultationCategory] | null;
+
+
+export const ConsultationCategory = {
+  legal_solution: 'legal_solution',
+  regulatory_solution: 'regulatory_solution',
+  business_consultation: 'business_consultation',
+  procedural_compliance: 'procedural_compliance',
+} as const;
+
 export interface Consultation {
   id: number;
   caseId: number;
@@ -330,9 +343,21 @@ export interface Consultation {
   consentGiven: boolean;
   status: ConsultationStatus;
   /** @nullable */
+  category?: ConsultationCategory;
+  /** @nullable */
   scheduledAt?: string | null;
   createdAt: string;
 }
+
+export type ConsultationInputCategory = typeof ConsultationInputCategory[keyof typeof ConsultationInputCategory];
+
+
+export const ConsultationInputCategory = {
+  legal_solution: 'legal_solution',
+  regulatory_solution: 'regulatory_solution',
+  business_consultation: 'business_consultation',
+  procedural_compliance: 'procedural_compliance',
+} as const;
 
 export interface ConsultationInput {
   caseId: number;
@@ -340,6 +365,7 @@ export interface ConsultationInput {
   title: string;
   notes?: string;
   consentGiven: boolean;
+  category: ConsultationInputCategory;
   scheduledAt?: string;
 }
 
@@ -353,12 +379,23 @@ export const ConsultationUpdateStatus = {
   cancelled: 'cancelled',
 } as const;
 
+export type ConsultationUpdateCategory = typeof ConsultationUpdateCategory[keyof typeof ConsultationUpdateCategory];
+
+
+export const ConsultationUpdateCategory = {
+  legal_solution: 'legal_solution',
+  regulatory_solution: 'regulatory_solution',
+  business_consultation: 'business_consultation',
+  procedural_compliance: 'procedural_compliance',
+} as const;
+
 export interface ConsultationUpdate {
   title?: string;
   notes?: string;
   audioUrl?: string;
   transcriptPlaceholder?: string;
   status?: ConsultationUpdateStatus;
+  category?: ConsultationUpdateCategory;
   scheduledAt?: string;
 }
 
@@ -437,6 +474,91 @@ export interface InviteInput {
   caseId?: number;
 }
 
+export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
+
+
+export const NotificationType = {
+  reminder: 'reminder',
+  document_request: 'document_request',
+  general: 'general',
+} as const;
+
+export interface Notification {
+  id: number;
+  userId: string;
+  type: NotificationType;
+  message: string;
+  read: boolean;
+  /** @nullable */
+  link?: string | null;
+  createdAt: string;
+}
+
+export interface MarkAllReadResult {
+  updated: number;
+}
+
+export type DocumentRequestStatus = typeof DocumentRequestStatus[keyof typeof DocumentRequestStatus];
+
+
+export const DocumentRequestStatus = {
+  pending: 'pending',
+  fulfilled: 'fulfilled',
+  dismissed: 'dismissed',
+} as const;
+
+export interface DocumentRequest {
+  id: number;
+  clientId: number;
+  clientClerkId: string;
+  /** @nullable */
+  clientName?: string | null;
+  requestedBy: string;
+  documentName: string;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  caseId?: number | null;
+  status: DocumentRequestStatus;
+  createdAt: string;
+  /** @nullable */
+  updatedAt?: string | null;
+}
+
+export interface DocumentRequestInput {
+  clientId: number;
+  /** @minLength 1 */
+  documentName: string;
+  note?: string;
+  caseId?: number;
+}
+
+export type DocumentRequestUpdateStatus = typeof DocumentRequestUpdateStatus[keyof typeof DocumentRequestUpdateStatus];
+
+
+export const DocumentRequestUpdateStatus = {
+  pending: 'pending',
+  fulfilled: 'fulfilled',
+  dismissed: 'dismissed',
+} as const;
+
+export interface DocumentRequestUpdate {
+  status: DocumentRequestUpdateStatus;
+}
+
+export interface SearchResultItem {
+  id: number;
+  title: string;
+  subtitle: string;
+}
+
+export interface SearchResults {
+  cases: SearchResultItem[];
+  tasks: SearchResultItem[];
+  consultations: SearchResultItem[];
+  clients: SearchResultItem[];
+}
+
 export type ListUsersParams = {
 role?: ListUsersRole;
 };
@@ -497,4 +619,8 @@ export const GetSlaReportPeriod = {
   month: 'month',
   quarter: 'quarter',
 } as const;
+
+export type GlobalSearchParams = {
+q: string;
+};
 

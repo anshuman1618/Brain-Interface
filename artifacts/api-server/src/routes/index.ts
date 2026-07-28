@@ -7,6 +7,9 @@ import tasksRouter from "./tasks";
 import consultationsRouter from "./consultations";
 import kpiRouter from "./kpi";
 import invitesRouter from "./invites";
+import notificationsRouter from "./notifications";
+import documentRequestsRouter from "./document-requests";
+import searchRouter from "./search";
 
 const router: IRouter = Router();
 
@@ -18,5 +21,8 @@ router.use(tasksRouter);
 router.use(consultationsRouter);
 router.use(kpiRouter);
 router.use(invitesRouter);
+router.use(notificationsRouter);
+router.use(documentRequestsRouter);
+router.use(searchRouter);
 
 export default router;

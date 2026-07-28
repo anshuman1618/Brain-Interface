@@ -5,6 +5,7 @@
  * Private Practice Management & Client Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { ConsultationUpdateCategory } from './consultationUpdateCategory';
 import type { ConsultationUpdateStatus } from './consultationUpdateStatus';
 
 export interface ConsultationUpdate {
@@ -13,5 +14,6 @@ export interface ConsultationUpdate {
   audioUrl?: string;
   transcriptPlaceholder?: string;
   status?: ConsultationUpdateStatus;
+  category?: ConsultationUpdateCategory;
   scheduledAt?: Date;
 }

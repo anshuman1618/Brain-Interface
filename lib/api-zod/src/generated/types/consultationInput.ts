@@ -5,6 +5,7 @@
  * Private Practice Management & Client Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { ConsultationInputCategory } from './consultationInputCategory';
 
 export interface ConsultationInput {
   caseId: number;
@@ -12,5 +13,6 @@ export interface ConsultationInput {
   title: string;
   notes?: string;
   consentGiven: boolean;
+  category: ConsultationInputCategory;
   scheduledAt?: Date;
 }

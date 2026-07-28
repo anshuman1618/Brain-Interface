@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, consultationsTable } from "@workspace/db";
+import { eq, inArray, and, SQL } from "drizzle-orm";
+import { db, consultationsTable, casesTable } from "@workspace/db";
 import {
   ListConsultationsQueryParams,
   ListConsultationsResponse,
@@ -18,12 +18,25 @@ import { addTimelineEvent } from "../lib/timeline";
 
 const router: IRouter = Router();
 
-router.get("/consultations", requireAuth, async (req, res): Promise<void> => {
+router.get("/consultations", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const params = ListConsultationsQueryParams.safeParse(req.query);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const consultations = params.data.caseId
-    ? await db.select().from(consultationsTable).where(eq(consultationsTable.caseId, params.data.caseId))
+  const conditions: SQL[] = [];
+  if (params.data.caseId) conditions.push(eq(consultationsTable.caseId, params.data.caseId));
+
+  // Clients only see consultations on their own cases
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (user.role === "client") {
+    const ownCases = await db.select({ id: casesTable.id }).from(casesTable).where(eq(casesTable.clientId, user.id));
+    const ids = ownCases.map(c => c.id);
+    if (ids.length === 0) { res.json([]); return; }
+    conditions.push(inArray(consultationsTable.caseId, ids));
+  }
+
+  const consultations = conditions.length > 0
+    ? await db.select().from(consultationsTable).where(and(...conditions))
     : await db.select().from(consultationsTable);
 
   res.json(ListConsultationsResponse.parse(consultations));
@@ -41,6 +54,7 @@ router.post("/consultations", requireAuth, async (req: AuthRequest, res): Promis
     title: parsed.data.title,
     notes: parsed.data.notes ?? null,
     consentGiven: parsed.data.consentGiven,
+    category: parsed.data.category,
     scheduledAt: parsed.data.scheduledAt ? new Date(parsed.data.scheduledAt) : null,
     status: "scheduled",
   }).returning();
@@ -76,6 +90,7 @@ router.patch("/consultations/:id", requireAuth, async (req, res): Promise<void> 
   if (body.data.audioUrl != null) updateData.audioUrl = body.data.audioUrl;
   if (body.data.transcriptPlaceholder != null) updateData.transcriptPlaceholder = body.data.transcriptPlaceholder;
   if (body.data.status != null) updateData.status = body.data.status;
+  if (body.data.category != null) updateData.category = body.data.category;
   if (body.data.scheduledAt != null) updateData.scheduledAt = new Date(body.data.scheduledAt);
 
   const [updated] = await db.update(consultationsTable).set(updateData).where(eq(consultationsTable.id, pathParams.data.id)).returning();

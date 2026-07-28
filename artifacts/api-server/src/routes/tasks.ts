@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, lte, ne, SQL } from "drizzle-orm";
-import { db, tasksTable, usersTable, delayLogsTable } from "@workspace/db";
+import { eq, and, lte, ne, inArray, SQL } from "drizzle-orm";
+import { db, tasksTable, usersTable, delayLogsTable, casesTable } from "@workspace/db";
 import {
   ListTasksQueryParams,
   ListTasksResponse,
@@ -44,6 +44,12 @@ async function enrichTask(t: typeof tasksTable.$inferSelect) {
   };
 }
 
+// Normalize any date value (Date instance, ISO string, or date-only string) to YYYY-MM-DD
+function toDateOnly(v: unknown): string {
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return String(v).slice(0, 10);
+}
+
 router.get("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const params = ListTasksQueryParams.safeParse(req.query);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
@@ -52,6 +58,16 @@ router.get("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> =
   if (params.data.status) conditions.push(eq(tasksTable.status, params.data.status));
   if (params.data.assigneeId) conditions.push(eq(tasksTable.assigneeId, params.data.assigneeId));
   if (params.data.caseId) conditions.push(eq(tasksTable.caseId, params.data.caseId));
+
+  // Clients only see tasks on their own cases
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (user.role === "client") {
+    const ownCases = await db.select({ id: casesTable.id }).from(casesTable).where(eq(casesTable.clientId, user.id));
+    const ids = ownCases.map(c => c.id);
+    if (ids.length === 0) { res.json([]); return; }
+    conditions.push(inArray(tasksTable.caseId, ids));
+  }
 
   const tasks = conditions.length > 0
     ? await db.select().from(tasksTable).where(and(...conditions))
@@ -83,7 +99,7 @@ router.post("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> 
     description: parsed.data.description ?? null,
     priority: parsed.data.priority ?? "medium",
     assigneeId: parsed.data.assigneeId ?? null,
-    deadline: String(parsed.data.deadline),
+    deadline: toDateOnly(parsed.data.deadline),
     status: "pending",
   }).returning();
 
@@ -118,7 +134,7 @@ router.patch("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   if (body.data.status != null) updateData.status = body.data.status;
   if (body.data.priority != null) updateData.priority = body.data.priority;
   if (body.data.assigneeId != null) updateData.assigneeId = body.data.assigneeId;
-  if (body.data.deadline != null) updateData.deadline = String(body.data.deadline);
+  if (body.data.deadline != null) updateData.deadline = toDateOnly(body.data.deadline);
 
   const [updated] = await db.update(tasksTable).set(updateData).where(eq(tasksTable.id, pathParams.data.id)).returning();
 

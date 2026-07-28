@@ -5,6 +5,7 @@
  * Private Practice Management & Client Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { ConsultationCategory } from './consultationCategory';
 import type { ConsultationStatus } from './consultationStatus';
 
 export interface Consultation {
@@ -19,6 +20,8 @@ export interface Consultation {
   transcriptPlaceholder?: string | null;
   consentGiven: boolean;
   status: ConsultationStatus;
+  /** @nullable */
+  category?: ConsultationCategory;
   /** @nullable */
   scheduledAt?: Date | null;
   createdAt: Date;

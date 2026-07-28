@@ -485,6 +485,7 @@ export const ListConsultationsResponseItem = zod.object({
   "transcriptPlaceholder": zod.string().nullish(),
   "consentGiven": zod.boolean(),
   "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']),
+  "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -502,6 +503,7 @@ export const CreateConsultationBody = zod.object({
   "title": zod.string().min(1),
   "notes": zod.string().optional(),
   "consentGiven": zod.boolean(),
+  "category": zod.enum(['legal_solution', 'regulatory_solution', 'business_consultation', 'procedural_compliance']),
   "scheduledAt": zod.coerce.date().optional()
 })
 
@@ -514,6 +516,7 @@ export const CreateConsultationResponse = zod.object({
   "transcriptPlaceholder": zod.string().nullish(),
   "consentGiven": zod.boolean(),
   "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']),
+  "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -535,6 +538,7 @@ export const GetConsultationResponse = zod.object({
   "transcriptPlaceholder": zod.string().nullish(),
   "consentGiven": zod.boolean(),
   "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']),
+  "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -553,6 +557,7 @@ export const UpdateConsultationBody = zod.object({
   "audioUrl": zod.string().optional(),
   "transcriptPlaceholder": zod.string().optional(),
   "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']).optional(),
+  "category": zod.enum(['legal_solution', 'regulatory_solution', 'business_consultation', 'procedural_compliance']).optional(),
   "scheduledAt": zod.coerce.date().optional()
 })
 
@@ -565,6 +570,7 @@ export const UpdateConsultationResponse = zod.object({
   "transcriptPlaceholder": zod.string().nullish(),
   "consentGiven": zod.boolean(),
   "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']),
+  "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -626,6 +632,151 @@ export const GetDashboardSummaryResponse = zod.object({
   "description": zod.string(),
   "actorName": zod.string().nullish(),
   "createdAt": zod.coerce.date()
+}))
+})
+
+
+/**
+ * @summary List notifications for current user
+ */
+export const ListNotificationsResponseItem = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "type": zod.enum(['reminder', 'document_request', 'general']),
+  "message": zod.string(),
+  "read": zod.boolean(),
+  "link": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListNotificationsResponse = zod.array(ListNotificationsResponseItem)
+
+
+/**
+ * @summary Mark a notification as read
+ */
+export const MarkNotificationReadParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const MarkNotificationReadResponse = zod.object({
+  "id": zod.number(),
+  "userId": zod.string(),
+  "type": zod.enum(['reminder', 'document_request', 'general']),
+  "message": zod.string(),
+  "read": zod.boolean(),
+  "link": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Mark all notifications as read
+ */
+export const MarkAllNotificationsReadResponse = zod.object({
+  "updated": zod.number()
+})
+
+
+/**
+ * @summary List document requests (staff sees all; clients see their own)
+ */
+export const ListDocumentRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "clientId": zod.number(),
+  "clientClerkId": zod.string(),
+  "clientName": zod.string().nullish(),
+  "requestedBy": zod.string(),
+  "documentName": zod.string(),
+  "note": zod.string().nullish(),
+  "caseId": zod.number().nullish(),
+  "status": zod.enum(['pending', 'fulfilled', 'dismissed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+export const ListDocumentRequestsResponse = zod.array(ListDocumentRequestsResponseItem)
+
+
+/**
+ * @summary Create a document request for a client
+ */
+
+
+
+export const CreateDocumentRequestBody = zod.object({
+  "clientId": zod.number(),
+  "documentName": zod.string().min(1),
+  "note": zod.string().optional(),
+  "caseId": zod.number().optional()
+})
+
+export const CreateDocumentRequestResponse = zod.object({
+  "id": zod.number(),
+  "clientId": zod.number(),
+  "clientClerkId": zod.string(),
+  "clientName": zod.string().nullish(),
+  "requestedBy": zod.string(),
+  "documentName": zod.string(),
+  "note": zod.string().nullish(),
+  "caseId": zod.number().nullish(),
+  "status": zod.enum(['pending', 'fulfilled', 'dismissed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Update document request status
+ */
+export const UpdateDocumentRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDocumentRequestBody = zod.object({
+  "status": zod.enum(['pending', 'fulfilled', 'dismissed'])
+})
+
+export const UpdateDocumentRequestResponse = zod.object({
+  "id": zod.number(),
+  "clientId": zod.number(),
+  "clientClerkId": zod.string(),
+  "clientName": zod.string().nullish(),
+  "requestedBy": zod.string(),
+  "documentName": zod.string(),
+  "note": zod.string().nullish(),
+  "caseId": zod.number().nullish(),
+  "status": zod.enum(['pending', 'fulfilled', 'dismissed']),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary Global search across cases, tasks, consultations, clients
+ */
+export const GlobalSearchQueryParams = zod.object({
+  "q": zod.coerce.string()
+})
+
+export const GlobalSearchResponse = zod.object({
+  "cases": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "subtitle": zod.string()
+})),
+  "tasks": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "subtitle": zod.string()
+})),
+  "consultations": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "subtitle": zod.string()
+})),
+  "clients": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "subtitle": zod.string()
 }))
 })
 
