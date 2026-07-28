@@ -83,7 +83,7 @@ function SignInPage() {
         <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
       </div>
       <div className="relative z-10 w-full max-w-[440px] bg-slate-100 border border-slate-200 p-4 text-xs font-mono uppercase text-slate-500 tracking-wider text-center">
-        Workspace roles are provisioned by your firm administrator — Firm Admin / Senior Advocate, Junior Advocate, Clerk / Intern, or Client — and route you to your role-specific dashboard after sign-in.
+        New here? After signing up you'll choose your workspace role — Firm Admin, Senior Advocate, Junior Advocate, Clerk / Intern, or Client. An admin can change it later from Team Settings.
       </div>
     </div>
   );

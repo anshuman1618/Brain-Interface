@@ -60,7 +60,11 @@ export default function CalendarPage() {
   const { data: allTasks = [] } = useListTasks();
   const { data: allConsultations = [] } = useListConsultations();
   const { data: cases = [] } = useListCases();
-  const { data: users = [] } = useListUsers({ role: 'clerk' as any }); // for assignment
+  const { data: allUsers = [] } = useListUsers();
+  const users = useMemo(
+    () => allUsers.filter(u => u.role !== "client"),
+    [allUsers]
+  ); // any staff member is assignable
 
   const updateTask = useUpdateTask();
   const updateConsultation = useUpdateConsultation();

@@ -81,6 +81,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserProfile"
 
+  /users/me/role:
+    post:
+      operationId: selectRole
+      tags: [users]
+      summary: Self-service one-time role selection at sign-up
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleSelectionInput"
+      responses:
+        "200":
+          description: Role selected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+        "409":
+          description: Role already selected — contact an admin to change it
+
   /users:
     get:
       operationId: listUsers
@@ -91,7 +114,7 @@ paths:
           name: role
           schema:
             type: string
-            enum: [admin, clerk, client]
+            enum: [admin, senior_advocate, junior_advocate, clerk_intern, clerk, client]
       responses:
         "200":
           description: List of users
@@ -101,6 +124,35 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/UserProfile"
+
+  /users/{id}/role:
+    patch:
+      operationId: updateUserRole
+      tags: [users]
+      summary: Change another user's role (admin only)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRoleUpdateInput"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "403":
+          description: Forbidden — admin only
+        "404":
+          description: User not found
 
   # ── Cases ──────────────────────────────────────────────────────────────────
   /cases:
@@ -752,7 +804,7 @@ components:
     # ── User ──────────────────────────────────────────────────────────────
     UserProfile:
       type: object
-      required: [id, clerkId, role, displayName, email, createdAt]
+      required: [id, clerkId, role, roleSelected, displayName, email, createdAt]
       properties:
         id:
           type: integer
@@ -760,7 +812,10 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, clerk, client]
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, clerk, client]
+        roleSelected:
+          type: boolean
+          description: True once the user has completed self-service role selection at sign-up.
         displayName:
           type: string
         email:
@@ -774,6 +829,23 @@ components:
       properties:
         displayName:
           type: string
+
+    RoleSelectionInput:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+          description: Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it.
+
+    UserRoleUpdateInput:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
 
     # ── Case ──────────────────────────────────────────────────────────────
     Case:

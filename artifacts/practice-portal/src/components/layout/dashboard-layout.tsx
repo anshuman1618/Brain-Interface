@@ -11,20 +11,22 @@ import KpiPage from "@/pages/kpi"
 import InvitesPage from "@/pages/invites"
 import ClientPortalPage from "@/pages/client-portal"
 import CalendarPage from "@/pages/calendar"
+import TeamPage from "@/pages/team"
+import SelectRolePage from "@/pages/select-role"
 import NotFound from "@/pages/not-found"
-import { Briefcase, LayoutDashboard, CheckSquare, PhoneCall, BarChart2, Users, LogOut, Loader2, ChevronRight, Calendar as CalendarIcon, CreditCard } from "lucide-react"
+import { Briefcase, LayoutDashboard, CheckSquare, PhoneCall, BarChart2, Users, LogOut, Loader2, ChevronRight, Calendar as CalendarIcon, CreditCard, ShieldCheck } from "lucide-react"
 import { PricingModalProvider, usePricingModal } from "@/components/pricing-modal"
 import { NotificationBell } from "@/components/notification-bell"
 import { GlobalSearch } from "@/components/global-search"
 
 function DashboardLayoutContent() {
   const { isLoaded, isSignedIn, user } = useUser();
-  const { role, isAdmin, isSenior, isJunior, isClerk, isClient, isStaff } = useUserRole();
+  const { role, roleSelected, isLoaded: roleLoaded, isAdmin, isSenior, isJunior, isClerk, isClient, isStaff } = useUserRole();
   const { signOut } = useAuth();
   const [location] = useLocation();
   const { setOpen: setPricingModalOpen } = usePricingModal();
 
-  if (!isLoaded) {
+  if (!isLoaded || !roleLoaded) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -37,6 +39,11 @@ function DashboardLayoutContent() {
     return null;
   }
 
+  // Brand-new sign-ups pick their workspace role once, before seeing any nav or data.
+  if (!roleSelected) {
+    return <SelectRolePage />;
+  }
+
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: isStaff },
@@ -46,6 +53,7 @@ function DashboardLayoutContent() {
     { href: "/consultations", label: "Consultations", icon: PhoneCall, show: isAdmin || isSenior || isJunior },
     { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: isAdmin || isSenior },
     { href: "/invites", label: "Access Control", icon: Users, show: isAdmin || isSenior },
+    { href: "/team", label: "Team Roles", icon: ShieldCheck, show: role === "admin" },
   ].filter(item => item.show);
 
   return (
@@ -144,6 +152,7 @@ function DashboardLayoutContent() {
               <Route path="/consultations" component={ConsultationsPage} />
               <Route path="/kpi" component={KpiPage} />
               <Route path="/invites" component={InvitesPage} />
+              <Route path="/team" component={TeamPage} />
               <Route path="/client-portal" component={ClientPortalPage} />
               <Route component={NotFound} />
             </Switch>

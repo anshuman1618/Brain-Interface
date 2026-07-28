@@ -11,6 +11,8 @@ export interface UserProfile {
   id: number;
   clerkId: string;
   role: UserProfileRole;
+  /** True once the user has completed self-service role selection at sign-up. */
+  roleSelected: boolean;
   displayName: string;
   email: string;
   createdAt: Date;

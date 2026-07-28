@@ -14,6 +14,9 @@ export type UserProfileRole = typeof UserProfileRole[keyof typeof UserProfileRol
 
 export const UserProfileRole = {
   admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
   clerk: 'clerk',
   client: 'client',
 } as const;
@@ -22,6 +25,8 @@ export interface UserProfile {
   id: number;
   clerkId: string;
   role: UserProfileRole;
+  /** True once the user has completed self-service role selection at sign-up. */
+  roleSelected: boolean;
   displayName: string;
   email: string;
   createdAt: string;
@@ -29,6 +34,40 @@ export interface UserProfile {
 
 export interface UserProfileUpdate {
   displayName?: string;
+}
+
+/**
+ * Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it.
+ */
+export type RoleSelectionInputRole = typeof RoleSelectionInputRole[keyof typeof RoleSelectionInputRole];
+
+
+export const RoleSelectionInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface RoleSelectionInput {
+  /** Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it. */
+  role: RoleSelectionInputRole;
+}
+
+export type UserRoleUpdateInputRole = typeof UserRoleUpdateInputRole[keyof typeof UserRoleUpdateInputRole];
+
+
+export const UserRoleUpdateInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface UserRoleUpdateInput {
+  role: UserRoleUpdateInputRole;
 }
 
 export type CaseStatus = typeof CaseStatus[keyof typeof CaseStatus];
@@ -568,6 +607,9 @@ export type ListUsersRole = typeof ListUsersRole[keyof typeof ListUsersRole];
 
 export const ListUsersRole = {
   admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
   clerk: 'clerk',
   client: 'client',
 } as const;

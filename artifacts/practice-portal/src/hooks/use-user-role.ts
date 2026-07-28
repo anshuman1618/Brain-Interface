@@ -1,14 +1,24 @@
 import { useUser } from "@clerk/react";
-import { UserProfileRole } from "@workspace/api-client-react";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 
+// Role is sourced from the DB via /users/me (not Clerk's publicMetadata) so
+// that an admin changing a user's role takes effect immediately, without
+// waiting on a Clerk session token refresh.
 export function useUserRole() {
-  const { user, isLoaded, isSignedIn } = useUser();
+  const { user, isLoaded: clerkLoaded, isSignedIn } = useUser();
+  const { data: profile, isLoading: profileLoading } = useGetMe({
+    query: { queryKey: getGetMeQueryKey(), enabled: !!isSignedIn },
+  });
 
-  if (!isLoaded || !isSignedIn) {
+  const isLoaded = clerkLoaded && (!isSignedIn || !profileLoading);
+
+  if (!isLoaded || !isSignedIn || !profile) {
     return {
       role: null,
+      roleSelected: false,
       isLoaded,
       isSignedIn,
+      profile,
       user,
       isAdmin: false,
       isSenior: false,
@@ -20,8 +30,8 @@ export function useUserRole() {
     };
   }
 
-  let role = (user.publicMetadata.role as string | undefined) || "client";
-  
+  let role = profile.role || "client";
+
   if (role === "clerk") {
     role = "clerk_intern";
   }
@@ -41,6 +51,7 @@ export function useUserRole() {
 
   return {
     role,
+    roleSelected: profile.roleSelected,
     isAdmin,
     isSenior,
     isJunior,
@@ -50,6 +61,7 @@ export function useUserRole() {
     displayRole,
     isLoaded,
     isSignedIn,
+    profile,
     user,
   };
 }

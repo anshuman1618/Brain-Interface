@@ -6,14 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type UserProfileRole = typeof UserProfileRole[keyof typeof UserProfileRole];
+export type UserRoleUpdateInputRole = typeof UserRoleUpdateInputRole[keyof typeof UserRoleUpdateInputRole];
 
 
-export const UserProfileRole = {
+export const UserRoleUpdateInputRole = {
   admin: 'admin',
   senior_advocate: 'senior_advocate',
   junior_advocate: 'junior_advocate',
   clerk_intern: 'clerk_intern',
-  clerk: 'clerk',
   client: 'client',
 } as const;

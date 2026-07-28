@@ -23,7 +23,8 @@ export const HealthCheckResponse = zod.object({
 export const GetMeResponse = zod.object({
   "id": zod.number(),
   "clerkId": zod.string(),
-  "role": zod.enum(['admin', 'clerk', 'client']),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'clerk', 'client']),
+  "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
   "createdAt": zod.coerce.date()
@@ -40,7 +41,26 @@ export const UpdateMeBody = zod.object({
 export const UpdateMeResponse = zod.object({
   "id": zod.number(),
   "clerkId": zod.string(),
-  "role": zod.enum(['admin', 'clerk', 'client']),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'clerk', 'client']),
+  "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
+  "displayName": zod.string(),
+  "email": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Self-service one-time role selection at sign-up
+ */
+export const SelectRoleBody = zod.object({
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('Self-selected role, one-time only. Use PATCH \/users\/{id}\/role afterward to change it.')
+})
+
+export const SelectRoleResponse = zod.object({
+  "id": zod.number(),
+  "clerkId": zod.string(),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'clerk', 'client']),
+  "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
   "createdAt": zod.coerce.date()
@@ -51,18 +71,41 @@ export const UpdateMeResponse = zod.object({
  * @summary List all users (admin only)
  */
 export const ListUsersQueryParams = zod.object({
-  "role": zod.enum(['admin', 'clerk', 'client']).optional()
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'clerk', 'client']).optional()
 })
 
 export const ListUsersResponseItem = zod.object({
   "id": zod.number(),
   "clerkId": zod.string(),
-  "role": zod.enum(['admin', 'clerk', 'client']),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'clerk', 'client']),
+  "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
   "createdAt": zod.coerce.date()
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
+
+
+/**
+ * @summary Change another user's role (admin only)
+ */
+export const UpdateUserRoleParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateUserRoleBody = zod.object({
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client'])
+})
+
+export const UpdateUserRoleResponse = zod.object({
+  "id": zod.number(),
+  "clerkId": zod.string(),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'clerk', 'client']),
+  "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
+  "displayName": zod.string(),
+  "email": zod.string(),
+  "createdAt": zod.coerce.date()
+})
 
 
 /**

@@ -46,6 +46,7 @@ import type {
   ListUsersParams,
   MarkAllReadResult,
   Notification,
+  RoleSelectionInput,
   SearchResults,
   SlaReportEntry,
   Task,
@@ -54,7 +55,8 @@ import type {
   TaskUpdate,
   TimelineEvent,
   UserProfile,
-  UserProfileUpdate
+  UserProfileUpdate,
+  UserRoleUpdateInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -310,6 +312,77 @@ export const useUpdateMe = <TError = ErrorType<unknown>,
       return useMutation(getUpdateMeMutationOptions(options));
     }
 
+export const getSelectRoleUrl = () => {
+
+
+
+
+  return `/api/users/me/role`
+}
+
+/**
+ * @summary Self-service one-time role selection at sign-up
+ */
+export const selectRole = async (roleSelectionInput: RoleSelectionInput, options?: RequestInit): Promise<UserProfile> => {
+
+  return customFetch<UserProfile>(getSelectRoleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(roleSelectionInput)
+  }
+);}
+
+
+
+
+
+export const getSelectRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof selectRole>>, TError,{data: BodyType<RoleSelectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof selectRole>>, TError,{data: BodyType<RoleSelectionInput>}, TContext> => {
+
+const mutationKey = ['selectRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof selectRole>>, {data: BodyType<RoleSelectionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  selectRole(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SelectRoleMutationResult = NonNullable<Awaited<ReturnType<typeof selectRole>>>
+    export type SelectRoleMutationBody = BodyType<RoleSelectionInput>
+    export type SelectRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Self-service one-time role selection at sign-up
+ */
+export const useSelectRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof selectRole>>, TError,{data: BodyType<RoleSelectionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof selectRole>>,
+        TError,
+        {data: BodyType<RoleSelectionInput>},
+        TContext
+      > => {
+      return useMutation(getSelectRoleMutationOptions(options));
+    }
+
 export const getListUsersUrl = (params?: ListUsersParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -393,6 +466,78 @@ export function useListUsers<TData = Awaited<ReturnType<typeof listUsers>>, TErr
 
 
 
+
+export const getUpdateUserRoleUrl = (id: number,) => {
+
+
+
+
+  return `/api/users/${id}/role`
+}
+
+/**
+ * @summary Change another user's role (admin only)
+ */
+export const updateUserRole = async (id: number,
+    userRoleUpdateInput: UserRoleUpdateInput, options?: RequestInit): Promise<UserProfile> => {
+
+  return customFetch<UserProfile>(getUpdateUserRoleUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(userRoleUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateUserRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUserRole>>, TError,{id: number;data: BodyType<UserRoleUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateUserRole>>, TError,{id: number;data: BodyType<UserRoleUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateUserRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateUserRole>>, {id: number;data: BodyType<UserRoleUpdateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateUserRole(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateUserRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateUserRole>>>
+    export type UpdateUserRoleMutationBody = BodyType<UserRoleUpdateInput>
+    export type UpdateUserRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Change another user's role (admin only)
+ */
+export const useUpdateUserRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateUserRole>>, TError,{id: number;data: BodyType<UserRoleUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateUserRole>>,
+        TError,
+        {id: number;data: BodyType<UserRoleUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateUserRoleMutationOptions(options));
+    }
 
 export const getListCasesUrl = (params?: ListCasesParams,) => {
   const normalizedParams = new URLSearchParams();

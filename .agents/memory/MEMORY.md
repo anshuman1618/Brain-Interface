@@ -1,0 +1,2 @@
+- [Orval schema/operation naming collision](orval-body-schema-naming.md) — a component schema named `<OperationId>Body` collides with orval's auto-generated zod const of the same name; use a distinct schema name.
+- [Role storage: DB vs Clerk metadata](clerk-role-source-of-truth.md) — keep authorization role in the app DB, not Clerk publicMetadata/session claims, so admin-driven role changes take effect immediately.

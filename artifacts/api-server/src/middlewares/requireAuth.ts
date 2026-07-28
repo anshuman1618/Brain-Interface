@@ -1,5 +1,6 @@
 import { getAuth } from "@clerk/express";
 import type { Request, Response, NextFunction } from "express";
+import { getOrCreateUser } from "../lib/jit";
 
 export interface AuthRequest extends Request {
   userId?: string;
@@ -17,18 +18,19 @@ export const requireAuth = (req: AuthRequest, res: Response, next: NextFunction)
   next();
 };
 
+// Role is read from the DB (canonical, source of truth for admin-changed roles),
+// not from Clerk's session claims — those only refresh on token rotation, so a
+// role change by an admin would not take effect immediately if we relied on them.
 export const requireRole = (...roles: string[]) =>
-  (req: AuthRequest, res: Response, next: NextFunction): void => {
-    const auth = getAuth(req);
-    const userId = auth?.userId;
-    if (!userId) {
+  async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    const user = await getOrCreateUser(req);
+    if (!user) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    req.userId = userId;
-    const role = (auth?.sessionClaims?.publicMetadata as Record<string, string>)?.role ?? "client";
-    req.userRole = role;
-    if (!roles.includes(role)) {
+    req.userId = user.clerkId;
+    req.userRole = user.role;
+    if (!roles.includes(user.role)) {
       res.status(403).json({ error: "Forbidden" });
       return;
     }
