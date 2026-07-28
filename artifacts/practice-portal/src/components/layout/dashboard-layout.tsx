@@ -14,6 +14,7 @@ import CalendarPage from "@/pages/calendar"
 import TeamPage from "@/pages/team"
 import SelectRolePage from "@/pages/select-role"
 import NotFound from "@/pages/not-found"
+import { getPendingRoleSelection } from "@/lib/role-options"
 import { Briefcase, LayoutDashboard, CheckSquare, PhoneCall, BarChart2, Users, LogOut, Loader2, ChevronRight, Calendar as CalendarIcon, CreditCard, ShieldCheck } from "lucide-react"
 import { PricingModalProvider, usePricingModal } from "@/components/pricing-modal"
 import { NotificationBell } from "@/components/notification-bell"
@@ -40,8 +41,10 @@ function DashboardLayoutContent() {
   }
 
   // Brand-new sign-ups pick their workspace role once, before seeing any nav or data.
+  // Visitors who chose a role before signing up (see sign-up page) have it applied
+  // automatically here; anyone else (e.g. pre-existing accounts) sees the picker.
   if (!roleSelected) {
-    return <SelectRolePage />;
+    return <SelectRolePage autoApplyRole={getPendingRoleSelection() ?? undefined} />;
   }
 
   const navItems = [

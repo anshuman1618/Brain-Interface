@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClerkProvider, SignIn, SignUp, Show, useClerk } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
@@ -6,8 +6,11 @@ import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wo
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import LandingPage from "@/pages/landing";
 import DashboardLayout from "@/components/layout/dashboard-layout";
+import { RoleOptionsGrid } from "@/components/auth/role-options-grid";
+import { getPendingRoleSelection, setPendingRoleSelection, type RoleValue } from "@/lib/role-options";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -77,25 +80,70 @@ const clerkAppearance = {
 
 function SignInPage() {
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-12 relative overflow-hidden gap-6">
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-12 relative overflow-y-auto gap-6">
+      <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
       <div className="relative z-10 w-full max-w-[440px]">
         <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
       </div>
       <div className="relative z-10 w-full max-w-[440px] bg-slate-100 border border-slate-200 p-4 text-xs font-mono uppercase text-slate-500 tracking-wider text-center">
-        New here? After signing up you'll choose your workspace role — Firm Admin, Senior Advocate, Junior Advocate, Clerk / Intern, or Client. An admin can change it later from Team Settings.
+        New here? You'll choose your workspace role — Firm Admin, Senior Advocate, Junior Advocate, Clerk / Intern, or Client — before creating your account. An admin can change it later from Team Settings.
+      </div>
+    </div>
+  );
+}
+
+function ChooseWorkspaceStep({ onContinue }: { onContinue: (role: RoleValue) => void }) {
+  const [selected, setSelected] = useState<RoleValue | null>(null);
+
+  return (
+    <div className="relative z-10 w-full max-w-3xl">
+      <div className="mb-8 text-center">
+        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Step 1 of 2</p>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Choose your workspace role</h1>
+        <p className="text-muted-foreground max-w-lg mx-auto">
+          Pick how you'll use the portal. You'll create your account next. An admin can change your role later from Team Settings.
+        </p>
+      </div>
+
+      <div className="mb-8">
+        <RoleOptionsGrid selected={selected} onSelect={setSelected} />
+      </div>
+
+      <div className="flex items-center justify-end">
+        <Button
+          className="rounded-none px-8"
+          disabled={!selected}
+          onClick={() => selected && onContinue(selected)}
+        >
+          Continue to sign up
+        </Button>
       </div>
     </div>
   );
 }
 
 function SignUpPage() {
+  // New visitors pick a workspace role first; it's stored and applied
+  // automatically once their Clerk account is created (see dashboard-layout).
+  // Returning to this page mid-flow (e.g. during email verification) should
+  // not re-show the role step, so we check for an already-pending choice.
+  const [pendingRole, setPendingRole] = useState<RoleValue | null>(() => getPendingRoleSelection());
+
+  const handleRoleChosen = (role: RoleValue) => {
+    setPendingRoleSelection(role);
+    setPendingRole(role);
+  };
+
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
-      <div className="relative z-10 w-full max-w-[440px]">
-        <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
-      </div>
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12 relative overflow-y-auto">
+      <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
+      {pendingRole ? (
+        <div className="relative z-10 w-full max-w-[440px]">
+          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+        </div>
+      ) : (
+        <ChooseWorkspaceStep onContinue={handleRoleChosen} />
+      )}
     </div>
   );
 }
