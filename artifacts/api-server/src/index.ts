@@ -15,11 +15,15 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
+// Bind all interfaces by default: containers and preview environments reach the
+// process from outside the loopback device, where a 127.0.0.1 bind is unreachable.
+const host = process.env["HOST"]?.trim() || "0.0.0.0";
+
+app.listen(port, host, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
   }
 
-  logger.info({ port }, "Server listening");
+  logger.info({ host, port }, "Server listening");
 });

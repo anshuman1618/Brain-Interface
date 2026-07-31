@@ -10,6 +10,7 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import healthRouter from "./routes/health";
+import { mountStaticClient } from "./middlewares/staticClient";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -66,7 +67,14 @@ app.use(express.urlencoded({ extended: true }));
 // would fail the deploy with an error that points at the wrong subsystem.
 app.use("/api", healthRouter);
 
+// Scoped to /api, not mounted globally. This process also serves the SPA, and
+// clerkMiddleware answers an unauthenticated request lacking Clerk's dev-browser
+// cookie with a handshake redirect to the Clerk domain. Applied globally that
+// redirect hits the HTML document request, so loading the site bounced to Clerk
+// instead of rendering. The SPA must be served unauthenticated — it runs its own
+// Clerk client and decides what to show.
 app.use(
+  "/api",
   clerkMiddleware((req) => ({
     publishableKey: publishableKeyFromHost(
       getClerkProxyHost(req) ?? "",
@@ -76,5 +84,16 @@ app.use(
 );
 
 app.use("/api", router);
+
+// Unmatched API paths must answer in JSON. Without this they fall through to
+// Express's default HTML error page, which an API client parsing JSON cannot
+// read — and once the SPA is mounted below they would otherwise return
+// index.html with a 200, turning a typo'd endpoint into a silent success.
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// Mounted last so the SPA fallback can never shadow an /api route.
+mountStaticClient(app);
 
 export default app;

@@ -14,13 +14,34 @@ There are two supported topologies.
 
 ---
 
-## Topology A — same origin (Replit)
+## Topology A — same origin (one process serves both)
 
-The Replit deployment router serves the SPA and the API under one hostname, so
-`/api/...` requests stay relative and the browser sends the Clerk session cookie
-automatically.
+The API server serves the built SPA itself, so a single process answers both
+`/api/*` and the frontend. Requests stay relative and same-origin, the browser
+sends the Clerk session cookie automatically, and no CORS is involved.
 
-Leave `VITE_API_BASE_URL` **unset**. No CORS configuration is needed.
+Leave `VITE_API_BASE_URL` **unset** — that keeps the client on relative paths.
+
+```bash
+pnpm install
+# 1. Build the SPA (no VITE_API_BASE_URL => relative /api paths + cookie auth)
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_... pnpm --filter @workspace/practice-portal run build
+# 2. Build and start the API, which picks the SPA up automatically
+pnpm --filter @workspace/api-server run build
+pnpm --filter @workspace/api-server run start
+```
+
+The whole app is then on `http://0.0.0.0:5000` (override with `PORT`/`HOST`).
+
+By default the server looks for the SPA at
+`artifacts/practice-portal/dist/public`, resolved relative to its own bundle.
+Set `CLIENT_DIST_PATH` to point elsewhere — e.g. when the two artifacts are
+copied into different directories of a Docker image. If no build is found the
+process logs a warning and runs API-only, so this topology is opt-in by simply
+building the frontend or not.
+
+This is also how the Replit deployment runs, and it is the simplest way to
+self-host: one process, one origin, no CORS and no bearer-token bridge.
 
 ## Topology B — split hosting (Netlify frontend + separate API)
 
@@ -55,6 +76,8 @@ Required environment variables:
 | `CORS_ALLOWED_ORIGINS` | Comma-separated frontend origins, e.g. `https://your-site.netlify.app` |
 | `NODE_ENV` | `production` |
 | `PORT` | Usually injected by the host; defaults to `5000` |
+| `HOST` | Interface to bind; defaults to `0.0.0.0` |
+| `CLIENT_DIST_PATH` | Only for Topology A — override where the built SPA is read from |
 
 Apply the schema once the database is reachable:
 
