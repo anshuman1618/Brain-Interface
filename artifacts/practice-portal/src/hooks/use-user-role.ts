@@ -23,6 +23,7 @@ export function useUserRole() {
       isAdmin: false,
       isSenior: false,
       isJunior: false,
+      isAdvocate: false,
       isClerk: false,
       isClient: false,
       isStaff: false,
@@ -36,9 +37,13 @@ export function useUserRole() {
     role = "clerk_intern";
   }
 
-  const isAdmin = role === "admin" || role === "senior_advocate";
+  // Admin is a distinct master-access role — it is NOT the same as senior_advocate.
+  // Conflating them previously leaked Admin-only capabilities (KPI, Billing, Access
+  // Control) to the Advocate tier, contradicting the RBAC matrix.
+  const isAdmin = role === "admin";
   const isSenior = role === "senior_advocate";
   const isJunior = role === "junior_advocate";
+  const isAdvocate = isSenior || isJunior;
   const isClerk = role === "clerk_intern";
   const isClient = role === "client";
   const isStaff = !isClient;
@@ -55,6 +60,7 @@ export function useUserRole() {
     isAdmin,
     isSenior,
     isJunior,
+    isAdvocate,
     isClerk,
     isClient,
     isStaff,

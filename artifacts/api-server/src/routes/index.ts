@@ -1,5 +1,4 @@
 import { Router, type IRouter } from "express";
-import healthRouter from "./health";
 import usersRouter from "./users";
 import casesRouter from "./cases";
 import documentsRouter from "./documents";
@@ -13,7 +12,7 @@ import searchRouter from "./search";
 
 const router: IRouter = Router();
 
-router.use(healthRouter);
+// healthRouter is mounted directly on the app, ahead of auth — see app.ts.
 router.use(usersRouter);
 router.use(casesRouter);
 router.use(documentsRouter);
