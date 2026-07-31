@@ -15,9 +15,10 @@ import {
   GetCaseTimelineParams,
   GetCaseTimelineResponse,
 } from "@workspace/api-zod";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
+import { requireAuth, requireRole, type AuthRequest } from "../middlewares/requireAuth";
 import { getOrCreateUser } from "../lib/jit";
 import { addTimelineEvent } from "../lib/timeline";
+import { ADMIN_ROLE, isClientRole } from "../lib/roles";
 
 const router: IRouter = Router();
 
@@ -53,6 +54,8 @@ router.get("/cases", requireAuth, async (req: AuthRequest, res): Promise<void> =
 router.post("/cases", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const user = await getOrCreateUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  // Clients have read-only access to their assigned cases — case creation is staff-only.
+  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const parsed = CreateCaseBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -72,11 +75,16 @@ router.post("/cases", requireAuth, async (req: AuthRequest, res): Promise<void> 
 });
 
 router.get("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const params = GetCaseParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const [c] = await db.select().from(casesTable).where(eq(casesTable.id, params.data.id));
   if (!c) { res.status(404).json({ error: "Case not found" }); return; }
+  // Clients may only view their own assigned cases, not any case by ID.
+  if (isClientRole(user.role) && c.clientId !== user.id) { res.status(404).json({ error: "Case not found" }); return; }
 
   res.json(GetCaseResponse.parse(await enrichCase(c)));
 });
@@ -84,6 +92,8 @@ router.get("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<voi
 router.patch("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const user = await getOrCreateUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  // Clients have read-only access to cases.
+  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const pathParams = UpdateCaseParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
@@ -111,7 +121,8 @@ router.patch("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   res.json(UpdateCaseResponse.parse(await enrichCase(updated)));
 });
 
-router.delete("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+// Deleting a case is a destructive, firm-wide action — reserved for Admin's "master access".
+router.delete("/cases/:id", requireRole(ADMIN_ROLE), async (req: AuthRequest, res): Promise<void> => {
   const params = DeleteCaseParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
@@ -122,8 +133,16 @@ router.delete("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<
 });
 
 router.get("/cases/:id/timeline", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const params = GetCaseTimelineParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+
+  if (isClientRole(user.role)) {
+    const [c] = await db.select().from(casesTable).where(eq(casesTable.id, params.data.id));
+    if (!c || c.clientId !== user.id) { res.status(404).json({ error: "Case not found" }); return; }
+  }
 
   const events = await db.select().from(timelineEventsTable)
     .where(eq(timelineEventsTable.caseId, params.data.id))

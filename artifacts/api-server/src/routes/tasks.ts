@@ -23,6 +23,24 @@ import {
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { getOrCreateUser } from "../lib/jit";
 import { addTimelineEvent } from "../lib/timeline";
+import { isClientRole, isClerkInternRole } from "../lib/roles";
+
+// Whether `user` is allowed to view/act on `task` — clients only on tasks belonging to
+// their own cases, Clerk/Intern only on tasks assigned to them ("blocked: unassigned
+// cases"); Admin/Advocate can act on any task.
+async function canAccessTask(
+  user: NonNullable<Awaited<ReturnType<typeof getOrCreateUser>>>,
+  task: typeof tasksTable.$inferSelect,
+): Promise<boolean> {
+  if (isClientRole(user.role)) {
+    const [c] = await db.select().from(casesTable).where(eq(casesTable.id, task.caseId));
+    return !!c && c.clientId === user.id;
+  }
+  if (isClerkInternRole(user.role)) {
+    return task.assigneeId === user.clerkId;
+  }
+  return true;
+}
 
 const router: IRouter = Router();
 
@@ -62,11 +80,15 @@ router.get("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> =
   // Clients only see tasks on their own cases
   const user = await getOrCreateUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (user.role === "client") {
+  if (isClientRole(user.role)) {
     const ownCases = await db.select({ id: casesTable.id }).from(casesTable).where(eq(casesTable.clientId, user.id));
     const ids = ownCases.map(c => c.id);
     if (ids.length === 0) { res.json([]); return; }
     conditions.push(inArray(tasksTable.caseId, ids));
+  }
+  // Clerk/Intern are blocked from unassigned cases — only see tasks assigned to them.
+  if (isClerkInternRole(user.role)) {
+    conditions.push(eq(tasksTable.assigneeId, user.clerkId));
   }
 
   const tasks = conditions.length > 0
@@ -77,11 +99,23 @@ router.get("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> =
   res.json(ListTasksResponse.parse(enriched));
 });
 
-router.get("/tasks/overdue", requireAuth, async (_req, res): Promise<void> => {
+router.get("/tasks/overdue", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const today = new Date().toISOString().split("T")[0];
-  const tasks = await db.select().from(tasksTable).where(
-    and(lte(tasksTable.deadline, today), ne(tasksTable.status, "completed"))
-  );
+  const conditions: SQL[] = [lte(tasksTable.deadline, today), ne(tasksTable.status, "completed")];
+  if (isClientRole(user.role)) {
+    const ownCases = await db.select({ id: casesTable.id }).from(casesTable).where(eq(casesTable.clientId, user.id));
+    const ids = ownCases.map(c => c.id);
+    if (ids.length === 0) { res.json([]); return; }
+    conditions.push(inArray(tasksTable.caseId, ids));
+  }
+  if (isClerkInternRole(user.role)) {
+    conditions.push(eq(tasksTable.assigneeId, user.clerkId));
+  }
+
+  const tasks = await db.select().from(tasksTable).where(and(...conditions));
   const enriched = await Promise.all(tasks.map(enrichTask));
   res.json(ListOverdueTasksResponse.parse(enriched));
 });
@@ -89,6 +123,8 @@ router.get("/tasks/overdue", requireAuth, async (_req, res): Promise<void> => {
 router.post("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const user = await getOrCreateUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  // Task creation/assignment is a staff action, not a client capability.
+  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const parsed = CreateTaskBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -108,17 +144,26 @@ router.post("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> 
   res.status(201).json(CreateTaskResponse.parse(await enrichTask(task)));
 });
 
-router.get("/tasks/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const params = GetTaskParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id));
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
+  if (!(await canAccessTask(user, task))) { res.status(404).json({ error: "Task not found" }); return; }
 
   res.json(GetTaskResponse.parse(await enrichTask(task)));
 });
 
 router.patch("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  // Clients have read-only access to tasks.
+  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+
   const pathParams = UpdateTaskParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
 
@@ -127,6 +172,7 @@ router.patch("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<v
 
   const [existing] = await db.select().from(tasksTable).where(eq(tasksTable.id, pathParams.data.id));
   if (!existing) { res.status(404).json({ error: "Task not found" }); return; }
+  if (!(await canAccessTask(user, existing))) { res.status(404).json({ error: "Task not found" }); return; }
 
   const updateData: Partial<typeof tasksTable.$inferSelect> = {};
   if (body.data.title != null) updateData.title = body.data.title;
@@ -141,7 +187,13 @@ router.patch("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   res.json(UpdateTaskResponse.parse(await enrichTask(updated)));
 });
 
-router.delete("/tasks/:id", requireAuth, async (req, res): Promise<void> => {
+// Deletion is reserved for Admin/Advocate — Clerk/Intern work assigned tasks but don't
+// remove them, and Clients are read-only.
+router.delete("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isClientRole(user.role) || isClerkInternRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+
   const params = DeleteTaskParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
@@ -154,6 +206,8 @@ router.delete("/tasks/:id", requireAuth, async (req, res): Promise<void> => {
 router.post("/tasks/:id/complete", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const user = await getOrCreateUser(req);
   if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  // Clients don't complete tasks.
+  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
 
   const pathParams = CompleteTaskParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
@@ -163,6 +217,7 @@ router.post("/tasks/:id/complete", requireAuth, async (req: AuthRequest, res): P
 
   const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, pathParams.data.id));
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
+  if (!(await canAccessTask(user, task))) { res.status(404).json({ error: "Task not found" }); return; }
 
   const today = new Date().toISOString().split("T")[0];
   const isLate = task.deadline < today;
@@ -195,6 +250,10 @@ router.post("/tasks/:id/complete", requireAuth, async (req: AuthRequest, res): P
 });
 
 router.post("/tasks/:id/delay-log", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+
   const pathParams = CreateDelayLogParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
 

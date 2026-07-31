@@ -15,8 +15,14 @@ import {
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { getOrCreateUser } from "../lib/jit";
 import { addTimelineEvent } from "../lib/timeline";
+import { isClientRole } from "../lib/roles";
 
 const router: IRouter = Router();
+
+async function ownsCase(userId: number, caseId: number): Promise<boolean> {
+  const [c] = await db.select().from(casesTable).where(eq(casesTable.id, caseId));
+  return !!c && c.clientId === userId;
+}
 
 router.get("/consultations", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const params = ListConsultationsQueryParams.safeParse(req.query);
@@ -49,6 +55,12 @@ router.post("/consultations", requireAuth, async (req: AuthRequest, res): Promis
   const parsed = CreateConsultationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  // Clients may request a consultation, but only on their own case.
+  if (isClientRole(user.role) && !(await ownsCase(user.id, parsed.data.caseId))) {
+    res.status(404).json({ error: "Case not found" });
+    return;
+  }
+
   const [consultation] = await db.insert(consultationsTable).values({
     caseId: parsed.data.caseId,
     title: parsed.data.title,
@@ -64,17 +76,30 @@ router.post("/consultations", requireAuth, async (req: AuthRequest, res): Promis
   res.status(201).json(CreateConsultationResponse.parse(consultation));
 });
 
-router.get("/consultations/:id", requireAuth, async (req, res): Promise<void> => {
+router.get("/consultations/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+
   const params = GetConsultationParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
   const [c] = await db.select().from(consultationsTable).where(eq(consultationsTable.id, params.data.id));
   if (!c) { res.status(404).json({ error: "Consultation not found" }); return; }
+  if (isClientRole(user.role) && !(await ownsCase(user.id, c.caseId))) {
+    res.status(404).json({ error: "Consultation not found" });
+    return;
+  }
 
   res.json(GetConsultationResponse.parse(c));
 });
 
-router.patch("/consultations/:id", requireAuth, async (req, res): Promise<void> => {
+// Recording control (start/stop, consent, transcript) is conducted by staff during the
+// live meeting — not something clients toggle remotely.
+router.patch("/consultations/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+
   const pathParams = UpdateConsultationParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
 

@@ -54,8 +54,8 @@ function DashboardLayoutContent() {
     { href: "/cases", label: "Cases", icon: Briefcase, show: isAdmin || isSenior || isJunior },
     { href: "/tasks", label: "Tasks", icon: CheckSquare, show: isStaff },
     { href: "/consultations", label: "Consultations", icon: PhoneCall, show: isAdmin || isSenior || isJunior },
-    { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: isAdmin || isSenior },
-    { href: "/invites", label: "Access Control", icon: Users, show: isAdmin || isSenior },
+    { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: isAdmin },
+    { href: "/invites", label: "Access Control", icon: Users, show: isAdmin },
     { href: "/team", label: "Team Roles", icon: ShieldCheck, show: role === "admin" },
   ].filter(item => item.show);
 

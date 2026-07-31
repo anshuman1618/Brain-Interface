@@ -7,11 +7,14 @@ import {
   GetSlaReportResponse,
   GetDashboardSummaryResponse,
 } from "@workspace/api-zod";
-import { requireAuth } from "../middlewares/requireAuth";
+import { requireRole } from "../middlewares/requireAuth";
+import { ADMIN_ROLE, STAFF_ROLES } from "../lib/roles";
 
 const router: IRouter = Router();
 
-router.get("/kpi/dashboard", requireAuth, async (_req, res): Promise<void> => {
+// KPI engine is Admin-only per the RBAC matrix — Advocate is explicitly blocked from it,
+// and Clerk/Intern and Client are never granted it.
+router.get("/kpi/dashboard", requireRole(ADMIN_ROLE), async (_req, res): Promise<void> => {
   const allCases = await db.select().from(casesTable);
   const allTasks = await db.select().from(tasksTable);
 
@@ -58,7 +61,7 @@ router.get("/kpi/dashboard", requireAuth, async (_req, res): Promise<void> => {
   }));
 });
 
-router.get("/kpi/sla-report", requireAuth, async (req, res): Promise<void> => {
+router.get("/kpi/sla-report", requireRole(ADMIN_ROLE), async (req, res): Promise<void> => {
   const params = GetSlaReportQueryParams.safeParse(req.query);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
@@ -106,7 +109,9 @@ router.get("/kpi/sla-report", requireAuth, async (req, res): Promise<void> => {
   res.json(GetSlaReportResponse.parse(report));
 });
 
-router.get("/dashboard/summary", requireAuth, async (_req, res): Promise<void> => {
+// General ops dashboard (not the KPI engine) — staff-only; clients get their own
+// client-portal view instead of firm-wide case/task counts.
+router.get("/dashboard/summary", requireRole(...STAFF_ROLES), async (_req, res): Promise<void> => {
   const today = new Date().toISOString().split("T")[0];
   const allCases = await db.select().from(casesTable);
   const allTasks = await db.select().from(tasksTable);
