@@ -1,0 +1,23 @@
+# Netlify builds the static frontend only (artifacts/practice-portal).
+#
+# artifacts/api-server is a long-lived Express process backed by Postgres and
+# cannot run on Netlify — deploy it to a Node host (Render, Railway, Fly, ...)
+# and point the frontend at it with VITE_API_BASE_URL. See DEPLOYMENT.md.
+
+[build]
+  base = "."
+  command = "pnpm install --frozen-lockfile && pnpm --filter @workspace/practice-portal run build"
+  publish = "artifacts/practice-portal/dist/public"
+
+[build.environment]
+  # vite.config.ts uses import.meta.dirname, which needs Node >= 20.11.
+  NODE_VERSION = "22"
+  # The workspace uses pnpm's catalog: protocol, which needs pnpm >= 9.
+  PNPM_VERSION = "10"
+
+# Client-side routing (wouter): serve index.html for non-asset paths so deep
+# links like /dashboard or /cases/12 don't 404 on reload.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

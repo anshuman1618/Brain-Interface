@@ -11,6 +11,9 @@ import LandingPage from "@/pages/landing";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { RoleOptionsGrid } from "@/components/auth/role-options-grid";
 import { getPendingRoleSelection, setPendingRoleSelection, type RoleValue } from "@/lib/role-options";
+import { useApiAuthBridge } from "@/hooks/use-api-auth-bridge";
+// Registers the API base URL (no-op when frontend and API share an origin).
+import "@/lib/api-config";
 
 const clerkPubKey = publishableKeyFromHost(
   window.location.hostname,
@@ -165,6 +168,9 @@ function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
   const queryClient = useQueryClient();
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
+
+  // Attach Clerk bearer tokens to API calls when the API is cross-origin.
+  useApiAuthBridge();
 
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
