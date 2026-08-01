@@ -1,30 +1,26 @@
 import { useEffect, useRef } from "react";
-import { useAuth } from "@clerk/react";
 import { setAuthTokenGetter } from "@workspace/api-client-react";
 import { isCrossOriginApi } from "@/lib/api-config";
+import { isPreviewMode } from "@/lib/preview";
 
 /**
- * Bridges Clerk auth into the generated API client for cross-origin deployments.
+ * Attaches Clerk's session JWT to API calls when the API is cross-origin, where
+ * `fetch` defaults to `credentials: "same-origin"` and the session cookie is
+ * therefore never sent. `clerkMiddleware` accepts either transport.
  *
- * Same-origin (Replit): the browser sends the Clerk session cookie with every
- * `/api/...` request, so nothing is registered here and cookie auth is used.
+ * Same-origin Clerk deployments register nothing — the browser sends the cookie.
+ * Preview mode registers its token in lib/api-config at module load instead, so
+ * it is in place before the first query fires.
  *
- * Cross-origin (static frontend + separately hosted API): `fetch` defaults to
- * `credentials: "same-origin"`, so the session cookie is never sent and every
- * request would 401. Clerk's short-lived session JWT is attached as an
- * `Authorization: Bearer` header instead — `clerkMiddleware` on the API server
- * accepts either transport.
+ * Takes `getToken` as an argument rather than calling the Clerk hook itself, so
+ * this module never imports Clerk and stays loadable in preview mode.
  */
-export function useApiAuthBridge(): void {
-  const { getToken } = useAuth();
-
-  // Keep the latest getToken in a ref so the registered getter never closes
-  // over a stale Clerk session after sign-in/sign-out.
+export function useClerkApiAuthBridge(getToken: () => Promise<string | null>): void {
   const getTokenRef = useRef(getToken);
   getTokenRef.current = getToken;
 
   useEffect(() => {
-    if (!isCrossOriginApi) return;
+    if (isPreviewMode || !isCrossOriginApi) return;
 
     setAuthTokenGetter(async () => {
       try {

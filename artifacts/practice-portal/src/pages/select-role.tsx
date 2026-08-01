@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSelectRole, getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@clerk/react";
+import { useSession } from "@/lib/session";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -14,7 +14,7 @@ export default function SelectRolePage({ autoApplyRole }: { autoApplyRole?: Role
   const selectRole = useSelectRole();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { signOut } = useAuth();
+  const { signOut } = useSession();
   const hasAutoSubmitted = useRef(false);
 
   const submitRole = (role: RoleValue) => {

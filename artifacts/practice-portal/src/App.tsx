@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth as useClerkAuth } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
@@ -11,14 +11,19 @@ import LandingPage from "@/pages/landing";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { RoleOptionsGrid } from "@/components/auth/role-options-grid";
 import { getPendingRoleSelection, setPendingRoleSelection, type RoleValue } from "@/lib/role-options";
-import { useApiAuthBridge } from "@/hooks/use-api-auth-bridge";
+import { useClerkApiAuthBridge } from "@/hooks/use-api-auth-bridge";
+import { isPreviewMode } from "@/lib/preview";
+import { ClerkSessionProvider, PreviewSessionProvider, useSession } from "@/lib/session";
+import { PreviewLanding } from "@/pages/preview-landing";
 // Registers the API base URL (no-op when frontend and API share an origin).
 import "@/lib/api-config";
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
+const clerkPubKey = isPreviewMode
+  ? ""
+  : publishableKeyFromHost(
+      window.location.hostname,
+      import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+    );
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -28,7 +33,9 @@ function stripBase(path: string): string {
     : path;
 }
 
-if (!clerkPubKey) {
+// In preview mode there is intentionally no Clerk key — the app renders with a
+// mocked session instead of failing to boot.
+if (!clerkPubKey && !isPreviewMode) {
   throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
 }
 
@@ -166,11 +173,12 @@ function HomeRedirect() {
 
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
+  const { getToken } = useClerkAuth();
   const queryClient = useQueryClient();
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
 
   // Attach Clerk bearer tokens to API calls when the API is cross-origin.
-  useApiAuthBridge();
+  useClerkApiAuthBridge(getToken);
 
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
@@ -188,7 +196,42 @@ function ClerkQueryClientCacheInvalidator() {
 
 const queryClient = new QueryClient();
 
-function App() {
+/**
+ * Preview tree. Renders no ClerkProvider at all — Clerk hooks throw outside one,
+ * so the mocked session has to replace it rather than sit alongside it. An
+ * unauthenticated visitor picks a role first and explores from there.
+ */
+function PreviewRoutes() {
+  const { isSignedIn } = useSession();
+
+  if (!isSignedIn) return <PreviewLanding />;
+
+  return (
+    <Switch>
+      {/* "/:rest*" does not match the bare root, so send it to the dashboard
+          explicitly — otherwise entering the portal renders an empty page. */}
+      <Route path="/"><Redirect to="/dashboard" /></Route>
+      <Route path="/:rest*" component={DashboardLayout} />
+    </Switch>
+  );
+}
+
+function PreviewApp() {
+  return (
+    <WouterRouter base={basePath}>
+      <QueryClientProvider client={queryClient}>
+        <PreviewSessionProvider>
+          <TooltipProvider>
+            <PreviewRoutes />
+            <Toaster />
+          </TooltipProvider>
+        </PreviewSessionProvider>
+      </QueryClientProvider>
+    </WouterRouter>
+  );
+}
+
+function ClerkApp() {
   const [, setLocation] = useLocation();
 
   return (
@@ -203,20 +246,26 @@ function App() {
         routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
       >
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <ClerkQueryClientCacheInvalidator />
-            <Switch>
-              <Route path="/" component={HomeRedirect} />
-              <Route path="/sign-in/*?" component={SignInPage} />
-              <Route path="/sign-up/*?" component={SignUpPage} />
-              <Route path="/:rest*" component={DashboardLayout} />
-            </Switch>
-            <Toaster />
-          </TooltipProvider>
+          <ClerkSessionProvider>
+            <TooltipProvider>
+              <ClerkQueryClientCacheInvalidator />
+              <Switch>
+                <Route path="/" component={HomeRedirect} />
+                <Route path="/sign-in/*?" component={SignInPage} />
+                <Route path="/sign-up/*?" component={SignUpPage} />
+                <Route path="/:rest*" component={DashboardLayout} />
+              </Switch>
+              <Toaster />
+            </TooltipProvider>
+          </ClerkSessionProvider>
         </QueryClientProvider>
       </ClerkProvider>
     </WouterRouter>
   );
+}
+
+function App() {
+  return isPreviewMode ? <PreviewApp /> : <ClerkApp />;
 }
 
 export default App;

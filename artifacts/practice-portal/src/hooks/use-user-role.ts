@@ -1,16 +1,20 @@
-import { useUser } from "@clerk/react";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useSession } from "@/lib/session";
 
 // Role is sourced from the DB via /users/me (not Clerk's publicMetadata) so
 // that an admin changing a user's role takes effect immediately, without
-// waiting on a Clerk session token refresh.
+// waiting on a Clerk session token refresh. Reading identity through useSession
+// keeps this working in preview mode, where there is no Clerk session at all.
 export function useUserRole() {
-  const { user, isLoaded: clerkLoaded, isSignedIn } = useUser();
+  const { isLoaded: sessionLoaded, isSignedIn, displayName, previewRole } = useSession();
   const { data: profile, isLoading: profileLoading } = useGetMe({
-    query: { queryKey: getGetMeQueryKey(), enabled: !!isSignedIn },
+    query: { queryKey: [...getGetMeQueryKey(), previewRole ?? "clerk"], enabled: !!isSignedIn },
   });
 
-  const isLoaded = clerkLoaded && (!isSignedIn || !profileLoading);
+  // Identity for assignee matching comes from the DB profile (clerkId), not the
+  // auth provider, so it resolves identically under Clerk and preview mode.
+  const user = { id: profile?.clerkId, displayName };
+  const isLoaded = sessionLoaded && (!isSignedIn || !profileLoading);
 
   if (!isLoaded || !isSignedIn || !profile) {
     return {

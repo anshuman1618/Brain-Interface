@@ -10,7 +10,9 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import healthRouter from "./routes/health";
+import previewRouter from "./routes/preview";
 import { mountStaticClient } from "./middlewares/staticClient";
+import { isPreviewAuth } from "./lib/preview-mode";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -66,6 +68,7 @@ app.use(express.urlencoded({ extended: true }));
 // hosts that gate a release on the health check (Render, Railway, Fly, ECS)
 // would fail the deploy with an error that points at the wrong subsystem.
 app.use("/api", healthRouter);
+app.use("/api", previewRouter);
 
 // Scoped to /api, not mounted globally. This process also serves the SPA, and
 // clerkMiddleware answers an unauthenticated request lacking Clerk's dev-browser
@@ -73,15 +76,25 @@ app.use("/api", healthRouter);
 // redirect hits the HTML document request, so loading the site bounced to Clerk
 // instead of rendering. The SPA must be served unauthenticated — it runs its own
 // Clerk client and decides what to show.
-app.use(
-  "/api",
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
-);
+//
+// Skipped entirely in preview mode: with no CLERK_SECRET_KEY the middleware
+// throws on every request, so identity comes from the preview bearer token
+// instead (see lib/preview-mode.ts, which cannot engage in production).
+if (isPreviewAuth()) {
+  logger.warn(
+    "PREVIEW MODE — authentication is mocked and every caller may choose their own role. Never expose this to real client data.",
+  );
+} else {
+  app.use(
+    "/api",
+    clerkMiddleware((req) => ({
+      publishableKey: publishableKeyFromHost(
+        getClerkProxyHost(req) ?? "",
+        process.env.CLERK_PUBLISHABLE_KEY,
+      ),
+    })),
+  );
+}
 
 app.use("/api", router);
 
@@ -95,5 +108,26 @@ app.use("/api", (_req, res) => {
 
 // Mounted last so the SPA fallback can never shadow an /api route.
 mountStaticClient(app);
+
+// Terminal error handler. Without it an unhandled throw reaches Express's
+// default handler, which answers with an HTML page (and a stack trace outside
+// production) — unparseable by the API client and a leak besides. Four
+// parameters are required for Express to treat this as an error handler.
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+
+  req.log?.error({ err }, "Unhandled error");
+
+  const isApi = req.path === "/api" || req.path.startsWith("/api/");
+  if (isApi) {
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  res.status(500).type("text/plain").send("Internal server error");
+});
 
 export default app;

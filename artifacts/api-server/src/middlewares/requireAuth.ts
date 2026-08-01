@@ -1,15 +1,15 @@
-import { getAuth } from "@clerk/express";
 import type { Request, Response, NextFunction } from "express";
-import { getOrCreateUser } from "../lib/jit";
+import { getOrCreateUser, resolveClerkId } from "../lib/jit";
 
 export interface AuthRequest extends Request {
   userId?: string;
   userRole?: string;
 }
 
+// Identity comes from resolveClerkId so this works under both Clerk and the
+// preview bearer token; it never reads getAuth directly.
 export const requireAuth = (req: AuthRequest, res: Response, next: NextFunction): void => {
-  const auth = getAuth(req);
-  const userId = auth?.userId;
+  const userId = resolveClerkId(req);
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;

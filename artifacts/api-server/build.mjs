@@ -29,6 +29,10 @@ async function buildAll() {
     // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
     external: [
       "*.node",
+      // Ships WASM and is a dev-only dependency used solely by preview mode,
+      // which dynamic-imports it. Bundling would pull the WASM payload into
+      // every production build and break at load time.
+      "@electric-sql/pglite",
       "sharp",
       "better-sqlite3",
       "sqlite3",

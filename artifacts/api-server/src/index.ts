@@ -1,6 +1,17 @@
 import app from "./app";
+import { initDatabase, isPreviewDatabase } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminder-scheduler";
+
+// The db client is a lazy proxy, so the connection must be established before
+// anything can query it — including the reminder scheduler below.
+await initDatabase();
+
+if (isPreviewDatabase()) {
+  logger.warn(
+    "PREVIEW MODE — using an in-memory database seeded with sample matters. All data is discarded when this process exits.",
+  );
+}
 
 startReminderScheduler();
 

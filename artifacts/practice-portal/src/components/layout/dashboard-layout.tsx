@@ -1,6 +1,7 @@
 import * as React from "react"
-import { useAuth, useUser } from "@clerk/react"
 import { Link, Route, Switch, useLocation } from "wouter"
+import { useSession } from "@/lib/session"
+import { PreviewBar } from "@/components/preview-bar"
 import { useUserRole } from "@/hooks/use-user-role"
 import DashboardPage from "@/pages/dashboard"
 import CasesPage from "@/pages/cases"
@@ -21,9 +22,8 @@ import { NotificationBell } from "@/components/notification-bell"
 import { GlobalSearch } from "@/components/global-search"
 
 function DashboardLayoutContent() {
-  const { isLoaded, isSignedIn, user } = useUser();
+  const { isLoaded, isSignedIn, displayName, initial, signOut, previewMode } = useSession();
   const { role, roleSelected, isLoaded: roleLoaded, isAdmin, isSenior, isJunior, isClerk, isClient, isStaff } = useUserRole();
-  const { signOut } = useAuth();
   const [location] = useLocation();
   const { setOpen: setPricingModalOpen } = usePricingModal();
 
@@ -43,7 +43,9 @@ function DashboardLayoutContent() {
   // Brand-new sign-ups pick their workspace role once, before seeing any nav or data.
   // Visitors who chose a role before signing up (see sign-up page) have it applied
   // automatically here; anyone else (e.g. pre-existing accounts) sees the picker.
-  if (!roleSelected) {
+  // Preview identities are seeded with a role already, so the picker is skipped —
+  // the role switcher in the preview bar takes its place.
+  if (!roleSelected && !previewMode) {
     return <SelectRolePage autoApplyRole={getPendingRoleSelection() ?? undefined} />;
   }
 
@@ -60,6 +62,8 @@ function DashboardLayoutContent() {
   ].filter(item => item.show);
 
   return (
+    <div className="min-h-screen bg-background text-foreground">
+    <PreviewBar />
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Sidebar */}
       <aside className="w-64 border-r border-border bg-sidebar flex-shrink-0 flex flex-col relative z-20">
@@ -111,10 +115,10 @@ function DashboardLayoutContent() {
           )}
           <div className="flex items-center gap-3 px-3 py-3 border border-border bg-background shadow-sm">
             <div className="h-8 w-8 bg-muted flex items-center justify-center text-xs font-medium uppercase shrink-0">
-              {user?.firstName?.charAt(0) || user?.emailAddresses[0]?.emailAddress?.charAt(0)}
+              {initial}
             </div>
             <div className="flex flex-col flex-1 overflow-hidden">
-              <span className="text-sm font-semibold truncate">{user?.fullName || user?.emailAddresses[0]?.emailAddress}</span>
+              <span className="text-sm font-semibold truncate">{displayName}</span>
               <span className="text-xs text-muted-foreground truncate font-mono uppercase">{role}</span>
             </div>
             <button 
@@ -162,6 +166,7 @@ function DashboardLayoutContent() {
           </div>
         </div>
       </main>
+    </div>
     </div>
   );
 }

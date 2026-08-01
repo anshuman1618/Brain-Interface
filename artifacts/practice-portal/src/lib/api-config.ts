@@ -1,4 +1,5 @@
-import { setBaseUrl } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+import { getPreviewRole, isPreviewMode, previewToken } from "@/lib/preview";
 
 /**
  * Absolute origin of the API server, e.g. `https://api.example.com`.
@@ -19,4 +20,15 @@ export const isCrossOriginApi = apiBaseUrl !== "";
 
 if (isCrossOriginApi) {
   setBaseUrl(apiBaseUrl);
+}
+
+// Registered at module load, not from a React effect: queries fire while the
+// tree is still mounting, so an effect-based registration lets the first request
+// go out unauthenticated and 401. The role is read from storage on each call, so
+// switching role in the preview bar takes effect without re-registering.
+if (isPreviewMode) {
+  setAuthTokenGetter(() => {
+    const role = getPreviewRole();
+    return role ? previewToken(role) : null;
+  });
 }

@@ -16,6 +16,7 @@ import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { getOrCreateUser } from "../lib/jit";
 import { addTimelineEvent } from "../lib/timeline";
 import { isClientRole } from "../lib/roles";
+import { transcribeConsultation } from "../lib/stt";
 
 const router: IRouter = Router();
 
@@ -115,6 +116,22 @@ router.patch("/consultations/:id", requireAuth, async (req: AuthRequest, res): P
   if (body.data.audioUrl != null) updateData.audioUrl = body.data.audioUrl;
   if (body.data.transcriptPlaceholder != null) updateData.transcriptPlaceholder = body.data.transcriptPlaceholder;
   if (body.data.status != null) updateData.status = body.data.status;
+
+  // Recording just stopped: produce the transcript server-side so the client
+  // never invents an audio URL or transcript of its own. Explicit values in the
+  // request still win, which keeps manual correction possible.
+  const stoppedRecording = existing.status === "recording" && body.data.status === "completed";
+  if (stoppedRecording && body.data.transcriptPlaceholder == null) {
+    const result = await transcribeConsultation({
+      consultationId: existing.id,
+      title: existing.title,
+      category: existing.category ?? "legal_solution",
+    });
+    updateData.transcriptPlaceholder = result.transcript;
+    if (body.data.audioUrl == null && result.audioUrl) {
+      updateData.audioUrl = result.audioUrl;
+    }
+  }
   if (body.data.category != null) updateData.category = body.data.category;
   if (body.data.scheduledAt != null) updateData.scheduledAt = new Date(body.data.scheduledAt);
 
