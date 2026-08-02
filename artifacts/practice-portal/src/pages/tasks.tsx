@@ -10,9 +10,11 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, Clock, CheckSquare, Search } from "lucide-react";
+import { AlertCircle, Clock, CheckSquare, Search, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { TaskFormModal } from "@/components/task-form-modal";
+import { useSession } from "@/lib/session";
 
 export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState("all");
@@ -21,6 +23,11 @@ export default function TasksPage() {
   const { toast } = useToast();
   const { data: tasks, isLoading } = useListTasks();
   const completeTask = useCompleteTask();
+  // Rendered from the server-issued capability list — Admin and both Advocate
+  // tiers hold tasks.write; Clerk/Intern completes work but does not assign it.
+  const { can } = useSession();
+  const canAssign = can("tasks.write");
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
 
   const [isCompleteOpen, setIsCompleteOpen] = useState(false);
   const [completingTask, setCompletingTask] = useState<Task | null>(null);
@@ -60,9 +67,16 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight mb-1">Task Pipeline</h2>
-        <p className="text-muted-foreground">Manage and track action items across all cases.</p>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight mb-1">Task Pipeline</h2>
+          <p className="text-muted-foreground">Manage and track action items across all cases.</p>
+        </div>
+        {canAssign && (
+          <Button className="rounded-none shrink-0" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> New Task
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -115,7 +129,16 @@ export default function TasksPage() {
             ) : filteredTasks?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  No tasks found in pipeline.
+                  <p>No tasks found in pipeline.</p>
+                  {canAssign && (
+                    <Button
+                      variant="outline"
+                      className="rounded-none mt-4"
+                      onClick={() => setIsCreateOpen(true)}
+                    >
+                      <Plus className="mr-2 h-4 w-4" /> Assign the first task
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ) : (
@@ -170,6 +193,8 @@ export default function TasksPage() {
           </TableBody>
         </Table>
       </div>
+
+      <TaskFormModal open={isCreateOpen} onOpenChange={setIsCreateOpen} />
 
       <Dialog open={isCompleteOpen} onOpenChange={setIsCompleteOpen}>
         <DialogContent>

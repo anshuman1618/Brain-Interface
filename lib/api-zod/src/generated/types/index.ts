@@ -6,6 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './accessDecisionInput';
+export * from './accessDecisionInputDecision';
+export * from './accessDecisionInputRole';
+export * from './accessRequest';
+export * from './accessRequestInput';
+export * from './accessRequestInputRequestedRole';
+export * from './accessRequestStatus';
 export * from './case';
 export * from './caseInput';
 export * from './caseInputPriority';
@@ -53,12 +60,15 @@ export * from './listTasksStatus';
 export * from './listUsersParams';
 export * from './listUsersRole';
 export * from './markAllReadResult';
+export * from './membershipUpdateInput';
+export * from './membershipUpdateInputRole';
+export * from './membershipUpdateInputStatus';
 export * from './notification';
 export * from './notificationType';
-export * from './roleSelectionInput';
-export * from './roleSelectionInputRole';
 export * from './searchResultItem';
 export * from './searchResults';
+export * from './sessionClaims';
+export * from './sessionClaimsAccessStatus';
 export * from './slaReportEntry';
 export * from './task';
 export * from './taskCompletion';
@@ -77,3 +87,9 @@ export * from './userProfileRole';
 export * from './userProfileUpdate';
 export * from './userRoleUpdateInput';
 export * from './userRoleUpdateInputRole';
+export * from './workspace';
+export * from './workspaceKind';
+export * from './workspaceMembershipSummary';
+export * from './workspaceMembershipSummaryRole';
+export * from './workspaceMembershipSummaryStatus';
+export * from './workspaceSwitchInput';

@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { eq } from "drizzle-orm";
 import { db, invitesTable } from "@workspace/db";
 import { randomBytes } from "crypto";
 import {
@@ -6,19 +7,22 @@ import {
   CreateInviteBody,
   CreateInviteResponse,
 } from "@workspace/api-zod";
-import { requireRole } from "../middlewares/requireAuth";
-import { ADMIN_ROLE } from "../lib/roles";
+import { requireWorkspace, requireCapability, ctx, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
 
-// Access Control (inviting/assigning workspace roles) is Admin-only per the RBAC matrix —
-// Advocate, Clerk/Intern, and Client are all explicitly blocked.
-router.get("/invites", requireRole(ADMIN_ROLE), async (_req, res): Promise<void> => {
-  const invites = await db.select().from(invitesTable);
+// Access Control is admin-of-this-workspace only, and every invite belongs to
+// the workspace it was issued from — an admin cannot mint access to a chamber
+// they are not an admin of.
+router.get("/invites", requireWorkspace, requireCapability("access_control.manage"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
+  const invites = await db.select().from(invitesTable).where(eq(invitesTable.workspaceId, c.workspaceId));
   res.json(ListInvitesResponse.parse(invites));
 });
 
-router.post("/invites", requireRole(ADMIN_ROLE), async (req, res): Promise<void> => {
+router.post("/invites", requireWorkspace, requireCapability("access_control.manage"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
+
   const parsed = CreateInviteBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -26,6 +30,7 @@ router.post("/invites", requireRole(ADMIN_ROLE), async (req, res): Promise<void>
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
   const [invite] = await db.insert(invitesTable).values({
+    workspaceId: c.workspaceId,
     email: parsed.data.email,
     token,
     role: parsed.data.role,

@@ -50,19 +50,223 @@ export const UpdateMeResponse = zod.object({
 
 
 /**
- * @summary Self-service one-time role selection at sign-up
+ * The authoritative description of who the caller is, which workspaces they are an active member of, and what they may do in the active one. The frontend renders exclusively from this payload; it is the only source of UI visibility. Never derived from client state.
+ * @summary Verified session claims
  */
-export const SelectRoleBody = zod.object({
-  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('Self-selected role, one-time only. Use PATCH \/users\/{id}\/role afterward to change it.')
-})
-
-export const SelectRoleResponse = zod.object({
-  "id": zod.number(),
+export const GetSessionResponse = zod.object({
+  "userId": zod.number(),
   "clerkId": zod.string(),
-  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'clerk', 'client']),
-  "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
+  "accessStatus": zod.enum(['pending_approval', 'active']).describe('pending_approval means the user holds no ACTIVE membership anywhere. They can reach no workspace data at all until an admin grants one.\n'),
+  "memberships": zod.array(zod.object({
+  "workspace": zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['chamber', 'client_portal'])
+}),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
+  "status": zod.enum(['pending', 'active', 'revoked']),
+  "requestedRole": zod.string().nullish()
+})),
+  "activeWorkspace": zod.union([zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['chamber', 'client_portal'])
+}),zod.null()]).optional(),
+  "role": zod.string().nullish().describe('Role in the active workspace, resolved from the membership row.'),
+  "displayRole": zod.string().nullish(),
+  "capabilities": zod.array(zod.string()).describe('Server-resolved capability list. The UI renders from this and nothing else.'),
+  "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.')
+})
+
+
+/**
+ * Verifies the caller holds an ACTIVE membership of the requested workspace and, only then, mints a scoped workspace token. A workspace the caller is not mapped to answers 403 — there is no client-side way to select one.
+ * @summary Switch the active workspace
+ */
+export const SwitchWorkspaceBody = zod.object({
+  "workspaceId": zod.number()
+})
+
+export const SwitchWorkspaceResponse = zod.object({
+  "userId": zod.number(),
+  "clerkId": zod.string(),
+  "displayName": zod.string(),
+  "email": zod.string(),
+  "accessStatus": zod.enum(['pending_approval', 'active']).describe('pending_approval means the user holds no ACTIVE membership anywhere. They can reach no workspace data at all until an admin grants one.\n'),
+  "memberships": zod.array(zod.object({
+  "workspace": zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['chamber', 'client_portal'])
+}),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
+  "status": zod.enum(['pending', 'active', 'revoked']),
+  "requestedRole": zod.string().nullish()
+})),
+  "activeWorkspace": zod.union([zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['chamber', 'client_portal'])
+}),zod.null()]).optional(),
+  "role": zod.string().nullish().describe('Role in the active workspace, resolved from the membership row.'),
+  "displayRole": zod.string().nullish(),
+  "capabilities": zod.array(zod.string()).describe('Server-resolved capability list. The UI renders from this and nothing else.'),
+  "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.')
+})
+
+
+/**
+ * Returns only workspaces backed by a membership row for this user. Pending rows are included but flagged, so the switcher can show "awaiting approval" without ever offering them as selectable.
+ * @summary Workspaces the caller is explicitly mapped to
+ */
+export const ListWorkspacesResponseItem = zod.object({
+  "workspace": zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['chamber', 'client_portal'])
+}),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
+  "status": zod.enum(['pending', 'active', 'revoked']),
+  "requestedRole": zod.string().nullish()
+})
+export const ListWorkspacesResponse = zod.array(ListWorkspacesResponseItem)
+
+
+/**
+ * @summary Pending access requests for the active workspace (admin only)
+ */
+export const ListAccessRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "workspaceName": zod.string().nullish(),
+  "userId": zod.number(),
+  "clerkId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.string(),
+  "requestedRole": zod.string().nullish(),
+  "requestNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'revoked']),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAccessRequestsResponse = zod.array(ListAccessRequestsResponseItem)
+
+
+/**
+ * Records intent only. The requested role is stored as `requestedRole` and grants nothing; the membership is created with status `pending`. Approval is an explicit admin action.
+ * @summary Request access to a workspace
+ */
+export const CreateAccessRequestBody = zod.object({
+  "workspaceSlug": zod.string().describe('The workspace being applied to.'),
+  "requestedRole": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).optional().describe('Intent only. Never granted automatically.'),
+  "note": zod.string().optional()
+})
+
+export const CreateAccessRequestResponse = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "workspaceName": zod.string().nullish(),
+  "userId": zod.number(),
+  "clerkId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.string(),
+  "requestedRole": zod.string().nullish(),
+  "requestNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'revoked']),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Approve or deny an access request (admin only)
+ */
+export const DecideAccessRequestParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DecideAccessRequestBody = zod.object({
+  "decision": zod.enum(['approve', 'deny']),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).optional().describe('The role the admin grants. Required on approve. Deliberately separate from requestedRole — an applicant asking for admin does not get it.\n')
+})
+
+export const DecideAccessRequestResponse = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "workspaceName": zod.string().nullish(),
+  "userId": zod.number(),
+  "clerkId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.string(),
+  "requestedRole": zod.string().nullish(),
+  "requestNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'revoked']),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Active members of the current workspace (admin only)
+ */
+export const ListWorkspaceMembersResponseItem = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "workspaceName": zod.string().nullish(),
+  "userId": zod.number(),
+  "clerkId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.string(),
+  "requestedRole": zod.string().nullish(),
+  "requestNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'revoked']),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListWorkspaceMembersResponse = zod.array(ListWorkspaceMembersResponseItem)
+
+
+/**
+ * @summary Change a member's role or revoke them (admin only)
+ */
+export const UpdateWorkspaceMemberParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateWorkspaceMemberBody = zod.object({
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).optional(),
+  "status": zod.enum(['active', 'revoked']).optional()
+})
+
+export const UpdateWorkspaceMemberResponse = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "workspaceName": zod.string().nullish(),
+  "userId": zod.number(),
+  "clerkId": zod.string(),
+  "displayName": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "role": zod.string(),
+  "requestedRole": zod.string().nullish(),
+  "requestNote": zod.string().nullish(),
+  "status": zod.enum(['pending', 'active', 'revoked']),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -87,28 +291,6 @@ export const ListUsersResponse = zod.array(ListUsersResponseItem)
 
 
 /**
- * @summary Change another user's role (admin only)
- */
-export const UpdateUserRoleParams = zod.object({
-  "id": zod.coerce.number()
-})
-
-export const UpdateUserRoleBody = zod.object({
-  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client'])
-})
-
-export const UpdateUserRoleResponse = zod.object({
-  "id": zod.number(),
-  "clerkId": zod.string(),
-  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'clerk', 'client']),
-  "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
-  "displayName": zod.string(),
-  "email": zod.string(),
-  "createdAt": zod.coerce.date()
-})
-
-
-/**
  * @summary List cases (filtered by role)
  */
 export const ListCasesQueryParams = zod.object({
@@ -118,6 +300,7 @@ export const ListCasesQueryParams = zod.object({
 
 export const ListCasesResponseItem = zod.object({
   "id": zod.number(),
+  "workspaceId": zod.number().describe('Tenant the matter belongs to. Always the caller\'s active workspace.'),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
@@ -149,6 +332,7 @@ export const CreateCaseBody = zod.object({
 
 export const CreateCaseResponse = zod.object({
   "id": zod.number(),
+  "workspaceId": zod.number().describe('Tenant the matter belongs to. Always the caller\'s active workspace.'),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
@@ -170,6 +354,7 @@ export const GetCaseParams = zod.object({
 
 export const GetCaseResponse = zod.object({
   "id": zod.number(),
+  "workspaceId": zod.number().describe('Tenant the matter belongs to. Always the caller\'s active workspace.'),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
@@ -203,6 +388,7 @@ export const UpdateCaseBody = zod.object({
 
 export const UpdateCaseResponse = zod.object({
   "id": zod.number(),
+  "workspaceId": zod.number().describe('Tenant the matter belongs to. Always the caller\'s active workspace.'),
   "title": zod.string(),
   "description": zod.string().nullish(),
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
@@ -728,10 +914,15 @@ export const ListDocumentRequestsResponseItem = zod.object({
   "clientId": zod.number(),
   "clientClerkId": zod.string(),
   "clientName": zod.string().nullish(),
-  "requestedBy": zod.string(),
+  "requestedFromName": zod.string().nullish().describe('Display name of the person the document is being requested FROM.'),
+  "requestedFromEmail": zod.string().nullish(),
+  "requestedBy": zod.string().describe('Display name of the staff member who raised the request.'),
+  "requestedByRole": zod.string().nullish(),
   "documentName": zod.string(),
   "note": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
   "caseId": zod.number().nullish(),
+  "caseTitle": zod.string().nullish(),
   "status": zod.enum(['pending', 'fulfilled', 'dismissed']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
@@ -746,9 +937,10 @@ export const ListDocumentRequestsResponse = zod.array(ListDocumentRequestsRespon
 
 
 export const CreateDocumentRequestBody = zod.object({
-  "clientId": zod.number(),
+  "clientId": zod.number().describe('The recipient — the user the document is requested FROM.'),
   "documentName": zod.string().min(1),
   "note": zod.string().optional(),
+  "dueDate": zod.string().optional().describe('Date the recipient is asked to respond by (YYYY-MM-DD).'),
   "caseId": zod.number().optional()
 })
 
@@ -757,10 +949,15 @@ export const CreateDocumentRequestResponse = zod.object({
   "clientId": zod.number(),
   "clientClerkId": zod.string(),
   "clientName": zod.string().nullish(),
-  "requestedBy": zod.string(),
+  "requestedFromName": zod.string().nullish().describe('Display name of the person the document is being requested FROM.'),
+  "requestedFromEmail": zod.string().nullish(),
+  "requestedBy": zod.string().describe('Display name of the staff member who raised the request.'),
+  "requestedByRole": zod.string().nullish(),
   "documentName": zod.string(),
   "note": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
   "caseId": zod.number().nullish(),
+  "caseTitle": zod.string().nullish(),
   "status": zod.enum(['pending', 'fulfilled', 'dismissed']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
@@ -783,10 +980,15 @@ export const UpdateDocumentRequestResponse = zod.object({
   "clientId": zod.number(),
   "clientClerkId": zod.string(),
   "clientName": zod.string().nullish(),
-  "requestedBy": zod.string(),
+  "requestedFromName": zod.string().nullish().describe('Display name of the person the document is being requested FROM.'),
+  "requestedFromEmail": zod.string().nullish(),
+  "requestedBy": zod.string().describe('Display name of the staff member who raised the request.'),
+  "requestedByRole": zod.string().nullish(),
   "documentName": zod.string(),
   "note": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
   "caseId": zod.number().nullish(),
+  "caseTitle": zod.string().nullish(),
   "status": zod.enum(['pending', 'fulfilled', 'dismissed']),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()

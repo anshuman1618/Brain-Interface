@@ -6,13 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it.
- */
-export type RoleSelectionInputRole = typeof RoleSelectionInputRole[keyof typeof RoleSelectionInputRole];
+export type MembershipUpdateInputRole = typeof MembershipUpdateInputRole[keyof typeof MembershipUpdateInputRole];
 
 
-export const RoleSelectionInputRole = {
+export const MembershipUpdateInputRole = {
   admin: 'admin',
   senior_advocate: 'senior_advocate',
   junior_advocate: 'junior_advocate',

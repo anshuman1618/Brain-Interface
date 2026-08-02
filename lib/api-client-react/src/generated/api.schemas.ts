@@ -36,13 +36,25 @@ export interface UserProfileUpdate {
   displayName?: string;
 }
 
-/**
- * Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it.
- */
-export type RoleSelectionInputRole = typeof RoleSelectionInputRole[keyof typeof RoleSelectionInputRole];
+export type WorkspaceKind = typeof WorkspaceKind[keyof typeof WorkspaceKind];
 
 
-export const RoleSelectionInputRole = {
+export const WorkspaceKind = {
+  chamber: 'chamber',
+  client_portal: 'client_portal',
+} as const;
+
+export interface Workspace {
+  id: number;
+  slug: string;
+  name: string;
+  kind: WorkspaceKind;
+}
+
+export type WorkspaceMembershipSummaryRole = typeof WorkspaceMembershipSummaryRole[keyof typeof WorkspaceMembershipSummaryRole];
+
+
+export const WorkspaceMembershipSummaryRole = {
   admin: 'admin',
   senior_advocate: 'senior_advocate',
   junior_advocate: 'junior_advocate',
@@ -50,9 +62,168 @@ export const RoleSelectionInputRole = {
   client: 'client',
 } as const;
 
-export interface RoleSelectionInput {
-  /** Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it. */
-  role: RoleSelectionInputRole;
+export type WorkspaceMembershipSummaryStatus = typeof WorkspaceMembershipSummaryStatus[keyof typeof WorkspaceMembershipSummaryStatus];
+
+
+export const WorkspaceMembershipSummaryStatus = {
+  pending: 'pending',
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface WorkspaceMembershipSummary {
+  workspace: Workspace;
+  role: WorkspaceMembershipSummaryRole;
+  status: WorkspaceMembershipSummaryStatus;
+  /** @nullable */
+  requestedRole?: string | null;
+}
+
+/**
+ * pending_approval means the user holds no ACTIVE membership anywhere. They can reach no workspace data at all until an admin grants one.
+ */
+export type SessionClaimsAccessStatus = typeof SessionClaimsAccessStatus[keyof typeof SessionClaimsAccessStatus];
+
+
+export const SessionClaimsAccessStatus = {
+  pending_approval: 'pending_approval',
+  active: 'active',
+} as const;
+
+export interface SessionClaims {
+  userId: number;
+  clerkId: string;
+  displayName: string;
+  email: string;
+  /** pending_approval means the user holds no ACTIVE membership anywhere. They can reach no workspace data at all until an admin grants one. */
+  accessStatus: SessionClaimsAccessStatus;
+  memberships: WorkspaceMembershipSummary[];
+  activeWorkspace?: Workspace | null;
+  /**
+     * Role in the active workspace, resolved from the membership row.
+     * @nullable
+     */
+  role?: string | null;
+  /** @nullable */
+  displayRole?: string | null;
+  /** Server-resolved capability list. The UI renders from this and nothing else. */
+  capabilities: string[];
+  /**
+     * Scoped token for the active workspace, minted after membership was verified.
+     * @nullable
+     */
+  workspaceToken?: string | null;
+}
+
+export interface WorkspaceSwitchInput {
+  workspaceId: number;
+}
+
+export type AccessRequestStatus = typeof AccessRequestStatus[keyof typeof AccessRequestStatus];
+
+
+export const AccessRequestStatus = {
+  pending: 'pending',
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface AccessRequest {
+  id: number;
+  workspaceId: number;
+  /** @nullable */
+  workspaceName?: string | null;
+  userId: number;
+  clerkId: string;
+  /** @nullable */
+  displayName?: string | null;
+  /** @nullable */
+  email?: string | null;
+  role: string;
+  /** @nullable */
+  requestedRole?: string | null;
+  /** @nullable */
+  requestNote?: string | null;
+  status: AccessRequestStatus;
+  /** @nullable */
+  decidedBy?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  createdAt: string;
+}
+
+/**
+ * Intent only. Never granted automatically.
+ */
+export type AccessRequestInputRequestedRole = typeof AccessRequestInputRequestedRole[keyof typeof AccessRequestInputRequestedRole];
+
+
+export const AccessRequestInputRequestedRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface AccessRequestInput {
+  /** The workspace being applied to. */
+  workspaceSlug: string;
+  /** Intent only. Never granted automatically. */
+  requestedRole?: AccessRequestInputRequestedRole;
+  note?: string;
+}
+
+export type AccessDecisionInputDecision = typeof AccessDecisionInputDecision[keyof typeof AccessDecisionInputDecision];
+
+
+export const AccessDecisionInputDecision = {
+  approve: 'approve',
+  deny: 'deny',
+} as const;
+
+/**
+ * The role the admin grants. Required on approve. Deliberately separate from requestedRole — an applicant asking for admin does not get it.
+ */
+export type AccessDecisionInputRole = typeof AccessDecisionInputRole[keyof typeof AccessDecisionInputRole];
+
+
+export const AccessDecisionInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface AccessDecisionInput {
+  decision: AccessDecisionInputDecision;
+  /** The role the admin grants. Required on approve. Deliberately separate from requestedRole — an applicant asking for admin does not get it. */
+  role?: AccessDecisionInputRole;
+}
+
+export type MembershipUpdateInputRole = typeof MembershipUpdateInputRole[keyof typeof MembershipUpdateInputRole];
+
+
+export const MembershipUpdateInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export type MembershipUpdateInputStatus = typeof MembershipUpdateInputStatus[keyof typeof MembershipUpdateInputStatus];
+
+
+export const MembershipUpdateInputStatus = {
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface MembershipUpdateInput {
+  role?: MembershipUpdateInputRole;
+  status?: MembershipUpdateInputStatus;
 }
 
 export type UserRoleUpdateInputRole = typeof UserRoleUpdateInputRole[keyof typeof UserRoleUpdateInputRole];
@@ -92,6 +263,8 @@ export const CasePriority = {
 
 export interface Case {
   id: number;
+  /** Tenant the matter belongs to. Always the caller's active workspace. */
+  workspaceId: number;
   title: string;
   /** @nullable */
   description?: string | null;
@@ -552,12 +725,26 @@ export interface DocumentRequest {
   clientClerkId: string;
   /** @nullable */
   clientName?: string | null;
+  /**
+     * Display name of the person the document is being requested FROM.
+     * @nullable
+     */
+  requestedFromName?: string | null;
+  /** @nullable */
+  requestedFromEmail?: string | null;
+  /** Display name of the staff member who raised the request. */
   requestedBy: string;
+  /** @nullable */
+  requestedByRole?: string | null;
   documentName: string;
   /** @nullable */
   note?: string | null;
   /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
   caseId?: number | null;
+  /** @nullable */
+  caseTitle?: string | null;
   status: DocumentRequestStatus;
   createdAt: string;
   /** @nullable */
@@ -565,10 +752,13 @@ export interface DocumentRequest {
 }
 
 export interface DocumentRequestInput {
+  /** The recipient — the user the document is requested FROM. */
   clientId: number;
   /** @minLength 1 */
   documentName: string;
   note?: string;
+  /** Date the recipient is asked to respond by (YYYY-MM-DD). */
+  dueDate?: string;
   caseId?: number;
 }
 

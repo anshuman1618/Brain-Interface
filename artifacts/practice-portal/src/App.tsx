@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import LandingPage from "@/pages/landing";
 import DashboardLayout from "@/components/layout/dashboard-layout";
 import { RoleOptionsGrid } from "@/components/auth/role-options-grid";
-import { getPendingRoleSelection, setPendingRoleSelection, type RoleValue } from "@/lib/role-options";
+import { getAccessRequestIntent, setAccessRequestIntent, type RoleValue } from "@/lib/role-options";
 import { useClerkApiAuthBridge } from "@/hooks/use-api-auth-bridge";
 import { isPreviewMode } from "@/lib/preview";
 import { ClerkSessionProvider, PreviewSessionProvider, useSession } from "@/lib/session";
@@ -96,22 +96,31 @@ function SignInPage() {
         <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
       </div>
       <div className="relative z-10 w-full max-w-[440px] bg-slate-100 border border-slate-200 p-4 text-xs font-mono uppercase text-slate-500 tracking-wider text-center">
-        New here? You'll choose your workspace role — Firm Admin, Senior Advocate, Junior Advocate, Clerk / Intern, or Client — before creating your account. An admin can change it later from Team Settings.
+        Access is granted by a workspace admin. New accounts start with no workspace until a request is approved.
       </div>
     </div>
   );
 }
 
+/**
+ * Pre-auth role picker.
+ *
+ * This is a *preview and request-intent* step, nothing more. The choice is kept
+ * only to pre-fill the access request after sign-up; it is never sent as an
+ * authorization claim and the backend would ignore it if it were. What the
+ * account can reach is decided later, by an admin, in the database.
+ */
 function ChooseWorkspaceStep({ onContinue }: { onContinue: (role: RoleValue) => void }) {
   const [selected, setSelected] = useState<RoleValue | null>(null);
 
   return (
     <div className="relative z-10 w-full max-w-3xl">
       <div className="mb-8 text-center">
-        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Step 1 of 2</p>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Choose your workspace role</h1>
-        <p className="text-muted-foreground max-w-lg mx-auto">
-          Pick how you'll use the portal. You'll create your account next. An admin can change your role later from Team Settings.
+        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Step 1 of 2 · Preview</p>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">What will you be doing here?</h1>
+        <p className="text-muted-foreground max-w-xl mx-auto">
+          This previews the portal and pre-fills your access request. It grants nothing — a workspace
+          admin reviews every request and chooses the role you are actually given.
         </p>
       </div>
 
@@ -119,7 +128,10 @@ function ChooseWorkspaceStep({ onContinue }: { onContinue: (role: RoleValue) => 
         <RoleOptionsGrid selected={selected} onSelect={setSelected} />
       </div>
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider max-w-sm text-left">
+          Requesting Firm Admin does not make you one
+        </p>
         <Button
           className="rounded-none px-8"
           disabled={!selected}
@@ -133,14 +145,13 @@ function ChooseWorkspaceStep({ onContinue }: { onContinue: (role: RoleValue) => 
 }
 
 function SignUpPage() {
-  // New visitors pick a workspace role first; it's stored and applied
-  // automatically once their Clerk account is created (see dashboard-layout).
-  // Returning to this page mid-flow (e.g. during email verification) should
-  // not re-show the role step, so we check for an already-pending choice.
-  const [pendingRole, setPendingRole] = useState<RoleValue | null>(() => getPendingRoleSelection());
+  // The pre-auth choice is remembered so the access-request form is pre-filled
+  // after sign-up, and so returning here mid-flow (e.g. during email
+  // verification) does not re-ask. It is never applied as a grant.
+  const [pendingRole, setPendingRole] = useState<RoleValue | null>(() => getAccessRequestIntent());
 
   const handleRoleChosen = (role: RoleValue) => {
-    setPendingRoleSelection(role);
+    setAccessRequestIntent(role);
     setPendingRole(role);
   };
 

@@ -4,6 +4,8 @@ import { z } from "zod/v4";
 
 export const casesTable = pgTable("cases", {
   id: serial("id").primaryKey(),
+  /** Tenant boundary. Every read of this table is filtered by the caller's verified workspace. */
+  workspaceId: integer("workspace_id").notNull(),
   title: text("title").notNull(),
   description: text("description"),
   status: text("status").notNull().default("open"), // open | in_progress | review | closed

@@ -13,12 +13,26 @@ export interface DocumentRequest {
   clientClerkId: string;
   /** @nullable */
   clientName?: string | null;
+  /**
+     * Display name of the person the document is being requested FROM.
+     * @nullable
+     */
+  requestedFromName?: string | null;
+  /** @nullable */
+  requestedFromEmail?: string | null;
+  /** Display name of the staff member who raised the request. */
   requestedBy: string;
+  /** @nullable */
+  requestedByRole?: string | null;
   documentName: string;
   /** @nullable */
   note?: string | null;
   /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
   caseId?: number | null;
+  /** @nullable */
+  caseTitle?: string | null;
   status: DocumentRequestStatus;
   createdAt: Date;
   /** @nullable */

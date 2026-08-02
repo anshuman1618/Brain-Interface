@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ne, lte, and, sql } from "drizzle-orm";
+import { inArray, sql } from "drizzle-orm";
 import { db, casesTable, tasksTable, consultationsTable, timelineEventsTable } from "@workspace/db";
 import {
   GetKpiDashboardResponse,
@@ -7,16 +7,19 @@ import {
   GetSlaReportResponse,
   GetDashboardSummaryResponse,
 } from "@workspace/api-zod";
-import { requireRole } from "../middlewares/requireAuth";
-import { ADMIN_ROLE, STAFF_ROLES } from "../lib/roles";
+import { requireWorkspace, requireCapability, ctx, type AuthRequest } from "../middlewares/requireAuth";
+import { visibleCaseIds, visibleTasks, workspaceCaseIds } from "../lib/scope";
 
 const router: IRouter = Router();
 
 // KPI engine is Admin-only per the RBAC matrix — Advocate is explicitly blocked from it,
-// and Clerk/Intern and Client are never granted it.
-router.get("/kpi/dashboard", requireRole(ADMIN_ROLE), async (_req, res): Promise<void> => {
-  const allCases = await db.select().from(casesTable);
-  const allTasks = await db.select().from(tasksTable);
+// and Clerk/Intern and Client are never granted it. The figures cover this workspace
+// only; an admin of one chamber never sees another chamber's throughput.
+router.get("/kpi/dashboard", requireWorkspace, requireCapability("kpi.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
+  const caseIds = await workspaceCaseIds(c);
+  const allCases = caseIds.length ? await db.select().from(casesTable).where(inArray(casesTable.id, caseIds)) : [];
+  const allTasks = caseIds.length ? await db.select().from(tasksTable).where(inArray(tasksTable.caseId, caseIds)) : [];
 
   const today = new Date().toISOString().split("T")[0];
   const totalCases = allCases.length;
@@ -61,11 +64,16 @@ router.get("/kpi/dashboard", requireRole(ADMIN_ROLE), async (_req, res): Promise
   }));
 });
 
-router.get("/kpi/sla-report", requireRole(ADMIN_ROLE), async (req, res): Promise<void> => {
+router.get("/kpi/sla-report", requireWorkspace, requireCapability("kpi.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
+
   const params = GetSlaReportQueryParams.safeParse(req.query);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const allTasks = await db.select().from(tasksTable).where(ne(tasksTable.status, "pending"));
+  const caseIds = await workspaceCaseIds(c);
+  const allTasks = caseIds.length
+    ? (await db.select().from(tasksTable).where(inArray(tasksTable.caseId, caseIds))).filter((t) => t.status !== "pending")
+    : [];
   const today = new Date();
 
   // Build last 4 periods
@@ -109,16 +117,24 @@ router.get("/kpi/sla-report", requireRole(ADMIN_ROLE), async (req, res): Promise
   res.json(GetSlaReportResponse.parse(report));
 });
 
-// General ops dashboard (not the KPI engine) — staff-only; clients get their own
-// client-portal view instead of firm-wide case/task counts.
-router.get("/dashboard/summary", requireRole(...STAFF_ROLES), async (_req, res): Promise<void> => {
+// General ops dashboard (not the KPI engine). Scoped to what the caller can
+// actually see: a clerk's counters cover their assigned matters, not the firm's.
+router.get("/dashboard/summary", requireWorkspace, requireCapability("cases.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
   const today = new Date().toISOString().split("T")[0];
-  const allCases = await db.select().from(casesTable);
-  const allTasks = await db.select().from(tasksTable);
-  const allConsultations = await db.select().from(consultationsTable);
-  const recentEvents = await db.select().from(timelineEventsTable)
-    .orderBy(sql`${timelineEventsTable.createdAt} DESC`)
-    .limit(10);
+
+  const caseIds = await visibleCaseIds(c);
+  const allCases = caseIds.length ? await db.select().from(casesTable).where(inArray(casesTable.id, caseIds)) : [];
+  const allTasks = await visibleTasks(c);
+  const allConsultations = caseIds.length
+    ? await db.select().from(consultationsTable).where(inArray(consultationsTable.caseId, caseIds))
+    : [];
+  const recentEvents = caseIds.length
+    ? await db.select().from(timelineEventsTable)
+        .where(inArray(timelineEventsTable.caseId, caseIds))
+        .orderBy(sql`${timelineEventsTable.createdAt} DESC`)
+        .limit(10)
+    : [];
 
   const activeCases = allCases.filter(c => c.status !== "closed").length;
   const pendingTasks = allTasks.filter(t => t.status === "pending" || t.status === "in_progress").length;

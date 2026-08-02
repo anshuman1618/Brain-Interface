@@ -10,6 +10,8 @@ import type { CaseStatus } from './caseStatus';
 
 export interface Case {
   id: number;
+  /** Tenant the matter belongs to. Always the caller's active workspace. */
+  workspaceId: number;
   title: string;
   /** @nullable */
   description?: string | null;

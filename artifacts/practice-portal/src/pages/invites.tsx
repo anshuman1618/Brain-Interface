@@ -12,8 +12,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Copy, Plus, Mail, ShieldCheck, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTime } from "@/lib/utils";
+import { AccessRequestQueue } from "@/components/access-request-queue";
+import { useSession } from "@/lib/session";
+import { ROLE_OPTIONS } from "@/lib/role-options";
 
 export default function InvitesPage() {
+  const { activeWorkspace } = useSession();
   const { data: invites, isLoading } = useListInvites();
   const createInvite = useCreateInvite();
   const queryClient = useQueryClient();
@@ -57,7 +61,10 @@ export default function InvitesPage() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-3xl font-bold tracking-tight mb-1">Access Control</h2>
-          <p className="text-muted-foreground">Manage RBAC provisioning and client invitations.</p>
+          <p className="text-muted-foreground">
+            Approve who joins <span className="font-medium text-foreground">{activeWorkspace?.name}</span>,
+            and what role they hold here.
+          </p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
@@ -75,9 +82,9 @@ export default function InvitesPage() {
                 <Select value={role} onValueChange={setRole}>
                   <SelectTrigger className="rounded-none"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="client">Client (Restricted)</SelectItem>
-                    <SelectItem value="clerk">Clerk (Internal)</SelectItem>
-                    <SelectItem value="admin">Administrator</SelectItem>
+                    {ROLE_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -98,7 +105,12 @@ export default function InvitesPage() {
         </Dialog>
       </div>
 
+      <AccessRequestQueue />
+
       <div className="border border-border bg-background">
+        <div className="px-6 py-4 border-b border-border bg-muted/30">
+          <h3 className="font-mono text-xs uppercase tracking-widest font-bold">Invitations</h3>
+        </div>
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent bg-muted/30">

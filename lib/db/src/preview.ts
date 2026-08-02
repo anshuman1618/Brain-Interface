@@ -15,6 +15,30 @@ import * as schema from "./schema";
 
 /** Mirrors lib/db/src/schema. Kept here rather than generated so preview mode has no build step. */
 const DDL = `
+CREATE TABLE IF NOT EXISTS workspaces (
+  id SERIAL PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'chamber',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS workspace_memberships (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  clerk_id TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'client',
+  requested_role TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  request_note TEXT,
+  decided_by TEXT,
+  decided_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT workspace_memberships_workspace_user_key UNIQUE (workspace_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   clerk_id TEXT NOT NULL UNIQUE,
@@ -28,6 +52,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS cases (
   id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'open',
@@ -98,11 +123,16 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE TABLE IF NOT EXISTS document_requests (
   id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
   client_id INTEGER NOT NULL,
   client_clerk_id TEXT NOT NULL,
+  requested_from_name TEXT NOT NULL DEFAULT '',
   requested_by TEXT NOT NULL,
+  requested_by_clerk_id TEXT NOT NULL DEFAULT '',
+  requested_by_role TEXT NOT NULL DEFAULT '',
   document_name TEXT NOT NULL,
   note TEXT,
+  due_date TEXT,
   case_id INTEGER,
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -111,6 +141,7 @@ CREATE TABLE IF NOT EXISTS document_requests (
 
 CREATE TABLE IF NOT EXISTS invites (
   id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
   email TEXT NOT NULL,
   token TEXT NOT NULL UNIQUE,
   role TEXT NOT NULL DEFAULT 'client',
@@ -130,16 +161,34 @@ CREATE TABLE IF NOT EXISTS timeline_events (
 );
 `;
 
-/** Stable Clerk-style ids so the preview auth middleware can map a role to a seeded user. */
+/**
+ * Stable Clerk-style ids so the preview auth middleware can map a chosen preview
+ * identity to a seeded user.
+ *
+ * Note what this token does and does not do: it selects *who you are*, exactly
+ * like a Clerk session would. It grants nothing. What that identity may reach is
+ * still resolved from `workspace_memberships` on every request, which is why
+ * `unassigned` exists — the same token mechanism, but a user with no active
+ * membership, who therefore lands in Pending Approval and can reach no
+ * workspace at all.
+ */
 export const PREVIEW_USER_IDS = {
   admin: "preview_user_admin",
   senior_advocate: "preview_user_senior",
   junior_advocate: "preview_user_junior",
   clerk_intern: "preview_user_clerk",
   client: "preview_user_client",
+  unassigned: "preview_user_unassigned",
+  rival_admin: "preview_user_rival_admin",
 } as const;
 
 export type PreviewRole = keyof typeof PREVIEW_USER_IDS;
+
+/** Slugs of the seeded tenants. Two of them, so cross-tenant denial is demonstrable. */
+export const PREVIEW_WORKSPACE_SLUGS = {
+  chambers: "raghavan-chambers",
+  rival: "mehta-associates",
+} as const;
 
 function offsetDate(days: number): string {
   const d = new Date();
@@ -156,6 +205,17 @@ async function seed(db: NodePgDatabase<typeof schema>): Promise<void> {
   const existing = await db.select().from(schema.usersTable);
   if (existing.length > 0) return;
 
+  const workspaces = await db
+    .insert(schema.workspacesTable)
+    .values([
+      { slug: PREVIEW_WORKSPACE_SLUGS.chambers, name: "Raghavan Chambers", kind: "chamber" },
+      { slug: PREVIEW_WORKSPACE_SLUGS.rival, name: "Mehta & Associates", kind: "chamber" },
+    ])
+    .returning();
+
+  const chambers = workspaces.find((w) => w.slug === PREVIEW_WORKSPACE_SLUGS.chambers)!;
+  const rival = workspaces.find((w) => w.slug === PREVIEW_WORKSPACE_SLUGS.rival)!;
+
   const users = await db
     .insert(schema.usersTable)
     .values([
@@ -164,19 +224,59 @@ async function seed(db: NodePgDatabase<typeof schema>): Promise<void> {
       { clerkId: PREVIEW_USER_IDS.junior_advocate, role: "junior_advocate", roleSelected: true, displayName: "S. Iyer", email: "iyer@chambers.preview" },
       { clerkId: PREVIEW_USER_IDS.clerk_intern, role: "clerk_intern", roleSelected: true, displayName: "P. Nair", email: "nair@chambers.preview" },
       { clerkId: PREVIEW_USER_IDS.client, role: "client", roleSelected: true, displayName: "A. Kapoor", email: "kapoor@client.preview" },
+      // Signed up, asked for Firm Admin, granted nothing. Sits in Pending Approval.
+      { clerkId: PREVIEW_USER_IDS.unassigned, role: "client", roleSelected: false, displayName: "T. Deshmukh", email: "deshmukh@applicant.preview" },
+      // Admin of the *other* tenant — proof that "admin" is not a global rank.
+      { clerkId: PREVIEW_USER_IDS.rival_admin, role: "admin", roleSelected: true, displayName: "V. Mehta", email: "mehta@associates.preview" },
     ])
     .returning();
 
-  const clientUser = users.find((u) => u.role === "client")!;
-  const senior = users.find((u) => u.role === "senior_advocate")!;
-  const clerk = users.find((u) => u.role === "clerk_intern")!;
+  const byClerkId = (id: string) => users.find((u) => u.clerkId === id)!;
+  const clientUser = byClerkId(PREVIEW_USER_IDS.client);
+  const senior = byClerkId(PREVIEW_USER_IDS.senior_advocate);
+  const clerk = byClerkId(PREVIEW_USER_IDS.clerk_intern);
+  const adminUser = byClerkId(PREVIEW_USER_IDS.admin);
+  const applicant = byClerkId(PREVIEW_USER_IDS.unassigned);
+  const rivalAdmin = byClerkId(PREVIEW_USER_IDS.rival_admin);
+
+  const active = (workspaceId: number, u: typeof users[number], role: string) => ({
+    workspaceId,
+    userId: u.id,
+    clerkId: u.clerkId,
+    role,
+    status: "active",
+    decidedBy: "seed",
+    decidedAt: new Date(),
+  });
+
+  await db.insert(schema.workspaceMembershipsTable).values([
+    active(chambers.id, adminUser, "admin"),
+    active(chambers.id, senior, "senior_advocate"),
+    active(chambers.id, byClerkId(PREVIEW_USER_IDS.junior_advocate), "junior_advocate"),
+    active(chambers.id, clerk, "clerk_intern"),
+    active(chambers.id, clientUser, "client"),
+    active(rival.id, rivalAdmin, "admin"),
+    // Intent only. `requested_role` records what they asked for; `role` is what an
+    // admin would grant, and it stays inert while status is 'pending'.
+    {
+      workspaceId: chambers.id,
+      userId: applicant.id,
+      clerkId: applicant.clerkId,
+      role: "client",
+      requestedRole: "admin",
+      status: "pending",
+      requestNote: "Joining as practice manager — need firm oversight.",
+    },
+  ]);
 
   const cases = await db
     .insert(schema.casesTable)
     .values([
-      { title: "Mehra & Sons v. Union of India", description: "Writ petition challenging the impugned customs notification.", status: "in_progress", clientId: clientUser.id, filingRef: "W.P.(C) 8842/2026", priority: "high" },
-      { title: "Kapoor estate — succession certificate", description: "Petition for succession certificate over movable assets.", status: "open", clientId: clientUser.id, filingRef: "CS(OS) 331/2026", priority: "urgent" },
-      { title: "Vardhman Textiles — GST appeal", description: "Appeal against order-in-original raising a demand for FY 2024-25.", status: "review", clientId: clientUser.id, filingRef: "AP/GST/441/2026", priority: "medium" },
+      { workspaceId: chambers.id, title: "Mehra & Sons v. Union of India", description: "Writ petition challenging the impugned customs notification.", status: "in_progress", clientId: clientUser.id, filingRef: "W.P.(C) 8842/2026", priority: "high" },
+      { workspaceId: chambers.id, title: "Kapoor estate — succession certificate", description: "Petition for succession certificate over movable assets.", status: "open", clientId: clientUser.id, filingRef: "CS(OS) 331/2026", priority: "urgent" },
+      { workspaceId: chambers.id, title: "Vardhman Textiles — GST appeal", description: "Appeal against order-in-original raising a demand for FY 2024-25.", status: "review", clientId: clientUser.id, filingRef: "AP/GST/441/2026", priority: "medium" },
+      // Belongs to the other tenant. Must never appear to Raghavan Chambers members.
+      { workspaceId: rival.id, title: "Sethi v. Orbit Logistics (confidential)", description: "Mehta & Associates matter — not visible to any other workspace.", status: "open", clientId: null, filingRef: "CS(COMM) 77/2026", priority: "high" },
     ])
     .returning();
 
@@ -199,8 +299,8 @@ async function seed(db: NodePgDatabase<typeof schema>): Promise<void> {
   ]);
 
   await db.insert(schema.documentRequestsTable).values([
-    { clientId: clientUser.id, clientClerkId: clientUser.clerkId, requestedBy: senior.displayName, documentName: "Notarised affidavit of succession", note: "Required before the next listing.", caseId: cases[1].id, status: "pending" },
-    { clientId: clientUser.id, clientClerkId: clientUser.clerkId, requestedBy: clerk.displayName, documentName: "Bank statements — Apr to Jun 2026", caseId: cases[1].id, status: "fulfilled" },
+    { workspaceId: chambers.id, clientId: clientUser.id, clientClerkId: clientUser.clerkId, requestedFromName: clientUser.displayName, requestedBy: senior.displayName, requestedByClerkId: senior.clerkId, requestedByRole: "senior_advocate", documentName: "Notarised affidavit of succession", note: "Required before the next listing.", dueDate: offsetDate(5), caseId: cases[1].id, status: "pending" },
+    { workspaceId: chambers.id, clientId: clientUser.id, clientClerkId: clientUser.clerkId, requestedFromName: clientUser.displayName, requestedBy: clerk.displayName, requestedByClerkId: clerk.clerkId, requestedByRole: "clerk_intern", documentName: "Bank statements — Apr to Jun 2026", dueDate: offsetDate(-1), caseId: cases[1].id, status: "fulfilled" },
   ]);
 
   await db.insert(schema.timelineEventsTable).values([

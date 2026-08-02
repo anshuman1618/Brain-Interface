@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, lte, ne, inArray, SQL } from "drizzle-orm";
-import { db, tasksTable, usersTable, delayLogsTable, casesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { db, tasksTable, usersTable, delayLogsTable } from "@workspace/db";
 import {
   ListTasksQueryParams,
   ListTasksResponse,
@@ -20,27 +20,16 @@ import {
   CreateDelayLogResponse,
   ListOverdueTasksResponse,
 } from "@workspace/api-zod";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
-import { getOrCreateUser } from "../lib/jit";
+import {
+  requireWorkspace,
+  requireCapability,
+  findActiveMembership,
+  ctx,
+  type AuthRequest,
+  type WorkspaceContext,
+} from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
-import { isClientRole, isClerkInternRole } from "../lib/roles";
-
-// Whether `user` is allowed to view/act on `task` — clients only on tasks belonging to
-// their own cases, Clerk/Intern only on tasks assigned to them ("blocked: unassigned
-// cases"); Admin/Advocate can act on any task.
-async function canAccessTask(
-  user: NonNullable<Awaited<ReturnType<typeof getOrCreateUser>>>,
-  task: typeof tasksTable.$inferSelect,
-): Promise<boolean> {
-  if (isClientRole(user.role)) {
-    const [c] = await db.select().from(casesTable).where(eq(casesTable.id, task.caseId));
-    return !!c && c.clientId === user.id;
-  }
-  if (isClerkInternRole(user.role)) {
-    return task.assigneeId === user.clerkId;
-  }
-  return true;
-}
+import { caseInWorkspace, visibleCaseIds, visibleTasks } from "../lib/scope";
 
 const router: IRouter = Router();
 
@@ -62,72 +51,86 @@ async function enrichTask(t: typeof tasksTable.$inferSelect) {
   };
 }
 
+/**
+ * Fetches a task only if its case is inside the caller's workspace and within
+ * their row scope. Everything about task access is derived from the case, so a
+ * task id from another tenant resolves to nothing.
+ */
+async function getVisibleTask(
+  c: WorkspaceContext,
+  taskId: number,
+): Promise<typeof tasksTable.$inferSelect | null> {
+  const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, taskId));
+  if (!task) return null;
+  if (!(await caseInWorkspace(c, task.caseId))) return null;
+
+  if (c.taskScope === "assigned") {
+    return task.assigneeId === c.user.clerkId ? task : null;
+  }
+  if (c.taskScope === "own") {
+    const allowed = await visibleCaseIds(c);
+    return allowed.includes(task.caseId) ? task : null;
+  }
+  return task;
+}
+
 // Normalize any date value (Date instance, ISO string, or date-only string) to YYYY-MM-DD
 function toDateOnly(v: unknown): string {
   if (v instanceof Date) return v.toISOString().slice(0, 10);
   return String(v).slice(0, 10);
 }
 
-router.get("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.get("/tasks", requireWorkspace, requireCapability("tasks.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
+
   const params = ListTasksQueryParams.safeParse(req.query);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const conditions: SQL[] = [];
-  if (params.data.status) conditions.push(eq(tasksTable.status, params.data.status));
-  if (params.data.assigneeId) conditions.push(eq(tasksTable.assigneeId, params.data.assigneeId));
-  if (params.data.caseId) conditions.push(eq(tasksTable.caseId, params.data.caseId));
+  const scoped = await visibleTasks(c);
+  const filtered = scoped.filter((t) => {
+    if (params.data.status && t.status !== params.data.status) return false;
+    if (params.data.assigneeId && t.assigneeId !== params.data.assigneeId) return false;
+    if (params.data.caseId && t.caseId !== params.data.caseId) return false;
+    return true;
+  });
 
-  // Clients only see tasks on their own cases
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (isClientRole(user.role)) {
-    const ownCases = await db.select({ id: casesTable.id }).from(casesTable).where(eq(casesTable.clientId, user.id));
-    const ids = ownCases.map(c => c.id);
-    if (ids.length === 0) { res.json([]); return; }
-    conditions.push(inArray(tasksTable.caseId, ids));
-  }
-  // Clerk/Intern are blocked from unassigned cases — only see tasks assigned to them.
-  if (isClerkInternRole(user.role)) {
-    conditions.push(eq(tasksTable.assigneeId, user.clerkId));
-  }
-
-  const tasks = conditions.length > 0
-    ? await db.select().from(tasksTable).where(and(...conditions))
-    : await db.select().from(tasksTable);
-
-  const enriched = await Promise.all(tasks.map(enrichTask));
+  const enriched = await Promise.all(filtered.map(enrichTask));
   res.json(ListTasksResponse.parse(enriched));
 });
 
-router.get("/tasks/overdue", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+router.get("/tasks/overdue", requireWorkspace, requireCapability("tasks.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const today = new Date().toISOString().split("T")[0];
-  const conditions: SQL[] = [lte(tasksTable.deadline, today), ne(tasksTable.status, "completed")];
-  if (isClientRole(user.role)) {
-    const ownCases = await db.select({ id: casesTable.id }).from(casesTable).where(eq(casesTable.clientId, user.id));
-    const ids = ownCases.map(c => c.id);
-    if (ids.length === 0) { res.json([]); return; }
-    conditions.push(inArray(tasksTable.caseId, ids));
-  }
-  if (isClerkInternRole(user.role)) {
-    conditions.push(eq(tasksTable.assigneeId, user.clerkId));
-  }
+  const scoped = await visibleTasks(c);
+  const overdue = scoped.filter((t) => t.status !== "completed" && t.deadline <= today);
 
-  const tasks = await db.select().from(tasksTable).where(and(...conditions));
-  const enriched = await Promise.all(tasks.map(enrichTask));
+  const enriched = await Promise.all(overdue.map(enrichTask));
   res.json(ListOverdueTasksResponse.parse(enriched));
 });
 
-router.post("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  // Task creation/assignment is a staff action, not a client capability.
-  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+router.post("/tasks", requireWorkspace, requireCapability("tasks.write"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const parsed = CreateTaskBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  // The case must be in this workspace, or a caller could attach work to another
+  // tenant's matter by guessing an id.
+  if (!(await caseInWorkspace(c, parsed.data.caseId))) {
+    res.status(404).json({ error: "Case not found" });
+    return;
+  }
+
+  // An assignee must be an active member of this workspace too — otherwise a
+  // task could be pushed onto someone in a different chamber.
+  if (parsed.data.assigneeId) {
+    const [assignee] = await db.select().from(usersTable).where(eq(usersTable.clerkId, parsed.data.assigneeId));
+    if (!assignee || !(await findActiveMembership(assignee.id, c.workspaceId))) {
+      res.status(400).json({ error: "Assignee is not a member of this workspace" });
+      return;
+    }
+  }
 
   const [task] = await db.insert(tasksTable).values({
     caseId: parsed.data.caseId,
@@ -139,30 +142,25 @@ router.post("/tasks", requireAuth, async (req: AuthRequest, res): Promise<void> 
     status: "pending",
   }).returning();
 
-  await addTimelineEvent(task.caseId, "task_assigned", `Task "${task.title}" assigned`, user.displayName);
+  await addTimelineEvent(task.caseId, "task_assigned", `Task "${task.title}" assigned`, c.user.displayName);
 
   res.status(201).json(CreateTaskResponse.parse(await enrichTask(task)));
 });
 
-router.get("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+router.get("/tasks/:id", requireWorkspace, requireCapability("tasks.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const params = GetTaskParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id));
+  const task = await getVisibleTask(c, params.data.id);
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
-  if (!(await canAccessTask(user, task))) { res.status(404).json({ error: "Task not found" }); return; }
 
   res.json(GetTaskResponse.parse(await enrichTask(task)));
 });
 
-router.patch("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  // Clients have read-only access to tasks.
-  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+router.patch("/tasks/:id", requireWorkspace, requireCapability("tasks.write"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const pathParams = UpdateTaskParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
@@ -170,9 +168,8 @@ router.patch("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   const body = UpdateTaskBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
 
-  const [existing] = await db.select().from(tasksTable).where(eq(tasksTable.id, pathParams.data.id));
+  const existing = await getVisibleTask(c, pathParams.data.id);
   if (!existing) { res.status(404).json({ error: "Task not found" }); return; }
-  if (!(await canAccessTask(user, existing))) { res.status(404).json({ error: "Task not found" }); return; }
 
   const updateData: Partial<typeof tasksTable.$inferSelect> = {};
   if (body.data.title != null) updateData.title = body.data.title;
@@ -187,27 +184,21 @@ router.patch("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   res.json(UpdateTaskResponse.parse(await enrichTask(updated)));
 });
 
-// Deletion is reserved for Admin/Advocate — Clerk/Intern work assigned tasks but don't
-// remove them, and Clients are read-only.
-router.delete("/tasks/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (isClientRole(user.role) || isClerkInternRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+router.delete("/tasks/:id", requireWorkspace, requireCapability("tasks.delete"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const params = DeleteTaskParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const [t] = await db.delete(tasksTable).where(eq(tasksTable.id, params.data.id)).returning();
-  if (!t) { res.status(404).json({ error: "Task not found" }); return; }
+  const existing = await getVisibleTask(c, params.data.id);
+  if (!existing) { res.status(404).json({ error: "Task not found" }); return; }
 
+  await db.delete(tasksTable).where(eq(tasksTable.id, params.data.id));
   res.sendStatus(204);
 });
 
-router.post("/tasks/:id/complete", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  // Clients don't complete tasks.
-  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+router.post("/tasks/:id/complete", requireWorkspace, requireCapability("tasks.complete"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const pathParams = CompleteTaskParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
@@ -215,9 +206,8 @@ router.post("/tasks/:id/complete", requireAuth, async (req: AuthRequest, res): P
   const body = CompleteTaskBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
 
-  const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, pathParams.data.id));
+  const task = await getVisibleTask(c, pathParams.data.id);
   if (!task) { res.status(404).json({ error: "Task not found" }); return; }
-  if (!(await canAccessTask(user, task))) { res.status(404).json({ error: "Task not found" }); return; }
 
   const today = new Date().toISOString().split("T")[0];
   const isLate = task.deadline < today;
@@ -244,21 +234,22 @@ router.post("/tasks/:id/complete", requireAuth, async (req: AuthRequest, res): P
     });
   }
 
-  await addTimelineEvent(task.caseId, "task_completed", `Task "${task.title}" completed${isLate ? " (late)" : ""}`, user.displayName);
+  await addTimelineEvent(task.caseId, "task_completed", `Task "${task.title}" completed${isLate ? " (late)" : ""}`, c.user.displayName);
 
   res.json(CompleteTaskResponse.parse(await enrichTask(updated)));
 });
 
-router.post("/tasks/:id/delay-log", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+router.post("/tasks/:id/delay-log", requireWorkspace, requireCapability("tasks.complete"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const pathParams = CreateDelayLogParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
 
   const body = CreateDelayLogBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
+
+  const task = await getVisibleTask(c, pathParams.data.id);
+  if (!task) { res.status(404).json({ error: "Task not found" }); return; }
 
   const [log] = await db.insert(delayLogsTable).values({
     taskId: pathParams.data.id,

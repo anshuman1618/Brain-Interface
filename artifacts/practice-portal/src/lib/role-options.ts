@@ -1,41 +1,49 @@
 import { ShieldCheck, Scale, Gavel, ClipboardList, User } from "lucide-react";
 
+/**
+ * The roles a visitor can *apply for*.
+ *
+ * Choosing one here is an access-request intent and nothing more. It is never
+ * granted on sign-up: the backend stores it as `requestedRole` on a `pending`
+ * membership, where no authorization path reads it, and an admin decides what
+ * role — if any — is actually issued.
+ */
 export const ROLE_OPTIONS = [
   {
     value: "admin",
     label: "Firm Admin",
-    description: "Full control: manage the team, billing, and every case in the firm.",
+    description: "Manage the team, billing, and every matter in the chamber.",
     icon: ShieldCheck,
   },
   {
     value: "senior_advocate",
     label: "Senior Advocate",
-    description: "Lead cases, oversee junior advocates, and access KPI reporting.",
+    description: "Lead matters, oversee junior advocates, run consultations.",
     icon: Scale,
   },
   {
     value: "junior_advocate",
     label: "Junior Advocate",
-    description: "Manage assigned cases, tasks, and client consultations.",
+    description: "Manage assigned matters, tasks, and client consultations.",
     icon: Gavel,
   },
   {
     value: "clerk_intern",
     label: "Clerk / Intern",
-    description: "Support the team with tasks, scheduling, and document handling.",
+    description: "Support the team with assigned tasks, scheduling and filings.",
     icon: ClipboardList,
   },
   {
     value: "client",
     label: "Client",
-    description: "View your case status, documents, and upcoming consultations.",
+    description: "View your matter status, documents, and consultations.",
     icon: User,
   },
 ] as const;
 
 export type RoleValue = (typeof ROLE_OPTIONS)[number]["value"];
 
-const PENDING_ROLE_STORAGE_KEY = "portal:pendingWorkspaceRole";
+const REQUEST_INTENT_KEY = "portal:accessRequestIntent";
 
 const VALID_ROLE_VALUES = new Set<string>(ROLE_OPTIONS.map((opt) => opt.value));
 
@@ -43,30 +51,39 @@ export function isRoleValue(value: unknown): value is RoleValue {
   return typeof value === "string" && VALID_ROLE_VALUES.has(value);
 }
 
-// The role a visitor picks *before* creating their account. Stored in
-// localStorage (not sessionStorage) so it survives Clerk's sign-up flow even
-// if a verification step opens in a new tab/window.
-export function setPendingRoleSelection(role: RoleValue): void {
+export function roleLabel(role: string | null | undefined): string {
+  return ROLE_OPTIONS.find((o) => o.value === role)?.label ?? "";
+}
+
+/**
+ * The role a visitor selected before creating their account.
+ *
+ * Stored in localStorage purely so the request form can be pre-filled after
+ * Clerk's sign-up round trip. It is a UI convenience: the value is submitted to
+ * `POST /access-requests` as an application, and reading or writing this key has
+ * no effect on what the API will serve.
+ */
+export function setAccessRequestIntent(role: RoleValue): void {
   try {
-    window.localStorage.setItem(PENDING_ROLE_STORAGE_KEY, role);
+    window.localStorage.setItem(REQUEST_INTENT_KEY, role);
   } catch {
-    // localStorage may be unavailable (private browsing, etc.) -- the
-    // post-auth role picker still catches this case as a fallback.
+    // localStorage unavailable (private browsing) — the request form simply
+    // starts empty and the user picks again.
   }
 }
 
-export function getPendingRoleSelection(): RoleValue | null {
+export function getAccessRequestIntent(): RoleValue | null {
   try {
-    const value = window.localStorage.getItem(PENDING_ROLE_STORAGE_KEY);
+    const value = window.localStorage.getItem(REQUEST_INTENT_KEY);
     return isRoleValue(value) ? value : null;
   } catch {
     return null;
   }
 }
 
-export function clearPendingRoleSelection(): void {
+export function clearAccessRequestIntent(): void {
   try {
-    window.localStorage.removeItem(PENDING_ROLE_STORAGE_KEY);
+    window.localStorage.removeItem(REQUEST_INTENT_KEY);
   } catch {
     // no-op
   }

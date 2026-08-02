@@ -7,9 +7,12 @@
  */
 
 export interface DocumentRequestInput {
+  /** The recipient — the user the document is requested FROM. */
   clientId: number;
   /** @minLength 1 */
   documentName: string;
   note?: string;
+  /** Date the recipient is asked to respond by (YYYY-MM-DD). */
+  dueDate?: string;
   caseId?: number;
 }

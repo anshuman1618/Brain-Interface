@@ -4,6 +4,8 @@ import { z } from "zod/v4";
 
 export const invitesTable = pgTable("invites", {
   id: serial("id").primaryKey(),
+  /** The workspace the invite grants membership of — never firm-wide. */
+  workspaceId: integer("workspace_id").notNull(),
   email: text("email").notNull(),
   token: text("token").notNull().unique(),
   role: text("role").notNull().default("client"), // admin | clerk | client

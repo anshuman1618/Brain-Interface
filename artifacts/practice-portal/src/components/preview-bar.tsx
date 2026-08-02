@@ -1,19 +1,18 @@
-import { ROLE_OPTIONS } from "@/lib/role-options";
 import { useSession } from "@/lib/session";
-import { useQueryClient } from "@tanstack/react-query";
+import { PREVIEW_IDENTITIES, PREVIEW_IDENTITY_LABELS } from "@/lib/preview";
 import { AlertTriangle } from "lucide-react";
 
 /**
- * Preview-mode banner and role switcher.
+ * Preview-mode banner and identity switcher.
  *
- * Switching role changes who the API believes you are, so every cached response
- * belongs to the previous identity and must be discarded — otherwise the new
- * role briefly renders the old role's data, which would misrepresent the access
- * rules this switcher exists to demonstrate.
+ * This switches *who you are signed in as*, exactly like signing out and back in
+ * with a different Clerk account. It does not select a role or a workspace —
+ * those come from the chosen user's membership rows, resolved server-side. That
+ * is why "T. Deshmukh" reaches nothing at all (no approved membership) and
+ * "V. Mehta" lands in a different chamber entirely.
  */
 export function PreviewBar() {
-  const { previewMode, previewRole, switchPreviewRole } = useSession();
-  const queryClient = useQueryClient();
+  const { previewMode, previewIdentity, switchPreviewIdentity } = useSession();
 
   if (!previewMode) return null;
 
@@ -26,26 +25,26 @@ export function PreviewBar() {
 
       <div className="flex items-center gap-2 ml-auto">
         <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-          Viewing as
+          Signed in as
         </span>
         <div className="flex flex-wrap border border-border">
-          {ROLE_OPTIONS.map((opt) => (
+          {PREVIEW_IDENTITIES.map((identity) => (
             <button
-              key={opt.value}
+              key={identity}
               type="button"
-              aria-pressed={previewRole === opt.value}
+              title={PREVIEW_IDENTITY_LABELS[identity].hint}
+              aria-pressed={previewIdentity === identity}
               onClick={() => {
-                if (previewRole === opt.value) return;
-                switchPreviewRole(opt.value);
-                queryClient.clear();
+                if (previewIdentity === identity) return;
+                switchPreviewIdentity(identity);
               }}
               className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border-r border-border last:border-r-0 transition-colors ${
-                previewRole === opt.value
+                previewIdentity === identity
                   ? "bg-foreground text-background"
                   : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
               }`}
             >
-              {opt.label}
+              {PREVIEW_IDENTITY_LABELS[identity].name}
             </button>
           ))}
         </div>

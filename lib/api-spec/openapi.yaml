@@ -10,8 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: session
+    description: Verified session context, workspace membership and access requests
   - name: users
-    description: User profile and role management
+    description: User directory
   - name: cases
     description: Case management
   - name: documents
@@ -81,28 +83,191 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserProfile"
 
-  /users/me/role:
+  # ── Session & workspaces ───────────────────────────────────────────────────
+  /session:
+    get:
+      operationId: getSession
+      tags: [session]
+      summary: Verified session claims
+      description: >
+        The authoritative description of who the caller is, which workspaces they
+        are an active member of, and what they may do in the active one. The
+        frontend renders exclusively from this payload; it is the only source of
+        UI visibility. Never derived from client state.
+      responses:
+        "200":
+          description: Session claims
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionClaims"
+        "401":
+          description: Unauthorized
+
+  /session/workspace:
     post:
-      operationId: selectRole
-      tags: [users]
-      summary: Self-service one-time role selection at sign-up
+      operationId: switchWorkspace
+      tags: [session]
+      summary: Switch the active workspace
+      description: >
+        Verifies the caller holds an ACTIVE membership of the requested workspace
+        and, only then, mints a scoped workspace token. A workspace the caller is
+        not mapped to answers 403 — there is no client-side way to select one.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RoleSelectionInput"
+              $ref: "#/components/schemas/WorkspaceSwitchInput"
       responses:
         "200":
-          description: Role selected
+          description: Scoped session context
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserProfile"
+                $ref: "#/components/schemas/SessionClaims"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Not an active member of that workspace
+
+  /workspaces:
+    get:
+      operationId: listWorkspaces
+      tags: [session]
+      summary: Workspaces the caller is explicitly mapped to
+      description: >
+        Returns only workspaces backed by a membership row for this user. Pending
+        rows are included but flagged, so the switcher can show "awaiting
+        approval" without ever offering them as selectable.
+      responses:
+        "200":
+          description: Memberships
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkspaceMembershipSummary"
+        "401":
+          description: Unauthorized
+
+  /access-requests:
+    get:
+      operationId: listAccessRequests
+      tags: [session]
+      summary: Pending access requests for the active workspace (admin only)
+      responses:
+        "200":
+          description: Access requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessRequest"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createAccessRequest
+      tags: [session]
+      summary: Request access to a workspace
+      description: >
+        Records intent only. The requested role is stored as `requestedRole` and
+        grants nothing; the membership is created with status `pending`. Approval
+        is an explicit admin action.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessRequestInput"
+      responses:
+        "201":
+          description: Request recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessRequest"
         "401":
           description: Unauthorized
         "409":
-          description: Role already selected — contact an admin to change it
+          description: A membership or request already exists
+
+  /access-requests/{id}/decision:
+    post:
+      operationId: decideAccessRequest
+      tags: [session]
+      summary: Approve or deny an access request (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessDecisionInput"
+      responses:
+        "200":
+          description: Decision applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessRequest"
+        "403":
+          description: Forbidden
+        "404":
+          description: Request not found in this workspace
+
+  /workspace/members:
+    get:
+      operationId: listWorkspaceMembers
+      tags: [session]
+      summary: Active members of the current workspace (admin only)
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessRequest"
+        "403":
+          description: Forbidden
+
+  /workspace/members/{id}:
+    patch:
+      operationId: updateWorkspaceMember
+      tags: [session]
+      summary: Change a member's role or revoke them (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MembershipUpdateInput"
+      responses:
+        "200":
+          description: Membership updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessRequest"
+        "403":
+          description: Forbidden
+        "404":
+          description: Member not found in this workspace
 
   /users:
     get:
@@ -124,35 +289,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/UserProfile"
-
-  /users/{id}/role:
-    patch:
-      operationId: updateUserRole
-      tags: [users]
-      summary: Change another user's role (admin only)
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UserRoleUpdateInput"
-      responses:
-        "200":
-          description: Role updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UserProfile"
-        "403":
-          description: Forbidden — admin only
-        "404":
-          description: User not found
 
   # ── Cases ──────────────────────────────────────────────────────────────────
   /cases:
@@ -830,14 +966,157 @@ components:
         displayName:
           type: string
 
-    RoleSelectionInput:
+    # ── Session & workspaces ──────────────────────────────────────────────
+    Workspace:
       type: object
-      required: [role]
+      required: [id, slug, name, kind]
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [chamber, client_portal]
+
+    WorkspaceMembershipSummary:
+      type: object
+      required: [workspace, role, status]
+      properties:
+        workspace:
+          $ref: "#/components/schemas/Workspace"
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+        status:
+          type: string
+          enum: [pending, active, revoked]
+        requestedRole:
+          type: ["string", "null"]
+
+    SessionClaims:
+      type: object
+      required:
+        [userId, clerkId, displayName, email, accessStatus, memberships, capabilities]
+      properties:
+        userId:
+          type: integer
+        clerkId:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+        accessStatus:
+          type: string
+          enum: [pending_approval, active]
+          description: >
+            pending_approval means the user holds no ACTIVE membership anywhere.
+            They can reach no workspace data at all until an admin grants one.
+        memberships:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkspaceMembershipSummary"
+        activeWorkspace:
+          oneOf:
+            - $ref: "#/components/schemas/Workspace"
+            - type: "null"
+        role:
+          type: ["string", "null"]
+          description: Role in the active workspace, resolved from the membership row.
+        displayRole:
+          type: ["string", "null"]
+        capabilities:
+          type: array
+          description: Server-resolved capability list. The UI renders from this and nothing else.
+          items:
+            type: string
+        workspaceToken:
+          type: ["string", "null"]
+          description: Scoped token for the active workspace, minted after membership was verified.
+
+    WorkspaceSwitchInput:
+      type: object
+      required: [workspaceId]
+      properties:
+        workspaceId:
+          type: integer
+
+    AccessRequest:
+      type: object
+      required: [id, workspaceId, userId, clerkId, role, status, createdAt]
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: integer
+        workspaceName:
+          type: ["string", "null"]
+        userId:
+          type: integer
+        clerkId:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        role:
+          type: string
+        requestedRole:
+          type: ["string", "null"]
+        requestNote:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, active, revoked]
+        decidedBy:
+          type: ["string", "null"]
+        decidedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    AccessRequestInput:
+      type: object
+      required: [workspaceSlug]
+      properties:
+        workspaceSlug:
+          type: string
+          description: The workspace being applied to.
+        requestedRole:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+          description: Intent only. Never granted automatically.
+        note:
+          type: string
+
+    AccessDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, deny]
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+          description: >
+            The role the admin grants. Required on approve. Deliberately separate
+            from requestedRole — an applicant asking for admin does not get it.
+
+    MembershipUpdateInput:
+      type: object
       properties:
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
-          description: Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it.
+        status:
+          type: string
+          enum: [active, revoked]
 
     UserRoleUpdateInput:
       type: object
@@ -850,10 +1129,13 @@ components:
     # ── Case ──────────────────────────────────────────────────────────────
     Case:
       type: object
-      required: [id, title, status, clientId, createdAt, updatedAt]
+      required: [id, workspaceId, title, status, clientId, createdAt, updatedAt]
       properties:
         id:
           type: integer
+        workspaceId:
+          type: integer
+          description: Tenant the matter belongs to. Always the caller's active workspace.
         title:
           type: string
         description:
@@ -1328,14 +1610,26 @@ components:
           type: string
         clientName:
           type: ["string", "null"]
+        requestedFromName:
+          type: ["string", "null"]
+          description: Display name of the person the document is being requested FROM.
+        requestedFromEmail:
+          type: ["string", "null"]
         requestedBy:
           type: string
+          description: Display name of the staff member who raised the request.
+        requestedByRole:
+          type: ["string", "null"]
         documentName:
           type: string
         note:
           type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
         caseId:
           type: ["integer", "null"]
+        caseTitle:
+          type: ["string", "null"]
         status:
           type: string
           enum: [pending, fulfilled, dismissed]
@@ -1352,11 +1646,15 @@ components:
       properties:
         clientId:
           type: integer
+          description: The recipient — the user the document is requested FROM.
         documentName:
           type: string
           minLength: 1
         note:
           type: string
+        dueDate:
+          type: string
+          description: Date the recipient is asked to respond by (YYYY-MM-DD).
         caseId:
           type: integer
 

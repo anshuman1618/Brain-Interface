@@ -1,17 +1,18 @@
 import { useState } from "react";
-import { RoleOptionsGrid } from "@/components/auth/role-options-grid";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/lib/session";
-import type { RoleValue } from "@/lib/role-options";
-import { AlertTriangle } from "lucide-react";
+import { PREVIEW_IDENTITIES, PREVIEW_IDENTITY_LABELS, type PreviewIdentity } from "@/lib/preview";
+import { AlertTriangle, Check, Clock, Building2 } from "lucide-react";
 
 /**
- * Pre-auth entry point for preview mode: pick a role, then explore the
- * role-scoped interface without signing in. Nothing here touches Clerk.
+ * Pre-auth entry point for preview mode: choose which seeded person to sign in
+ * as, then explore what *their* memberships allow. Nothing here touches Clerk,
+ * and nothing here grants access — the identity is resolved server-side and the
+ * workspaces it reaches come from the database.
  */
 export function PreviewLanding() {
-  const { switchPreviewRole } = useSession();
-  const [selected, setSelected] = useState<RoleValue | null>(null);
+  const { switchPreviewIdentity } = useSession();
+  const [selected, setSelected] = useState<PreviewIdentity | null>(null);
 
   return (
     <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12 overflow-y-auto">
@@ -27,26 +28,54 @@ export function PreviewLanding() {
 
         <div className="mb-8 text-center">
           <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">
-            Choose a vantage point
+            Choose an identity
           </p>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
-            Explore the chamber portal by role
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Sign in as someone</h1>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            Each role sees a different portal. Pick one to explore what it can reach —
-            and what it cannot. You can switch at any time from the bar at the top.
+            You are picking a person, not a permission level. What each one reaches comes from
+            their workspace memberships in the database — including the applicant who has none
+            yet. Switch at any time from the bar at the top.
           </p>
         </div>
 
-        <div className="mb-8">
-          <RoleOptionsGrid selected={selected} onSelect={setSelected} />
+        <div className="grid sm:grid-cols-2 gap-3 mb-8">
+          {PREVIEW_IDENTITIES.map((identity) => {
+            const meta = PREVIEW_IDENTITY_LABELS[identity];
+            const isSelected = selected === identity;
+            const isApplicant = identity === "unassigned";
+            const isOtherTenant = identity === "rival_admin";
+            return (
+              <button
+                key={identity}
+                type="button"
+                onClick={() => setSelected(identity)}
+                className={`text-left border p-4 transition-colors relative ${
+                  isSelected
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background hover:border-primary/50"
+                }`}
+              >
+                {isSelected && (
+                  <div className="absolute top-3 right-3 h-5 w-5 bg-primary text-primary-foreground flex items-center justify-center">
+                    <Check className="h-3.5 w-3.5" />
+                  </div>
+                )}
+                <div className="font-semibold mb-1">{meta.name}</div>
+                <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  {isApplicant && <Clock className="h-3.5 w-3.5 shrink-0" />}
+                  {isOtherTenant && <Building2 className="h-3.5 w-3.5 shrink-0" />}
+                  {meta.hint}
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex justify-end">
           <Button
             className="rounded-none px-8"
             disabled={!selected}
-            onClick={() => selected && switchPreviewRole(selected)}
+            onClick={() => selected && switchPreviewIdentity(selected)}
           >
             Enter portal
           </Button>

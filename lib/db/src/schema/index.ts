@@ -1,3 +1,5 @@
+export * from "./workspaces";
+export * from "./workspace_memberships";
 export * from "./users";
 export * from "./cases";
 export * from "./documents";

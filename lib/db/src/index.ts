@@ -74,4 +74,4 @@ export function initDatabase(): Promise<Database> {
 }
 
 export * from "./schema";
-export { PREVIEW_USER_IDS, type PreviewRole } from "./preview";
+export { PREVIEW_USER_IDS, PREVIEW_WORKSPACE_SLUGS, type PreviewRole } from "./preview";

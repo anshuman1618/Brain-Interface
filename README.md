@@ -7,7 +7,7 @@ portal.
 Built to two compliance constraints:
 
 - **BCI Rule 36** — invite-only, no public listing, no solicitation. There is no
-  open sign-up funnel; accounts arrive through an admin-issued invite.
+  open sign-up funnel; a new account reaches nothing until an admin approves it.
 - **DPDP Act 2023** — role-scoped access enforced server-side, documents flagged
   encrypted at rest, and a delay/audit trail on task completion.
 
@@ -22,12 +22,14 @@ pnpm run preview
 
 Then open **http://localhost:5000**.
 
-This boots the whole platform with **no external services configured**: pick a
-role on the landing screen and explore. Under the hood:
+This boots the whole platform with **no external services configured**: pick an
+identity on the landing screen and explore. Two chambers are seeded, plus an
+applicant who has signed up but been granted nothing — so tenant isolation and
+the Pending Approval state are both reachable immediately. Under the hood:
 
 | Dependency | In preview |
 | --- | --- |
-| Clerk (auth) | Mocked — you choose a role instead of signing in |
+| Clerk (auth) | Mocked — you choose which seeded person to sign in as |
 | Postgres | In-memory Postgres (PGlite), seeded with sample matters |
 | Speech-to-text | Mocked — stopping a recording produces a sample transcript |
 
@@ -74,27 +76,74 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the two supported hosting topologies
 pnpm --filter @workspace/api-spec run codegen
 ```
 
-## Roles
+## Zero-trust workspaces
 
-Five stored roles map onto four access tiers. `senior_advocate` and
-`junior_advocate` are both Advocate — neither has admin access.
+A **workspace** is the tenant boundary. Every matter, task, document,
+consultation and document request belongs to exactly one, and the only thing
+that grants access to one is an `active` row in `workspace_memberships`.
 
-| Tier | Stored role | Can reach | Blocked from |
+```
+users ──< workspace_memberships >── workspaces
+              │  role      (admin | senior_advocate | junior_advocate | clerk_intern | client)
+              │  status    (pending | active | revoked)   ← only 'active' grants anything
+              └─ requested_role                            ← what they asked for; never read for authz
+```
+
+**Nothing else grants access.** In particular:
+
+- **Sign-up grants nothing.** The pre-auth role picker is a preview and an
+  access-request *intent*. Clerk's `publicMetadata` is not consulted at all —
+  it used to seed the role, which meant anything that could write metadata could
+  hand itself `admin`. A new account has zero memberships and lands in
+  **Pending Approval**, where every protected endpoint answers `403`.
+- **An admin decides the role, not the applicant.** Approval takes the role from
+  the admin's decision body; `requested_role` is stored for their information and
+  read by no authorization path. The grant selector defaults to Client.
+- **`admin` is not a global rank.** It means admin *of that workspace*. An admin
+  of one chamber gets `403`/`404` against another's data, members and requests.
+- **The client never computes permissions.** `GET /session` returns a
+  server-resolved `capabilities` list; the UI renders from it and nothing else.
+  Editing it, or `localStorage`, changes nothing — the guard re-derives
+  capabilities from the membership row on every request.
+
+### Request path
+
+Every protected endpoint runs through `requireWorkspace` (see
+`artifacts/api-server/src/middlewares/requireAuth.ts`):
+
+1. Resolve the user from the Clerk session (or preview bearer token).
+2. Resolve the requested workspace from `X-Workspace-Token` (HMAC-signed by us at
+   switch time), else `X-Workspace-Id`, else their sole active membership. A
+   token that is present but does not verify is a hard `401`, never a silent
+   fallback.
+3. **Re-read the membership row from the database.** No active membership of that
+   workspace → `403`.
+4. `requireCapability(...)` then checks the action against the matrix in
+   `lib/permissions.ts`.
+
+The signed token proves the switch was authorized; the database check is what
+makes a revocation or demotion take effect on the *next request* rather than at
+token expiry. Both run, every time.
+
+### Capability matrix
+
+| Tier | Role | Reaches | Refused |
 | --- | --- | --- | --- |
-| Admin | `admin` | Everything: firm oversight, KPI engine, billing, access control, task override | — |
-| Advocate | `senior_advocate`, `junior_advocate` | Matters, calendar, drafting, consultation recorder, document requests | KPI engine, billing, access control |
-| Clerk / Intern | `clerk_intern` | Dashboard, calendar, tasks assigned to them | Billing, unassigned matters |
-| Client | `client` | Their own matters (read-only), document upload, consultation requests, direct complaint to admin | Everything else |
+| Admin | `admin` | Everything in their workspace: KPI engine, billing, access control, team roles | Any other workspace |
+| Advocate | `senior_advocate`, `junior_advocate` | Matters, calendar, drafting, consultation recorder, document requests, task assignment | KPI engine, billing, access control, team roles |
+| Clerk / Intern | `clerk_intern` | Dashboard, calendar, and only matters they hold a task on | Task assignment, billing, unassigned matters |
+| Client | `client` | Their own matters (read-only), document upload, consultation requests | Everything else |
 
-Two rules this codebase treats as load-bearing:
+Row scope is enforced separately from workspace scope: a clerk is a legitimate
+member of the chamber but still sees only their assigned matters, and a client
+only their own. See `artifacts/api-server/src/lib/scope.ts`.
 
-1. **Role lives in the app database, never in Clerk metadata.** Clerk session
-   claims only refresh on token rotation, so an admin demoting a user would not
-   take effect until their token happened to refresh. Authorization reads
-   `users.role`; see `.agents/memory/clerk-role-source-of-truth.md`.
-2. **Authorization is enforced server-side.** The UI hides what a role cannot
-   reach, but every route re-checks independently — hiding a nav item is not
-   access control.
+### Frontend guards
+
+Restricted routes are wrapped in `<RequireCapability>`, not merely hidden from
+the nav — navigating straight to `/kpi` without the backend claim redirects to a
+`401 Unauthorized` page. That guard is a courtesy: bypassing it renders an empty
+page, because every endpoint behind it re-checks independently.
 
 ## Core flows
 
@@ -107,8 +156,16 @@ Two rules this codebase treats as load-bearing:
 - **Consultation recorder** — recording cannot start until consent is recorded
   on-device. Stopping the recording generates the transcript **server-side**, so
   the client never invents an audio URL or transcript of its own.
-- **Document requests** — an advocate requests a document; the client sees it in
-  their portal and uploads against it.
+- **Document requests** — an advocate requests a document from a named client;
+  both ends of the request are recorded and displayed (who it is *from* and who
+  raised it, with their role), along with an optional due date. The client sees
+  it in their portal and uploads against it.
+- **Task assignment** — Admin and both Advocate tiers can create a task on any
+  matter in the workspace and assign it to a member. The assignee list is
+  workspace-scoped, and the API re-checks the assignee's membership on submit.
+- **Access requests & approval** — an applicant's request lands in the admin's
+  Access Control queue, showing what they asked for alongside a separate
+  grant-role selector that defaults to Client.
 
 ## Commands
 
@@ -135,6 +192,7 @@ See `.env.example`. In short:
 | `CORS_ALLOWED_ORIGINS` | split hosting | Comma-separated; production sends no CORS headers without it |
 | `PORT` / `HOST` | no | Default `5000` / `0.0.0.0` |
 | `CLIENT_DIST_PATH` | no | Override where the API reads the built SPA from |
+| `WORKSPACE_TOKEN_SECRET` | recommended | Signs scoped workspace tokens. Unset → a random per-process secret, so tokens die on restart and clients re-switch (fine in dev, not across replicas) |
 
 ## Conventions worth knowing
 

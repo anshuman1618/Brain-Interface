@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, inArray, and, SQL } from "drizzle-orm";
-import { db, consultationsTable, casesTable } from "@workspace/db";
+import { db, consultationsTable } from "@workspace/db";
 import {
   ListConsultationsQueryParams,
   ListConsultationsResponse,
@@ -12,52 +12,39 @@ import {
   UpdateConsultationBody,
   UpdateConsultationResponse,
 } from "@workspace/api-zod";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
-import { getOrCreateUser } from "../lib/jit";
+import { requireWorkspace, requireCapability, ctx, type AuthRequest } from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
-import { isClientRole } from "../lib/roles";
+import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { transcribeConsultation } from "../lib/stt";
 
 const router: IRouter = Router();
 
-async function ownsCase(userId: number, caseId: number): Promise<boolean> {
-  const [c] = await db.select().from(casesTable).where(eq(casesTable.id, caseId));
-  return !!c && c.clientId === userId;
-}
+// Consultations are reachable only through cases the caller can already see, so
+// the visible-case list is the tenant *and* row boundary in one.
+router.get("/consultations", requireWorkspace, requireCapability("consultations.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
-router.get("/consultations", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const params = ListConsultationsQueryParams.safeParse(req.query);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const conditions: SQL[] = [];
+  const allowedCaseIds = await visibleCaseIds(c);
+  if (allowedCaseIds.length === 0) { res.json([]); return; }
+
+  const conditions: SQL[] = [inArray(consultationsTable.caseId, allowedCaseIds)];
   if (params.data.caseId) conditions.push(eq(consultationsTable.caseId, params.data.caseId));
 
-  // Clients only see consultations on their own cases
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (user.role === "client") {
-    const ownCases = await db.select({ id: casesTable.id }).from(casesTable).where(eq(casesTable.clientId, user.id));
-    const ids = ownCases.map(c => c.id);
-    if (ids.length === 0) { res.json([]); return; }
-    conditions.push(inArray(consultationsTable.caseId, ids));
-  }
-
-  const consultations = conditions.length > 0
-    ? await db.select().from(consultationsTable).where(and(...conditions))
-    : await db.select().from(consultationsTable);
+  const consultations = await db.select().from(consultationsTable).where(and(...conditions));
 
   res.json(ListConsultationsResponse.parse(consultations));
 });
 
-router.post("/consultations", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+router.post("/consultations", requireWorkspace, requireCapability("consultations.write"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const parsed = CreateConsultationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  // Clients may request a consultation, but only on their own case.
-  if (isClientRole(user.role) && !(await ownsCase(user.id, parsed.data.caseId))) {
+  if (!(await getVisibleCase(c, parsed.data.caseId))) {
     res.status(404).json({ error: "Case not found" });
     return;
   }
@@ -72,34 +59,31 @@ router.post("/consultations", requireAuth, async (req: AuthRequest, res): Promis
     status: "scheduled",
   }).returning();
 
-  await addTimelineEvent(consultation.caseId, "consultation_scheduled", `Consultation "${consultation.title}" scheduled`, user.displayName);
+  await addTimelineEvent(consultation.caseId, "consultation_scheduled", `Consultation "${consultation.title}" scheduled`, c.user.displayName);
 
   res.status(201).json(CreateConsultationResponse.parse(consultation));
 });
 
-router.get("/consultations/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+router.get("/consultations/:id", requireWorkspace, requireCapability("consultations.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const params = GetConsultationParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const [c] = await db.select().from(consultationsTable).where(eq(consultationsTable.id, params.data.id));
-  if (!c) { res.status(404).json({ error: "Consultation not found" }); return; }
-  if (isClientRole(user.role) && !(await ownsCase(user.id, c.caseId))) {
+  const [found] = await db.select().from(consultationsTable).where(eq(consultationsTable.id, params.data.id));
+  if (!found) { res.status(404).json({ error: "Consultation not found" }); return; }
+  if (!(await getVisibleCase(c, found.caseId))) {
     res.status(404).json({ error: "Consultation not found" });
     return;
   }
 
-  res.json(GetConsultationResponse.parse(c));
+  res.json(GetConsultationResponse.parse(found));
 });
 
 // Recording control (start/stop, consent, transcript) is conducted by staff during the
 // live meeting — not something clients toggle remotely.
-router.patch("/consultations/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+router.patch("/consultations/:id", requireWorkspace, requireCapability("consultations.write"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const pathParams = UpdateConsultationParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
@@ -109,6 +93,7 @@ router.patch("/consultations/:id", requireAuth, async (req: AuthRequest, res): P
 
   const [existing] = await db.select().from(consultationsTable).where(eq(consultationsTable.id, pathParams.data.id));
   if (!existing) { res.status(404).json({ error: "Consultation not found" }); return; }
+  if (!(await getVisibleCase(c, existing.caseId))) { res.status(404).json({ error: "Consultation not found" }); return; }
 
   const updateData: Partial<typeof consultationsTable.$inferSelect> = {};
   if (body.data.title != null) updateData.title = body.data.title;

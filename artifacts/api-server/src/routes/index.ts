@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import sessionRouter from "./session";
 import usersRouter from "./users";
 import casesRouter from "./cases";
 import documentsRouter from "./documents";
@@ -13,6 +14,9 @@ import searchRouter from "./search";
 const router: IRouter = Router();
 
 // healthRouter is mounted directly on the app, ahead of auth — see app.ts.
+// sessionRouter first: it owns /session and /workspaces, the only endpoints a
+// user with no active membership is allowed to reach.
+router.use(sessionRouter);
 router.use(usersRouter);
 router.use(casesRouter);
 router.use(documentsRouter);

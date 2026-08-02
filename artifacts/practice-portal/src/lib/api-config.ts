@@ -1,5 +1,8 @@
 import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
-import { getPreviewRole, isPreviewMode, previewToken } from "@/lib/preview";
+import { getPreviewIdentity, isPreviewMode, previewToken } from "@/lib/preview";
+// Registers the workspace-header getter at module load. Imported here so it is
+// in place before the first query fires, alongside the auth token getter.
+import "@/lib/workspace-context";
 
 /**
  * Absolute origin of the API server, e.g. `https://api.example.com`.
@@ -24,11 +27,12 @@ if (isCrossOriginApi) {
 
 // Registered at module load, not from a React effect: queries fire while the
 // tree is still mounting, so an effect-based registration lets the first request
-// go out unauthenticated and 401. The role is read from storage on each call, so
-// switching role in the preview bar takes effect without re-registering.
+// go out unauthenticated and 401. The identity is read from storage on each
+// call, so switching identity in the preview bar takes effect without
+// re-registering.
 if (isPreviewMode) {
   setAuthTokenGetter(() => {
-    const role = getPreviewRole();
-    return role ? previewToken(role) : null;
+    const identity = getPreviewIdentity();
+    return identity ? previewToken(identity) : null;
   });
 }

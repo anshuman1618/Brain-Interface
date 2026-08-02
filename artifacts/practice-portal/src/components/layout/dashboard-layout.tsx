@@ -1,8 +1,8 @@
-import * as React from "react"
 import { Link, Route, Switch, useLocation } from "wouter"
 import { useSession } from "@/lib/session"
 import { PreviewBar } from "@/components/preview-bar"
-import { useUserRole } from "@/hooks/use-user-role"
+import { WorkspaceSwitcher } from "@/components/workspace-switcher"
+import { RequireCapability } from "@/components/auth/route-guard"
 import DashboardPage from "@/pages/dashboard"
 import CasesPage from "@/pages/cases"
 import CaseDetailPage from "@/pages/case-detail"
@@ -13,21 +13,31 @@ import InvitesPage from "@/pages/invites"
 import ClientPortalPage from "@/pages/client-portal"
 import CalendarPage from "@/pages/calendar"
 import TeamPage from "@/pages/team"
-import SelectRolePage from "@/pages/select-role"
+import PendingApprovalPage from "@/pages/pending-approval"
+import UnauthorizedPage from "@/pages/unauthorized"
 import NotFound from "@/pages/not-found"
-import { getPendingRoleSelection } from "@/lib/role-options"
 import { Briefcase, LayoutDashboard, CheckSquare, PhoneCall, BarChart2, Users, LogOut, Loader2, ChevronRight, Calendar as CalendarIcon, CreditCard, ShieldCheck } from "lucide-react"
 import { PricingModalProvider, usePricingModal } from "@/components/pricing-modal"
 import { NotificationBell } from "@/components/notification-bell"
 import { GlobalSearch } from "@/components/global-search"
 
 function DashboardLayoutContent() {
-  const { isLoaded, isSignedIn, displayName, initial, signOut, previewMode } = useSession();
-  const { role, roleSelected, isLoaded: roleLoaded, isAdmin, isSenior, isJunior, isClerk, isClient, isStaff } = useUserRole();
+  const {
+    isLoaded,
+    isSignedIn,
+    displayName,
+    initial,
+    signOut,
+    claims,
+    isPendingApproval,
+    activeWorkspace,
+    displayRole,
+    can,
+  } = useSession();
   const [location] = useLocation();
   const { setOpen: setPricingModalOpen } = usePricingModal();
 
-  if (!isLoaded || !roleLoaded) {
+  if (!isLoaded || (isSignedIn && !claims)) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -40,25 +50,32 @@ function DashboardLayoutContent() {
     return null;
   }
 
-  // Brand-new sign-ups pick their workspace role once, before seeing any nav or data.
-  // Visitors who chose a role before signing up (see sign-up page) have it applied
-  // automatically here; anyone else (e.g. pre-existing accounts) sees the picker.
-  // Preview identities are seeded with a role already, so the picker is skipped —
-  // the role switcher in the preview bar takes its place.
-  if (!roleSelected && !previewMode) {
-    return <SelectRolePage autoApplyRole={getPendingRoleSelection() ?? undefined} />;
+  // No ACTIVE membership anywhere: the account exists and reaches nothing. This
+  // is a rendering of the backend's answer, not a local decision — every API
+  // call from this state returns 403 regardless of what the UI does.
+  // The preview bar stays mounted so the identity switcher remains reachable;
+  // without it, choosing the unapproved identity would be a dead end.
+  if (isPendingApproval || !activeWorkspace) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <PreviewBar />
+        <PendingApprovalPage />
+      </div>
+    );
   }
 
+  // Nav visibility is a projection of the server-issued capability list. Hiding
+  // an item is cosmetic; the route guard below and the API both re-check.
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
-    { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: isStaff },
-    { href: "/client-portal", label: "My Portal", icon: Briefcase, show: isClient },
-    { href: "/cases", label: "Cases", icon: Briefcase, show: isAdmin || isSenior || isJunior },
-    { href: "/tasks", label: "Tasks", icon: CheckSquare, show: isStaff },
-    { href: "/consultations", label: "Consultations", icon: PhoneCall, show: isAdmin || isSenior || isJunior },
-    { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: isAdmin },
-    { href: "/invites", label: "Access Control", icon: Users, show: isAdmin },
-    { href: "/team", label: "Team Roles", icon: ShieldCheck, show: role === "admin" },
+    { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: can("calendar.read") },
+    { href: "/client-portal", label: "My Portal", icon: Briefcase, show: !can("calendar.read") },
+    { href: "/cases", label: "Cases", icon: Briefcase, show: can("cases.write") },
+    { href: "/tasks", label: "Tasks", icon: CheckSquare, show: can("tasks.read") },
+    { href: "/consultations", label: "Consultations", icon: PhoneCall, show: can("consultations.write") },
+    { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: can("kpi.read") },
+    { href: "/invites", label: "Access Control", icon: Users, show: can("access_control.manage") },
+    { href: "/team", label: "Team Roles", icon: ShieldCheck, show: can("team.manage") },
   ].filter(item => item.show);
 
   return (
@@ -77,22 +94,21 @@ function DashboardLayoutContent() {
             </span>
           </Link>
         </div>
-        
+
+        <div className="p-3 border-b border-sidebar-border">
+          <WorkspaceSwitcher />
+        </div>
+
         <div className="flex-1 py-6 px-3 flex flex-col gap-1 overflow-y-auto">
-          <div className="px-3 pb-2 mb-2">
-            <p className="text-xs font-mono font-semibold tracking-wider text-muted-foreground uppercase">
-              {role} workspace
-            </p>
-          </div>
           {navItems.map((item) => {
             const isActive = location.startsWith(item.href) && item.href !== "/" && (item.href !== "/dashboard" || location === "/dashboard");
             return (
-              <Link 
-                key={item.href} 
+              <Link
+                key={item.href}
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive 
-                    ? "bg-sidebar-accent text-sidebar-accent-foreground" 
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
                 }`}
               >
@@ -104,8 +120,8 @@ function DashboardLayoutContent() {
         </div>
 
         <div className="p-4 border-t border-sidebar-border flex flex-col gap-2">
-          {isAdmin && (
-            <button 
+          {can("billing.manage") && (
+            <button
               onClick={() => setPricingModalOpen(true)}
               className="flex items-center justify-center gap-2 w-full py-2 bg-gradient-to-r from-gray-300 to-gray-500 text-black font-bold rounded-none uppercase text-xs tracking-wider mb-2 hover:opacity-90 transition-opacity"
             >
@@ -119,9 +135,9 @@ function DashboardLayoutContent() {
             </div>
             <div className="flex flex-col flex-1 overflow-hidden">
               <span className="text-sm font-semibold truncate">{displayName}</span>
-              <span className="text-xs text-muted-foreground truncate font-mono uppercase">{role}</span>
+              <span className="text-xs text-muted-foreground truncate font-mono uppercase">{displayRole}</span>
             </div>
-            <button 
+            <button
               onClick={() => signOut()}
               className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0 transition-colors"
               title="Sign out"
@@ -135,31 +151,53 @@ function DashboardLayoutContent() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
         <header className="h-16 border-b border-border bg-background flex items-center px-8 z-10 sticky top-0 justify-between">
-          <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground">
-            <span className="uppercase tracking-widest">{role}</span>
-            <ChevronRight className="h-3 w-3" />
-            <span className="text-foreground capitalize">{location.split('/')[1] || 'Dashboard'}</span>
+          <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground min-w-0">
+            <span className="uppercase tracking-widest truncate">{activeWorkspace.name}</span>
+            <ChevronRight className="h-3 w-3 shrink-0" />
+            <span className="text-foreground capitalize truncate">{location.split('/')[1] || 'Dashboard'}</span>
           </div>
-          
+
           <div className="flex items-center gap-4">
             <GlobalSearch />
             <NotificationBell />
           </div>
         </header>
-        
+
         <div className="flex-1 p-8 overflow-y-auto relative">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.2] pointer-events-none z-0" />
           <div className="relative z-10 max-w-6xl mx-auto animate-in fade-in duration-500">
+            {/*
+              Restricted routes are wrapped, not merely hidden from the nav.
+              Navigating straight to /kpi or /invites without the backend claim
+              redirects to the 401 page instead of rendering the component.
+            */}
             <Switch>
               <Route path="/dashboard" component={DashboardPage} />
-              <Route path="/calendar" component={CalendarPage} />
-              <Route path="/cases" component={CasesPage} />
-              <Route path="/cases/:id" component={CaseDetailPage} />
-              <Route path="/tasks" component={TasksPage} />
-              <Route path="/consultations" component={ConsultationsPage} />
-              <Route path="/kpi" component={KpiPage} />
-              <Route path="/invites" component={InvitesPage} />
-              <Route path="/team" component={TeamPage} />
+              <Route path="/unauthorized" component={UnauthorizedPage} />
+              <Route path="/calendar">
+                <RequireCapability capability="calendar.read"><CalendarPage /></RequireCapability>
+              </Route>
+              <Route path="/cases">
+                <RequireCapability capability="cases.write"><CasesPage /></RequireCapability>
+              </Route>
+              <Route path="/cases/:id">
+                <RequireCapability capability="cases.read"><CaseDetailPage /></RequireCapability>
+              </Route>
+              <Route path="/tasks">
+                <RequireCapability capability="tasks.read"><TasksPage /></RequireCapability>
+              </Route>
+              <Route path="/consultations">
+                <RequireCapability capability="consultations.write"><ConsultationsPage /></RequireCapability>
+              </Route>
+              <Route path="/kpi">
+                <RequireCapability capability="kpi.read"><KpiPage /></RequireCapability>
+              </Route>
+              <Route path="/invites">
+                <RequireCapability capability="access_control.manage"><InvitesPage /></RequireCapability>
+              </Route>
+              <Route path="/team">
+                <RequireCapability capability="team.manage"><TeamPage /></RequireCapability>
+              </Route>
               <Route path="/client-portal" component={ClientPortalPage} />
               <Route component={NotFound} />
             </Switch>

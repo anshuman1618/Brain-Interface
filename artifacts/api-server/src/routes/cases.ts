@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, SQL } from "drizzle-orm";
+import { eq, and, inArray, SQL } from "drizzle-orm";
 import { db, casesTable, usersTable, timelineEventsTable } from "@workspace/db";
 import {
   ListCasesQueryParams,
@@ -15,10 +15,9 @@ import {
   GetCaseTimelineParams,
   GetCaseTimelineResponse,
 } from "@workspace/api-zod";
-import { requireAuth, requireRole, type AuthRequest } from "../middlewares/requireAuth";
-import { getOrCreateUser } from "../lib/jit";
+import { requireWorkspace, requireCapability, ctx, type AuthRequest } from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
-import { ADMIN_ROLE, isClientRole } from "../lib/roles";
+import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 
 const router: IRouter = Router();
 
@@ -31,36 +30,37 @@ async function enrichCase(c: typeof casesTable.$inferSelect) {
   return { ...c, clientName };
 }
 
-router.get("/cases", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+router.get("/cases", requireWorkspace, requireCapability("cases.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const params = ListCasesQueryParams.safeParse(req.query);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const conditions: SQL[] = [];
+  // The id list is computed from the verified workspace and the caller's row
+  // scope, so no query parameter can widen it.
+  const allowedIds = await visibleCaseIds(c);
+  if (allowedIds.length === 0) { res.json([]); return; }
+
+  const conditions: SQL[] = [inArray(casesTable.id, allowedIds)];
   if (params.data.status) conditions.push(eq(casesTable.status, params.data.status));
   if (params.data.clientId) conditions.push(eq(casesTable.clientId, Number(params.data.clientId)));
-  if (user.role === "client") conditions.push(eq(casesTable.clientId, user.id));
 
-  const cases = conditions.length > 0
-    ? await db.select().from(casesTable).where(and(...conditions))
-    : await db.select().from(casesTable);
+  const cases = await db.select().from(casesTable).where(and(...conditions));
 
   const enriched = await Promise.all(cases.map(enrichCase));
   res.json(ListCasesResponse.parse(enriched));
 });
 
-router.post("/cases", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  // Clients have read-only access to their assigned cases — case creation is staff-only.
-  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+router.post("/cases", requireWorkspace, requireCapability("cases.write"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const parsed = CreateCaseBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
   const [newCase] = await db.insert(casesTable).values({
+    // Taken from the verified context, never from the request body — otherwise a
+    // caller could plant a case inside another tenant.
+    workspaceId: c.workspaceId,
     title: parsed.data.title,
     description: parsed.data.description ?? null,
     status: parsed.data.status ?? "open",
@@ -69,31 +69,25 @@ router.post("/cases", requireAuth, async (req: AuthRequest, res): Promise<void> 
     priority: parsed.data.priority ?? "medium",
   }).returning();
 
-  await addTimelineEvent(newCase.id, "case_created", `Case "${newCase.title}" created`, user.displayName);
+  await addTimelineEvent(newCase.id, "case_created", `Case "${newCase.title}" created`, c.user.displayName);
 
   res.status(201).json(CreateCaseResponse.parse(await enrichCase(newCase)));
 });
 
-router.get("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+router.get("/cases/:id", requireWorkspace, requireCapability("cases.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const params = GetCaseParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const [c] = await db.select().from(casesTable).where(eq(casesTable.id, params.data.id));
-  if (!c) { res.status(404).json({ error: "Case not found" }); return; }
-  // Clients may only view their own assigned cases, not any case by ID.
-  if (isClientRole(user.role) && c.clientId !== user.id) { res.status(404).json({ error: "Case not found" }); return; }
+  const found = await getVisibleCase(c, params.data.id);
+  if (!found) { res.status(404).json({ error: "Case not found" }); return; }
 
-  res.json(GetCaseResponse.parse(await enrichCase(c)));
+  res.json(GetCaseResponse.parse(await enrichCase(found)));
 });
 
-router.patch("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-  // Clients have read-only access to cases.
-  if (isClientRole(user.role)) { res.status(403).json({ error: "Forbidden" }); return; }
+router.patch("/cases/:id", requireWorkspace, requireCapability("cases.write"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const pathParams = UpdateCaseParams.safeParse(req.params);
   if (!pathParams.success) { res.status(400).json({ error: pathParams.error.message }); return; }
@@ -101,7 +95,7 @@ router.patch("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   const body = UpdateCaseBody.safeParse(req.body);
   if (!body.success) { res.status(400).json({ error: body.error.message }); return; }
 
-  const [existing] = await db.select().from(casesTable).where(eq(casesTable.id, pathParams.data.id));
+  const existing = await getVisibleCase(c, pathParams.data.id);
   if (!existing) { res.status(404).json({ error: "Case not found" }); return; }
 
   const updateData: Partial<typeof casesTable.$inferSelect> = {};
@@ -115,34 +109,35 @@ router.patch("/cases/:id", requireAuth, async (req: AuthRequest, res): Promise<v
   const [updated] = await db.update(casesTable).set(updateData).where(eq(casesTable.id, pathParams.data.id)).returning();
 
   if (body.data.status && body.data.status !== existing.status) {
-    await addTimelineEvent(updated.id, "status_changed", `Status changed to "${body.data.status}"`, user.displayName);
+    await addTimelineEvent(updated.id, "status_changed", `Status changed to "${body.data.status}"`, c.user.displayName);
   }
 
   res.json(UpdateCaseResponse.parse(await enrichCase(updated)));
 });
 
-// Deleting a case is a destructive, firm-wide action — reserved for Admin's "master access".
-router.delete("/cases/:id", requireRole(ADMIN_ROLE), async (req: AuthRequest, res): Promise<void> => {
+// Destructive and workspace-wide — admin of *this* workspace only.
+router.delete("/cases/:id", requireWorkspace, requireCapability("cases.delete"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
+
   const params = DeleteCaseParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  const [c] = await db.delete(casesTable).where(eq(casesTable.id, params.data.id)).returning();
-  if (!c) { res.status(404).json({ error: "Case not found" }); return; }
+  const [deleted] = await db.delete(casesTable)
+    .where(and(eq(casesTable.id, params.data.id), eq(casesTable.workspaceId, c.workspaceId)))
+    .returning();
+  if (!deleted) { res.status(404).json({ error: "Case not found" }); return; }
 
   res.sendStatus(204);
 });
 
-router.get("/cases/:id/timeline", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+router.get("/cases/:id/timeline", requireWorkspace, requireCapability("cases.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const params = GetCaseTimelineParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
 
-  if (isClientRole(user.role)) {
-    const [c] = await db.select().from(casesTable).where(eq(casesTable.id, params.data.id));
-    if (!c || c.clientId !== user.id) { res.status(404).json({ error: "Case not found" }); return; }
-  }
+  const found = await getVisibleCase(c, params.data.id);
+  if (!found) { res.status(404).json({ error: "Case not found" }); return; }
 
   const events = await db.select().from(timelineEventsTable)
     .where(eq(timelineEventsTable.caseId, params.data.id))

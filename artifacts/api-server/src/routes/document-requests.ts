@@ -1,85 +1,121 @@
 import { Router, type IRouter } from "express";
-import { eq, or } from "drizzle-orm";
-import { db, documentRequestsTable, usersTable, notificationsTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import { db, documentRequestsTable, usersTable, casesTable, notificationsTable } from "@workspace/db";
 import {
   CreateDocumentRequestBody,
   UpdateDocumentRequestBody,
 } from "@workspace/api-zod";
-import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
-import { getOrCreateUser } from "../lib/jit";
+import {
+  requireWorkspace,
+  requireCapability,
+  findActiveMembership,
+  ctx,
+  type AuthRequest,
+} from "../middlewares/requireAuth";
+import { caseInWorkspace } from "../lib/scope";
+import { displayRole } from "../lib/permissions";
 
 const router: IRouter = Router();
 
+/**
+ * Both sides of a request are surfaced: who it is addressed to and who raised
+ * it. The list view used to show only the document name, which left the reader
+ * guessing whose desk it was on.
+ */
 async function enrich(dr: typeof documentRequestsTable.$inferSelect) {
-  const [u] = await db.select().from(usersTable).where(eq(usersTable.id, dr.clientId));
-  return { ...dr, clientName: u?.displayName ?? null };
+  const [recipient] = await db.select().from(usersTable).where(eq(usersTable.id, dr.clientId));
+  let caseTitle: string | null = null;
+  if (dr.caseId) {
+    const [c] = await db.select().from(casesTable).where(eq(casesTable.id, dr.caseId));
+    caseTitle = c?.title ?? null;
+  }
+  return {
+    ...dr,
+    clientName: recipient?.displayName ?? null,
+    requestedFromName: dr.requestedFromName || recipient?.displayName || null,
+    requestedFromEmail: recipient?.email ?? null,
+    requestedByRole: dr.requestedByRole ? displayRole(dr.requestedByRole) : null,
+    caseTitle,
+  };
 }
 
-router.get("/document-requests", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+router.get("/document-requests", requireWorkspace, requireCapability("document_requests.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
-  const staffRoles = ["admin", "senior_advocate", "junior_advocate", "clerk_intern", "clerk"];
-  const rows = staffRoles.includes(user.role)
-    ? await db.select().from(documentRequestsTable)
-    : await db.select().from(documentRequestsTable).where(eq(documentRequestsTable.clientClerkId, req.userId!));
+  // A recipient sees only requests addressed to them; staff see the workspace's.
+  const conditions = [eq(documentRequestsTable.workspaceId, c.workspaceId)];
+  if (!c.capabilities.includes("document_requests.create")) {
+    conditions.push(eq(documentRequestsTable.clientClerkId, c.user.clerkId));
+  }
 
+  const rows = await db.select().from(documentRequestsTable).where(and(...conditions));
   const enriched = await Promise.all(rows.map(enrich));
   res.json(enriched);
 });
 
-const STAFF_ROLES = ["admin", "senior_advocate", "junior_advocate", "clerk_intern", "clerk"];
-
-router.post("/document-requests", requireAuth, async (req: AuthRequest, res): Promise<void> => {
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  if (!STAFF_ROLES.includes(user.role)) {
-    res.status(403).json({ error: "Only staff can create document requests" });
-    return;
-  }
+router.post("/document-requests", requireWorkspace, requireCapability("document_requests.create"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
 
   const parsed = CreateDocumentRequestBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [client] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.clientId));
-  if (!client || client.role !== "client") { res.status(404).json({ error: "Client not found" }); return; }
+  const [recipient] = await db.select().from(usersTable).where(eq(usersTable.id, parsed.data.clientId));
+  if (!recipient) { res.status(404).json({ error: "Recipient not found" }); return; }
+
+  // The recipient must be an active member of this workspace. Without this an
+  // advocate could address a request to a client of a different chamber.
+  const membership = await findActiveMembership(recipient.id, c.workspaceId);
+  if (!membership || membership.role !== "client") {
+    res.status(404).json({ error: "Recipient is not a client of this workspace" });
+    return;
+  }
+
+  if (parsed.data.caseId != null && !(await caseInWorkspace(c, parsed.data.caseId))) {
+    res.status(404).json({ error: "Case not found" });
+    return;
+  }
 
   const [created] = await db.insert(documentRequestsTable).values({
-    clientId: client.id,
-    clientClerkId: client.clerkId,
-    requestedBy: user.displayName,
+    workspaceId: c.workspaceId,
+    clientId: recipient.id,
+    clientClerkId: recipient.clerkId,
+    requestedFromName: recipient.displayName,
+    requestedBy: c.user.displayName,
+    requestedByClerkId: c.user.clerkId,
+    requestedByRole: c.role,
     documentName: parsed.data.documentName,
     note: parsed.data.note ?? null,
+    dueDate: parsed.data.dueDate ?? null,
     caseId: parsed.data.caseId ?? null,
     status: "pending",
   }).returning();
 
   await db.insert(notificationsTable).values({
-    userId: client.clerkId,
+    userId: recipient.clerkId,
     type: "document_request",
-    message: `Action required: "${parsed.data.documentName}" has been requested by ${user.displayName}.`,
+    message: `Action required: "${parsed.data.documentName}" has been requested by ${c.user.displayName} (${displayRole(c.role)}).`,
     link: "/dashboard",
   });
 
   res.status(201).json(await enrich(created));
 });
 
-router.patch("/document-requests/:id", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+router.patch("/document-requests/:id", requireWorkspace, requireCapability("document_requests.read"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
+
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const parsed = UpdateDocumentRequestBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  const [existing] = await db.select().from(documentRequestsTable).where(eq(documentRequestsTable.id, id));
+  const [existing] = await db.select().from(documentRequestsTable)
+    .where(and(eq(documentRequestsTable.id, id), eq(documentRequestsTable.workspaceId, c.workspaceId)));
   if (!existing) { res.status(404).json({ error: "Document request not found" }); return; }
 
-  // Clients may only update their own requests
-  if (user.role === "client" && existing.clientClerkId !== req.userId) {
+  // A recipient may only act on their own request.
+  const isStaff = c.capabilities.includes("document_requests.create");
+  if (!isStaff && existing.clientClerkId !== c.user.clerkId) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -88,6 +124,15 @@ router.patch("/document-requests/:id", requireAuth, async (req: AuthRequest, res
     .set({ status: parsed.data.status })
     .where(eq(documentRequestsTable.id, id))
     .returning();
+
+  if (parsed.data.status !== existing.status && existing.requestedByClerkId) {
+    await db.insert(notificationsTable).values({
+      userId: existing.requestedByClerkId,
+      type: "document_request",
+      message: `${existing.requestedFromName || "The client"} marked "${existing.documentName}" as ${parsed.data.status}.`,
+      link: "/dashboard",
+    });
+  }
 
   res.json(await enrich(updated));
 });

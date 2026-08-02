@@ -16,6 +16,9 @@ export type AppUser = {
 /**
  * Resolves the Clerk user id for a request. In preview mode Clerk is not
  * mounted, so identity comes from the `preview:<role>` bearer token instead.
+ *
+ * Note this resolves *identity only*. Under both transports, what the caller may
+ * reach is decided later, from workspace_memberships.
  */
 function resolveClerkId(req: Request): string | null {
   if (isPreviewAuth()) {
@@ -24,6 +27,18 @@ function resolveClerkId(req: Request): string | null {
   return getAuth(req)?.userId ?? null;
 }
 
+/**
+ * Finds the app user for the request, creating a bare record on first sign-in.
+ *
+ * A newly provisioned user is deliberately inert: `users.role` is the directory
+ * default and grants nothing on its own, and NO workspace membership is created.
+ * Until an admin approves an access request the user has zero active
+ * memberships, so `requireWorkspace` refuses every protected endpoint.
+ *
+ * Clerk's publicMetadata is not consulted. It used to seed the role here, which
+ * meant anything that could write metadata — including a sign-up flow driven by
+ * a frontend selection — could hand itself `admin`.
+ */
 export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
   const clerkId = resolveClerkId(req);
   if (!clerkId) return null;
@@ -31,27 +46,26 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
   const existing = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
   if (existing.length > 0) return existing[0];
 
-  // Preview users are seeded up front; if one is missing the token named a role
-  // we do not provision, so treat it as unauthenticated rather than inventing a
-  // user with a role the caller chose for themselves.
+  // Preview users are seeded up front; if one is missing the token named an
+  // identity we do not provision, so treat it as unauthenticated.
   if (isPreviewAuth()) return null;
-
-  // JIT provision — pull the real name/email from Clerk's user profile
-  // rather than publicMetadata, which is only ever set by our own admin flows.
-  const auth = getAuth(req);
-  const meta = (auth?.sessionClaims?.publicMetadata as Record<string, string>) ?? {};
-  const role = meta.role ?? "client";
 
   const clerkUser = await clerkClient.users.getUser(clerkId);
   const nameFromClerk = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim();
-  const emailFromClerk = clerkUser.primaryEmailAddress?.emailAddress
-    ?? clerkUser.emailAddresses[0]?.emailAddress
-    ?? "";
+  const emailFromClerk =
+    clerkUser.primaryEmailAddress?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress ?? "";
 
-  const displayName = meta.displayName || nameFromClerk || "User";
-  const email = meta.email || emailFromClerk;
+  const [created] = await db
+    .insert(usersTable)
+    .values({
+      clerkId,
+      role: "client",
+      roleSelected: false,
+      displayName: nameFromClerk || "User",
+      email: emailFromClerk,
+    })
+    .returning();
 
-  const [created] = await db.insert(usersTable).values({ clerkId, role, displayName, email }).returning();
   return created;
 }
 
