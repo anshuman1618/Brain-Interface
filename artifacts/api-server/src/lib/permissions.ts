@@ -47,6 +47,7 @@ export const CAPABILITIES = [
   "document_requests.create",
   "document_requests.respond",
   "calendar.read",
+  "calendar.write",
   "kpi.read",
   "billing.manage",
   "access_control.manage",
@@ -68,14 +69,15 @@ type RoleDefinition = {
   taskScope: RowScope;
 };
 
+/**
+ * Shared by both advocate tiers. Assignment is NOT in here — see below.
+ */
 const ADVOCATE_CAPABILITIES = [
   "workspace.view",
   "cases.read",
   "cases.write",
   "tasks.read",
-  "tasks.write",
   "tasks.complete",
-  "tasks.delete",
   "consultations.read",
   "consultations.write",
   "documents.read",
@@ -92,14 +94,24 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
     taskScope: "all",
   },
   senior_advocate: {
-    // Explicitly NOT kpi.read / billing.manage / access_control.manage. Advocate is
-    // a practice tier, not a management tier — conflating senior_advocate with admin
-    // is the exact leak this matrix exists to prevent.
-    capabilities: ADVOCATE_CAPABILITIES,
+    // Directs work: assigns tasks, deletes them, and posts calendar updates the
+    // rest of the chamber sees. Still explicitly NOT kpi.read / billing.manage /
+    // access_control.manage — advocate is a practice tier, not a management one,
+    // and conflating senior_advocate with admin is the exact leak this matrix
+    // exists to prevent.
+    capabilities: [
+      ...ADVOCATE_CAPABILITIES,
+      "tasks.write",
+      "tasks.delete",
+      "calendar.write",
+    ],
     caseScope: "all",
     taskScope: "all",
   },
   junior_advocate: {
+    // Does the work, does not hand it out. Assignment is reserved to Admin and
+    // Senior Advocate; a junior can complete and update their own tasks but
+    // cannot create one or push it onto somebody else.
     capabilities: ADVOCATE_CAPABILITIES,
     caseScope: "all",
     taskScope: "all",
@@ -120,6 +132,8 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
     taskScope: "assigned",
   },
   client: {
+    // Clients get a calendar too — their own hearings, consultations and any
+    // notice addressed to them. Read-only, like the rest of their portal.
     capabilities: [
       "workspace.view",
       "cases.read",
@@ -128,6 +142,7 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
       "consultations.read",
       "document_requests.read",
       "document_requests.respond",
+      "calendar.read",
     ],
     caseScope: "own",
     taskScope: "own",

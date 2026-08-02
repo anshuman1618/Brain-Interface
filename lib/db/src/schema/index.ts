@@ -1,6 +1,7 @@
 export * from "./workspaces";
 export * from "./workspace_memberships";
 export * from "./workspace_access_list";
+export * from "./calendar_entries";
 export * from "./users";
 export * from "./cases";
 export * from "./documents";

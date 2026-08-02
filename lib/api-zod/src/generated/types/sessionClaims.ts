@@ -30,6 +30,8 @@ export interface SessionClaims {
   role?: string | null;
   /** @nullable */
   displayRole?: string | null;
+  /** True when the caller founded the active workspace. */
+  isOwner: boolean;
   /** Server-resolved capability list. The UI renders from this and nothing else. */
   capabilities: string[];
   /**

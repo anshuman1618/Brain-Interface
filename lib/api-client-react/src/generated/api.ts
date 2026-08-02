@@ -25,6 +25,8 @@ import type {
   AccessListEntryInput,
   AccessRequest,
   AccessRequestInput,
+  CalendarEntry,
+  CalendarEntryInput,
   Case,
   CaseInput,
   CaseUpdate,
@@ -62,6 +64,7 @@ import type {
   TimelineEvent,
   UserProfile,
   UserProfileUpdate,
+  WorkspaceCreateInput,
   WorkspaceMembershipSummary,
   WorkspaceSwitchInput
 } from './api.schemas';
@@ -469,6 +472,78 @@ export const useSwitchWorkspace = <TError = ErrorType<void>,
       return useMutation(getSwitchWorkspaceMutationOptions(options));
     }
 
+export const getCreateWorkspaceUrl = () => {
+
+
+
+
+  return `/api/workspaces`
+}
+
+/**
+ * Self-serve sign-up. The caller creates a brand-new, empty workspace and becomes its owner at the role they choose (Firm Admin or Senior Advocate). Ownership adds the management capabilities so a founder can invite their own team whatever practice title they hold — and confers nothing in any other workspace. This is the only role a user can choose for themselves, and it only ever applies to a chamber that did not exist a moment ago.
+ * @summary Create a chamber and become its owner
+ */
+export const createWorkspace = async (workspaceCreateInput: WorkspaceCreateInput, options?: RequestInit): Promise<SessionClaims> => {
+
+  return customFetch<SessionClaims>(getCreateWorkspaceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(workspaceCreateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateWorkspaceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWorkspace>>, TError,{data: BodyType<WorkspaceCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWorkspace>>, TError,{data: BodyType<WorkspaceCreateInput>}, TContext> => {
+
+const mutationKey = ['createWorkspace'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWorkspace>>, {data: BodyType<WorkspaceCreateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createWorkspace(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWorkspaceMutationResult = NonNullable<Awaited<ReturnType<typeof createWorkspace>>>
+    export type CreateWorkspaceMutationBody = BodyType<WorkspaceCreateInput>
+    export type CreateWorkspaceMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a chamber and become its owner
+ */
+export const useCreateWorkspace = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWorkspace>>, TError,{data: BodyType<WorkspaceCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWorkspace>>,
+        TError,
+        {data: BodyType<WorkspaceCreateInput>},
+        TContext
+      > => {
+      return useMutation(getCreateWorkspaceMutationOptions(options));
+    }
+
 export const getListWorkspacesUrl = () => {
 
 
@@ -766,6 +841,226 @@ export const useDecideAccessRequest = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDecideAccessRequestMutationOptions(options));
+    }
+
+export const getListCalendarEntriesUrl = () => {
+
+
+
+
+  return `/api/calendar`
+}
+
+/**
+ * Scoped twice: to the caller's workspace, and to entries whose audience includes their role or their user id. A client never receives a staff-only notice.
+ * @summary Calendar updates visible to the caller
+ */
+export const listCalendarEntries = async ( options?: RequestInit): Promise<CalendarEntry[]> => {
+
+  return customFetch<CalendarEntry[]>(getListCalendarEntriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCalendarEntriesQueryKey = () => {
+    return [
+    `/api/calendar`
+    ] as const;
+    }
+
+
+export const getListCalendarEntriesQueryOptions = <TData = Awaited<ReturnType<typeof listCalendarEntries>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCalendarEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCalendarEntriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCalendarEntries>>> = ({ signal }) => listCalendarEntries({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCalendarEntries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCalendarEntriesQueryResult = NonNullable<Awaited<ReturnType<typeof listCalendarEntries>>>
+export type ListCalendarEntriesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Calendar updates visible to the caller
+ */
+
+export function useListCalendarEntries<TData = Awaited<ReturnType<typeof listCalendarEntries>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCalendarEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCalendarEntriesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCalendarEntryUrl = () => {
+
+
+
+
+  return `/api/calendar`
+}
+
+/**
+ * @summary Post a calendar update (Admin and Senior Advocate only)
+ */
+export const createCalendarEntry = async (calendarEntryInput: CalendarEntryInput, options?: RequestInit): Promise<CalendarEntry> => {
+
+  return customFetch<CalendarEntry>(getCreateCalendarEntryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(calendarEntryInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCalendarEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCalendarEntry>>, TError,{data: BodyType<CalendarEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCalendarEntry>>, TError,{data: BodyType<CalendarEntryInput>}, TContext> => {
+
+const mutationKey = ['createCalendarEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCalendarEntry>>, {data: BodyType<CalendarEntryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCalendarEntry(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCalendarEntryMutationResult = NonNullable<Awaited<ReturnType<typeof createCalendarEntry>>>
+    export type CreateCalendarEntryMutationBody = BodyType<CalendarEntryInput>
+    export type CreateCalendarEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Post a calendar update (Admin and Senior Advocate only)
+ */
+export const useCreateCalendarEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCalendarEntry>>, TError,{data: BodyType<CalendarEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCalendarEntry>>,
+        TError,
+        {data: BodyType<CalendarEntryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCalendarEntryMutationOptions(options));
+    }
+
+export const getDeleteCalendarEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/calendar/${id}`
+}
+
+/**
+ * @summary Remove a calendar update (Admin and Senior Advocate only)
+ */
+export const deleteCalendarEntry = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteCalendarEntryUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCalendarEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCalendarEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCalendarEntry>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteCalendarEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCalendarEntry>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteCalendarEntry(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCalendarEntryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCalendarEntry>>>
+
+    export type DeleteCalendarEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove a calendar update (Admin and Senior Advocate only)
+ */
+export const useDeleteCalendarEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCalendarEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCalendarEntry>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteCalendarEntryMutationOptions(options));
     }
 
 export const getListAccessListUrl = () => {

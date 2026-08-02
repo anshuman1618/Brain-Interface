@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearch } from "wouter";
 import { ArrowLeft, Loader2, ShieldCheck, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,9 @@ import { useSession } from "@/lib/session";
  */
 export default function PortalSignInPage() {
   const { previewMode, signInWithProvider, signInError, isSigningIn } = useSession();
+  // Both paths are the same sign-in; only the framing differs, because a founder
+  // and an invited colleague arrive with different expectations.
+  const isSetup = new URLSearchParams(useSearch()).get("new") === "1";
 
   const [chosen, setChosen] = useState<ProviderId | null>(null);
   const [email, setEmail] = useState("");
@@ -61,10 +64,13 @@ export default function PortalSignInPage() {
             </span>
           </div>
 
-          <h1 className="text-3xl font-bold tracking-tight mb-2">Sign in to your chamber</h1>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">
+            {isSetup ? "Set up your chamber" : "Sign in to your chamber"}
+          </h1>
           <p className="text-muted-foreground mb-8 leading-relaxed">
-            Access is by invitation. Sign in with the address your chamber admin added to the
-            access list — a different address will be turned away.
+            {isSetup
+              ? "Sign in first, then name your chamber and choose whether you run it as Firm Admin or Senior Advocate. You'll invite everyone else afterwards."
+              : "Sign in with the address your chamber admin invited. A different address will be turned away."}
           </p>
 
           {signInError && (
@@ -148,34 +154,14 @@ export default function PortalSignInPage() {
           {previewMode && (
             <div className="mt-8 border border-amber-500/40 bg-amber-500/10 px-4 py-3">
               <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                <strong className="font-semibold">Preview build.</strong> No real Google or Zoho
-                tenant is connected, so any address you type is treated as verified. The access-list
-                check that follows is the real one. Try{" "}
-                <button
-                  type="button"
-                  className="underline font-mono"
-                  onClick={() => { setChosen("google"); setEmail("priya@raghavanchambers.in"); }}
-                >
-                  priya@raghavanchambers.in
-                </button>{" "}
-                (admitted as admin) or{" "}
-                <button
-                  type="button"
-                  className="underline font-mono"
-                  onClick={() => { setChosen("google"); setEmail("someone@elsewhere.com"); }}
-                >
-                  someone@elsewhere.com
-                </button>{" "}
-                (refused).
+                <strong className="font-semibold">Preview build.</strong> No Google or Zoho tenant is
+                connected, so any address you type is treated as verified. Everything after that is
+                real: if nobody has admitted your address you will be turned away, and if this is a
+                fresh platform you will be offered the chance to create the first chamber.
               </p>
-              <Link
-                href="/portal/identities"
-                className="inline-block mt-3 text-xs font-mono uppercase tracking-wider underline text-amber-800 dark:text-amber-300"
-              >
-                Or jump straight in as a sample person
-              </Link>
             </div>
           )}
+
         </div>
       </main>
     </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MailX, LogOut, Send, Check } from "lucide-react";
+import { MailX, LogOut, Send, Check, Building2 } from "lucide-react";
 import { useCreateAccessRequest } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   getAccessRequestIntent,
   type RoleValue,
 } from "@/lib/role-options";
+import CreateChamberPage from "@/pages/create-chamber";
 
 /**
  * Shown when sign-in succeeded but the verified address is on no access list.
@@ -35,11 +36,16 @@ export default function AccessDeniedPage({
   const { toast } = useToast();
 
   const [asking, setAsking] = useState(false);
+  const [founding, setFounding] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [selected, setSelected] = useState<RoleValue | null>(() => getAccessRequestIntent());
   const [note, setNote] = useState("");
 
   const provider = providerLabel(authProvider);
+
+  if (founding) {
+    return <CreateChamberPage onCancel={() => setFounding(false)} />;
+  }
 
   const submit = () => {
     if (!selected) return;
@@ -94,7 +100,8 @@ export default function AccessDeniedPage({
                     If your chamber uses a work address, sign out and sign in with that one instead —
                     a personal Gmail or Zoho account won't match.
                   </li>
-                  <li>Otherwise ask your chamber admin to add this address, or request access below.</li>
+                  <li>Otherwise ask your chamber admin to invite this address, or request access below.</li>
+                  <li>Setting up a new practice? Create your own chamber instead.</li>
                 </ul>
               </div>
             </div>
@@ -158,9 +165,16 @@ export default function AccessDeniedPage({
             >
               <LogOut className="h-3.5 w-3.5" /> Sign in with a different address
             </button>
-            <Button variant="outline" className="rounded-none" onClick={() => setAsking(true)}>
-              Request access
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="rounded-none" onClick={() => setAsking(true)}>
+                Request access
+              </Button>
+              {/* The first person on a fresh platform lands here — there is no
+                  chamber to admit them yet, so founding one is the way in. */}
+              <Button className="rounded-none" onClick={() => setFounding(true)}>
+                <Building2 className="h-4 w-4 mr-2" /> Create a chamber
+              </Button>
+            </div>
           </div>
         )}
       </div>

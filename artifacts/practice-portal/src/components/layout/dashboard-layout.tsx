@@ -84,7 +84,7 @@ function DashboardLayoutContent() {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: can("calendar.read") },
-    { href: "/client-portal", label: "My Portal", icon: Briefcase, show: !can("calendar.read") },
+    { href: "/client-portal", label: "My Portal", icon: Briefcase, show: !can("cases.write") && !can("tasks.read") },
     { href: "/cases", label: "Cases", icon: Briefcase, show: can("cases.write") },
     { href: "/tasks", label: "Tasks", icon: CheckSquare, show: can("tasks.read") },
     { href: "/consultations", label: "Consultations", icon: PhoneCall, show: can("consultations.write") },

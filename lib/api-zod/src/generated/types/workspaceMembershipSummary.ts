@@ -13,6 +13,7 @@ export interface WorkspaceMembershipSummary {
   workspace: Workspace;
   role: WorkspaceMembershipSummaryRole;
   status: WorkspaceMembershipSummaryStatus;
+  isOwner?: boolean;
   /** @nullable */
   requestedRole?: string | null;
 }

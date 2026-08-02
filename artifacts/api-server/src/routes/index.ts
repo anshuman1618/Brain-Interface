@@ -10,6 +10,7 @@ import invitesRouter from "./invites";
 import notificationsRouter from "./notifications";
 import documentRequestsRouter from "./document-requests";
 import searchRouter from "./search";
+import calendarRouter from "./calendar";
 
 const router: IRouter = Router();
 
@@ -27,5 +28,6 @@ router.use(invitesRouter);
 router.use(notificationsRouter);
 router.use(documentRequestsRouter);
 router.use(searchRouter);
+router.use(calendarRouter);
 
 export default router;

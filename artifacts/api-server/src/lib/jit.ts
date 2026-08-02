@@ -2,7 +2,7 @@ import { getAuth, clerkClient } from "@clerk/express";
 import type { Request } from "express";
 import { db, usersTable, normaliseEmail } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { isPreviewAuth, previewIdentityFromRequest } from "./preview-mode";
+import { isPreviewAuth, previewClerkIdForEmail, previewIdentityFromRequest } from "./preview-mode";
 
 export type AppUser = {
   id: number;
@@ -24,15 +24,9 @@ export type AppUser = {
 function resolveClerkId(req: Request): string | null {
   if (isPreviewAuth()) {
     const identity = previewIdentityFromRequest(req.headers.authorization);
-    if (!identity) return null;
-    return identity.kind === "seeded" ? identity.clerkId : previewClerkIdForEmail(identity.email);
+    return identity ? previewClerkIdForEmail(identity.email) : null;
   }
   return getAuth(req)?.userId ?? null;
-}
-
-/** Stable synthetic id for a preview user identified by email. */
-function previewClerkIdForEmail(email: string): string {
-  return `preview_email_${normaliseEmail(email).replace(/[^a-z0-9]/g, "_")}`;
 }
 
 /**
@@ -73,13 +67,11 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
 
   if (isPreviewAuth()) {
     const identity = previewIdentityFromRequest(req.headers.authorization);
-    // A seeded identity we do not provision — treat as unauthenticated rather
-    // than inventing a user.
-    if (!identity || identity.kind !== "email") return null;
+    if (!identity) return null;
 
     // Mirrors a real first-time federated sign-in: the provider vouched for an
-    // address, so a user record exists. It still reaches nothing until the
-    // access list or an admin says otherwise.
+    // address, so a user record exists. It still reaches nothing until they
+    // create a chamber, or the access list / an admin admits them.
     const [created] = await db
       .insert(usersTable)
       .values({

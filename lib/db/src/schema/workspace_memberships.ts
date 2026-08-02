@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, unique } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, boolean, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -30,6 +30,16 @@ export const workspaceMembershipsTable = pgTable(
     clerkId: text("clerk_id").notNull(),
     /** The granted role. Meaningless unless status is 'active'. */
     role: text("role").notNull().default("client"),
+    /**
+     * True for whoever created the chamber.
+     *
+     * A founder needs to be able to invite their own team whatever practice
+     * title they hold, so ownership adds the management capabilities on top of
+     * the role. It is scoped to the workspace they created and confers nothing
+     * anywhere else — and it cannot be self-assigned, because it is only ever
+     * set by the create-workspace endpoint for the caller creating it.
+     */
+    isOwner: boolean("is_owner").notNull().default(false),
     /** What the applicant asked for at sign-up. Recorded as intent only — never granted. */
     requestedRole: text("requested_role"),
     status: text("status").notNull().default("pending"),

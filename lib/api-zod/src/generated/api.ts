@@ -71,6 +71,7 @@ export const GetSessionResponse = zod.object({
 }),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "status": zod.enum(['pending', 'active', 'revoked']),
+  "isOwner": zod.boolean().optional(),
   "requestedRole": zod.string().nullish()
 })),
   "activeWorkspace": zod.union([zod.object({
@@ -81,6 +82,7 @@ export const GetSessionResponse = zod.object({
 }),zod.null()]).optional(),
   "role": zod.string().nullish().describe('Role in the active workspace, resolved from the membership row.'),
   "displayRole": zod.string().nullish(),
+  "isOwner": zod.boolean().describe('True when the caller founded the active workspace.'),
   "capabilities": zod.array(zod.string()).describe('Server-resolved capability list. The UI renders from this and nothing else.'),
   "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.')
 })
@@ -110,6 +112,7 @@ export const SwitchWorkspaceResponse = zod.object({
 }),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "status": zod.enum(['pending', 'active', 'revoked']),
+  "isOwner": zod.boolean().optional(),
   "requestedRole": zod.string().nullish()
 })),
   "activeWorkspace": zod.union([zod.object({
@@ -120,6 +123,53 @@ export const SwitchWorkspaceResponse = zod.object({
 }),zod.null()]).optional(),
   "role": zod.string().nullish().describe('Role in the active workspace, resolved from the membership row.'),
   "displayRole": zod.string().nullish(),
+  "isOwner": zod.boolean().describe('True when the caller founded the active workspace.'),
+  "capabilities": zod.array(zod.string()).describe('Server-resolved capability list. The UI renders from this and nothing else.'),
+  "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.')
+})
+
+
+/**
+ * Self-serve sign-up. The caller creates a brand-new, empty workspace and becomes its owner at the role they choose (Firm Admin or Senior Advocate). Ownership adds the management capabilities so a founder can invite their own team whatever practice title they hold — and confers nothing in any other workspace. This is the only role a user can choose for themselves, and it only ever applies to a chamber that did not exist a moment ago.
+ * @summary Create a chamber and become its owner
+ */
+export const createWorkspaceBodyNameMin = 2;
+
+
+
+export const CreateWorkspaceBody = zod.object({
+  "name": zod.string().min(createWorkspaceBodyNameMin).describe('The chamber\'s name, e.g. \"Raghavan Chambers\".'),
+  "role": zod.enum(['admin', 'senior_advocate']).describe('The founder\'s own role. Restricted to these two — a chamber must be created by someone who will run it.\n')
+})
+
+export const CreateWorkspaceResponse = zod.object({
+  "userId": zod.number(),
+  "clerkId": zod.string(),
+  "displayName": zod.string(),
+  "email": zod.string(),
+  "accessStatus": zod.enum(['not_recognised', 'pending_approval', 'active']).describe('active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.\n'),
+  "authProvider": zod.string().nullish().describe('How the caller signed in (google | zoho | email). Display only.'),
+  "memberships": zod.array(zod.object({
+  "workspace": zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['chamber', 'client_portal'])
+}),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
+  "status": zod.enum(['pending', 'active', 'revoked']),
+  "isOwner": zod.boolean().optional(),
+  "requestedRole": zod.string().nullish()
+})),
+  "activeWorkspace": zod.union([zod.object({
+  "id": zod.number(),
+  "slug": zod.string(),
+  "name": zod.string(),
+  "kind": zod.enum(['chamber', 'client_portal'])
+}),zod.null()]).optional(),
+  "role": zod.string().nullish().describe('Role in the active workspace, resolved from the membership row.'),
+  "displayRole": zod.string().nullish(),
+  "isOwner": zod.boolean().describe('True when the caller founded the active workspace.'),
   "capabilities": zod.array(zod.string()).describe('Server-resolved capability list. The UI renders from this and nothing else.'),
   "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.')
 })
@@ -138,6 +188,7 @@ export const ListWorkspacesResponseItem = zod.object({
 }),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "status": zod.enum(['pending', 'active', 'revoked']),
+  "isOwner": zod.boolean().optional(),
   "requestedRole": zod.string().nullish()
 })
 export const ListWorkspacesResponse = zod.array(ListWorkspacesResponseItem)
@@ -221,6 +272,74 @@ export const DecideAccessRequestResponse = zod.object({
   "decidedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
+
+
+/**
+ * Scoped twice: to the caller's workspace, and to entries whose audience includes their role or their user id. A client never receives a staff-only notice.
+ * @summary Calendar updates visible to the caller
+ */
+export const ListCalendarEntriesResponseItem = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "title": zod.string(),
+  "notes": zod.string().nullish(),
+  "kind": zod.enum(['hearing', 'filing', 'meeting', 'note']),
+  "entryDate": zod.string(),
+  "entryTime": zod.string().nullish(),
+  "caseId": zod.number().nullish(),
+  "caseTitle": zod.string().nullish(),
+  "audience": zod.string(),
+  "audienceLabel": zod.string().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdByRole": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCalendarEntriesResponse = zod.array(ListCalendarEntriesResponseItem)
+
+
+/**
+ * @summary Post a calendar update (Admin and Senior Advocate only)
+ */
+
+export const createCalendarEntryBodyKindDefault = `note`;
+export const createCalendarEntryBodyAudienceDefault = `all`;
+
+export const CreateCalendarEntryBody = zod.object({
+  "title": zod.string().min(1),
+  "notes": zod.string().optional(),
+  "kind": zod.enum(['hearing', 'filing', 'meeting', 'note']).default(createCalendarEntryBodyKindDefault),
+  "entryDate": zod.string().describe('YYYY-MM-DD'),
+  "entryTime": zod.string().optional(),
+  "caseId": zod.number().optional(),
+  "audience": zod.string().default(createCalendarEntryBodyAudienceDefault).describe('all | staff | role:<role> | user:<clerkId>')
+})
+
+export const CreateCalendarEntryResponse = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "title": zod.string(),
+  "notes": zod.string().nullish(),
+  "kind": zod.enum(['hearing', 'filing', 'meeting', 'note']),
+  "entryDate": zod.string(),
+  "entryTime": zod.string().nullish(),
+  "caseId": zod.number().nullish(),
+  "caseTitle": zod.string().nullish(),
+  "audience": zod.string(),
+  "audienceLabel": zod.string().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdByRole": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove a calendar update (Admin and Senior Advocate only)
+ */
+export const DeleteCalendarEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteCalendarEntryResponse = zod.void()
 
 
 /**
@@ -1094,7 +1213,7 @@ export const ListInvitesResponseItem = zod.object({
   "id": zod.number(),
   "email": zod.string(),
   "token": zod.string(),
-  "role": zod.enum(['admin', 'clerk', 'client']),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "caseId": zod.number().nullish(),
   "usedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
@@ -1108,7 +1227,7 @@ export const ListInvitesResponse = zod.array(ListInvitesResponseItem)
  */
 export const CreateInviteBody = zod.object({
   "email": zod.string(),
-  "role": zod.enum(['admin', 'clerk', 'client']),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role the invited person is admitted at. Chosen by the admin.'),
   "caseId": zod.number().optional()
 })
 
@@ -1116,7 +1235,7 @@ export const CreateInviteResponse = zod.object({
   "id": zod.number(),
   "email": zod.string(),
   "token": zod.string(),
-  "role": zod.enum(['admin', 'clerk', 'client']),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "caseId": zod.number().nullish(),
   "usedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),

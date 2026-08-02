@@ -14,7 +14,6 @@ import { getAccessRequestIntent, setAccessRequestIntent, type RoleValue } from "
 import { useClerkApiAuthBridge } from "@/hooks/use-api-auth-bridge";
 import { isPreviewMode } from "@/lib/preview";
 import { ClerkSessionProvider, PreviewSessionProvider, useSession } from "@/lib/session";
-import { PreviewLanding } from "@/pages/preview-landing";
 import PortalSignInPage from "@/pages/portal-sign-in";
 // Registers the API base URL (no-op when frontend and API share an origin).
 import "@/lib/api-config";
@@ -223,7 +222,6 @@ function PreviewRoutes() {
     return (
       <Switch>
         <Route path="/portal" component={PortalSignInPage} />
-        <Route path="/portal/identities" component={PreviewLanding} />
         {/* "/:rest*" does not match the bare root in wouter, so it needs its
             own route — without it, "/" renders nothing at all. */}
         <Route path="/" component={LandingPage} />
@@ -241,7 +239,6 @@ function PreviewRoutes() {
           portal rather than leaving the URL on a door that has been walked
           through. */}
       <Route path="/portal"><Redirect to="/dashboard" /></Route>
-      <Route path="/portal/identities"><Redirect to="/dashboard" /></Route>
       <Route path="/:rest*" component={DashboardLayout} />
     </Switch>
   );

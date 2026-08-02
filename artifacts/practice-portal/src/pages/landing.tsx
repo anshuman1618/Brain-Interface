@@ -17,8 +17,8 @@ export default function LandingPage() {
           <Link href="/portal" className="text-sm font-semibold hover:text-primary transition-colors px-4 py-2">
             Sign In
           </Link>
-          <Link href="/sign-up" className="text-sm font-semibold bg-primary text-primary-foreground px-6 py-2.5 shadow-sm hover:bg-primary/90 transition-all active:scale-95 border border-primary">
-            Request Access
+          <Link href="/portal?new=1" className="text-sm font-semibold bg-primary text-primary-foreground px-6 py-2.5 shadow-sm hover:bg-primary/90 transition-all active:scale-95 border border-primary">
+            Set up a chamber
           </Link>
         </div>
       </header>
@@ -56,13 +56,14 @@ export default function LandingPage() {
                 Chamber Portal
                 <ArrowRight className="h-5 w-5" />
               </Link>
-              <Link href="/sign-up" className="inline-flex items-center justify-center gap-2 bg-background text-foreground px-8 py-4 text-lg font-semibold border border-border hover:bg-accent transition-all shadow-sm">
-                Request Access
+              <Link href="/portal?new=1" className="inline-flex items-center justify-center gap-2 bg-background text-foreground px-8 py-4 text-lg font-semibold border border-border hover:bg-accent transition-all shadow-sm">
+                Set up a chamber
               </Link>
             </div>
             <p className="mt-6 text-sm text-muted-foreground max-w-xl">
-              Sign in with Google, Zoho Mail, or your email address. Entry is limited to
-              addresses a chamber admin has added — anything else is turned away.
+              Sign in with Google, Zoho Mail, or your email address. Firm Admins and Senior
+              Advocates set up a chamber directly; everyone else joins by invitation from their
+              chamber's admin.
             </p>
           </div>
         </div>

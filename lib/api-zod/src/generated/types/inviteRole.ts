@@ -11,6 +11,8 @@ export type InviteRole = typeof InviteRole[keyof typeof InviteRole];
 
 export const InviteRole = {
   admin: 'admin',
-  clerk: 'clerk',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
   client: 'client',
 } as const;

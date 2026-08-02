@@ -9,6 +9,7 @@ import type { InviteInputRole } from './inviteInputRole';
 
 export interface InviteInput {
   email: string;
+  /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
   caseId?: number;
 }

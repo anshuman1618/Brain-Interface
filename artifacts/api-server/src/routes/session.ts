@@ -26,17 +26,20 @@ import {
   ListAccessListResponse,
   CreateAccessListEntryBody,
   CreateAccessListEntryResponse,
+  CreateWorkspaceBody,
+  CreateWorkspaceResponse,
 } from "@workspace/api-zod";
 import {
   requireAuth,
   requireWorkspace,
   requireCapability,
+  capabilitiesFor,
   ctx,
   listActiveMemberships,
   type AuthRequest,
 } from "../middlewares/requireAuth";
 import { getOrCreateUser } from "../lib/jit";
-import { capabilitiesForRole, displayRole, isWorkspaceRole } from "../lib/permissions";
+import { displayRole, isWorkspaceRole } from "../lib/permissions";
 import { mintWorkspaceToken, verifyWorkspaceToken } from "../lib/workspace-token";
 import { reconcileAccessList } from "../lib/access-list";
 
@@ -74,6 +77,7 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
       workspace: workspaceView(r.workspace),
       role: r.membership.role,
       status: r.membership.status,
+      isOwner: r.membership.isOwner,
       requestedRole: r.membership.requestedRole ?? null,
     }));
 
@@ -105,7 +109,8 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
     activeWorkspace: selected ? selected.workspace : null,
     role: selected ? selected.role : null,
     displayRole: selected ? displayRole(selected.role) : null,
-    capabilities: selected ? capabilitiesForRole(selected.role) : [],
+    isOwner: selected ? selected.isOwner : false,
+    capabilities: selected ? capabilitiesFor(selected.role, selected.isOwner) : [],
     workspaceToken: selected
       ? mintWorkspaceToken({ sub: user.clerkId, wsId: selected.workspace.id, role: selected.role })
       : null,
@@ -157,6 +162,92 @@ router.post("/session/workspace", requireAuth, async (req: AuthRequest, res): Pr
   }
 
   res.json(SwitchWorkspaceResponse.parse(await buildSessionClaims(user.id, target.workspace.id)));
+});
+
+/**
+ * Create a chamber. This is the self-serve sign-up path.
+ *
+ * It is the one place a user picks their own role, and it is safe precisely
+ * because the workspace did not exist a moment ago: becoming Admin of a chamber
+ * you just created grants nothing over anybody else's. Choosing a role for an
+ * *existing* workspace remains impossible — that is still an admin's decision.
+ *
+ * The founder is marked `isOwner`, which adds the management capabilities on top
+ * of their practice role so a Senior Advocate who set up their own chamber can
+ * still invite their clerk.
+ */
+router.post("/workspaces", requireAuth, async (req: AuthRequest, res): Promise<void> => {
+  const user = await getOrCreateUser(req);
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+
+  const parsed = CreateWorkspaceBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const name = parsed.data.name.trim();
+  if (name.length < 2) {
+    res.status(400).json({ error: "Give the chamber a name." });
+    return;
+  }
+
+  // The spec restricts this to admin | senior_advocate; re-check rather than
+  // trusting the generated validator alone, since this is the one role input a
+  // user supplies for themselves.
+  if (parsed.data.role !== "admin" && parsed.data.role !== "senior_advocate") {
+    res.status(400).json({ error: "A chamber must be created by its Firm Admin or a Senior Advocate." });
+    return;
+  }
+
+  const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "chamber";
+  let slug = baseSlug;
+  for (let n = 2; ; n += 1) {
+    const [clash] = await db.select().from(workspacesTable).where(eq(workspacesTable.slug, slug));
+    if (!clash) break;
+    if (n > 50) {
+      res.status(409).json({ error: "That chamber name is already taken." });
+      return;
+    }
+    slug = `${baseSlug}-${n}`;
+  }
+
+  const [workspace] = await db
+    .insert(workspacesTable)
+    .values({ slug, name, kind: "chamber" })
+    .returning();
+
+  await db.insert(workspaceMembershipsTable).values({
+    workspaceId: workspace.id,
+    userId: user.id,
+    clerkId: user.clerkId,
+    role: parsed.data.role,
+    isOwner: true,
+    status: "active",
+    decidedBy: "founder",
+    decidedAt: new Date(),
+  });
+
+  // Admit the founder's own address so they can sign back in without needing
+  // somebody else to let them in.
+  if (user.email) {
+    await db.insert(workspaceAccessListTable).values({
+      workspaceId: workspace.id,
+      kind: "email",
+      value: normaliseEmail(user.email),
+      role: parsed.data.role,
+      note: "Chamber founder",
+      addedBy: user.displayName,
+      lastUsedAt: new Date(),
+    });
+  }
+
+  await db.update(usersTable).set({ role: parsed.data.role, roleSelected: true }).where(eq(usersTable.id, user.id));
+
+  res.status(201).json(CreateWorkspaceResponse.parse(await buildSessionClaims(user.id, workspace.id)));
 });
 
 // Only workspaces backed by a membership row for this user. There is no

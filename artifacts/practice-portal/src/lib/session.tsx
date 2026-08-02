@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSession,
   useSwitchWorkspace,
+  useCreateWorkspace,
   getGetSessionQueryKey,
   type SessionClaims,
   type WorkspaceMembershipSummary,
@@ -14,9 +15,7 @@ import type { ProviderId } from "@/lib/auth-providers";
 import {
   clearPreviewSession,
   getPreviewSession,
-  previewIdentityOf,
   setPreviewSession,
-  type PreviewIdentity,
   type PreviewSession,
 } from "@/lib/preview";
 import {
@@ -65,11 +64,14 @@ export type Session = {
   isSigningIn: boolean;
   signInError: string | null;
 
-  /** True when auth is mocked. Drives the preview banner and identity switcher. */
+  /** Founds a new chamber and becomes its owner. The self-serve sign-up path. */
+  createWorkspace: (name: string, role: "admin" | "senior_advocate") => Promise<void>;
+  isCreatingWorkspace: boolean;
+  /** True when the caller founded the active workspace. */
+  isOwner: boolean;
+
+  /** True when auth is mocked. Drives the preview banner. */
   previewMode: boolean;
-  /** Only set in preview mode: which seeded identity is signed in. */
-  previewIdentity: PreviewIdentity | null;
-  switchPreviewIdentity: (identity: PreviewIdentity) => void;
 };
 
 const SessionContext = createContext<Session | null>(null);
@@ -132,6 +134,19 @@ function useBackendSession(enabled: boolean, identityKey: string) {
     queryClient.invalidateQueries({ queryKey: getGetSessionQueryKey() });
   }, [queryClient]);
 
+  const createMutation = useCreateWorkspace();
+
+  const createWorkspace = useCallback(
+    async (name: string, role: "admin" | "senior_advocate") => {
+      const next = await createMutation.mutateAsync({ data: { name, role } });
+      // The backend has already made us a member and minted the token; adopt it
+      // so the very next request is scoped to the chamber we just founded.
+      setWorkspaceContext(next.activeWorkspace?.id ?? null, next.workspaceToken ?? null);
+      queryClient.clear();
+    },
+    [createMutation, queryClient],
+  );
+
   const capabilities = useMemo(() => new Set(claims?.capabilities ?? []), [claims]);
   const can = useCallback((capability: string) => capabilities.has(capability), [capabilities]);
 
@@ -142,12 +157,15 @@ function useBackendSession(enabled: boolean, identityKey: string) {
     switchWorkspace,
     isSwitchingWorkspace: switchMutation.isPending,
     refreshSession,
+    createWorkspace,
+    isCreatingWorkspace: createMutation.isPending,
   };
 }
 
 function baseSessionFields(claims: SessionClaims | null) {
   return {
     claims,
+    isOwner: claims?.isOwner ?? false,
     isPendingApproval: claims ? claims.accessStatus === "pending_approval" : false,
     isNotRecognised: claims ? claims.accessStatus === "not_recognised" : false,
     authProvider: claims?.authProvider ?? null,
@@ -243,28 +261,22 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       switchWorkspace: backend.switchWorkspace,
       isSwitchingWorkspace: backend.isSwitchingWorkspace,
       refreshSession: backend.refreshSession,
+      createWorkspace: backend.createWorkspace,
+      isCreatingWorkspace: backend.isCreatingWorkspace,
       signInWithProvider,
       isSigningIn,
       signInError,
       previewMode: false,
-      previewIdentity: null,
-      switchPreviewIdentity: () => {},
     };
   }, [isLoaded, isSignedIn, user, signOut, backend, signInWithProvider, isSigningIn, signInError]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
-/** A stable cache key for whichever preview identity is signed in. */
-function previewKey(session: PreviewSession | null): string {
-  if (!session) return "none";
-  return session.kind === "seeded" ? session.identity : `email:${session.email}`;
-}
-
 export function PreviewSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<PreviewSession | null>(() => getPreviewSession());
   const queryClient = useQueryClient();
-  const backend = useBackendSession(session !== null, previewKey(session));
+  const backend = useBackendSession(session !== null, session ? session.email : "none");
 
   // Signing in as somebody else. Drop the old workspace pointer and every cached
   // response with it — the new identity's memberships decide anew.
@@ -277,11 +289,6 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
       queryClient.clear();
     },
     [queryClient],
-  );
-
-  const switchPreviewIdentity = useCallback(
-    (next: PreviewIdentity) => adopt({ kind: "seeded", identity: next }),
-    [adopt],
   );
 
   /**
@@ -297,7 +304,7 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
     async (provider: ProviderId, emailAddress: string, name?: string) => {
       const trimmed = emailAddress.trim().toLowerCase();
       if (!trimmed.includes("@")) return;
-      adopt({ kind: "email", provider, email: trimmed, name: name?.trim() ?? "" });
+      adopt({ provider, email: trimmed, name: name?.trim() ?? "" });
     },
     [adopt],
   );
@@ -309,23 +316,23 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
     return {
       isLoaded: session === null || !backend.claimsLoading,
       isSignedIn: session !== null,
-      displayName: claims?.displayName ?? "",
-      email: claims?.email ?? "",
-      initial: firstChar(claims?.displayName),
+      displayName: claims?.displayName ?? session?.name ?? "",
+      email: claims?.email ?? session?.email ?? "",
+      initial: firstChar(claims?.displayName, session?.email),
       signOut,
       ...baseSessionFields(claims),
       can: backend.can,
       switchWorkspace: backend.switchWorkspace,
       isSwitchingWorkspace: backend.isSwitchingWorkspace,
       refreshSession: backend.refreshSession,
+      createWorkspace: backend.createWorkspace,
+      isCreatingWorkspace: backend.isCreatingWorkspace,
       signInWithProvider,
       isSigningIn: false,
       signInError: null,
       previewMode: true,
-      previewIdentity: previewIdentityOf(session),
-      switchPreviewIdentity,
     };
-  }, [session, backend, signOut, switchPreviewIdentity, signInWithProvider]);
+  }, [session, backend, signOut, signInWithProvider]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

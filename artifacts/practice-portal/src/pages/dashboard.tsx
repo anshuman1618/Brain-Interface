@@ -6,7 +6,9 @@ import {
   getListTasksQueryKey,
   useListDocumentRequests,
   useUpdateDocumentRequest,
-  getListDocumentRequestsQueryKey
+  useListCalendarEntries,
+  getListDocumentRequestsQueryKey,
+  getListCalendarEntriesQueryKey
 } from "@workspace/api-client-react";
 import { useUserRole } from "@/hooks/use-user-role";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -50,6 +52,16 @@ function StaffDashboard() {
     query: { queryKey: getListDocumentRequestsQueryKey(), enabled: can("document_requests.create") },
   });
   const outstandingRequests = docRequests.filter((r) => r.status === "pending");
+
+  // Real next hearing, from the calendar the caller can actually see — not a
+  // hardcoded "None Scheduled".
+  const { data: calendarEntries = [] } = useListCalendarEntries({
+    query: { queryKey: getListCalendarEntriesQueryKey(), enabled: can("calendar.read") },
+  });
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const nextHearing = calendarEntries
+    .filter((e) => e.kind === "hearing" && e.entryDate >= todayIso)
+    .sort((a, b) => a.entryDate.localeCompare(b.entryDate))[0];
 
   const overdueTasks = tasks?.filter(t => t.status === 'overdue' || t.isOverdue) || [];
   const pendingTasks = tasks?.filter(t => t.status === 'pending' || t.status === 'in_progress') || [];
@@ -120,9 +132,18 @@ function StaffDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-lg font-bold tracking-tight text-muted-foreground">
-              None Scheduled
-            </div>
+            {nextHearing ? (
+              <>
+                <div className="text-lg font-bold tracking-tight truncate">
+                  {new Date(`${nextHearing.entryDate}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                </div>
+                <p className="text-xs text-muted-foreground truncate mt-1">{nextHearing.title}</p>
+              </>
+            ) : (
+              <div className="text-lg font-bold tracking-tight text-muted-foreground">
+                None scheduled
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

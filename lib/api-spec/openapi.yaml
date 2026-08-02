@@ -34,6 +34,8 @@ tags:
     description: KPI engine (admin only)
   - name: invites
     description: Invite link generation
+  - name: calendar
+    description: Master calendar updates
 
 paths:
   /healthz:
@@ -132,6 +134,35 @@ paths:
           description: Not an active member of that workspace
 
   /workspaces:
+    post:
+      operationId: createWorkspace
+      tags: [session]
+      summary: Create a chamber and become its owner
+      description: >
+        Self-serve sign-up. The caller creates a brand-new, empty workspace and
+        becomes its owner at the role they choose (Firm Admin or Senior
+        Advocate). Ownership adds the management capabilities so a founder can
+        invite their own team whatever practice title they hold — and confers
+        nothing in any other workspace. This is the only role a user can choose
+        for themselves, and it only ever applies to a chamber that did not exist
+        a moment ago.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceCreateInput"
+      responses:
+        "201":
+          description: Chamber created; session now scoped to it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionClaims"
+        "401":
+          description: Unauthorized
+        "409":
+          description: That chamber name is already taken
     get:
       operationId: listWorkspaces
       tags: [session]
@@ -222,6 +253,65 @@ paths:
           description: Forbidden
         "404":
           description: Request not found in this workspace
+
+  /calendar:
+    get:
+      operationId: listCalendarEntries
+      tags: [calendar]
+      summary: Calendar updates visible to the caller
+      description: >
+        Scoped twice: to the caller's workspace, and to entries whose audience
+        includes their role or their user id. A client never receives a
+        staff-only notice.
+      responses:
+        "200":
+          description: Calendar entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CalendarEntry"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createCalendarEntry
+      tags: [calendar]
+      summary: Post a calendar update (Admin and Senior Advocate only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalendarEntryInput"
+      responses:
+        "201":
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarEntry"
+        "403":
+          description: Forbidden
+
+  /calendar/{id}:
+    delete:
+      operationId: deleteCalendarEntry
+      tags: [calendar]
+      summary: Remove a calendar update (Admin and Senior Advocate only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in this workspace
 
   /workspace/access-list:
     get:
@@ -1052,13 +1142,15 @@ components:
         status:
           type: string
           enum: [pending, active, revoked]
+        isOwner:
+          type: boolean
         requestedRole:
           type: ["string", "null"]
 
     SessionClaims:
       type: object
       required:
-        [userId, clerkId, displayName, email, accessStatus, memberships, capabilities]
+        [userId, clerkId, displayName, email, accessStatus, memberships, capabilities, isOwner]
       properties:
         userId:
           type: integer
@@ -1093,6 +1185,9 @@ components:
           description: Role in the active workspace, resolved from the membership row.
         displayRole:
           type: ["string", "null"]
+        isOwner:
+          type: boolean
+          description: True when the caller founded the active workspace.
         capabilities:
           type: array
           description: Server-resolved capability list. The UI renders from this and nothing else.
@@ -1172,6 +1267,81 @@ components:
           description: >
             The role the admin grants. Required on approve. Deliberately separate
             from requestedRole — an applicant asking for admin does not get it.
+
+    WorkspaceCreateInput:
+      type: object
+      required: [name, role]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          description: The chamber's name, e.g. "Raghavan Chambers".
+        role:
+          type: string
+          enum: [admin, senior_advocate]
+          description: >
+            The founder's own role. Restricted to these two — a chamber must be
+            created by someone who will run it.
+
+    CalendarEntry:
+      type: object
+      required: [id, workspaceId, title, kind, entryDate, audience, createdAt]
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: integer
+        title:
+          type: string
+        notes:
+          type: ["string", "null"]
+        kind:
+          type: string
+          enum: [hearing, filing, meeting, note]
+        entryDate:
+          type: string
+        entryTime:
+          type: ["string", "null"]
+        caseId:
+          type: ["integer", "null"]
+        caseTitle:
+          type: ["string", "null"]
+        audience:
+          type: string
+        audienceLabel:
+          type: ["string", "null"]
+        createdBy:
+          type: ["string", "null"]
+        createdByRole:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CalendarEntryInput:
+      type: object
+      required: [title, entryDate]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+        kind:
+          type: string
+          enum: [hearing, filing, meeting, note]
+          default: note
+        entryDate:
+          type: string
+          description: YYYY-MM-DD
+        entryTime:
+          type: string
+        caseId:
+          type: integer
+        audience:
+          type: string
+          default: all
+          description: 'all | staff | role:<role> | user:<clerkId>'
 
     AccessListEntry:
       type: object
@@ -1656,7 +1826,7 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, clerk, client]
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
         caseId:
           type: ["integer", "null"]
         usedAt:
@@ -1677,7 +1847,8 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, clerk, client]
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+          description: The role the invited person is admitted at. Chosen by the admin.
         caseId:
           type: integer
 

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS workspace_memberships (
   user_id INTEGER NOT NULL,
   clerk_id TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'client',
+  is_owner BOOLEAN NOT NULL DEFAULT false,
   requested_role TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   request_note TEXT,
@@ -37,6 +38,23 @@ CREATE TABLE IF NOT EXISTS workspace_memberships (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT workspace_memberships_workspace_user_key UNIQUE (workspace_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS calendar_entries (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  notes TEXT,
+  kind TEXT NOT NULL DEFAULT 'note',
+  entry_date TEXT NOT NULL,
+  entry_time TEXT,
+  case_id INTEGER,
+  audience TEXT NOT NULL DEFAULT 'all',
+  created_by TEXT NOT NULL DEFAULT '',
+  created_by_role TEXT NOT NULL DEFAULT '',
+  created_by_clerk_id TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS workspace_access_list (
@@ -177,173 +195,20 @@ CREATE TABLE IF NOT EXISTS timeline_events (
 `;
 
 /**
- * Stable Clerk-style ids so the preview auth middleware can map a chosen preview
- * identity to a seeded user.
+ * No seed data.
  *
- * Note what this token does and does not do: it selects *who you are*, exactly
- * like a Clerk session would. It grants nothing. What that identity may reach is
- * still resolved from `workspace_memberships` on every request, which is why
- * `unassigned` exists — the same token mechanism, but a user with no active
- * membership, who therefore lands in Pending Approval and can reach no
- * workspace at all.
+ * The platform starts completely empty: no chambers, no users, no matters, no
+ * tasks. The first person to sign in creates their chamber and becomes its
+ * owner, then invites everyone else and enters their own work. Every counter
+ * reads zero until they do.
+ *
+ * This is deliberate. Sample matters made the portal look populated, which is
+ * actively misleading in a product whose whole subject is who may see which
+ * client's file — and made it impossible to tell your own data apart from the
+ * fixtures.
  */
-export const PREVIEW_USER_IDS = {
-  admin: "preview_user_admin",
-  senior_advocate: "preview_user_senior",
-  junior_advocate: "preview_user_junior",
-  clerk_intern: "preview_user_clerk",
-  client: "preview_user_client",
-  unassigned: "preview_user_unassigned",
-  rival_admin: "preview_user_rival_admin",
-} as const;
 
-export type PreviewRole = keyof typeof PREVIEW_USER_IDS;
-
-/** Slugs of the seeded tenants. Two of them, so cross-tenant denial is demonstrable. */
-export const PREVIEW_WORKSPACE_SLUGS = {
-  chambers: "raghavan-chambers",
-  rival: "mehta-associates",
-} as const;
-
-function offsetDate(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-/**
- * Sample chamber data. Deliberately includes an already-overdue task so the SLA
- * delay-logging flow (reason + proof required) is reachable the moment preview
- * mode starts, and a scheduled consultation for the consent/recorder flow.
- */
-async function seed(db: NodePgDatabase<typeof schema>): Promise<void> {
-  const existing = await db.select().from(schema.usersTable);
-  if (existing.length > 0) return;
-
-  const workspaces = await db
-    .insert(schema.workspacesTable)
-    .values([
-      { slug: PREVIEW_WORKSPACE_SLUGS.chambers, name: "Raghavan Chambers", kind: "chamber" },
-      { slug: PREVIEW_WORKSPACE_SLUGS.rival, name: "Mehta & Associates", kind: "chamber" },
-    ])
-    .returning();
-
-  const chambers = workspaces.find((w) => w.slug === PREVIEW_WORKSPACE_SLUGS.chambers)!;
-  const rival = workspaces.find((w) => w.slug === PREVIEW_WORKSPACE_SLUGS.rival)!;
-
-  const users = await db
-    .insert(schema.usersTable)
-    .values([
-      { clerkId: PREVIEW_USER_IDS.admin, role: "admin", roleSelected: true, displayName: "Priya Raghavan", email: "priya@raghavanchambers.in", authProvider: "google" },
-      { clerkId: PREVIEW_USER_IDS.senior_advocate, role: "senior_advocate", roleSelected: true, displayName: "R. Krishnan", email: "krishnan@raghavanchambers.in", authProvider: "zoho" },
-      { clerkId: PREVIEW_USER_IDS.junior_advocate, role: "junior_advocate", roleSelected: true, displayName: "S. Iyer", email: "iyer@raghavanchambers.in", authProvider: "zoho" },
-      { clerkId: PREVIEW_USER_IDS.clerk_intern, role: "clerk_intern", roleSelected: true, displayName: "P. Nair", email: "nair@raghavanchambers.in", authProvider: "email" },
-      { clerkId: PREVIEW_USER_IDS.client, role: "client", roleSelected: true, displayName: "A. Kapoor", email: "a.kapoor@gmail.com", authProvider: "google" },
-      // Signed up, asked for Firm Admin, granted nothing. Sits in Pending Approval.
-      { clerkId: PREVIEW_USER_IDS.unassigned, role: "client", roleSelected: false, displayName: "T. Deshmukh", email: "deshmukh@applicant.example", authProvider: "google" },
-      // Admin of the *other* tenant — proof that "admin" is not a global rank.
-      { clerkId: PREVIEW_USER_IDS.rival_admin, role: "admin", roleSelected: true, displayName: "V. Mehta", email: "mehta@mehta-associates.in", authProvider: "google" },
-    ])
-    .returning();
-
-  const byClerkId = (id: string) => users.find((u) => u.clerkId === id)!;
-  const clientUser = byClerkId(PREVIEW_USER_IDS.client);
-  const senior = byClerkId(PREVIEW_USER_IDS.senior_advocate);
-  const clerk = byClerkId(PREVIEW_USER_IDS.clerk_intern);
-  const adminUser = byClerkId(PREVIEW_USER_IDS.admin);
-  const applicant = byClerkId(PREVIEW_USER_IDS.unassigned);
-  const rivalAdmin = byClerkId(PREVIEW_USER_IDS.rival_admin);
-
-  const active = (workspaceId: number, u: typeof users[number], role: string) => ({
-    workspaceId,
-    userId: u.id,
-    clerkId: u.clerkId,
-    role,
-    status: "active",
-    decidedBy: "seed",
-    decidedAt: new Date(),
-  });
-
-  await db.insert(schema.workspaceMembershipsTable).values([
-    active(chambers.id, adminUser, "admin"),
-    active(chambers.id, senior, "senior_advocate"),
-    active(chambers.id, byClerkId(PREVIEW_USER_IDS.junior_advocate), "junior_advocate"),
-    active(chambers.id, clerk, "clerk_intern"),
-    active(chambers.id, clientUser, "client"),
-    active(rival.id, rivalAdmin, "admin"),
-    // Intent only. `requested_role` records what they asked for; `role` is what an
-    // admin would grant, and it stays inert while status is 'pending'.
-    {
-      workspaceId: chambers.id,
-      userId: applicant.id,
-      clerkId: applicant.clerkId,
-      role: "client",
-      requestedRole: "admin",
-      status: "pending",
-      requestNote: "Joining as practice manager — need firm oversight.",
-    },
-  ]);
-
-  // The access list an admin would have built. Note the mix: exact addresses for
-  // the client and one advocate, and a domain rule for the chamber's own Zoho
-  // Mail tenant. `deshmukh@applicant.example` is deliberately absent — signing in
-  // with it authenticates fine and is then refused entry, which is the whole
-  // point of this table existing separately from the identity provider.
-  await db.insert(schema.workspaceAccessListTable).values([
-    { workspaceId: chambers.id, kind: "domain", value: "raghavanchambers.in", role: "junior_advocate", note: "Chamber Zoho Mail tenant — staff onboard as Junior Advocate, promoted afterwards.", addedBy: "seed" },
-    { workspaceId: chambers.id, kind: "email", value: "priya@raghavanchambers.in", role: "admin", note: "Founding partner.", addedBy: "seed" },
-    { workspaceId: chambers.id, kind: "email", value: "krishnan@raghavanchambers.in", role: "senior_advocate", addedBy: "seed" },
-    { workspaceId: chambers.id, kind: "email", value: "nair@raghavanchambers.in", role: "clerk_intern", addedBy: "seed" },
-    { workspaceId: chambers.id, kind: "email", value: "a.kapoor@gmail.com", role: "client", note: "Client — succession matter.", addedBy: "seed" },
-    { workspaceId: rival.id, kind: "domain", value: "mehta-associates.in", role: "admin", addedBy: "seed" },
-  ]);
-
-  const cases = await db
-    .insert(schema.casesTable)
-    .values([
-      { workspaceId: chambers.id, title: "Mehra & Sons v. Union of India", description: "Writ petition challenging the impugned customs notification.", status: "in_progress", clientId: clientUser.id, filingRef: "W.P.(C) 8842/2026", priority: "high" },
-      { workspaceId: chambers.id, title: "Kapoor estate — succession certificate", description: "Petition for succession certificate over movable assets.", status: "open", clientId: clientUser.id, filingRef: "CS(OS) 331/2026", priority: "urgent" },
-      { workspaceId: chambers.id, title: "Vardhman Textiles — GST appeal", description: "Appeal against order-in-original raising a demand for FY 2024-25.", status: "review", clientId: clientUser.id, filingRef: "AP/GST/441/2026", priority: "medium" },
-      // Belongs to the other tenant. Must never appear to Raghavan Chambers members.
-      { workspaceId: rival.id, title: "Sethi v. Orbit Logistics (confidential)", description: "Mehta & Associates matter — not visible to any other workspace.", status: "open", clientId: null, filingRef: "CS(COMM) 77/2026", priority: "high" },
-    ])
-    .returning();
-
-  await db.insert(schema.tasksTable).values([
-    // Deliberately overdue: exercises the mandatory delay-reason + proof flow.
-    { caseId: cases[0].id, title: "File rejoinder to counter-affidavit", description: "Respond to the counter filed by the respondent.", status: "in_progress", priority: "urgent", assigneeId: PREVIEW_USER_IDS.clerk_intern, deadline: offsetDate(-2) },
-    { caseId: cases[2].id, title: "Draft written submissions", description: "Summarise grounds of appeal for the bench.", status: "pending", priority: "high", assigneeId: PREVIEW_USER_IDS.senior_advocate, deadline: offsetDate(0) },
-    { caseId: cases[1].id, title: "Collect notarised affidavit from client", status: "pending", priority: "medium", assigneeId: PREVIEW_USER_IDS.clerk_intern, deadline: offsetDate(4) },
-    { caseId: cases[0].id, title: "Prepare index and paperbook", status: "completed", priority: "low", assigneeId: PREVIEW_USER_IDS.junior_advocate, deadline: offsetDate(-6), completedAt: new Date() },
-  ]);
-
-  await db.insert(schema.consultationsTable).values([
-    { caseId: cases[1].id, title: "Succession strategy — first consultation", notes: "Walk the client through the documentary requirements.", consentGiven: false, status: "scheduled", category: "legal_solution", scheduledAt: new Date(Date.now() + 36e5) },
-    { caseId: cases[2].id, title: "GST exposure review", notes: "Assess penalty exposure before the appeal hearing.", consentGiven: false, status: "scheduled", category: "regulatory_solution", scheduledAt: new Date(Date.now() + 3 * 864e5) },
-  ]);
-
-  await db.insert(schema.documentsTable).values([
-    { caseId: cases[0].id, name: "Counter-affidavit (respondent).pdf", fileType: "application/pdf", fileSize: 481_204, storagePath: "preview/counter-affidavit.pdf" },
-    { caseId: cases[1].id, name: "Death certificate (certified copy).pdf", fileType: "application/pdf", fileSize: 118_003, storagePath: "preview/death-certificate.pdf" },
-  ]);
-
-  await db.insert(schema.documentRequestsTable).values([
-    { workspaceId: chambers.id, clientId: clientUser.id, clientClerkId: clientUser.clerkId, requestedFromName: clientUser.displayName, requestedBy: senior.displayName, requestedByClerkId: senior.clerkId, requestedByRole: "senior_advocate", documentName: "Notarised affidavit of succession", note: "Required before the next listing.", dueDate: offsetDate(5), caseId: cases[1].id, status: "pending" },
-    { workspaceId: chambers.id, clientId: clientUser.id, clientClerkId: clientUser.clerkId, requestedFromName: clientUser.displayName, requestedBy: clerk.displayName, requestedByClerkId: clerk.clerkId, requestedByRole: "clerk_intern", documentName: "Bank statements — Apr to Jun 2026", dueDate: offsetDate(-1), caseId: cases[1].id, status: "fulfilled" },
-  ]);
-
-  await db.insert(schema.timelineEventsTable).values([
-    { caseId: cases[0].id, eventType: "case_created", description: 'Case "Mehra & Sons v. Union of India" created', actorName: "Priya Raghavan" },
-    { caseId: cases[0].id, eventType: "document_added", description: 'Document "Counter-affidavit (respondent).pdf" added', actorName: "R. Krishnan" },
-    { caseId: cases[1].id, eventType: "case_created", description: 'Case "Kapoor estate — succession certificate" created', actorName: "Priya Raghavan" },
-  ]);
-
-  await db.insert(schema.notificationsTable).values([
-    { userId: clientUser.clerkId, type: "document_request", message: 'Action required: "Notarised affidavit of succession" has been requested by R. Krishnan.', link: "/dashboard" },
-  ]);
-}
-
-/** Boots PGlite, applies the schema and seeds sample data. */
+/** Boots PGlite and applies the schema. Seeds nothing. */
 export async function createPreviewDatabase(): Promise<NodePgDatabase<typeof schema>> {
   // Imported dynamically: PGlite is a dev-only dependency and must never be
   // required on a production boot, where DATABASE_URL is always set.
@@ -356,7 +221,5 @@ export async function createPreviewDatabase(): Promise<NodePgDatabase<typeof sch
   await client.waitReady;
   await client.exec(DDL);
 
-  const db = drizzle(client, { schema }) as unknown as NodePgDatabase<typeof schema>;
-  await seed(db);
-  return db;
+  return drizzle(client, { schema }) as unknown as NodePgDatabase<typeof schema>;
 }

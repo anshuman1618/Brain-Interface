@@ -20,24 +20,26 @@ pnpm install
 pnpm run preview
 ```
 
-Then open **http://localhost:5000**.
+Then open **http://localhost:5000** and click **Set up a chamber**.
 
-This boots the whole platform with **no external services configured**. Click
-**Chamber Portal** and sign in with a seeded address — `priya@raghavanchambers.in`
-is admitted as admin, `someone@elsewhere.com` is refused — or use the
-sample-identity shortcut at `/portal/identities`. Two chambers are seeded, plus
-an applicant who has signed up and been granted nothing, so tenant isolation, the
-Pending Approval state and the access-denied error are all reachable
-immediately. Under the hood:
+**The platform ships empty.** No sample chambers, no sample matters, no sample
+users — every counter reads zero until you enter your own work. Sign in with any
+address, create your chamber, and invite your team.
+
+Under the hood:
 
 | Dependency | In preview |
 | --- | --- |
 | Clerk (auth) | Mocked — any address you type is treated as verified. The access-list check that follows is the real one |
-| Postgres | In-memory Postgres (PGlite), seeded with sample matters |
+| Postgres | In-memory Postgres (PGlite), empty. **Data is lost when the process exits** — set `DATABASE_URL` to keep it |
 | Speech-to-text | Mocked — stopping a recording produces a sample transcript |
 
 Everything is real application code against a real Postgres dialect; only the
-external services are substituted. Data resets when the process exits.
+external services are substituted.
+
+> Preview data lives in memory and is **discarded on restart**. To keep what you
+> enter, point `DATABASE_URL` at a real Postgres and run
+> `pnpm --filter @workspace/db run push`.
 
 > **Preview mode cannot be enabled in production.** The server refuses to mock
 > auth or fall back to the in-memory database when `NODE_ENV=production`, and the
@@ -115,6 +117,28 @@ Clerk has no built-in Zoho provider, so it is wired as a custom OIDC connection:
 
 If the connection is absent, the Zoho button reports that the provider is not
 enabled rather than failing silently.
+
+## Getting in
+
+There are exactly two ways into a chamber, and no third.
+
+**1. Found one.** Sign in, then create a chamber and choose whether you run it as
+**Firm Admin** or **Senior Advocate**. This is the only place anyone picks their
+own role, and it is safe because the workspace did not exist a moment ago —
+becoming Admin of a chamber you just created grants nothing over anybody else's.
+
+Whichever role you pick you are also the chamber's **owner**, which adds the
+management capabilities on top of it. That is what lets a Senior Advocate who set
+up their own practice invite their clerk. Ownership is set once, by the
+create-chamber endpoint, for the caller creating it; it cannot be requested,
+granted or edited afterwards, and it means nothing in any other chamber.
+
+**2. Be invited.** An admin adds your address in Access Control, at a role they
+choose. Sign in with that address and you are in. There is no separate "redeem"
+step: the invite writes the access-list entry, so a circulating link can never
+grant more than the admin intended.
+
+Everything else — Junior Advocate, Clerk / Intern, Client — is invite-only.
 
 ## Who may sign in — the access list
 
@@ -202,10 +226,19 @@ token expiry. Both run, every time.
 
 | Tier | Role | Reaches | Refused |
 | --- | --- | --- | --- |
-| Admin | `admin` | Everything in their workspace: KPI engine, billing, access control, team roles | Any other workspace |
-| Advocate | `senior_advocate`, `junior_advocate` | Matters, calendar, drafting, consultation recorder, document requests, task assignment | KPI engine, billing, access control, team roles |
-| Clerk / Intern | `clerk_intern` | Dashboard, calendar, and only matters they hold a task on | Task assignment, billing, unassigned matters |
-| Client | `client` | Their own matters (read-only), document upload, consultation requests | Everything else |
+| Admin | `admin` | Everything in their workspace: KPI engine, billing, access control, team roles, **task assignment**, **calendar updates** | Any other workspace |
+| Senior Advocate | `senior_advocate` | Matters, drafting, consultation recorder, document requests, **task assignment**, **calendar updates** | KPI engine, billing, access control, team roles |
+| Junior Advocate | `junior_advocate` | Matters, drafting, consultations, document requests. Completes work | **Assigning work**, posting calendar updates, KPI, billing, access control |
+| Clerk / Intern | `clerk_intern` | Their calendar, and only matters they hold a task on | Assigning work, billing, unassigned matters |
+| Client | `client` | Their own matters (read-only), their calendar, document upload | Everything else |
+
+**Only Admin and Senior Advocate direct work.** They alone hold `tasks.write`
+and `calendar.write` — assigning a task and posting a chamber-wide update are the
+same boundary. A Junior Advocate completes what they are given but cannot hand
+work to anyone.
+
+A chamber's **owner** additionally holds `access_control.manage`, `team.manage`
+and `billing.manage` whichever of the two roles they founded it as.
 
 Row scope is enforced separately from workspace scope: a clerk is a legitimate
 member of the chamber but still sees only their assigned matters, and a client
@@ -220,7 +253,13 @@ page, because every endpoint behind it re-checks independently.
 
 ## Core flows
 
-- **Cause list & calendar** — matters listed by date with drag-to-reschedule.
+- **Master calendar** — one calendar per portal. It draws from three sources,
+  each already scoped to the caller server-side: chamber updates by *audience*,
+  task deadlines by assignment, consultations by matter. A clerk's calendar shows
+  their own deadlines; a client's shows their own hearings; an admin's shows the
+  chamber's. An update carries an audience (`all`, `staff`, a role, or one
+  person), so a client never receives a staff-only notice — the filter runs in
+  the API, not the browser.
 - **SLA delay logging** — completing a task after its deadline is refused
   (`422`) unless a delay reason is supplied. Reasons are a fixed set:
   `client_unresponsive`, `court_delay`, `document_missing`,

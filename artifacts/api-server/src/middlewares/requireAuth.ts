@@ -6,7 +6,6 @@ import {
   capabilitiesForRole,
   caseScopeForRole,
   taskScopeForRole,
-  roleHasCapability,
   type Capability,
   type RowScope,
 } from "../lib/permissions";
@@ -23,6 +22,8 @@ export type WorkspaceContext = {
   workspaceId: number;
   /** Role from the ACTIVE membership row, re-read from the database this request. */
   role: string;
+  /** True when this user founded the workspace. Adds the management capabilities. */
+  isOwner: boolean;
   capabilities: Capability[];
   caseScope: RowScope;
   taskScope: RowScope;
@@ -90,7 +91,25 @@ function requestedWorkspaceId(req: Request): WorkspaceSelection {
 export type MembershipLookup = {
   workspace: Workspace;
   role: string;
+  isOwner: boolean;
 };
+
+/**
+ * Capabilities for a membership.
+ *
+ * Founding a chamber adds the management capabilities on top of whatever
+ * practice role the founder holds — a Senior Advocate who set up their own
+ * chamber still has to be able to invite their clerk. Ownership is set once, by
+ * the create-workspace endpoint, for the caller creating it; it cannot be
+ * requested, granted or edited afterwards, and it means nothing in any other
+ * workspace.
+ */
+export function capabilitiesFor(role: string, isOwner: boolean): Capability[] {
+  const base = capabilitiesForRole(role);
+  if (!isOwner) return base;
+  const owner: Capability[] = ["access_control.manage", "team.manage", "billing.manage"];
+  return [...new Set([...base, ...owner])];
+}
 
 /** ACTIVE membership only. `pending` and `revoked` grant nothing, by construction. */
 export async function findActiveMembership(
@@ -98,7 +117,11 @@ export async function findActiveMembership(
   workspaceId: number,
 ): Promise<MembershipLookup | null> {
   const [row] = await db
-    .select({ role: workspaceMembershipsTable.role, workspace: workspacesTable })
+    .select({
+      role: workspaceMembershipsTable.role,
+      isOwner: workspaceMembershipsTable.isOwner,
+      workspace: workspacesTable,
+    })
     .from(workspaceMembershipsTable)
     .innerJoin(workspacesTable, eq(workspacesTable.id, workspaceMembershipsTable.workspaceId))
     .where(
@@ -109,19 +132,23 @@ export async function findActiveMembership(
       ),
     );
 
-  return row ? { workspace: row.workspace, role: row.role } : null;
+  return row ? { workspace: row.workspace, role: row.role, isOwner: row.isOwner } : null;
 }
 
 export async function listActiveMemberships(userId: number): Promise<MembershipLookup[]> {
   const rows = await db
-    .select({ role: workspaceMembershipsTable.role, workspace: workspacesTable })
+    .select({
+      role: workspaceMembershipsTable.role,
+      isOwner: workspaceMembershipsTable.isOwner,
+      workspace: workspacesTable,
+    })
     .from(workspaceMembershipsTable)
     .innerJoin(workspacesTable, eq(workspacesTable.id, workspaceMembershipsTable.workspaceId))
     .where(
       and(eq(workspaceMembershipsTable.userId, userId), eq(workspaceMembershipsTable.status, "active")),
     );
 
-  return rows.map((r) => ({ workspace: r.workspace, role: r.role }));
+  return rows.map((r) => ({ workspace: r.workspace, role: r.role, isOwner: r.isOwner }));
 }
 
 /**
@@ -193,7 +220,8 @@ export const requireWorkspace = async (
     workspace: target.workspace,
     workspaceId: target.workspace.id,
     role: target.role,
-    capabilities: capabilitiesForRole(target.role),
+    isOwner: target.isOwner,
+    capabilities: capabilitiesFor(target.role, target.isOwner),
     caseScope: caseScopeForRole(target.role),
     taskScope: taskScopeForRole(target.role),
   };
@@ -215,7 +243,8 @@ export const requireCapability =
       return;
     }
 
-    const missing = capabilities.filter((c) => !roleHasCapability(context.role, c));
+    const held = new Set(context.capabilities);
+    const missing = capabilities.filter((c) => !held.has(c));
     if (missing.length > 0) {
       res.status(403).json({
         error: "Forbidden",

@@ -77,6 +77,7 @@ export interface WorkspaceMembershipSummary {
   workspace: Workspace;
   role: WorkspaceMembershipSummaryRole;
   status: WorkspaceMembershipSummaryStatus;
+  isOwner?: boolean;
   /** @nullable */
   requestedRole?: string | null;
 }
@@ -114,6 +115,8 @@ export interface SessionClaims {
   role?: string | null;
   /** @nullable */
   displayRole?: string | null;
+  /** True when the caller founded the active workspace. */
+  isOwner: boolean;
   /** Server-resolved capability list. The UI renders from this and nothing else. */
   capabilities: string[];
   /**
@@ -208,6 +211,84 @@ export interface AccessDecisionInput {
   decision: AccessDecisionInputDecision;
   /** The role the admin grants. Required on approve. Deliberately separate from requestedRole — an applicant asking for admin does not get it. */
   role?: AccessDecisionInputRole;
+}
+
+/**
+ * The founder's own role. Restricted to these two — a chamber must be created by someone who will run it.
+ */
+export type WorkspaceCreateInputRole = typeof WorkspaceCreateInputRole[keyof typeof WorkspaceCreateInputRole];
+
+
+export const WorkspaceCreateInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+} as const;
+
+export interface WorkspaceCreateInput {
+  /**
+     * The chamber's name, e.g. "Raghavan Chambers".
+     * @minLength 2
+     */
+  name: string;
+  /** The founder's own role. Restricted to these two — a chamber must be created by someone who will run it. */
+  role: WorkspaceCreateInputRole;
+}
+
+export type CalendarEntryKind = typeof CalendarEntryKind[keyof typeof CalendarEntryKind];
+
+
+export const CalendarEntryKind = {
+  hearing: 'hearing',
+  filing: 'filing',
+  meeting: 'meeting',
+  note: 'note',
+} as const;
+
+export interface CalendarEntry {
+  id: number;
+  workspaceId: number;
+  title: string;
+  /** @nullable */
+  notes?: string | null;
+  kind: CalendarEntryKind;
+  entryDate: string;
+  /** @nullable */
+  entryTime?: string | null;
+  /** @nullable */
+  caseId?: number | null;
+  /** @nullable */
+  caseTitle?: string | null;
+  audience: string;
+  /** @nullable */
+  audienceLabel?: string | null;
+  /** @nullable */
+  createdBy?: string | null;
+  /** @nullable */
+  createdByRole?: string | null;
+  createdAt: string;
+}
+
+export type CalendarEntryInputKind = typeof CalendarEntryInputKind[keyof typeof CalendarEntryInputKind];
+
+
+export const CalendarEntryInputKind = {
+  hearing: 'hearing',
+  filing: 'filing',
+  meeting: 'meeting',
+  note: 'note',
+} as const;
+
+export interface CalendarEntryInput {
+  /** @minLength 1 */
+  title: string;
+  notes?: string;
+  kind?: CalendarEntryInputKind;
+  /** YYYY-MM-DD */
+  entryDate: string;
+  entryTime?: string;
+  caseId?: number;
+  /** all | staff | role:<role> | user:<clerkId> */
+  audience?: string;
 }
 
 export type AccessListEntryKind = typeof AccessListEntryKind[keyof typeof AccessListEntryKind];
@@ -732,7 +813,9 @@ export type InviteRole = typeof InviteRole[keyof typeof InviteRole];
 
 export const InviteRole = {
   admin: 'admin',
-  clerk: 'clerk',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
   client: 'client',
 } as const;
 
@@ -749,17 +832,23 @@ export interface Invite {
   expiresAt: string;
 }
 
+/**
+ * The role the invited person is admitted at. Chosen by the admin.
+ */
 export type InviteInputRole = typeof InviteInputRole[keyof typeof InviteInputRole];
 
 
 export const InviteInputRole = {
   admin: 'admin',
-  clerk: 'clerk',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
   client: 'client',
 } as const;
 
 export interface InviteInput {
   email: string;
+  /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
   caseId?: number;
 }
