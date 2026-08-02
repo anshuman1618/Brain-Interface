@@ -29,6 +29,8 @@ export interface UserProfile {
   roleSelected: boolean;
   displayName: string;
   email: string;
+  /** @nullable */
+  authProvider?: string | null;
   createdAt: string;
 }
 
@@ -80,12 +82,13 @@ export interface WorkspaceMembershipSummary {
 }
 
 /**
- * pending_approval means the user holds no ACTIVE membership anywhere. They can reach no workspace data at all until an admin grants one.
+ * active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.
  */
 export type SessionClaimsAccessStatus = typeof SessionClaimsAccessStatus[keyof typeof SessionClaimsAccessStatus];
 
 
 export const SessionClaimsAccessStatus = {
+  not_recognised: 'not_recognised',
   pending_approval: 'pending_approval',
   active: 'active',
 } as const;
@@ -95,8 +98,13 @@ export interface SessionClaims {
   clerkId: string;
   displayName: string;
   email: string;
-  /** pending_approval means the user holds no ACTIVE membership anywhere. They can reach no workspace data at all until an admin grants one. */
+  /** active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address. */
   accessStatus: SessionClaimsAccessStatus;
+  /**
+     * How the caller signed in (google | zoho | email). Display only.
+     * @nullable
+     */
+  authProvider?: string | null;
   memberships: WorkspaceMembershipSummary[];
   activeWorkspace?: Workspace | null;
   /**
@@ -200,6 +208,76 @@ export interface AccessDecisionInput {
   decision: AccessDecisionInputDecision;
   /** The role the admin grants. Required on approve. Deliberately separate from requestedRole — an applicant asking for admin does not get it. */
   role?: AccessDecisionInputRole;
+}
+
+export type AccessListEntryKind = typeof AccessListEntryKind[keyof typeof AccessListEntryKind];
+
+
+export const AccessListEntryKind = {
+  email: 'email',
+  domain: 'domain',
+} as const;
+
+export type AccessListEntryRole = typeof AccessListEntryRole[keyof typeof AccessListEntryRole];
+
+
+export const AccessListEntryRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface AccessListEntry {
+  id: number;
+  workspaceId: number;
+  kind: AccessListEntryKind;
+  value: string;
+  role: AccessListEntryRole;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  addedBy?: string | null;
+  /** @nullable */
+  lastUsedAt?: string | null;
+  /** @nullable */
+  revokedAt?: string | null;
+  createdAt: string;
+}
+
+export type AccessListEntryInputKind = typeof AccessListEntryInputKind[keyof typeof AccessListEntryInputKind];
+
+
+export const AccessListEntryInputKind = {
+  email: 'email',
+  domain: 'domain',
+} as const;
+
+/**
+ * The role granted on first sign-in. Chosen by the admin.
+ */
+export type AccessListEntryInputRole = typeof AccessListEntryInputRole[keyof typeof AccessListEntryInputRole];
+
+
+export const AccessListEntryInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface AccessListEntryInput {
+  kind: AccessListEntryInputKind;
+  /**
+     * An exact email address, or a bare domain such as "chambers.in".
+     * @minLength 3
+     */
+  value: string;
+  /** The role granted on first sign-in. Chosen by the admin. */
+  role: AccessListEntryInputRole;
+  note?: string;
 }
 
 export type MembershipUpdateInputRole = typeof MembershipUpdateInputRole[keyof typeof MembershipUpdateInputRole];

@@ -8,7 +8,7 @@
  * that turns it on in production — that is deliberate.
  */
 
-import { PREVIEW_USER_IDS, type PreviewRole } from "@workspace/db";
+import { PREVIEW_USER_IDS, normaliseEmail, type PreviewRole } from "@workspace/db";
 
 const VALID_ROLES = Object.keys(PREVIEW_USER_IDS) as PreviewRole[];
 
@@ -18,18 +18,54 @@ export function isPreviewAuth(): boolean {
   return !process.env.CLERK_SECRET_KEY;
 }
 
+export type PreviewIdentity =
+  | { kind: "seeded"; clerkId: string }
+  /**
+   * Stands in for "somebody just completed Google/Zoho/email sign-in and this is
+   * the address the provider vouched for". The user is provisioned on the fly,
+   * exactly as a real first-time Clerk sign-in would be, and then has to clear
+   * the access list like anyone else — which is how an unrecognised address can
+   * be demonstrated end to end without a real identity provider.
+   */
+  | { kind: "email"; email: string; provider: string; displayName: string };
+
 /**
- * The frontend identifies itself as `Authorization: Bearer preview:<role>`,
- * reusing the API client's existing bearer-token hook rather than inventing a
- * second transport. Returns null when the header is absent or the role is not
- * one we seed, which the caller treats as unauthenticated.
+ * The frontend identifies preview callers by a bearer token instead of a Clerk
+ * session JWT:
+ *
+ *   preview:<seeded-identity>
+ *   preview:email:<provider>:<email>[:<display name>]
+ *
+ * Returns null when the header is absent or malformed, which the caller treats
+ * as unauthenticated. Neither form carries authority — both only name an
+ * identity, and access is still read from the database afterwards.
  */
-export function previewClerkIdFromRequest(authorization: string | undefined): string | null {
+export function previewIdentityFromRequest(authorization: string | undefined): PreviewIdentity | null {
   const raw = authorization?.replace(/^Bearer\s+/i, "").trim();
   if (!raw?.startsWith("preview:")) return null;
 
-  const role = raw.slice("preview:".length) as PreviewRole;
-  if (!VALID_ROLES.includes(role)) return null;
+  const rest = raw.slice("preview:".length);
 
-  return PREVIEW_USER_IDS[role];
+  if (rest.startsWith("email:")) {
+    const [provider, email, ...nameParts] = rest.slice("email:".length).split(":");
+    const normalised = normaliseEmail(decodeURIComponent(email ?? ""));
+    if (!normalised.includes("@")) return null;
+    if (!["google", "zoho", "email"].includes(provider)) return null;
+    return {
+      kind: "email",
+      email: normalised,
+      provider,
+      displayName: decodeURIComponent(nameParts.join(":") || "").trim(),
+    };
+  }
+
+  const role = rest as PreviewRole;
+  if (!VALID_ROLES.includes(role)) return null;
+  return { kind: "seeded", clerkId: PREVIEW_USER_IDS[role] };
+}
+
+/** Back-compat helper for callers that only need the seeded-identity form. */
+export function previewClerkIdFromRequest(authorization: string | undefined): string | null {
+  const identity = previewIdentityFromRequest(authorization);
+  return identity?.kind === "seeded" ? identity.clerkId : null;
 }

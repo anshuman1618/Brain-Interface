@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk, useAuth as useClerkAuth } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, Show, AuthenticateWithRedirectCallback, useClerk, useAuth as useClerkAuth } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
@@ -15,6 +15,7 @@ import { useClerkApiAuthBridge } from "@/hooks/use-api-auth-bridge";
 import { isPreviewMode } from "@/lib/preview";
 import { ClerkSessionProvider, PreviewSessionProvider, useSession } from "@/lib/session";
 import { PreviewLanding } from "@/pages/preview-landing";
+import PortalSignInPage from "@/pages/portal-sign-in";
 // Registers the API base URL (no-op when frontend and API share an origin).
 import "@/lib/api-config";
 
@@ -215,13 +216,32 @@ const queryClient = new QueryClient();
 function PreviewRoutes() {
   const { isSignedIn } = useSession();
 
-  if (!isSignedIn) return <PreviewLanding />;
+  if (!isSignedIn) {
+    // Signed out, preview mode shows the same front door as production: the
+    // landing page and the real sign-in layer. The seeded-identity picker is a
+    // demo shortcut kept on its own route, not a substitute for signing in.
+    return (
+      <Switch>
+        <Route path="/portal" component={PortalSignInPage} />
+        <Route path="/portal/identities" component={PreviewLanding} />
+        {/* "/:rest*" does not match the bare root in wouter, so it needs its
+            own route — without it, "/" renders nothing at all. */}
+        <Route path="/" component={LandingPage} />
+        <Route path="/:rest*" component={LandingPage} />
+      </Switch>
+    );
+  }
 
   return (
     <Switch>
       {/* "/:rest*" does not match the bare root, so send it to the dashboard
           explicitly — otherwise entering the portal renders an empty page. */}
       <Route path="/"><Redirect to="/dashboard" /></Route>
+      {/* Already signed in — the sign-in screens are a no-op, so land in the
+          portal rather than leaving the URL on a door that has been walked
+          through. */}
+      <Route path="/portal"><Redirect to="/dashboard" /></Route>
+      <Route path="/portal/identities"><Redirect to="/dashboard" /></Route>
       <Route path="/:rest*" component={DashboardLayout} />
     </Switch>
   );
@@ -262,6 +282,16 @@ function ClerkApp() {
               <ClerkQueryClientCacheInvalidator />
               <Switch>
                 <Route path="/" component={HomeRedirect} />
+                <Route path="/portal" component={PortalSignInPage} />
+                {/* Where Google and Zoho land after the provider round trip.
+                    Clerk finishes the handshake, then the app decides what this
+                    identity may reach. */}
+                <Route path="/portal/callback">
+                  <AuthenticateWithRedirectCallback
+                    signInFallbackRedirectUrl={`${basePath}/dashboard`}
+                    signUpFallbackRedirectUrl={`${basePath}/dashboard`}
+                  />
+                </Route>
                 <Route path="/sign-in/*?" component={SignInPage} />
                 <Route path="/sign-up/*?" component={SignUpPage} />
                 <Route path="/:rest*" component={DashboardLayout} />

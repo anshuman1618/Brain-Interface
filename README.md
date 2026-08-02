@@ -22,14 +22,17 @@ pnpm run preview
 
 Then open **http://localhost:5000**.
 
-This boots the whole platform with **no external services configured**: pick an
-identity on the landing screen and explore. Two chambers are seeded, plus an
-applicant who has signed up but been granted nothing — so tenant isolation and
-the Pending Approval state are both reachable immediately. Under the hood:
+This boots the whole platform with **no external services configured**. Click
+**Chamber Portal** and sign in with a seeded address — `priya@raghavanchambers.in`
+is admitted as admin, `someone@elsewhere.com` is refused — or use the
+sample-identity shortcut at `/portal/identities`. Two chambers are seeded, plus
+an applicant who has signed up and been granted nothing, so tenant isolation, the
+Pending Approval state and the access-denied error are all reachable
+immediately. Under the hood:
 
 | Dependency | In preview |
 | --- | --- |
-| Clerk (auth) | Mocked — you choose which seeded person to sign in as |
+| Clerk (auth) | Mocked — any address you type is treated as verified. The access-list check that follows is the real one |
 | Postgres | In-memory Postgres (PGlite), seeded with sample matters |
 | Speech-to-text | Mocked — stopping a recording produces a sample transcript |
 
@@ -76,6 +79,75 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the two supported hosting topologies
 pnpm --filter @workspace/api-spec run codegen
 ```
 
+## Sign-in providers
+
+The chamber portal (`/portal`) offers three ways in:
+
+| Provider | Clerk strategy | Notes |
+| --- | --- | --- |
+| Google | `oauth_google` | Built into Clerk. Enable under **SSO connections**. |
+| Zoho Mail | `oauth_custom_zoho` | **Not** a Clerk built-in — add a *custom OAuth connection* with the slug `zoho` (below). |
+| Email | one-time code | Clerk's email-code strategy. |
+
+All three do the same job and nothing more: they establish a **verified email
+address**. Which chamber that address may enter, and as what, is decided
+afterwards by the access list. Adding a provider therefore cannot widen access.
+
+### Configuring Zoho
+
+Clerk has no built-in Zoho provider, so it is wired as a custom OIDC connection:
+
+1. In the [Zoho API console](https://api-console.zoho.com/), create a
+   **Server-based Application**. Note the Client ID and Client Secret.
+2. Set the authorised redirect URI to the callback Clerk shows you when creating
+   the connection in step 3.
+3. In the Clerk dashboard → **SSO connections → Add connection → Custom
+   provider**, set:
+   - **Slug**: `zoho` — this must match, since the app requests
+     `oauth_custom_zoho`.
+   - **Authorization URL**: `https://accounts.zoho.com/oauth/v2/auth`
+   - **Token URL**: `https://accounts.zoho.com/oauth/v2/token`
+   - **User info URL**: `https://accounts.zoho.com/oauth/user/info`
+   - **Scopes**: `AaaServer.profile.READ email profile openid`
+   - Client ID and Secret from step 1.
+4. Use the regional Zoho domain if your tenant is not on `.com`
+   (`accounts.zoho.in`, `accounts.zoho.eu`, …).
+
+If the connection is absent, the Zoho button reports that the provider is not
+enabled rather than failing silently.
+
+## Who may sign in — the access list
+
+Google and Zoho will authenticate **anybody with an account**. They say who you
+are; they say nothing about whether you belong here. `workspace_access_list` is
+what closes that gap:
+
+```
+workspace_access_list
+  workspace_id   the chamber this admits you to
+  kind           'email' (one address) | 'domain' (every address at a domain)
+  value          normalised, e.g. "krishnan@chambers.in" or "chambers.in"
+  role           the role granted on first sign-in — chosen by the admin
+```
+
+On sign-in the verified address is matched against this table. A match creates an
+`active` membership at the listed role; no match means `accessStatus:
+not_recognised`, an error screen naming the refused address, and `403` from every
+protected endpoint.
+
+- **Only an admin writes it.** `access_control.manage` is required, and entries
+  are scoped to the admin's own workspace — an admin of one chamber cannot admit
+  anyone to another.
+- **An exact address beats a domain rule.** A domain rule can onboard a firm's
+  Google Workspace or Zoho tenant at a default role while individuals are pinned
+  to something else.
+- **Only verified addresses are matched.** An unverified Clerk email is stored as
+  empty and matches nothing — otherwise anyone could claim a colleague's address
+  and inherit their role.
+- **Revoking is not retroactive.** Removing an entry stops *future* sign-ins.
+  Someone already admitted keeps their membership until it is revoked in Team
+  Roles. The UI says so on both screens.
+
 ## Zero-trust workspaces
 
 A **workspace** is the tenant boundary. Every matter, task, document,
@@ -94,8 +166,9 @@ users ──< workspace_memberships >── workspaces
 - **Sign-up grants nothing.** The pre-auth role picker is a preview and an
   access-request *intent*. Clerk's `publicMetadata` is not consulted at all —
   it used to seed the role, which meant anything that could write metadata could
-  hand itself `admin`. A new account has zero memberships and lands in
-  **Pending Approval**, where every protected endpoint answers `403`.
+  hand itself `admin`. A new account whose address is on no access list is
+  **refused**; one that has asked for access sits in **Pending Approval**. Both
+  reach nothing: every protected endpoint answers `403`.
 - **An admin decides the role, not the applicant.** Approval takes the role from
   the admin's decision body; `requested_role` is stored for their information and
   read by no authorization path. The grant selector defaults to Client.
@@ -193,6 +266,9 @@ See `.env.example`. In short:
 | `PORT` / `HOST` | no | Default `5000` / `0.0.0.0` |
 | `CLIENT_DIST_PATH` | no | Override where the API reads the built SPA from |
 | `WORKSPACE_TOKEN_SECRET` | recommended | Signs scoped workspace tokens. Unset → a random per-process secret, so tokens die on restart and clients re-switch (fine in dev, not across replicas) |
+
+Google, Zoho and email sign-in are configured in the Clerk dashboard, not by
+environment variable — see [Sign-in providers](#sign-in-providers).
 
 ## Conventions worth knowing
 

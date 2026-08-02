@@ -13,6 +13,7 @@ import { Copy, Plus, Mail, ShieldCheck, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTime } from "@/lib/utils";
 import { AccessRequestQueue } from "@/components/access-request-queue";
+import { AccessListManager } from "@/components/access-list-manager";
 import { useSession } from "@/lib/session";
 import { ROLE_OPTIONS } from "@/lib/role-options";
 
@@ -104,6 +105,8 @@ export default function InvitesPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <AccessListManager />
 
       <AccessRequestQueue />
 

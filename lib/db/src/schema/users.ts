@@ -9,6 +9,8 @@ export const usersTable = pgTable("users", {
   roleSelected: boolean("role_selected").notNull().default(false), // true once user has picked a role at sign-up
   displayName: text("display_name").notNull().default(""),
   email: text("email").notNull().default(""),
+  /** How they last signed in: google | zoho | email. Display only — never authorization. */
+  authProvider: text("auth_provider").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

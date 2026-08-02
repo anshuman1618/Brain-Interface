@@ -39,6 +39,20 @@ CREATE TABLE IF NOT EXISTS workspace_memberships (
   CONSTRAINT workspace_memberships_workspace_user_key UNIQUE (workspace_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS workspace_access_list (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'email',
+  value TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'client',
+  note TEXT,
+  added_by TEXT NOT NULL DEFAULT '',
+  revoked_at TIMESTAMPTZ,
+  last_used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT workspace_access_list_ws_kind_value_key UNIQUE (workspace_id, kind, value)
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   clerk_id TEXT NOT NULL UNIQUE,
@@ -46,6 +60,7 @@ CREATE TABLE IF NOT EXISTS users (
   role_selected BOOLEAN NOT NULL DEFAULT false,
   display_name TEXT NOT NULL DEFAULT '',
   email TEXT NOT NULL DEFAULT '',
+  auth_provider TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -219,15 +234,15 @@ async function seed(db: NodePgDatabase<typeof schema>): Promise<void> {
   const users = await db
     .insert(schema.usersTable)
     .values([
-      { clerkId: PREVIEW_USER_IDS.admin, role: "admin", roleSelected: true, displayName: "Priya Raghavan", email: "admin@chambers.preview" },
-      { clerkId: PREVIEW_USER_IDS.senior_advocate, role: "senior_advocate", roleSelected: true, displayName: "R. Krishnan", email: "krishnan@chambers.preview" },
-      { clerkId: PREVIEW_USER_IDS.junior_advocate, role: "junior_advocate", roleSelected: true, displayName: "S. Iyer", email: "iyer@chambers.preview" },
-      { clerkId: PREVIEW_USER_IDS.clerk_intern, role: "clerk_intern", roleSelected: true, displayName: "P. Nair", email: "nair@chambers.preview" },
-      { clerkId: PREVIEW_USER_IDS.client, role: "client", roleSelected: true, displayName: "A. Kapoor", email: "kapoor@client.preview" },
+      { clerkId: PREVIEW_USER_IDS.admin, role: "admin", roleSelected: true, displayName: "Priya Raghavan", email: "priya@raghavanchambers.in", authProvider: "google" },
+      { clerkId: PREVIEW_USER_IDS.senior_advocate, role: "senior_advocate", roleSelected: true, displayName: "R. Krishnan", email: "krishnan@raghavanchambers.in", authProvider: "zoho" },
+      { clerkId: PREVIEW_USER_IDS.junior_advocate, role: "junior_advocate", roleSelected: true, displayName: "S. Iyer", email: "iyer@raghavanchambers.in", authProvider: "zoho" },
+      { clerkId: PREVIEW_USER_IDS.clerk_intern, role: "clerk_intern", roleSelected: true, displayName: "P. Nair", email: "nair@raghavanchambers.in", authProvider: "email" },
+      { clerkId: PREVIEW_USER_IDS.client, role: "client", roleSelected: true, displayName: "A. Kapoor", email: "a.kapoor@gmail.com", authProvider: "google" },
       // Signed up, asked for Firm Admin, granted nothing. Sits in Pending Approval.
-      { clerkId: PREVIEW_USER_IDS.unassigned, role: "client", roleSelected: false, displayName: "T. Deshmukh", email: "deshmukh@applicant.preview" },
+      { clerkId: PREVIEW_USER_IDS.unassigned, role: "client", roleSelected: false, displayName: "T. Deshmukh", email: "deshmukh@applicant.example", authProvider: "google" },
       // Admin of the *other* tenant — proof that "admin" is not a global rank.
-      { clerkId: PREVIEW_USER_IDS.rival_admin, role: "admin", roleSelected: true, displayName: "V. Mehta", email: "mehta@associates.preview" },
+      { clerkId: PREVIEW_USER_IDS.rival_admin, role: "admin", roleSelected: true, displayName: "V. Mehta", email: "mehta@mehta-associates.in", authProvider: "google" },
     ])
     .returning();
 
@@ -267,6 +282,20 @@ async function seed(db: NodePgDatabase<typeof schema>): Promise<void> {
       status: "pending",
       requestNote: "Joining as practice manager — need firm oversight.",
     },
+  ]);
+
+  // The access list an admin would have built. Note the mix: exact addresses for
+  // the client and one advocate, and a domain rule for the chamber's own Zoho
+  // Mail tenant. `deshmukh@applicant.example` is deliberately absent — signing in
+  // with it authenticates fine and is then refused entry, which is the whole
+  // point of this table existing separately from the identity provider.
+  await db.insert(schema.workspaceAccessListTable).values([
+    { workspaceId: chambers.id, kind: "domain", value: "raghavanchambers.in", role: "junior_advocate", note: "Chamber Zoho Mail tenant — staff onboard as Junior Advocate, promoted afterwards.", addedBy: "seed" },
+    { workspaceId: chambers.id, kind: "email", value: "priya@raghavanchambers.in", role: "admin", note: "Founding partner.", addedBy: "seed" },
+    { workspaceId: chambers.id, kind: "email", value: "krishnan@raghavanchambers.in", role: "senior_advocate", addedBy: "seed" },
+    { workspaceId: chambers.id, kind: "email", value: "nair@raghavanchambers.in", role: "clerk_intern", addedBy: "seed" },
+    { workspaceId: chambers.id, kind: "email", value: "a.kapoor@gmail.com", role: "client", note: "Client — succession matter.", addedBy: "seed" },
+    { workspaceId: rival.id, kind: "domain", value: "mehta-associates.in", role: "admin", addedBy: "seed" },
   ]);
 
   const cases = await db

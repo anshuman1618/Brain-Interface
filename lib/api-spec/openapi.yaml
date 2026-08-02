@@ -223,6 +223,63 @@ paths:
         "404":
           description: Request not found in this workspace
 
+  /workspace/access-list:
+    get:
+      operationId: listAccessList
+      tags: [session]
+      summary: Email addresses and domains admitted to this workspace (admin only)
+      responses:
+        "200":
+          description: Access list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessListEntry"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createAccessListEntry
+      tags: [session]
+      summary: Admit an address or domain, with the role it is granted (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessListEntryInput"
+      responses:
+        "201":
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessListEntry"
+        "403":
+          description: Forbidden
+        "409":
+          description: That address or domain is already on the list
+
+  /workspace/access-list/{id}:
+    delete:
+      operationId: revokeAccessListEntry
+      tags: [session]
+      summary: Revoke an access-list entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Revoked
+        "403":
+          description: Forbidden
+        "404":
+          description: Entry not found in this workspace
+
   /workspace/members:
     get:
       operationId: listWorkspaceMembers
@@ -956,6 +1013,8 @@ components:
           type: string
         email:
           type: string
+        authProvider:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -1011,10 +1070,16 @@ components:
           type: string
         accessStatus:
           type: string
-          enum: [pending_approval, active]
+          enum: [not_recognised, pending_approval, active]
           description: >
-            pending_approval means the user holds no ACTIVE membership anywhere.
-            They can reach no workspace data at all until an admin grants one.
+            active   — holds at least one ACTIVE membership.
+            pending_approval — has asked for access and is awaiting a decision.
+            not_recognised — signed in successfully, but the verified email is on
+            no workspace access list and no request is outstanding. Reaches
+            nothing; the sign-in layer shows an error naming the address.
+        authProvider:
+          type: ["string", "null"]
+          description: How the caller signed in (google | zoho | email). Display only.
         memberships:
           type: array
           items:
@@ -1107,6 +1172,54 @@ components:
           description: >
             The role the admin grants. Required on approve. Deliberately separate
             from requestedRole — an applicant asking for admin does not get it.
+
+    AccessListEntry:
+      type: object
+      required: [id, workspaceId, kind, value, role, createdAt]
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: integer
+        kind:
+          type: string
+          enum: [email, domain]
+        value:
+          type: string
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+        note:
+          type: ["string", "null"]
+        addedBy:
+          type: ["string", "null"]
+        lastUsedAt:
+          type: ["string", "null"]
+          format: date-time
+        revokedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    AccessListEntryInput:
+      type: object
+      required: [kind, value, role]
+      properties:
+        kind:
+          type: string
+          enum: [email, domain]
+        value:
+          type: string
+          minLength: 3
+          description: An exact email address, or a bare domain such as "chambers.in".
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+          description: The role granted on first sign-in. Chosen by the admin.
+        note:
+          type: string
 
     MembershipUpdateInput:
       type: object

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useAuth, useUser } from "@clerk/react";
+import { useAuth, useSignIn, useUser } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSession,
@@ -10,7 +10,15 @@ import {
   type Workspace,
 } from "@workspace/api-client-react";
 import { ROLE_OPTIONS, type RoleValue } from "@/lib/role-options";
-import { clearPreviewIdentity, getPreviewIdentity, setPreviewIdentity, type PreviewIdentity } from "@/lib/preview";
+import type { ProviderId } from "@/lib/auth-providers";
+import {
+  clearPreviewSession,
+  getPreviewSession,
+  previewIdentityOf,
+  setPreviewSession,
+  type PreviewIdentity,
+  type PreviewSession,
+} from "@/lib/preview";
 import {
   clearWorkspaceContext,
   getActiveWorkspaceId,
@@ -36,8 +44,12 @@ export type Session = {
 
   /** null until the backend has answered. */
   claims: SessionClaims | null;
-  /** True when the user holds no ACTIVE membership anywhere. */
+  /** Signed in, has asked for access, awaiting an admin decision. */
   isPendingApproval: boolean;
+  /** Signed in, but the verified email is on no access list and no request is open. */
+  isNotRecognised: boolean;
+  /** How they signed in: google | zoho | email. Display only. */
+  authProvider: string | null;
   role: string | null;
   displayRole: string;
   activeWorkspace: Workspace | null;
@@ -47,6 +59,11 @@ export type Session = {
   switchWorkspace: (workspaceId: number) => void;
   isSwitchingWorkspace: boolean;
   refreshSession: () => void;
+
+  /** Begins sign-in with a provider. Establishes identity only — never access. */
+  signInWithProvider: (provider: ProviderId, email: string, name?: string) => Promise<void>;
+  isSigningIn: boolean;
+  signInError: string | null;
 
   /** True when auth is mocked. Drives the preview banner and identity switcher. */
   previewMode: boolean;
@@ -132,6 +149,8 @@ function baseSessionFields(claims: SessionClaims | null) {
   return {
     claims,
     isPendingApproval: claims ? claims.accessStatus === "pending_approval" : false,
+    isNotRecognised: claims ? claims.accessStatus === "not_recognised" : false,
+    authProvider: claims?.authProvider ?? null,
     role: claims?.role ?? null,
     displayRole: claims?.displayRole ?? "",
     activeWorkspace: claims?.activeWorkspace ?? null,
@@ -139,10 +158,71 @@ function baseSessionFields(claims: SessionClaims | null) {
   };
 }
 
+const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
+
 export function ClerkSessionProvider({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, user } = useUser();
   const { signOut } = useAuth();
+  const { signIn } = useSignIn();
   const backend = useBackendSession(Boolean(isSignedIn), "clerk");
+
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+
+  /**
+   * Hands off to the identity provider.
+   *
+   * Google and Zoho redirect out to the provider; the email route sends a
+   * one-time code. All three end at the same place — an address the provider has
+   * verified — and none of them decides anything about access. What happens next
+   * is `GET /session`, which checks that address against the workspace access
+   * list and either admits it or refuses it.
+   *
+   * `oauth_custom_zoho` is a custom OAuth connection configured in the Clerk
+   * dashboard with the slug `zoho`; Clerk has no built-in Zoho provider. See
+   * README → Sign-in providers.
+   */
+  const signInWithProvider = useCallback(
+    async (provider: ProviderId, emailAddress: string) => {
+      if (!signIn) return;
+      setSignInError(null);
+      setIsSigningIn(true);
+      try {
+        if (provider === "email") {
+          const { error } = await signIn.emailCode.sendCode({ emailAddress });
+          if (error) throw error;
+          // Clerk's hosted component owns code entry from here.
+          window.location.href = `${BASE_PATH}/sign-in`;
+          return;
+        }
+
+        const { error } = await signIn.sso({
+          strategy: provider === "google" ? "oauth_google" : "oauth_custom_zoho",
+          // Where the provider round trip finishes. The dashboard layout takes
+          // over from there and decides — from the backend session — whether
+          // this identity sees the portal, a pending notice, or the refusal.
+          redirectUrl: `${window.location.origin}${BASE_PATH}/dashboard`,
+          // Where Clerk sends the handshake when it needs another step first.
+          redirectCallbackUrl: `${window.location.origin}${BASE_PATH}/portal/callback`,
+        });
+        if (error) throw error;
+      } catch (err) {
+        // A provider that is not enabled in the Clerk dashboard fails here, and
+        // saying so beats a silent no-op the user cannot diagnose.
+        const message =
+          err && typeof err === "object" && "message" in err
+            ? String((err as { message?: unknown }).message ?? "")
+            : "";
+        setSignInError(
+          message ||
+            `Could not start sign-in with ${provider}. It may not be enabled for this deployment — ask your administrator.`,
+        );
+      } finally {
+        setIsSigningIn(false);
+      }
+    },
+    [signIn],
+  );
 
   const value = useMemo<Session>(() => {
     const email = user?.emailAddresses?.[0]?.emailAddress ?? "";
@@ -163,44 +243,72 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       switchWorkspace: backend.switchWorkspace,
       isSwitchingWorkspace: backend.isSwitchingWorkspace,
       refreshSession: backend.refreshSession,
+      signInWithProvider,
+      isSigningIn,
+      signInError,
       previewMode: false,
       previewIdentity: null,
       switchPreviewIdentity: () => {},
     };
-  }, [isLoaded, isSignedIn, user, signOut, backend]);
+  }, [isLoaded, isSignedIn, user, signOut, backend, signInWithProvider, isSigningIn, signInError]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
 
-export function PreviewSessionProvider({ children }: { children: ReactNode }) {
-  const [identity, setIdentity] = useState<PreviewIdentity | null>(() => getPreviewIdentity());
-  const queryClient = useQueryClient();
-  const backend = useBackendSession(identity !== null, identity ?? "none");
+/** A stable cache key for whichever preview identity is signed in. */
+function previewKey(session: PreviewSession | null): string {
+  if (!session) return "none";
+  return session.kind === "seeded" ? session.identity : `email:${session.email}`;
+}
 
-  const switchPreviewIdentity = useCallback(
-    (next: PreviewIdentity) => {
-      // Signing in as somebody else. Drop the old workspace pointer and every
-      // cached response with it — the new identity's memberships decide anew.
+export function PreviewSessionProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<PreviewSession | null>(() => getPreviewSession());
+  const queryClient = useQueryClient();
+  const backend = useBackendSession(session !== null, previewKey(session));
+
+  // Signing in as somebody else. Drop the old workspace pointer and every cached
+  // response with it — the new identity's memberships decide anew.
+  const adopt = useCallback(
+    (next: PreviewSession | null) => {
       clearWorkspaceContext();
-      setPreviewIdentity(next);
-      setIdentity(next);
+      if (next) setPreviewSession(next);
+      else clearPreviewSession();
+      setSession(next);
       queryClient.clear();
     },
     [queryClient],
   );
 
-  const signOut = useCallback(() => {
-    clearWorkspaceContext();
-    clearPreviewIdentity();
-    setIdentity(null);
-    queryClient.clear();
-  }, [queryClient]);
+  const switchPreviewIdentity = useCallback(
+    (next: PreviewIdentity) => adopt({ kind: "seeded", identity: next }),
+    [adopt],
+  );
+
+  /**
+   * Stands in for completing Google/Zoho/email sign-in.
+   *
+   * No provider is contacted — there is none configured — so the address is
+   * taken at face value, exactly as a verified claim from a real provider would
+   * be. Everything after this point is the real code path: the backend
+   * provisions the user, applies the access list, and refuses the address if it
+   * is not on one.
+   */
+  const signInWithProvider = useCallback(
+    async (provider: ProviderId, emailAddress: string, name?: string) => {
+      const trimmed = emailAddress.trim().toLowerCase();
+      if (!trimmed.includes("@")) return;
+      adopt({ kind: "email", provider, email: trimmed, name: name?.trim() ?? "" });
+    },
+    [adopt],
+  );
+
+  const signOut = useCallback(() => adopt(null), [adopt]);
 
   const value = useMemo<Session>(() => {
     const claims = backend.claims;
     return {
-      isLoaded: identity === null || !backend.claimsLoading,
-      isSignedIn: identity !== null,
+      isLoaded: session === null || !backend.claimsLoading,
+      isSignedIn: session !== null,
       displayName: claims?.displayName ?? "",
       email: claims?.email ?? "",
       initial: firstChar(claims?.displayName),
@@ -210,11 +318,14 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
       switchWorkspace: backend.switchWorkspace,
       isSwitchingWorkspace: backend.isSwitchingWorkspace,
       refreshSession: backend.refreshSession,
+      signInWithProvider,
+      isSigningIn: false,
+      signInError: null,
       previewMode: true,
-      previewIdentity: identity,
+      previewIdentity: previewIdentityOf(session),
       switchPreviewIdentity,
     };
-  }, [identity, backend, signOut, switchPreviewIdentity]);
+  }, [session, backend, signOut, switchPreviewIdentity, signInWithProvider]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

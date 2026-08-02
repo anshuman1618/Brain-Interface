@@ -27,6 +27,7 @@ export const GetMeResponse = zod.object({
   "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
+  "authProvider": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -45,6 +46,7 @@ export const UpdateMeResponse = zod.object({
   "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
+  "authProvider": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -58,7 +60,8 @@ export const GetSessionResponse = zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
   "email": zod.string(),
-  "accessStatus": zod.enum(['pending_approval', 'active']).describe('pending_approval means the user holds no ACTIVE membership anywhere. They can reach no workspace data at all until an admin grants one.\n'),
+  "accessStatus": zod.enum(['not_recognised', 'pending_approval', 'active']).describe('active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.\n'),
+  "authProvider": zod.string().nullish().describe('How the caller signed in (google | zoho | email). Display only.'),
   "memberships": zod.array(zod.object({
   "workspace": zod.object({
   "id": zod.number(),
@@ -96,7 +99,8 @@ export const SwitchWorkspaceResponse = zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
   "email": zod.string(),
-  "accessStatus": zod.enum(['pending_approval', 'active']).describe('pending_approval means the user holds no ACTIVE membership anywhere. They can reach no workspace data at all until an admin grants one.\n'),
+  "accessStatus": zod.enum(['not_recognised', 'pending_approval', 'active']).describe('active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.\n'),
+  "authProvider": zod.string().nullish().describe('How the caller signed in (google | zoho | email). Display only.'),
   "memberships": zod.array(zod.object({
   "workspace": zod.object({
   "id": zod.number(),
@@ -220,6 +224,62 @@ export const DecideAccessRequestResponse = zod.object({
 
 
 /**
+ * @summary Email addresses and domains admitted to this workspace (admin only)
+ */
+export const ListAccessListResponseItem = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "kind": zod.enum(['email', 'domain']),
+  "value": zod.string(),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
+  "note": zod.string().nullish(),
+  "addedBy": zod.string().nullish(),
+  "lastUsedAt": zod.coerce.date().nullish(),
+  "revokedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListAccessListResponse = zod.array(ListAccessListResponseItem)
+
+
+/**
+ * @summary Admit an address or domain, with the role it is granted (admin only)
+ */
+export const createAccessListEntryBodyValueMin = 3;
+
+
+
+export const CreateAccessListEntryBody = zod.object({
+  "kind": zod.enum(['email', 'domain']),
+  "value": zod.string().min(createAccessListEntryBodyValueMin).describe('An exact email address, or a bare domain such as \"chambers.in\".'),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role granted on first sign-in. Chosen by the admin.'),
+  "note": zod.string().optional()
+})
+
+export const CreateAccessListEntryResponse = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "kind": zod.enum(['email', 'domain']),
+  "value": zod.string(),
+  "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
+  "note": zod.string().nullish(),
+  "addedBy": zod.string().nullish(),
+  "lastUsedAt": zod.coerce.date().nullish(),
+  "revokedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Revoke an access-list entry (admin only)
+ */
+export const RevokeAccessListEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RevokeAccessListEntryResponse = zod.void()
+
+
+/**
  * @summary Active members of the current workspace (admin only)
  */
 export const ListWorkspaceMembersResponseItem = zod.object({
@@ -285,6 +345,7 @@ export const ListUsersResponseItem = zod.object({
   "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
+  "authProvider": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)

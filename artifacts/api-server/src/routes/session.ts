@@ -5,6 +5,9 @@ import {
   usersTable,
   workspacesTable,
   workspaceMembershipsTable,
+  workspaceAccessListTable,
+  normaliseDomain,
+  normaliseEmail,
   type Workspace,
 } from "@workspace/db";
 import {
@@ -20,6 +23,9 @@ import {
   ListWorkspaceMembersResponse,
   UpdateWorkspaceMemberBody,
   UpdateWorkspaceMemberResponse,
+  ListAccessListResponse,
+  CreateAccessListEntryBody,
+  CreateAccessListEntryResponse,
 } from "@workspace/api-zod";
 import {
   requireAuth,
@@ -32,6 +38,7 @@ import {
 import { getOrCreateUser } from "../lib/jit";
 import { capabilitiesForRole, displayRole, isWorkspaceRole } from "../lib/permissions";
 import { mintWorkspaceToken, verifyWorkspaceToken } from "../lib/workspace-token";
+import { reconcileAccessList } from "../lib/access-list";
 
 const router: IRouter = Router();
 
@@ -50,6 +57,11 @@ function workspaceView(w: Workspace) {
 async function buildSessionClaims(userId: number, activeWorkspaceId: number | null) {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
 
+  // Turn any standing access-list grant into a real membership. Idempotent, and
+  // it never revives a membership that already exists in another state — so a
+  // revoked user is not silently readmitted by their address still being listed.
+  await reconcileAccessList(user);
+
   const membershipRows = await db
     .select({ membership: workspaceMembershipsTable, workspace: workspacesTable })
     .from(workspaceMembershipsTable)
@@ -66,6 +78,15 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
     }));
 
   const active = memberships.filter((m) => m.status === "active");
+  const pending = memberships.filter((m) => m.status === "pending");
+
+  // Three distinct states, because they need three different screens. An address
+  // that matched nothing is not "pending" — nobody is going to review it unless
+  // the person asks — and telling them so is the error the sign-in layer shows.
+  const accessStatus =
+    active.length > 0 ? ("active" as const)
+    : pending.length > 0 ? ("pending_approval" as const)
+    : ("not_recognised" as const);
 
   // Fall back to the caller's only active membership so a fresh session works
   // before any explicit switch. With several, nothing is active until they choose.
@@ -78,7 +99,8 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
     clerkId: user.clerkId,
     displayName: user.displayName,
     email: user.email,
-    accessStatus: active.length > 0 ? ("active" as const) : ("pending_approval" as const),
+    accessStatus,
+    authProvider: user.authProvider || null,
     memberships,
     activeWorkspace: selected ? selected.workspace : null,
     role: selected ? selected.role : null,
@@ -350,6 +372,160 @@ router.post(
       .returning();
 
     res.json(DecideAccessRequestResponse.parse(await membershipView(updated, c.workspace.name)));
+  },
+);
+
+/**
+ * The access list — who may enter this workspace at all.
+ *
+ * Admin-only, and scoped to the admin's own workspace: an admin of one chamber
+ * cannot admit anyone to another. This is the control that keeps "only an admin
+ * grants access" true once Google and Zoho sign-in exist, since those providers
+ * will authenticate any address in the world.
+ */
+router.get(
+  "/workspace/access-list",
+  requireWorkspace,
+  requireCapability("access_control.manage"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    const rows = await db
+      .select()
+      .from(workspaceAccessListTable)
+      .where(eq(workspaceAccessListTable.workspaceId, c.workspaceId));
+
+    res.json(
+      ListAccessListResponse.parse(
+        rows.map((r) => ({
+          ...r,
+          lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
+          revokedAt: r.revokedAt?.toISOString() ?? null,
+        })),
+      ),
+    );
+  },
+);
+
+router.post(
+  "/workspace/access-list",
+  requireWorkspace,
+  requireCapability("access_control.manage"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+
+    const parsed = CreateAccessListEntryBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    // Normalise before storing so matching at sign-in is a plain equality check
+    // and "Krishnan@Chambers.IN " cannot slip past an entry for the same address.
+    const value =
+      parsed.data.kind === "domain"
+        ? normaliseDomain(parsed.data.value)
+        : normaliseEmail(parsed.data.value);
+
+    if (parsed.data.kind === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      res.status(400).json({ error: "That does not look like an email address." });
+      return;
+    }
+    if (parsed.data.kind === "domain" && !/^[^\s@]+\.[^\s@]+$/.test(value)) {
+      res.status(400).json({ error: "That does not look like a domain, e.g. chambers.in" });
+      return;
+    }
+
+    const [existing] = await db
+      .select()
+      .from(workspaceAccessListTable)
+      .where(
+        and(
+          eq(workspaceAccessListTable.workspaceId, c.workspaceId),
+          eq(workspaceAccessListTable.kind, parsed.data.kind),
+          eq(workspaceAccessListTable.value, value),
+        ),
+      );
+
+    // A previously revoked entry is reinstated rather than duplicated, so the
+    // unique constraint holds and the original creation date survives.
+    if (existing) {
+      if (!existing.revokedAt) {
+        res.status(409).json({ error: `${value} is already on the access list.` });
+        return;
+      }
+      const [reinstated] = await db
+        .update(workspaceAccessListTable)
+        .set({ revokedAt: null, role: parsed.data.role, note: parsed.data.note ?? null, addedBy: c.user.displayName })
+        .where(eq(workspaceAccessListTable.id, existing.id))
+        .returning();
+      res.status(201).json(
+        CreateAccessListEntryResponse.parse({
+          ...reinstated,
+          lastUsedAt: reinstated.lastUsedAt?.toISOString() ?? null,
+          revokedAt: null,
+        }),
+      );
+      return;
+    }
+
+    const [created] = await db
+      .insert(workspaceAccessListTable)
+      .values({
+        workspaceId: c.workspaceId,
+        kind: parsed.data.kind,
+        value,
+        role: parsed.data.role,
+        note: parsed.data.note ?? null,
+        addedBy: c.user.displayName,
+      })
+      .returning();
+
+    res.status(201).json(
+      CreateAccessListEntryResponse.parse({
+        ...created,
+        lastUsedAt: null,
+        revokedAt: null,
+      }),
+    );
+  },
+);
+
+router.delete(
+  "/workspace/access-list/:id",
+  requireWorkspace,
+  requireCapability("access_control.manage"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+
+    const [entry] = await db
+      .select()
+      .from(workspaceAccessListTable)
+      .where(
+        and(
+          eq(workspaceAccessListTable.id, id),
+          eq(workspaceAccessListTable.workspaceId, c.workspaceId),
+        ),
+      );
+    if (!entry) {
+      res.status(404).json({ error: "Access list entry not found" });
+      return;
+    }
+
+    // Revoked, not deleted — the entry stays auditable. Note this stops *future*
+    // sign-ins from being admitted; anyone already admitted keeps their
+    // membership until it is revoked from Team Roles, which is the honest
+    // behaviour and is said as much in the UI.
+    await db
+      .update(workspaceAccessListTable)
+      .set({ revokedAt: new Date() })
+      .where(eq(workspaceAccessListTable.id, id));
+
+    res.sendStatus(204);
   },
 );
 

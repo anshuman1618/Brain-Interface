@@ -14,7 +14,7 @@ export default function LandingPage() {
           </span>
         </div>
         <div className="flex gap-4 items-center">
-          <Link href="/sign-in" className="text-sm font-semibold hover:text-primary transition-colors px-4 py-2">
+          <Link href="/portal" className="text-sm font-semibold hover:text-primary transition-colors px-4 py-2">
             Sign In
           </Link>
           <Link href="/sign-up" className="text-sm font-semibold bg-primary text-primary-foreground px-6 py-2.5 shadow-sm hover:bg-primary/90 transition-all active:scale-95 border border-primary">
@@ -49,15 +49,21 @@ export default function LandingPage() {
               An invite-only digital environment for complex case management, secure client communication, and rigorous task pipelining.
             </p>
             
-            <div className="flex gap-4">
-              <Link href="/sign-in" className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-4 text-lg font-semibold hover:bg-foreground/90 transition-all border border-foreground">
-                Client Access
+            <div className="flex flex-wrap gap-4">
+              {/* Single front door. Everyone — staff and clients alike — signs in
+                  through the same layer and is sorted by the access list. */}
+              <Link href="/portal" className="inline-flex items-center justify-center gap-2 bg-foreground text-background px-8 py-4 text-lg font-semibold hover:bg-foreground/90 transition-all border border-foreground">
+                Chamber Portal
                 <ArrowRight className="h-5 w-5" />
               </Link>
               <Link href="/sign-up" className="inline-flex items-center justify-center gap-2 bg-background text-foreground px-8 py-4 text-lg font-semibold border border-border hover:bg-accent transition-all shadow-sm">
-                Firm Directory
+                Request Access
               </Link>
             </div>
+            <p className="mt-6 text-sm text-muted-foreground max-w-xl">
+              Sign in with Google, Zoho Mail, or your email address. Entry is limited to
+              addresses a chamber admin has added — anything else is turned away.
+            </p>
           </div>
         </div>
 

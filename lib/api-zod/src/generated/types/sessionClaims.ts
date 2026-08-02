@@ -14,8 +14,13 @@ export interface SessionClaims {
   clerkId: string;
   displayName: string;
   email: string;
-  /** pending_approval means the user holds no ACTIVE membership anywhere. They can reach no workspace data at all until an admin grants one. */
+  /** active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address. */
   accessStatus: SessionClaimsAccessStatus;
+  /**
+     * How the caller signed in (google | zoho | email). Display only.
+     * @nullable
+     */
+  authProvider?: string | null;
   memberships: WorkspaceMembershipSummary[];
   activeWorkspace?: Workspace | null;
   /**

@@ -21,6 +21,8 @@ import type {
 
 import type {
   AccessDecisionInput,
+  AccessListEntry,
+  AccessListEntryInput,
   AccessRequest,
   AccessRequestInput,
   Case,
@@ -764,6 +766,225 @@ export const useDecideAccessRequest = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDecideAccessRequestMutationOptions(options));
+    }
+
+export const getListAccessListUrl = () => {
+
+
+
+
+  return `/api/workspace/access-list`
+}
+
+/**
+ * @summary Email addresses and domains admitted to this workspace (admin only)
+ */
+export const listAccessList = async ( options?: RequestInit): Promise<AccessListEntry[]> => {
+
+  return customFetch<AccessListEntry[]>(getListAccessListUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAccessListQueryKey = () => {
+    return [
+    `/api/workspace/access-list`
+    ] as const;
+    }
+
+
+export const getListAccessListQueryOptions = <TData = Awaited<ReturnType<typeof listAccessList>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAccessList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAccessListQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAccessList>>> = ({ signal }) => listAccessList({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAccessList>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAccessListQueryResult = NonNullable<Awaited<ReturnType<typeof listAccessList>>>
+export type ListAccessListQueryError = ErrorType<void>
+
+
+/**
+ * @summary Email addresses and domains admitted to this workspace (admin only)
+ */
+
+export function useListAccessList<TData = Awaited<ReturnType<typeof listAccessList>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAccessList>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAccessListQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAccessListEntryUrl = () => {
+
+
+
+
+  return `/api/workspace/access-list`
+}
+
+/**
+ * @summary Admit an address or domain, with the role it is granted (admin only)
+ */
+export const createAccessListEntry = async (accessListEntryInput: AccessListEntryInput, options?: RequestInit): Promise<AccessListEntry> => {
+
+  return customFetch<AccessListEntry>(getCreateAccessListEntryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(accessListEntryInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAccessListEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAccessListEntry>>, TError,{data: BodyType<AccessListEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAccessListEntry>>, TError,{data: BodyType<AccessListEntryInput>}, TContext> => {
+
+const mutationKey = ['createAccessListEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAccessListEntry>>, {data: BodyType<AccessListEntryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAccessListEntry(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAccessListEntryMutationResult = NonNullable<Awaited<ReturnType<typeof createAccessListEntry>>>
+    export type CreateAccessListEntryMutationBody = BodyType<AccessListEntryInput>
+    export type CreateAccessListEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Admit an address or domain, with the role it is granted (admin only)
+ */
+export const useCreateAccessListEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAccessListEntry>>, TError,{data: BodyType<AccessListEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAccessListEntry>>,
+        TError,
+        {data: BodyType<AccessListEntryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAccessListEntryMutationOptions(options));
+    }
+
+export const getRevokeAccessListEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/workspace/access-list/${id}`
+}
+
+/**
+ * @summary Revoke an access-list entry (admin only)
+ */
+export const revokeAccessListEntry = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRevokeAccessListEntryUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeAccessListEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeAccessListEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeAccessListEntry>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['revokeAccessListEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeAccessListEntry>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  revokeAccessListEntry(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeAccessListEntryMutationResult = NonNullable<Awaited<ReturnType<typeof revokeAccessListEntry>>>
+
+    export type RevokeAccessListEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Revoke an access-list entry (admin only)
+ */
+export const useRevokeAccessListEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeAccessListEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeAccessListEntry>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRevokeAccessListEntryMutationOptions(options));
     }
 
 export const getListWorkspaceMembersUrl = () => {

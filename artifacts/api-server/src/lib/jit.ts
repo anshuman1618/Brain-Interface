@@ -1,8 +1,8 @@
 import { getAuth, clerkClient } from "@clerk/express";
 import type { Request } from "express";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, normaliseEmail } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { isPreviewAuth, previewClerkIdFromRequest } from "./preview-mode";
+import { isPreviewAuth, previewIdentityFromRequest } from "./preview-mode";
 
 export type AppUser = {
   id: number;
@@ -10,30 +10,55 @@ export type AppUser = {
   roleSelected: boolean;
   displayName: string;
   email: string;
+  authProvider: string;
   clerkId: string;
 };
 
 /**
  * Resolves the Clerk user id for a request. In preview mode Clerk is not
- * mounted, so identity comes from the `preview:<role>` bearer token instead.
+ * mounted, so identity comes from the preview bearer token instead.
  *
  * Note this resolves *identity only*. Under both transports, what the caller may
  * reach is decided later, from workspace_memberships.
  */
 function resolveClerkId(req: Request): string | null {
   if (isPreviewAuth()) {
-    return previewClerkIdFromRequest(req.headers.authorization);
+    const identity = previewIdentityFromRequest(req.headers.authorization);
+    if (!identity) return null;
+    return identity.kind === "seeded" ? identity.clerkId : previewClerkIdForEmail(identity.email);
   }
   return getAuth(req)?.userId ?? null;
+}
+
+/** Stable synthetic id for a preview user identified by email. */
+function previewClerkIdForEmail(email: string): string {
+  return `preview_email_${normaliseEmail(email).replace(/[^a-z0-9]/g, "_")}`;
+}
+
+/**
+ * Which provider vouched for this identity: google | zoho | email.
+ *
+ * Display only. It is recorded so the UI can say "signed in with Zoho", and it
+ * is never consulted for authorization — an address admitted by the access list
+ * is admitted however it authenticated, and one that is not, is not.
+ */
+function providerFromClerk(req: Request): string {
+  const auth = getAuth(req);
+  const strategy = (auth?.sessionClaims as Record<string, unknown> | undefined)?.strategy;
+  if (typeof strategy === "string") {
+    if (strategy.includes("google")) return "google";
+    if (strategy.includes("zoho")) return "zoho";
+  }
+  return "email";
 }
 
 /**
  * Finds the app user for the request, creating a bare record on first sign-in.
  *
  * A newly provisioned user is deliberately inert: `users.role` is the directory
- * default and grants nothing on its own, and NO workspace membership is created.
- * Until an admin approves an access request the user has zero active
- * memberships, so `requireWorkspace` refuses every protected endpoint.
+ * default and grants nothing on its own, and NO workspace membership is created
+ * here. Access comes later, and only from the admin-managed access list or an
+ * admin approving a request.
  *
  * Clerk's publicMetadata is not consulted. It used to seed the role here, which
  * meant anything that could write metadata — including a sign-up flow driven by
@@ -46,14 +71,36 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
   const existing = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
   if (existing.length > 0) return existing[0];
 
-  // Preview users are seeded up front; if one is missing the token named an
-  // identity we do not provision, so treat it as unauthenticated.
-  if (isPreviewAuth()) return null;
+  if (isPreviewAuth()) {
+    const identity = previewIdentityFromRequest(req.headers.authorization);
+    // A seeded identity we do not provision — treat as unauthenticated rather
+    // than inventing a user.
+    if (!identity || identity.kind !== "email") return null;
+
+    // Mirrors a real first-time federated sign-in: the provider vouched for an
+    // address, so a user record exists. It still reaches nothing until the
+    // access list or an admin says otherwise.
+    const [created] = await db
+      .insert(usersTable)
+      .values({
+        clerkId,
+        role: "client",
+        roleSelected: false,
+        displayName: identity.displayName || identity.email.split("@")[0],
+        email: identity.email,
+        authProvider: identity.provider,
+      })
+      .returning();
+    return created;
+  }
 
   const clerkUser = await clerkClient.users.getUser(clerkId);
   const nameFromClerk = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim();
-  const emailFromClerk =
-    clerkUser.primaryEmailAddress?.emailAddress ?? clerkUser.emailAddresses[0]?.emailAddress ?? "";
+  // Only a *verified* address is trusted. An unverified one is attacker-supplied
+  // text, and matching it against the access list would let anyone claim a
+  // colleague's address and inherit their role.
+  const verified = clerkUser.emailAddresses.find((e) => e.verification?.status === "verified");
+  const emailFromClerk = verified?.emailAddress ?? clerkUser.primaryEmailAddress?.emailAddress ?? "";
 
   const [created] = await db
     .insert(usersTable)
@@ -62,7 +109,8 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
       role: "client",
       roleSelected: false,
       displayName: nameFromClerk || "User",
-      email: emailFromClerk,
+      email: verified ? normaliseEmail(emailFromClerk) : "",
+      authProvider: providerFromClerk(req),
     })
     .returning();
 

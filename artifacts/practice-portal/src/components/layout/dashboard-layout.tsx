@@ -14,6 +14,7 @@ import ClientPortalPage from "@/pages/client-portal"
 import CalendarPage from "@/pages/calendar"
 import TeamPage from "@/pages/team"
 import PendingApprovalPage from "@/pages/pending-approval"
+import AccessDeniedPage from "@/pages/access-denied"
 import UnauthorizedPage from "@/pages/unauthorized"
 import NotFound from "@/pages/not-found"
 import { Briefcase, LayoutDashboard, CheckSquare, PhoneCall, BarChart2, Users, LogOut, Loader2, ChevronRight, Calendar as CalendarIcon, CreditCard, ShieldCheck } from "lucide-react"
@@ -30,6 +31,7 @@ function DashboardLayoutContent() {
     signOut,
     claims,
     isPendingApproval,
+    isNotRecognised,
     activeWorkspace,
     displayRole,
     can,
@@ -50,11 +52,24 @@ function DashboardLayoutContent() {
     return null;
   }
 
-  // No ACTIVE membership anywhere: the account exists and reaches nothing. This
-  // is a rendering of the backend's answer, not a local decision — every API
-  // call from this state returns 403 regardless of what the UI does.
+  // No ACTIVE membership anywhere: the account exists and reaches nothing. Both
+  // screens below render the backend's answer, not a local decision — every API
+  // call from these states returns 403 regardless of what the UI does.
   // The preview bar stays mounted so the identity switcher remains reachable;
-  // without it, choosing the unapproved identity would be a dead end.
+  // without it, signing in as an unadmitted address would be a dead end.
+  //
+  // The two are distinguished deliberately: an address nobody has admitted needs
+  // to be told so (and given a way to ask), while someone who has already asked
+  // needs to be told their request is waiting.
+  if (isNotRecognised) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <PreviewBar />
+        <AccessDeniedPage />
+      </div>
+    );
+  }
+
   if (isPendingApproval || !activeWorkspace) {
     return (
       <div className="min-h-screen bg-background text-foreground">

@@ -1,5 +1,5 @@
 import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
-import { getPreviewIdentity, isPreviewMode, previewToken } from "@/lib/preview";
+import { getPreviewSession, isPreviewMode, previewToken } from "@/lib/preview";
 // Registers the workspace-header getter at module load. Imported here so it is
 // in place before the first query fires, alongside the auth token getter.
 import "@/lib/workspace-context";
@@ -32,7 +32,7 @@ if (isCrossOriginApi) {
 // re-registering.
 if (isPreviewMode) {
   setAuthTokenGetter(() => {
-    const identity = getPreviewIdentity();
-    return identity ? previewToken(identity) : null;
+    const session = getPreviewSession();
+    return session ? previewToken(session) : null;
   });
 }
