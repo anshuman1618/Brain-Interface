@@ -431,6 +431,46 @@ paths:
         "403":
           description: Forbidden
 
+  /workspace/subscription:
+    get:
+      operationId: getSubscription
+      tags: [session]
+      summary: The workspace's current plan, alongside the full price catalogue
+      responses:
+        "200":
+          description: Subscription and available plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionState"
+        "403":
+          description: Forbidden
+    put:
+      operationId: setSubscription
+      tags: [session]
+      summary: Choose a plan and billing period (billing.manage only)
+      description: >
+        The client sends only a plan and a billing period. Prices are resolved
+        server-side from the catalogue, so no amount is ever accepted from the
+        browser. This records the selection; it does not capture a payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionInput"
+      responses:
+        "200":
+          description: Plan selected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionState"
+        "400":
+          description: Unknown plan or billing period
+        "403":
+          description: Forbidden
+
   /workspace/access-list:
     get:
       operationId: listAccessList
@@ -1638,6 +1678,109 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    # ── Subscription ──────────────────────────────────────────────────────
+    PlanQuote:
+      type: object
+      required:
+        [
+          plan,
+          billingPeriod,
+          months,
+          paidMonths,
+          freeMonths,
+          amountMinor,
+          effectiveMonthlyMinor,
+          listMinor,
+          savingsMinor,
+          currency,
+        ]
+      properties:
+        plan:
+          type: string
+          enum: [starter, pro, firm]
+        billingPeriod:
+          type: string
+          enum: [monthly, half_yearly, yearly]
+        months:
+          type: integer
+          description: Months of service the period covers.
+        paidMonths:
+          type: integer
+          description: Months actually charged for.
+        freeMonths:
+          type: integer
+          description: Months granted free. Two on the yearly plan.
+        amountMinor:
+          type: integer
+          description: Total for the period, in paise.
+        effectiveMonthlyMinor:
+          type: integer
+          description: Amount per month across the term, in paise.
+        listMinor:
+          type: integer
+          description: What the same months cost billed monthly, in paise.
+        savingsMinor:
+          type: integer
+        currency:
+          type: string
+
+    Subscription:
+      type: object
+      required: [workspaceId, plan, billingPeriod, status, currency]
+      properties:
+        workspaceId:
+          type: integer
+        plan:
+          type: string
+          enum: [starter, pro, firm]
+        billingPeriod:
+          type: string
+          enum: [monthly, half_yearly, yearly]
+        status:
+          type: string
+          enum: [trialing, active, past_due, cancelled]
+        paidMonths:
+          type: integer
+        freeMonths:
+          type: integer
+        amountMinor:
+          type: integer
+        currency:
+          type: string
+        startedAt:
+          type: ["string", "null"]
+          format: date-time
+        currentPeriodEnd:
+          type: ["string", "null"]
+          format: date-time
+        updatedBy:
+          type: ["string", "null"]
+
+    SubscriptionState:
+      type: object
+      required: [subscription, catalogue, canManage]
+      properties:
+        subscription:
+          $ref: "#/components/schemas/Subscription"
+        catalogue:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanQuote"
+        canManage:
+          type: boolean
+          description: Whether the caller holds billing.manage in this workspace.
+
+    SubscriptionInput:
+      type: object
+      required: [plan, billingPeriod]
+      properties:
+        plan:
+          type: string
+          enum: [starter, pro, firm]
+        billingPeriod:
+          type: string
+          enum: [monthly, half_yearly, yearly]
 
     # ── Document ──────────────────────────────────────────────────────────
     Feedback:

@@ -4,3 +4,5 @@ export { setBaseUrl, setAuthTokenGetter, setRequestHeadersGetter } from "./custo
 export type { AuthTokenGetter, RequestHeadersGetter } from "./custom-fetch";
 export * from "./generated/api";
 export * from "./generated/api.schemas";
+export * from "./generated/api";
+export * from "./generated/api.schemas";

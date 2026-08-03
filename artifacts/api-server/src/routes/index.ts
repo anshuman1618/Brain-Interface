@@ -12,6 +12,7 @@ import documentRequestsRouter from "./document-requests";
 import searchRouter from "./search";
 import calendarRouter from "./calendar";
 import feedbackRouter from "./feedback";
+import subscriptionRouter from "./subscription";
 
 const router: IRouter = Router();
 
@@ -31,5 +32,6 @@ router.use(documentRequestsRouter);
 router.use(searchRouter);
 router.use(calendarRouter);
 router.use(feedbackRouter);
+router.use(subscriptionRouter);
 
 export default router;

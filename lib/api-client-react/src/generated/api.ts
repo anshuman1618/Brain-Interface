@@ -61,6 +61,8 @@ import type {
   SearchResults,
   SessionClaims,
   SlaReportEntry,
+  SubscriptionInput,
+  SubscriptionState,
   Task,
   TaskCompletion,
   TaskInput,
@@ -1437,6 +1439,155 @@ export function useListWorkspaceDocuments<TData = Awaited<ReturnType<typeof list
 
 
 
+
+export const getGetSubscriptionUrl = () => {
+
+
+
+
+  return `/api/workspace/subscription`
+}
+
+/**
+ * @summary The workspace's current plan, alongside the full price catalogue
+ */
+export const getSubscription = async ( options?: RequestInit): Promise<SubscriptionState> => {
+
+  return customFetch<SubscriptionState>(getGetSubscriptionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSubscriptionQueryKey = () => {
+    return [
+    `/api/workspace/subscription`
+    ] as const;
+    }
+
+
+export const getGetSubscriptionQueryOptions = <TData = Awaited<ReturnType<typeof getSubscription>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSubscription>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSubscriptionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSubscription>>> = ({ signal }) => getSubscription({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSubscription>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSubscriptionQueryResult = NonNullable<Awaited<ReturnType<typeof getSubscription>>>
+export type GetSubscriptionQueryError = ErrorType<void>
+
+
+/**
+ * @summary The workspace's current plan, alongside the full price catalogue
+ */
+
+export function useGetSubscription<TData = Awaited<ReturnType<typeof getSubscription>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSubscription>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSubscriptionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetSubscriptionUrl = () => {
+
+
+
+
+  return `/api/workspace/subscription`
+}
+
+/**
+ * The client sends only a plan and a billing period. Prices are resolved server-side from the catalogue, so no amount is ever accepted from the browser. This records the selection; it does not capture a payment.
+ * @summary Choose a plan and billing period (billing.manage only)
+ */
+export const setSubscription = async (subscriptionInput: SubscriptionInput, options?: RequestInit): Promise<SubscriptionState> => {
+
+  return customFetch<SubscriptionState>(getSetSubscriptionUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(subscriptionInput)
+  }
+);}
+
+
+
+
+
+export const getSetSubscriptionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSubscription>>, TError,{data: BodyType<SubscriptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setSubscription>>, TError,{data: BodyType<SubscriptionInput>}, TContext> => {
+
+const mutationKey = ['setSubscription'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setSubscription>>, {data: BodyType<SubscriptionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setSubscription(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetSubscriptionMutationResult = NonNullable<Awaited<ReturnType<typeof setSubscription>>>
+    export type SetSubscriptionMutationBody = BodyType<SubscriptionInput>
+    export type SetSubscriptionMutationError = ErrorType<void>
+
+    /**
+ * @summary Choose a plan and billing period (billing.manage only)
+ */
+export const useSetSubscription = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setSubscription>>, TError,{data: BodyType<SubscriptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setSubscription>>,
+        TError,
+        {data: BodyType<SubscriptionInput>},
+        TContext
+      > => {
+      return useMutation(getSetSubscriptionMutationOptions(options));
+    }
 
 export const getListAccessListUrl = () => {
 

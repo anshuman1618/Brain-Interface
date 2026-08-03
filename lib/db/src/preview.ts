@@ -80,6 +80,23 @@ CREATE TABLE IF NOT EXISTS workspace_access_list (
   CONSTRAINT workspace_access_list_ws_kind_value_key UNIQUE (workspace_id, kind, value)
 );
 
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  plan TEXT NOT NULL DEFAULT 'starter',
+  billing_period TEXT NOT NULL DEFAULT 'monthly',
+  status TEXT NOT NULL DEFAULT 'trialing',
+  paid_months INTEGER NOT NULL DEFAULT 1,
+  free_months INTEGER NOT NULL DEFAULT 0,
+  amount_minor INTEGER NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  current_period_end TIMESTAMPTZ,
+  updated_by TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT subscriptions_workspace_key UNIQUE (workspace_id)
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   clerk_id TEXT NOT NULL UNIQUE,

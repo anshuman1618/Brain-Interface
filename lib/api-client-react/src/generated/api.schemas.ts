@@ -530,6 +530,118 @@ export interface TimelineEvent {
   createdAt: string;
 }
 
+export type PlanQuotePlan = typeof PlanQuotePlan[keyof typeof PlanQuotePlan];
+
+
+export const PlanQuotePlan = {
+  starter: 'starter',
+  pro: 'pro',
+  firm: 'firm',
+} as const;
+
+export type PlanQuoteBillingPeriod = typeof PlanQuoteBillingPeriod[keyof typeof PlanQuoteBillingPeriod];
+
+
+export const PlanQuoteBillingPeriod = {
+  monthly: 'monthly',
+  half_yearly: 'half_yearly',
+  yearly: 'yearly',
+} as const;
+
+export interface PlanQuote {
+  plan: PlanQuotePlan;
+  billingPeriod: PlanQuoteBillingPeriod;
+  /** Months of service the period covers. */
+  months: number;
+  /** Months actually charged for. */
+  paidMonths: number;
+  /** Months granted free. Two on the yearly plan. */
+  freeMonths: number;
+  /** Total for the period, in paise. */
+  amountMinor: number;
+  /** Amount per month across the term, in paise. */
+  effectiveMonthlyMinor: number;
+  /** What the same months cost billed monthly, in paise. */
+  listMinor: number;
+  savingsMinor: number;
+  currency: string;
+}
+
+export type SubscriptionPlan = typeof SubscriptionPlan[keyof typeof SubscriptionPlan];
+
+
+export const SubscriptionPlan = {
+  starter: 'starter',
+  pro: 'pro',
+  firm: 'firm',
+} as const;
+
+export type SubscriptionBillingPeriod = typeof SubscriptionBillingPeriod[keyof typeof SubscriptionBillingPeriod];
+
+
+export const SubscriptionBillingPeriod = {
+  monthly: 'monthly',
+  half_yearly: 'half_yearly',
+  yearly: 'yearly',
+} as const;
+
+export type SubscriptionStatus = typeof SubscriptionStatus[keyof typeof SubscriptionStatus];
+
+
+export const SubscriptionStatus = {
+  trialing: 'trialing',
+  active: 'active',
+  past_due: 'past_due',
+  cancelled: 'cancelled',
+} as const;
+
+export interface Subscription {
+  workspaceId: number;
+  plan: SubscriptionPlan;
+  billingPeriod: SubscriptionBillingPeriod;
+  status: SubscriptionStatus;
+  paidMonths?: number;
+  freeMonths?: number;
+  amountMinor?: number;
+  currency: string;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  currentPeriodEnd?: string | null;
+  /** @nullable */
+  updatedBy?: string | null;
+}
+
+export interface SubscriptionState {
+  subscription: Subscription;
+  catalogue: PlanQuote[];
+  /** Whether the caller holds billing.manage in this workspace. */
+  canManage: boolean;
+}
+
+export type SubscriptionInputPlan = typeof SubscriptionInputPlan[keyof typeof SubscriptionInputPlan];
+
+
+export const SubscriptionInputPlan = {
+  starter: 'starter',
+  pro: 'pro',
+  firm: 'firm',
+} as const;
+
+export type SubscriptionInputBillingPeriod = typeof SubscriptionInputBillingPeriod[keyof typeof SubscriptionInputBillingPeriod];
+
+
+export const SubscriptionInputBillingPeriod = {
+  monthly: 'monthly',
+  half_yearly: 'half_yearly',
+  yearly: 'yearly',
+} as const;
+
+export interface SubscriptionInput {
+  plan: SubscriptionInputPlan;
+  billingPeriod: SubscriptionInputBillingPeriod;
+}
+
 export interface Feedback {
   id: number;
   workspaceId: number;

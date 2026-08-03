@@ -497,6 +497,78 @@ export const ListWorkspaceDocumentsResponse = zod.array(ListWorkspaceDocumentsRe
 
 
 /**
+ * @summary The workspace's current plan, alongside the full price catalogue
+ */
+export const GetSubscriptionResponse = zod.object({
+  "subscription": zod.object({
+  "workspaceId": zod.number(),
+  "plan": zod.enum(['starter', 'pro', 'firm']),
+  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly']),
+  "status": zod.enum(['trialing', 'active', 'past_due', 'cancelled']),
+  "paidMonths": zod.number().optional(),
+  "freeMonths": zod.number().optional(),
+  "amountMinor": zod.number().optional(),
+  "currency": zod.string(),
+  "startedAt": zod.coerce.date().nullish(),
+  "currentPeriodEnd": zod.coerce.date().nullish(),
+  "updatedBy": zod.string().nullish()
+}),
+  "catalogue": zod.array(zod.object({
+  "plan": zod.enum(['starter', 'pro', 'firm']),
+  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly']),
+  "months": zod.number().describe('Months of service the period covers.'),
+  "paidMonths": zod.number().describe('Months actually charged for.'),
+  "freeMonths": zod.number().describe('Months granted free. Two on the yearly plan.'),
+  "amountMinor": zod.number().describe('Total for the period, in paise.'),
+  "effectiveMonthlyMinor": zod.number().describe('Amount per month across the term, in paise.'),
+  "listMinor": zod.number().describe('What the same months cost billed monthly, in paise.'),
+  "savingsMinor": zod.number(),
+  "currency": zod.string()
+})),
+  "canManage": zod.boolean().describe('Whether the caller holds billing.manage in this workspace.')
+})
+
+
+/**
+ * The client sends only a plan and a billing period. Prices are resolved server-side from the catalogue, so no amount is ever accepted from the browser. This records the selection; it does not capture a payment.
+ * @summary Choose a plan and billing period (billing.manage only)
+ */
+export const SetSubscriptionBody = zod.object({
+  "plan": zod.enum(['starter', 'pro', 'firm']),
+  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly'])
+})
+
+export const SetSubscriptionResponse = zod.object({
+  "subscription": zod.object({
+  "workspaceId": zod.number(),
+  "plan": zod.enum(['starter', 'pro', 'firm']),
+  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly']),
+  "status": zod.enum(['trialing', 'active', 'past_due', 'cancelled']),
+  "paidMonths": zod.number().optional(),
+  "freeMonths": zod.number().optional(),
+  "amountMinor": zod.number().optional(),
+  "currency": zod.string(),
+  "startedAt": zod.coerce.date().nullish(),
+  "currentPeriodEnd": zod.coerce.date().nullish(),
+  "updatedBy": zod.string().nullish()
+}),
+  "catalogue": zod.array(zod.object({
+  "plan": zod.enum(['starter', 'pro', 'firm']),
+  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly']),
+  "months": zod.number().describe('Months of service the period covers.'),
+  "paidMonths": zod.number().describe('Months actually charged for.'),
+  "freeMonths": zod.number().describe('Months granted free. Two on the yearly plan.'),
+  "amountMinor": zod.number().describe('Total for the period, in paise.'),
+  "effectiveMonthlyMinor": zod.number().describe('Amount per month across the term, in paise.'),
+  "listMinor": zod.number().describe('What the same months cost billed monthly, in paise.'),
+  "savingsMinor": zod.number(),
+  "currency": zod.string()
+})),
+  "canManage": zod.boolean().describe('Whether the caller holds billing.manage in this workspace.')
+})
+
+
+/**
  * @summary Email addresses and domains admitted to this workspace (admin only)
  */
 export const ListAccessListResponseItem = zod.object({
