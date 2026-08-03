@@ -103,12 +103,29 @@
   outline: 2px solid hsl(var(--ring));
   outline-offset: 1px;
 }
-.rbc-event.rbc-selected { filter: brightness(0.94); }
+.rbc-event.rbc-selected {
+  filter: brightness(0.94);
+}
 
-.rbc-kind-hearing { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
-.rbc-kind-filing  { background: hsl(var(--muted)); color: hsl(var(--foreground)); border-color: hsl(var(--border)); }
-.rbc-kind-meeting { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border-color: hsl(var(--border)); }
-.rbc-kind-note    { background: transparent; color: hsl(var(--foreground)); border-color: hsl(var(--border)); }
+.rbc-kind-hearing {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+.rbc-kind-filing {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
+.rbc-kind-meeting {
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+  border-color: hsl(var(--border));
+}
+.rbc-kind-note {
+  background: transparent;
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+}
 /* Deadlines read as work, not as listings — a left rail rather than a fill. */
 .rbc-kind-task {
   background: hsl(var(--background));
@@ -145,9 +162,16 @@
 }
 
 /* Drag feedback */
-.rbc-addons-dnd .rbc-addons-dnd-drag-preview { opacity: 0.75; }
-.rbc-addons-dnd-dragged-event { opacity: 0.4; }
+.rbc-addons-dnd .rbc-addons-dnd-drag-preview {
+  opacity: 0.75;
+}
+.rbc-addons-dnd-dragged-event {
+  opacity: 0.4;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .rbc-event, .rbc-addons-dnd-dragged-event { transition: none !important; }
+  .rbc-event,
+  .rbc-addons-dnd-dragged-event {
+    transition: none !important;
+  }
 }

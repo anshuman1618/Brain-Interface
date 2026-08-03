@@ -15,7 +15,7 @@ provider only.
    their token happens to refresh.
 
 2. **Privilege escalation.** Reading a role out of `publicMetadata` means
-   *anything that can write publicMetadata can grant itself that role*. In this
+   _anything that can write publicMetadata can grant itself that role_. In this
    codebase the sign-up flow wrote the visitor's own frontend selection there,
    so choosing "Firm Admin" on a pre-auth screen produced a real admin. Removing
    the metadata read is the fix; syncing metadata "for convenience" reintroduces
@@ -26,9 +26,9 @@ provider only.
 creates a user with no memberships, so a fresh account reaches nothing. A
 pre-auth role choice is stored as `requested_role` on a `pending` row, which no
 authorization path reads; an admin's explicit approval sets the granted role
-from *their* input. `requireWorkspace` re-reads the membership row on every
+from _their_ input. `requireWorkspace` re-reads the membership row on every
 request, so revocation takes effect on the next call rather than at token expiry.
 
 **Scoped tokens are a supplement, not a substitute.** A signed workspace token
 proves the switch was authorized at mint time; it cannot express a revocation
-that happened afterwards. Verify the token *and* re-read the membership.
+that happened afterwards. Verify the token _and_ re-read the membership.

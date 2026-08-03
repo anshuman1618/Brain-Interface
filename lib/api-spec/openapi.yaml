@@ -1459,7 +1459,7 @@ components:
         audience:
           type: string
           default: all
-          description: 'all | staff | role:<role> | user:<clerkId>'
+          description: "all | staff | role:<role> | user:<clerkId>"
 
     CalendarEntryUpdate:
       type: object
@@ -1909,7 +1909,14 @@ components:
           enum: [scheduled, recording, completed, cancelled]
         category:
           type: ["string", "null"]
-          enum: [legal_solution, regulatory_solution, business_consultation, procedural_compliance, null]
+          enum:
+            [
+              legal_solution,
+              regulatory_solution,
+              business_consultation,
+              procedural_compliance,
+              null,
+            ]
         scheduledAt:
           type: ["string", "null"]
           format: date-time
@@ -1961,7 +1968,17 @@ components:
     # ── KPI ───────────────────────────────────────────────────────────────
     KpiDashboard:
       type: object
-      required: [totalCases, openCases, closedCases, totalTasks, overdueTasks, completedOnTime, slaAdherencePercent, avgTurnaroundDays]
+      required:
+        [
+          totalCases,
+          openCases,
+          closedCases,
+          totalTasks,
+          overdueTasks,
+          completedOnTime,
+          slaAdherencePercent,
+          avgTurnaroundDays,
+        ]
       properties:
         totalCases:
           type: integer

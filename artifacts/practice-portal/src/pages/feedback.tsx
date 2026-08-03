@@ -13,16 +13,41 @@ import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { FeedbackSkeleton } from "@/components/module-skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Star, MessageSquare, AlertCircle, Reply } from "lucide-react";
 
-function Stars({ value, onChange, size = "h-5 w-5" }: { value: number; onChange?: (n: number) => void; size?: string }) {
+function Stars({
+  value,
+  onChange,
+  size = "h-5 w-5",
+}: {
+  value: number;
+  onChange?: (n: number) => void;
+  size?: string;
+}) {
   const interactive = typeof onChange === "function";
   return (
-    <div className="flex items-center gap-0.5" role={interactive ? "radiogroup" : undefined} aria-label={interactive ? "Rating" : undefined}>
+    <div
+      className="flex items-center gap-0.5"
+      role={interactive ? "radiogroup" : undefined}
+      aria-label={interactive ? "Rating" : undefined}
+    >
       {[1, 2, 3, 4, 5].map((n) => {
         const filled = n <= value;
         const star = (
@@ -67,7 +92,12 @@ export default function FeedbackPage() {
   const canLeave = can("feedback.write");
   const canRespond = can("feedback.respond");
 
-  const { data: feedback = [], isLoading, isError, error } = useListFeedback({
+  const {
+    data: feedback = [],
+    isLoading,
+    isError,
+    error,
+  } = useListFeedback({
     query: { queryKey: getListFeedbackQueryKey() },
   });
   const { data: cases = [] } = useListCases(undefined, {
@@ -103,10 +133,16 @@ export default function FeedbackPage() {
           refresh();
           toast({ title: "Thank you", description: "Your feedback has been sent to the chamber." });
           setIsOpen(false);
-          setCaseId(""); setRating(0); setComment("");
+          setCaseId("");
+          setRating(0);
+          setComment("");
         },
         onError: (err: unknown) =>
-          toast({ title: "Couldn't send that", description: err instanceof Error ? err.message : undefined, variant: "destructive" }),
+          toast({
+            title: "Couldn't send that",
+            description: err instanceof Error ? err.message : undefined,
+            variant: "destructive",
+          }),
       },
     );
   };
@@ -117,7 +153,12 @@ export default function FeedbackPage() {
     respond.mutate(
       { id: replyTo.id, data: { response: replyText.trim() } },
       {
-        onSuccess: () => { refresh(); toast({ title: "Reply sent" }); setReplyTo(null); setReplyText(""); },
+        onSuccess: () => {
+          refresh();
+          toast({ title: "Reply sent" });
+          setReplyTo(null);
+          setReplyText("");
+        },
         onError: () => toast({ title: "Couldn't send that reply", variant: "destructive" }),
       },
     );
@@ -133,7 +174,9 @@ export default function FeedbackPage() {
         <p className="text-sm text-muted-foreground">
           {error instanceof Error ? error.message : "The request failed."}
         </p>
-        <Button variant="outline" className="rounded-none mt-5" onClick={refresh}>Retry</Button>
+        <Button variant="outline" className="rounded-none mt-5" onClick={refresh}>
+          Retry
+        </Button>
       </div>
     );
   }
@@ -152,7 +195,13 @@ export default function FeedbackPage() {
           </p>
         </div>
         {canLeave && unrated.length > 0 && (
-          <Button className="rounded-none shrink-0" onClick={() => { setCaseId(String(unrated[0].id)); setIsOpen(true); }}>
+          <Button
+            className="rounded-none shrink-0"
+            onClick={() => {
+              setCaseId(String(unrated[0].id));
+              setIsOpen(true);
+            }}
+          >
             <Star className="mr-2 h-4 w-4" /> Rate a matter
           </Button>
         )}
@@ -161,7 +210,9 @@ export default function FeedbackPage() {
       {average && (
         <div className="border border-border bg-background p-5 flex flex-wrap items-center gap-4">
           <div>
-            <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Average rating</p>
+            <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">
+              Average rating
+            </p>
             <div className="flex items-center gap-3">
               <span className="text-3xl font-bold tracking-tighter tabular-nums">{average}</span>
               <Stars value={Math.round(Number(average))} />
@@ -193,7 +244,9 @@ export default function FeedbackPage() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
                     <Stars value={f.rating} size="h-4 w-4" />
-                    <span className="text-sm font-medium truncate">{f.caseTitle ?? `Matter ${f.caseId}`}</span>
+                    <span className="text-sm font-medium truncate">
+                      {f.caseTitle ?? `Matter ${f.caseId}`}
+                    </span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1 font-mono uppercase tracking-wider">
                     {canLeave && !canRespond ? "You" : f.clientName || "Client"}
@@ -201,7 +254,10 @@ export default function FeedbackPage() {
                   </p>
                 </div>
                 {f.response ? (
-                  <Badge variant="outline" className="rounded-none text-[9px] uppercase font-mono tracking-wider px-1 py-0">
+                  <Badge
+                    variant="outline"
+                    className="rounded-none text-[9px] uppercase font-mono tracking-wider px-1 py-0"
+                  >
                     Replied
                   </Badge>
                 ) : canRespond ? (
@@ -209,7 +265,10 @@ export default function FeedbackPage() {
                     variant="outline"
                     size="sm"
                     className="rounded-none shrink-0"
-                    onClick={() => { setReplyTo(f); setReplyText(""); }}
+                    onClick={() => {
+                      setReplyTo(f);
+                      setReplyText("");
+                    }}
                   >
                     <Reply className="h-3.5 w-3.5 mr-1.5" /> Reply
                   </Button>
@@ -236,7 +295,9 @@ export default function FeedbackPage() {
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[440px] rounded-none border-border">
           <DialogHeader>
-            <DialogTitle className="font-mono uppercase tracking-widest">Rate this matter</DialogTitle>
+            <DialogTitle className="font-mono uppercase tracking-widest">
+              Rate this matter
+            </DialogTitle>
             <DialogDescription className="font-mono text-xs uppercase tracking-wider">
               Your chamber sees this, and may reply
             </DialogDescription>
@@ -244,26 +305,34 @@ export default function FeedbackPage() {
 
           <form onSubmit={submit} className="space-y-4 pt-2">
             <div className="space-y-2">
-              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Matter</label>
+              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                Matter
+              </label>
               <Select value={caseId} onValueChange={setCaseId}>
                 <SelectTrigger className="rounded-none bg-background font-mono text-sm">
                   <SelectValue placeholder="SELECT MATTER" />
                 </SelectTrigger>
                 <SelectContent className="rounded-none">
                   {unrated.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">{c.title}</SelectItem>
+                    <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">
+                      {c.title}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Rating *</label>
+              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                Rating *
+              </label>
               <Stars value={rating} onChange={setRating} size="h-7 w-7" />
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Comment (optional)</label>
+              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                Comment (optional)
+              </label>
               <Textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
@@ -273,7 +342,14 @@ export default function FeedbackPage() {
             </div>
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" className="rounded-none" onClick={() => setIsOpen(false)}>Cancel</Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none"
+                onClick={() => setIsOpen(false)}
+              >
+                Cancel
+              </Button>
               <Button
                 type="submit"
                 className="rounded-none font-mono uppercase tracking-wider"
@@ -290,7 +366,9 @@ export default function FeedbackPage() {
       <Dialog open={replyTo !== null} onOpenChange={(o) => !o && setReplyTo(null)}>
         <DialogContent className="sm:max-w-[440px] rounded-none border-border">
           <DialogHeader>
-            <DialogTitle className="font-mono uppercase tracking-widest">Reply to feedback</DialogTitle>
+            <DialogTitle className="font-mono uppercase tracking-widest">
+              Reply to feedback
+            </DialogTitle>
             <DialogDescription className="font-mono text-xs uppercase tracking-wider">
               {replyTo?.clientName ?? "Client"} · {replyTo?.caseTitle ?? ""}
             </DialogDescription>
@@ -310,7 +388,14 @@ export default function FeedbackPage() {
               autoFocus
             />
             <DialogFooter>
-              <Button type="button" variant="outline" className="rounded-none" onClick={() => setReplyTo(null)}>Cancel</Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none"
+                onClick={() => setReplyTo(null)}
+              >
+                Cancel
+              </Button>
               <Button
                 type="submit"
                 className="rounded-none font-mono uppercase tracking-wider"

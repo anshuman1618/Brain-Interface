@@ -37,8 +37,8 @@ export default function UnauthorizedPage() {
         <p className="text-sm text-muted-foreground mb-6">
           {label ? (
             <>
-              <span className="font-medium text-foreground">{label}</span> requires a permission your
-              role does not hold
+              <span className="font-medium text-foreground">{label}</span> requires a permission
+              your role does not hold
             </>
           ) : (
             "Your role does not hold the permission this area requires"
@@ -46,8 +46,9 @@ export default function UnauthorizedPage() {
           {displayRole && activeWorkspace ? (
             <>
               {" "}
-              — you are signed in as <span className="font-medium text-foreground">{displayRole}</span>{" "}
-              in <span className="font-medium text-foreground">{activeWorkspace.name}</span>.
+              — you are signed in as{" "}
+              <span className="font-medium text-foreground">{displayRole}</span> in{" "}
+              <span className="font-medium text-foreground">{activeWorkspace.name}</span>.
             </>
           ) : (
             "."

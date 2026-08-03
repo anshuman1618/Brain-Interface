@@ -53,8 +53,14 @@ export async function findAccessListMatches(email: string): Promise<AccessListMa
       and(
         isNull(workspaceAccessListTable.revokedAt),
         or(
-          and(eq(workspaceAccessListTable.kind, "email"), eq(workspaceAccessListTable.value, normalised)),
-          and(eq(workspaceAccessListTable.kind, "domain"), eq(workspaceAccessListTable.value, domain)),
+          and(
+            eq(workspaceAccessListTable.kind, "email"),
+            eq(workspaceAccessListTable.value, normalised),
+          ),
+          and(
+            eq(workspaceAccessListTable.kind, "domain"),
+            eq(workspaceAccessListTable.value, domain),
+          ),
         ),
       ),
     );

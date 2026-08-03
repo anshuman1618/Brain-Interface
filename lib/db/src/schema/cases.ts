@@ -13,9 +13,16 @@ export const casesTable = pgTable("cases", {
   filingRef: text("filing_ref"),
   priority: text("priority").notNull().default("medium"), // low | medium | high | urgent
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
-export const insertCaseSchema = createInsertSchema(casesTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCaseSchema = createInsertSchema(casesTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export type InsertCase = z.infer<typeof insertCaseSchema>;
 export type Case = typeof casesTable.$inferSelect;

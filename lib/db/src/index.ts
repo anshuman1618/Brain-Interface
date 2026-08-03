@@ -75,4 +75,3 @@ export function initDatabase(): Promise<Database> {
 
 export * from "./schema";
 export { previewDataDir } from "./preview";
-

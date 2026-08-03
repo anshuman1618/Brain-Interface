@@ -43,7 +43,13 @@ export const workspaceAccessListTable = pgTable(
     lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [unique("workspace_access_list_ws_kind_value_key").on(table.workspaceId, table.kind, table.value)],
+  (table) => [
+    unique("workspace_access_list_ws_kind_value_key").on(
+      table.workspaceId,
+      table.kind,
+      table.value,
+    ),
+  ],
 );
 
 export const insertWorkspaceAccessListSchema = createInsertSchema(workspaceAccessListTable).omit({
@@ -60,7 +66,12 @@ export function normaliseEmail(email: string): string {
 
 /** Normalises a domain, tolerating "@example.com" and "https://example.com". */
 export function normaliseDomain(domain: string): string {
-  return domain.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^@/, "").replace(/\/.*$/, "");
+  return domain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^@/, "")
+    .replace(/\/.*$/, "");
 }
 
 export function domainOf(email: string): string {

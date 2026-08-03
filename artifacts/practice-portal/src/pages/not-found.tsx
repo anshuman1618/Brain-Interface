@@ -8,7 +8,7 @@ export default function NotFound() {
       <p className="text-lg text-muted-foreground mb-8 max-w-md">
         The requested resource is either unavailable or you lack the necessary clearance to view it.
       </p>
-      <button 
+      <button
         onClick={() => window.history.back()}
         className="px-6 py-3 border border-border bg-background hover:bg-accent font-medium transition-colors"
       >

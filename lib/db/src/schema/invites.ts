@@ -15,6 +15,9 @@ export const invitesTable = pgTable("invites", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
-export const insertInviteSchema = createInsertSchema(invitesTable).omit({ id: true, createdAt: true });
+export const insertInviteSchema = createInsertSchema(invitesTable).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertInvite = z.infer<typeof insertInviteSchema>;
 export type Invite = typeof invitesTable.$inferSelect;

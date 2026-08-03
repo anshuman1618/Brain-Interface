@@ -88,9 +88,11 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
   // that matched nothing is not "pending" — nobody is going to review it unless
   // the person asks — and telling them so is the error the sign-in layer shows.
   const accessStatus =
-    active.length > 0 ? ("active" as const)
-    : pending.length > 0 ? ("pending_approval" as const)
-    : ("not_recognised" as const);
+    active.length > 0
+      ? ("active" as const)
+      : pending.length > 0
+        ? ("pending_approval" as const)
+        : ("not_recognised" as const);
 
   // Fall back to the caller's only active membership so a fresh session works
   // before any explicit switch. With several, nothing is active until they choose.
@@ -199,11 +201,17 @@ router.post("/workspaces", requireAuth, async (req: AuthRequest, res): Promise<v
   // trusting the generated validator alone, since this is the one role input a
   // user supplies for themselves.
   if (parsed.data.role !== "admin" && parsed.data.role !== "senior_advocate") {
-    res.status(400).json({ error: "A chamber must be created by its Firm Admin or a Senior Advocate." });
+    res
+      .status(400)
+      .json({ error: "A chamber must be created by its Firm Admin or a Senior Advocate." });
     return;
   }
 
-  const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "chamber";
+  const baseSlug =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "chamber";
   let slug = baseSlug;
   for (let n = 2; ; n += 1) {
     const [clash] = await db.select().from(workspacesTable).where(eq(workspacesTable.slug, slug));
@@ -245,9 +253,14 @@ router.post("/workspaces", requireAuth, async (req: AuthRequest, res): Promise<v
     });
   }
 
-  await db.update(usersTable).set({ role: parsed.data.role, roleSelected: true }).where(eq(usersTable.id, user.id));
+  await db
+    .update(usersTable)
+    .set({ role: parsed.data.role, roleSelected: true })
+    .where(eq(usersTable.id, user.id));
 
-  res.status(201).json(CreateWorkspaceResponse.parse(await buildSessionClaims(user.id, workspace.id)));
+  res
+    .status(201)
+    .json(CreateWorkspaceResponse.parse(await buildSessionClaims(user.id, workspace.id)));
 });
 
 // Only workspaces backed by a membership row for this user. There is no
@@ -357,7 +370,10 @@ router.post("/access-requests", requireAuth, async (req: AuthRequest, res): Prom
   );
 });
 
-async function membershipView(row: typeof workspaceMembershipsTable.$inferSelect, workspaceName: string) {
+async function membershipView(
+  row: typeof workspaceMembershipsTable.$inferSelect,
+  workspaceName: string,
+) {
   const [u] = await db.select().from(usersTable).where(eq(usersTable.id, row.userId));
   return {
     ...row,
@@ -450,7 +466,10 @@ router.post(
         .returning();
 
       // Keep the directory row in step for display/listing purposes only.
-      await db.update(usersTable).set({ role: grantedRole, roleSelected: true }).where(eq(usersTable.id, existing.userId));
+      await db
+        .update(usersTable)
+        .set({ role: grantedRole, roleSelected: true })
+        .where(eq(usersTable.id, existing.userId));
 
       res.json(DecideAccessRequestResponse.parse(await membershipView(updated, c.workspace.name)));
       return;
@@ -546,7 +565,12 @@ router.post(
       }
       const [reinstated] = await db
         .update(workspaceAccessListTable)
-        .set({ revokedAt: null, role: parsed.data.role, note: parsed.data.note ?? null, addedBy: c.user.displayName })
+        .set({
+          revokedAt: null,
+          role: parsed.data.role,
+          note: parsed.data.note ?? null,
+          addedBy: c.user.displayName,
+        })
         .where(eq(workspaceAccessListTable.id, existing.id))
         .returning();
       res.status(201).json(
@@ -697,7 +721,10 @@ router.patch(
       .returning();
 
     if (parsed.data.role) {
-      await db.update(usersTable).set({ role: parsed.data.role }).where(eq(usersTable.id, existing.userId));
+      await db
+        .update(usersTable)
+        .set({ role: parsed.data.role })
+        .where(eq(usersTable.id, existing.userId));
     }
 
     res.json(UpdateWorkspaceMemberResponse.parse(await membershipView(updated, c.workspace.name)));

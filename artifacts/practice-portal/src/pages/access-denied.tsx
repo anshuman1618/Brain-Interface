@@ -50,7 +50,13 @@ export default function AccessDeniedPage({
   const submit = () => {
     if (!selected) return;
     createRequest.mutate(
-      { data: { workspaceSlug: defaultWorkspaceSlug, requestedRole: selected, note: note || undefined } },
+      {
+        data: {
+          workspaceSlug: defaultWorkspaceSlug,
+          requestedRole: selected,
+          note: note || undefined,
+        },
+      },
       {
         onSuccess: () => {
           clearAccessRequestIntent();
@@ -97,10 +103,13 @@ export default function AccessDeniedPage({
                 </p>
                 <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-4">
                   <li>
-                    If your chamber uses a work address, sign out and sign in with that one instead —
-                    a personal Gmail or Zoho account won't match.
+                    If your chamber uses a work address, sign out and sign in with that one instead
+                    — a personal Gmail or Zoho account won't match.
                   </li>
-                  <li>Otherwise ask your chamber admin to invite this address, or request access below.</li>
+                  <li>
+                    Otherwise ask your chamber admin to invite this address, or request access
+                    below.
+                  </li>
                   <li>Setting up a new practice? Create your own chamber instead.</li>
                 </ul>
               </div>
@@ -150,7 +159,11 @@ export default function AccessDeniedPage({
               >
                 Cancel
               </button>
-              <Button className="rounded-none px-8" disabled={!selected || createRequest.isPending} onClick={submit}>
+              <Button
+                className="rounded-none px-8"
+                disabled={!selected || createRequest.isPending}
+                onClick={submit}
+              >
                 <Send className="h-4 w-4 mr-2" />
                 {createRequest.isPending ? "Sending..." : "Send request"}
               </Button>

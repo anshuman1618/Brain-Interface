@@ -2,10 +2,10 @@
 
 This repo is a pnpm monorepo with two deployable units:
 
-| Unit | Path | What it is | Where it can run |
-| --- | --- | --- | --- |
-| Practice portal | `artifacts/practice-portal` | Vite + React SPA, builds to static files | Any static host (Netlify, Vercel, Cloudflare Pages, S3+CloudFront) |
-| API server | `artifacts/api-server` | Express 5 + Postgres (Drizzle) + Clerk | Any host that runs a long-lived Node process (Render, Railway, Fly.io, ECS) |
+| Unit            | Path                        | What it is                               | Where it can run                                                            |
+| --------------- | --------------------------- | ---------------------------------------- | --------------------------------------------------------------------------- |
+| Practice portal | `artifacts/practice-portal` | Vite + React SPA, builds to static files | Any static host (Netlify, Vercel, Cloudflare Pages, S3+CloudFront)          |
+| API server      | `artifacts/api-server`      | Express 5 + Postgres (Drizzle) + Clerk   | Any host that runs a long-lived Node process (Render, Railway, Fly.io, ECS) |
 
 **Netlify hosts the frontend only.** The API server needs a persistent process
 and a Postgres connection, so it cannot run on Netlify as-is.
@@ -68,16 +68,16 @@ pnpm --filter @workspace/api-server run start
 
 Required environment variables:
 
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | Postgres connection string |
-| `CLERK_SECRET_KEY` | Clerk backend API key |
-| `CLERK_PUBLISHABLE_KEY` | Clerk publishable key |
-| `CORS_ALLOWED_ORIGINS` | Comma-separated frontend origins, e.g. `https://your-site.netlify.app` |
-| `NODE_ENV` | `production` |
-| `PORT` | Usually injected by the host; defaults to `5000` |
-| `HOST` | Interface to bind; defaults to `0.0.0.0` |
-| `CLIENT_DIST_PATH` | Only for Topology A — override where the built SPA is read from |
+| Variable                | Purpose                                                                |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `DATABASE_URL`          | Postgres connection string                                             |
+| `CLERK_SECRET_KEY`      | Clerk backend API key                                                  |
+| `CLERK_PUBLISHABLE_KEY` | Clerk publishable key                                                  |
+| `CORS_ALLOWED_ORIGINS`  | Comma-separated frontend origins, e.g. `https://your-site.netlify.app` |
+| `NODE_ENV`              | `production`                                                           |
+| `PORT`                  | Usually injected by the host; defaults to `5000`                       |
+| `HOST`                  | Interface to bind; defaults to `0.0.0.0`                               |
+| `CLIENT_DIST_PATH`      | Only for Topology A — override where the built SPA is read from        |
 
 Apply the schema once the database is reachable:
 
@@ -96,10 +96,10 @@ pnpm --filter @workspace/db run push
 directory (`artifacts/practice-portal/dist/public`), Node/pnpm versions, and the
 SPA redirect. Set these build environment variables in the Netlify UI:
 
-| Variable | Purpose |
-| --- | --- |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key. **Required** — the app throws on startup without it. |
-| `VITE_API_BASE_URL` | Absolute API origin, e.g. `https://your-api.onrender.com`. Setting this switches the client to cross-origin + bearer-token mode. |
+| Variable                     | Purpose                                                                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key. **Required** — the app throws on startup without it.                                                      |
+| `VITE_API_BASE_URL`          | Absolute API origin, e.g. `https://your-api.onrender.com`. Setting this switches the client to cross-origin + bearer-token mode. |
 
 Vite inlines `VITE_*` variables at **build** time, so changing either one
 requires a redeploy, not just a restart.

@@ -45,7 +45,11 @@ export class ErrorBoundary extends Component<
         <p className="text-xs font-mono text-muted-foreground/70 mb-6 break-all max-w-lg mx-auto">
           {this.state.error.message}
         </p>
-        <Button variant="outline" className="rounded-none" onClick={() => this.setState({ error: null })}>
+        <Button
+          variant="outline"
+          className="rounded-none"
+          onClick={() => this.setState({ error: null })}
+        >
           <RotateCcw className="h-4 w-4 mr-2" /> Try again
         </Button>
       </div>

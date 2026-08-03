@@ -11,8 +11,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { AtSign, Globe, Plus, ShieldCheck, Trash2, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/session";
@@ -76,7 +89,8 @@ export function AccessListManager() {
           invalidate();
           toast({
             title: `${entry.value} removed`,
-            description: "New sign-ins are refused. Anyone already admitted keeps access until revoked in Team Roles.",
+            description:
+              "New sign-ins are refused. Anyone already admitted keeps access until revoked in Team Roles.",
           });
         },
         onError: () => toast({ title: "Couldn't remove that entry", variant: "destructive" }),
@@ -88,9 +102,7 @@ export function AccessListManager() {
     <div className="border border-border bg-background">
       <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2">
         <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-        <h3 className="font-mono text-xs uppercase tracking-widest font-bold">
-          Who may sign in
-        </h3>
+        <h3 className="font-mono text-xs uppercase tracking-widest font-bold">Who may sign in</h3>
         <span className="ml-auto text-xs font-mono uppercase tracking-wider text-muted-foreground">
           {active.length} admitted
         </span>
@@ -103,13 +115,18 @@ export function AccessListManager() {
           else is shown an error and turned away.
         </p>
 
-        <form onSubmit={add} className="grid gap-3 sm:grid-cols-[140px_1fr_180px_auto] sm:items-end">
+        <form
+          onSubmit={add}
+          className="grid gap-3 sm:grid-cols-[140px_1fr_180px_auto] sm:items-end"
+        >
           <div className="space-y-1.5">
             <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
               Match
             </label>
             <Select value={kind} onValueChange={(v) => setKind(v as "email" | "domain")}>
-              <SelectTrigger className="rounded-none"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="rounded-none">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="email">Email</SelectItem>
                 <SelectItem value="domain">Whole domain</SelectItem>
@@ -135,16 +152,24 @@ export function AccessListManager() {
               Signs in as
             </label>
             <Select value={role} onValueChange={setRole}>
-              <SelectTrigger className="rounded-none"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="rounded-none">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 {ROLE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <Button type="submit" className="rounded-none" disabled={createEntry.isPending || !value.trim()}>
+          <Button
+            type="submit"
+            className="rounded-none"
+            disabled={createEntry.isPending || !value.trim()}
+          >
             <Plus className="h-4 w-4 mr-1.5" />
             {createEntry.isPending ? "Adding..." : "Admit"}
           </Button>
@@ -185,9 +210,13 @@ export function AccessListManager() {
           <TableHeader>
             <TableRow className="hover:bg-transparent bg-muted/30">
               <TableHead className="font-mono text-xs uppercase tracking-wider">Address</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Signs in as</TableHead>
+              <TableHead className="font-mono text-xs uppercase tracking-wider">
+                Signs in as
+              </TableHead>
               <TableHead className="font-mono text-xs uppercase tracking-wider">Used</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider text-right">Remove</TableHead>
+              <TableHead className="font-mono text-xs uppercase tracking-wider text-right">
+                Remove
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -205,7 +234,10 @@ export function AccessListManager() {
                   {entry.note && <p className="text-xs text-muted-foreground mt-1">{entry.note}</p>}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline" className="rounded-none text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit">
+                  <Badge
+                    variant="outline"
+                    className="rounded-none text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
+                  >
                     {entry.role === "admin" && <ShieldCheck className="h-3 w-3" />}
                     {roleLabel(entry.role) || entry.role}
                   </Badge>

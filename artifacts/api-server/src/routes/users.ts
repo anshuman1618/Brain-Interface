@@ -8,12 +8,7 @@ import {
   ListUsersQueryParams,
   ListUsersResponse,
 } from "@workspace/api-zod";
-import {
-  requireAuth,
-  requireWorkspace,
-  ctx,
-  type AuthRequest,
-} from "../middlewares/requireAuth";
+import { requireAuth, requireWorkspace, ctx, type AuthRequest } from "../middlewares/requireAuth";
 import { getOrCreateUser } from "../lib/jit";
 
 const router: IRouter = Router();
@@ -23,18 +18,28 @@ const router: IRouter = Router();
 // than requireWorkspace so a pending user can still see their own name.
 router.get("/users/me", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
   res.json(GetMeResponse.parse(user));
 });
 
 router.patch("/users/me", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const user = await getOrCreateUser(req);
-  if (!user) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (!user) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
 
   const parsed = UpdateMeBody.safeParse(req.body);
-  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
 
-  const [updated] = await db.update(usersTable)
+  const [updated] = await db
+    .update(usersTable)
     .set({ displayName: parsed.data.displayName ?? user.displayName })
     .where(eq(usersTable.id, user.id))
     .returning();
@@ -54,7 +59,10 @@ router.get("/users", requireWorkspace, async (req: AuthRequest, res): Promise<vo
   const c = ctx(req);
 
   const params = ListUsersQueryParams.safeParse(req.query);
-  if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
 
   const conditions = [
     eq(workspaceMembershipsTable.workspaceId, c.workspaceId),
@@ -69,7 +77,10 @@ router.get("/users", requireWorkspace, async (req: AuthRequest, res): Promise<vo
     .from(workspaceMembershipsTable)
     .where(and(...conditions));
 
-  if (memberships.length === 0) { res.json([]); return; }
+  if (memberships.length === 0) {
+    res.json([]);
+    return;
+  }
 
   const roleByUserId = new Map(memberships.map((m) => [m.userId, m.role]));
   const rows = await db
@@ -79,9 +90,7 @@ router.get("/users", requireWorkspace, async (req: AuthRequest, res): Promise<vo
     .orderBy(asc(usersTable.id));
 
   res.json(
-    ListUsersResponse.parse(
-      rows.map((u) => ({ ...u, role: roleByUserId.get(u.id) ?? u.role })),
-    ),
+    ListUsersResponse.parse(rows.map((u) => ({ ...u, role: roleByUserId.get(u.id) ?? u.role }))),
   );
 });
 

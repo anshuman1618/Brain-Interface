@@ -18,6 +18,9 @@ export const workspacesTable = pgTable("workspaces", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertWorkspaceSchema = createInsertSchema(workspacesTable).omit({ id: true, createdAt: true });
+export const insertWorkspaceSchema = createInsertSchema(workspacesTable).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertWorkspace = z.infer<typeof insertWorkspaceSchema>;
 export type Workspace = typeof workspacesTable.$inferSelect;

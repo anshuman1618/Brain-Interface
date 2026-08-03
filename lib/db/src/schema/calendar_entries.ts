@@ -41,7 +41,10 @@ export const calendarEntriesTable = pgTable("calendar_entries", {
   createdByRole: text("created_by_role").notNull().default(""),
   createdByClerkId: text("created_by_clerk_id").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
 export const insertCalendarEntrySchema = createInsertSchema(calendarEntriesTable).omit({

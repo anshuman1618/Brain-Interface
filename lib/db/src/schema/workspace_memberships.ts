@@ -48,9 +48,14 @@ export const workspaceMembershipsTable = pgTable(
     decidedBy: text("decided_by"),
     decidedAt: timestamp("decided_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
   },
-  (table) => [unique("workspace_memberships_workspace_user_key").on(table.workspaceId, table.userId)],
+  (table) => [
+    unique("workspace_memberships_workspace_user_key").on(table.workspaceId, table.userId),
+  ],
 );
 
 export const insertWorkspaceMembershipSchema = createInsertSchema(workspaceMembershipsTable).omit({

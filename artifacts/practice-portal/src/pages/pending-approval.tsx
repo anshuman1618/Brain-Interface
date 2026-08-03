@@ -24,7 +24,11 @@ import {
  * every protected endpoint answers 403 for a user in this state — so the page
  * cannot be "escaped" by editing the URL or any stored value.
  */
-export default function PendingApprovalPage({ defaultWorkspaceSlug = "raghavan-chambers" }: { defaultWorkspaceSlug?: string }) {
+export default function PendingApprovalPage({
+  defaultWorkspaceSlug = "raghavan-chambers",
+}: {
+  defaultWorkspaceSlug?: string;
+}) {
   const { displayName, email, signOut, refreshSession } = useSession();
   const { data: memberships = [], refetch } = useListWorkspaces();
   const createRequest = useCreateAccessRequest();
@@ -39,7 +43,13 @@ export default function PendingApprovalPage({ defaultWorkspaceSlug = "raghavan-c
   const submit = () => {
     if (!selected) return;
     createRequest.mutate(
-      { data: { workspaceSlug: defaultWorkspaceSlug, requestedRole: selected, note: note || undefined } },
+      {
+        data: {
+          workspaceSlug: defaultWorkspaceSlug,
+          requestedRole: selected,
+          note: note || undefined,
+        },
+      },
       {
         onSuccess: () => {
           clearAccessRequestIntent();
@@ -76,10 +86,13 @@ export default function PendingApprovalPage({ defaultWorkspaceSlug = "raghavan-c
                 Access pending
               </p>
               <h1 className="text-2xl font-bold tracking-tight mb-2">
-                {hasPending ? "Your request is with an admin" : "You're signed in, but not yet in a workspace"}
+                {hasPending
+                  ? "Your request is with an admin"
+                  : "You're signed in, but not yet in a workspace"}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Signed in as <span className="font-medium text-foreground">{displayName || email}</span>.
+                Signed in as{" "}
+                <span className="font-medium text-foreground">{displayName || email}</span>.
                 {hasPending
                   ? " No workspace data is available to you until an admin approves it."
                   : " Ask for access below — this records a request; it does not grant anything."}
@@ -95,7 +108,10 @@ export default function PendingApprovalPage({ defaultWorkspaceSlug = "raghavan-c
             </div>
             <div className="space-y-3">
               {pending.map((m: WorkspaceMembershipSummary) => (
-                <div key={m.workspace.id} className="border border-border p-4 flex justify-between items-center gap-4">
+                <div
+                  key={m.workspace.id}
+                  className="border border-border p-4 flex justify-between items-center gap-4"
+                >
                   <div>
                     <p className="font-medium">{m.workspace.name}</p>
                     <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider mt-1">

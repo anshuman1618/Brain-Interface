@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useAuth, useSignIn, useUser } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -309,8 +317,19 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       signInError,
       previewMode: false,
     };
-  }, [isLoaded, isSignedIn, user, signOut, backend, signInWithProvider, verifyEmailCode,
-      awaitingCode, cancelCodeEntry, isSigningIn, signInError]);
+  }, [
+    isLoaded,
+    isSignedIn,
+    user,
+    signOut,
+    backend,
+    signInWithProvider,
+    verifyEmailCode,
+    awaitingCode,
+    cancelCodeEntry,
+    isSigningIn,
+    signInError,
+  ]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

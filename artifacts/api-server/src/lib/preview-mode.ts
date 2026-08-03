@@ -40,7 +40,9 @@ export type PreviewIdentity = {
  * as unauthenticated. The token carries no authority — it only names an
  * identity, and access is still read from the database afterwards.
  */
-export function previewIdentityFromRequest(authorization: string | undefined): PreviewIdentity | null {
+export function previewIdentityFromRequest(
+  authorization: string | undefined,
+): PreviewIdentity | null {
   const raw = authorization?.replace(/^Bearer\s+/i, "").trim();
   if (!raw?.startsWith("preview:email:")) return null;
 

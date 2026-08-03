@@ -22,14 +22,7 @@ export function resolveClientDist(): string {
 
   // The server runs as a bundle at artifacts/api-server/dist/index.mjs, so the
   // sibling artifact's build output is two levels up.
-  return path.resolve(
-    import.meta.dirname,
-    "..",
-    "..",
-    "practice-portal",
-    "dist",
-    "public",
-  );
+  return path.resolve(import.meta.dirname, "..", "..", "practice-portal", "dist", "public");
 }
 
 export function mountStaticClient(app: Express): void {

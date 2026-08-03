@@ -20,7 +20,9 @@ export async function visibleCaseIds(ctx: WorkspaceContext): Promise<number[]> {
     const rows = await db
       .select({ id: casesTable.id })
       .from(casesTable)
-      .where(and(eq(casesTable.workspaceId, ctx.workspaceId), eq(casesTable.clientId, ctx.user.id)));
+      .where(
+        and(eq(casesTable.workspaceId, ctx.workspaceId), eq(casesTable.clientId, ctx.user.id)),
+      );
     return rows.map((r) => r.id);
   }
 
@@ -32,7 +34,10 @@ export async function visibleCaseIds(ctx: WorkspaceContext): Promise<number[]> {
       .from(casesTable)
       .innerJoin(tasksTable, eq(tasksTable.caseId, casesTable.id))
       .where(
-        and(eq(casesTable.workspaceId, ctx.workspaceId), eq(tasksTable.assigneeId, ctx.user.clerkId)),
+        and(
+          eq(casesTable.workspaceId, ctx.workspaceId),
+          eq(tasksTable.assigneeId, ctx.user.clerkId),
+        ),
       );
     return [...new Set(rows.map((r) => r.id))];
   }
@@ -93,7 +98,9 @@ export async function workspaceCaseIds(ctx: WorkspaceContext): Promise<number[]>
 }
 
 /** Tasks the caller may see, already scoped by workspace and row scope. */
-export async function visibleTasks(ctx: WorkspaceContext): Promise<(typeof tasksTable.$inferSelect)[]> {
+export async function visibleTasks(
+  ctx: WorkspaceContext,
+): Promise<(typeof tasksTable.$inferSelect)[]> {
   const caseIds = await visibleCaseIds(ctx);
   if (caseIds.length === 0) return [];
 

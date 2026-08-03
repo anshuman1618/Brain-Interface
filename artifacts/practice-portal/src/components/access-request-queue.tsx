@@ -8,7 +8,13 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Check, X, UserPlus, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -117,10 +123,14 @@ export function AccessRequestQueue() {
                     value={grantRoles[req.id] ?? "client"}
                     onValueChange={(v) => setGrantRoles((prev) => ({ ...prev, [req.id]: v }))}
                   >
-                    <SelectTrigger className="rounded-none w-48"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="rounded-none w-48">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       {ROLE_OPTIONS.map((o) => (
-                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

@@ -27,9 +27,16 @@ export const feedbackTable = pgTable("feedback", {
   respondedBy: text("responded_by"),
   respondedAt: timestamp("responded_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
-export const insertFeedbackSchema = createInsertSchema(feedbackTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFeedbackSchema = createInsertSchema(feedbackTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export type InsertFeedback = z.infer<typeof insertFeedbackSchema>;
 export type Feedback = typeof feedbackTable.$inferSelect;

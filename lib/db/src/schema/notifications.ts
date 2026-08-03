@@ -12,7 +12,10 @@ export const notificationsTable = pgTable("notifications", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertNotificationSchema = createInsertSchema(notificationsTable).omit({ id: true, createdAt: true });
+export const insertNotificationSchema = createInsertSchema(notificationsTable).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertNotification = z.infer<typeof insertNotificationSchema>;
 export type Notification = typeof notificationsTable.$inferSelect;
 
@@ -39,9 +42,16 @@ export const documentRequestsTable = pgTable("document_requests", {
   fulfilledDocumentId: integer("fulfilled_document_id"),
   fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
 });
 
-export const insertDocumentRequestSchema = createInsertSchema(documentRequestsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDocumentRequestSchema = createInsertSchema(documentRequestsTable).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
 export type InsertDocumentRequest = z.infer<typeof insertDocumentRequestSchema>;
 export type DocumentRequest = typeof documentRequestsTable.$inferSelect;

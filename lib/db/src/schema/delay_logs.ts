@@ -11,6 +11,9 @@ export const delayLogsTable = pgTable("delay_logs", {
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertDelayLogSchema = createInsertSchema(delayLogsTable).omit({ id: true, submittedAt: true });
+export const insertDelayLogSchema = createInsertSchema(delayLogsTable).omit({
+  id: true,
+  submittedAt: true,
+});
 export type InsertDelayLog = z.infer<typeof insertDelayLogSchema>;
 export type DelayLog = typeof delayLogsTable.$inferSelect;

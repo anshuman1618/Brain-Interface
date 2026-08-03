@@ -65,7 +65,9 @@ export function verifyWorkspaceToken(token: string | undefined): WorkspaceTokenC
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
 
   try {
-    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as WorkspaceTokenClaims;
+    const claims = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    ) as WorkspaceTokenClaims;
     if (typeof claims.sub !== "string" || typeof claims.wsId !== "number") return null;
     if (typeof claims.exp !== "number" || claims.exp < Math.floor(Date.now() / 1000)) return null;
     return claims;

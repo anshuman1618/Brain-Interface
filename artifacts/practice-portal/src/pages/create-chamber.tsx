@@ -31,7 +31,8 @@ const FOUNDER_ROLES = [
  * Senior Advocate who sets up their own chamber can still invite their clerk.
  */
 export default function CreateChamberPage({ onCancel }: { onCancel?: () => void }) {
-  const { displayName, email, signOut, createWorkspace, isCreatingWorkspace, refreshSession } = useSession();
+  const { displayName, email, signOut, createWorkspace, isCreatingWorkspace, refreshSession } =
+    useSession();
 
   const [name, setName] = useState("");
   const [role, setRole] = useState<"admin" | "senior_advocate">("admin");
@@ -63,9 +64,9 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
 
         <h1 className="text-3xl font-bold tracking-tight mb-2">Create your chamber</h1>
         <p className="text-muted-foreground mb-8 leading-relaxed">
-          Signed in as <span className="font-medium text-foreground">{displayName || email}</span>. Your
-          chamber starts empty — no matters, no tasks, no team. You add your own work and invite
-          everyone else.
+          Signed in as <span className="font-medium text-foreground">{displayName || email}</span>.
+          Your chamber starts empty — no matters, no tasks, no team. You add your own work and
+          invite everyone else.
         </p>
 
         {error && (
@@ -75,7 +76,10 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
           </div>
         )}
 
-        <form onSubmit={submit} className="border border-border bg-background p-6 flex flex-col gap-6">
+        <form
+          onSubmit={submit}
+          className="border border-border bg-background p-6 flex flex-col gap-6"
+        >
           <div className="space-y-2">
             <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
               Chamber name
@@ -104,7 +108,9 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
                     aria-pressed={selected}
                     onClick={() => setRole(opt.value)}
                     className={`text-left border p-4 transition-colors ${
-                      selected ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                      selected
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
                     }`}
                   >
                     <opt.icon className="h-5 w-5 mb-2" />
@@ -128,7 +134,11 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
             >
               <LogOut className="h-3.5 w-3.5" /> {onCancel ? "Back" : "Sign out"}
             </button>
-            <Button type="submit" className="rounded-none px-8" disabled={isCreatingWorkspace || !name.trim()}>
+            <Button
+              type="submit"
+              className="rounded-none px-8"
+              disabled={isCreatingWorkspace || !name.trim()}
+            >
               {isCreatingWorkspace ? "Creating..." : "Create chamber"}
               {!isCreatingWorkspace && <ArrowRight className="h-4 w-4 ml-2" />}
             </Button>

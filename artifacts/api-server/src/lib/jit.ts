@@ -92,7 +92,8 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
   // text, and matching it against the access list would let anyone claim a
   // colleague's address and inherit their role.
   const verified = clerkUser.emailAddresses.find((e) => e.verification?.status === "verified");
-  const emailFromClerk = verified?.emailAddress ?? clerkUser.primaryEmailAddress?.emailAddress ?? "";
+  const emailFromClerk =
+    verified?.emailAddress ?? clerkUser.primaryEmailAddress?.emailAddress ?? "";
 
   const [created] = await db
     .insert(usersTable)

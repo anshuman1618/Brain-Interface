@@ -145,7 +145,10 @@ export async function listActiveMemberships(userId: number): Promise<MembershipL
     .from(workspaceMembershipsTable)
     .innerJoin(workspacesTable, eq(workspacesTable.id, workspaceMembershipsTable.workspaceId))
     .where(
-      and(eq(workspaceMembershipsTable.userId, userId), eq(workspaceMembershipsTable.status, "active")),
+      and(
+        eq(workspaceMembershipsTable.userId, userId),
+        eq(workspaceMembershipsTable.status, "active"),
+      ),
     );
 
   return rows.map((r) => ({ workspace: r.workspace, role: r.role, isOwner: r.isOwner }));

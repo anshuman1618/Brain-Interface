@@ -16,8 +16,13 @@ import { useSession } from "@/lib/session";
  */
 export default function PortalSignInPage() {
   const {
-    previewMode, signInWithProvider, verifyEmailCode, awaitingCode, cancelCodeEntry,
-    signInError, isSigningIn,
+    previewMode,
+    signInWithProvider,
+    verifyEmailCode,
+    awaitingCode,
+    cancelCodeEntry,
+    signInError,
+    isSigningIn,
   } = useSession();
   // Both paths are the same sign-in; only the framing differs, because a founder
   // and an invited colleague arrive with different expectations.
@@ -93,7 +98,10 @@ export default function PortalSignInPage() {
               the code. There is no password field anywhere in this flow. */}
           {awaitingCode ? (
             <form
-              onSubmit={(e) => { e.preventDefault(); void verifyEmailCode(code); }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void verifyEmailCode(code);
+              }}
               className="flex flex-col gap-4"
             >
               <div className="border border-border bg-muted/30 px-4 py-3">
@@ -123,14 +131,21 @@ export default function PortalSignInPage() {
                 />
               </div>
 
-              <Button type="submit" className="rounded-none w-full" disabled={isSigningIn || code.trim().length < 4}>
+              <Button
+                type="submit"
+                className="rounded-none w-full"
+                disabled={isSigningIn || code.trim().length < 4}
+              >
                 {isSigningIn ? "Verifying..." : "Verify and continue"}
               </Button>
 
               <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
-                  onClick={() => { cancelCodeEntry(); setCode(""); }}
+                  onClick={() => {
+                    cancelCodeEntry();
+                    setCode("");
+                  }}
                   className="text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Use a different address
@@ -175,7 +190,9 @@ export default function PortalSignInPage() {
               </button>
 
               <div className="border border-border bg-muted/30 px-4 py-3 flex items-center gap-3">
-                <span className="shrink-0">{AUTH_PROVIDERS.find((p) => p.id === chosen)?.icon}</span>
+                <span className="shrink-0">
+                  {AUTH_PROVIDERS.find((p) => p.id === chosen)?.icon}
+                </span>
                 <span className="text-sm font-medium">
                   {AUTH_PROVIDERS.find((p) => p.id === chosen)?.label}
                 </span>
@@ -210,7 +227,11 @@ export default function PortalSignInPage() {
                 </div>
               )}
 
-              <Button type="submit" className="rounded-none w-full" disabled={isSigningIn || !email.trim()}>
+              <Button
+                type="submit"
+                className="rounded-none w-full"
+                disabled={isSigningIn || !email.trim()}
+              >
                 {isSigningIn ? "Signing in..." : "Continue"}
               </Button>
             </form>
@@ -219,14 +240,13 @@ export default function PortalSignInPage() {
           {previewMode && (
             <div className="mt-8 border border-amber-500/40 bg-amber-500/10 px-4 py-3">
               <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                <strong className="font-semibold">Preview build.</strong> No Google or Zoho tenant is
-                connected, so any address you type is treated as verified. Everything after that is
-                real: if nobody has admitted your address you will be turned away, and if this is a
-                fresh platform you will be offered the chance to create the first chamber.
+                <strong className="font-semibold">Preview build.</strong> No Google or Zoho tenant
+                is connected, so any address you type is treated as verified. Everything after that
+                is real: if nobody has admitted your address you will be turned away, and if this is
+                a fresh platform you will be offered the chance to create the first chamber.
               </p>
             </div>
           )}
-
         </div>
       </main>
     </div>

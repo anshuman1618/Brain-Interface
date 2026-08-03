@@ -24,8 +24,21 @@ import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { CalendarSkeleton } from "@/components/module-skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, CalendarDays } from "lucide-react";
@@ -93,7 +106,12 @@ export default function CalendarPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: entries = [], isLoading: entriesLoading, isError, error } = useListCalendarEntries({
+  const {
+    data: entries = [],
+    isLoading: entriesLoading,
+    isError,
+    error,
+  } = useListCalendarEntries({
     query: { queryKey: getListCalendarEntriesQueryKey() },
   });
   const { data: tasks = [], isLoading: tasksLoading } = useListTasks(undefined, {
@@ -117,8 +135,13 @@ export default function CalendarPage() {
   const [isOpen, setIsOpen] = useState(false);
 
   const [form, setForm] = useState({
-    title: "", notes: "", kind: "hearing", entryDate: dateOnly(new Date()),
-    entryTime: "", audience: "all", caseId: "none",
+    title: "",
+    notes: "",
+    kind: "hearing",
+    entryDate: dateOnly(new Date()),
+    entryTime: "",
+    audience: "all",
+    caseId: "none",
   });
 
   const refresh = () => {
@@ -132,10 +155,18 @@ export default function CalendarPage() {
     for (const e of entries) {
       const start = combine(e.entryDate, e.entryTime);
       out.push({
-        id: `entry-${e.id}`, source: "entry", refId: e.id, title: e.title,
-        start, end: new Date(start.getTime() + 60 * 60 * 1000),
-        allDay: !e.entryTime, kind: e.kind, audience: e.audience,
-        notes: e.notes ?? null, caseId: e.caseId ?? null, draggable: canWrite,
+        id: `entry-${e.id}`,
+        source: "entry",
+        refId: e.id,
+        title: e.title,
+        start,
+        end: new Date(start.getTime() + 60 * 60 * 1000),
+        allDay: !e.entryTime,
+        kind: e.kind,
+        audience: e.audience,
+        notes: e.notes ?? null,
+        caseId: e.caseId ?? null,
+        draggable: canWrite,
       });
     }
 
@@ -143,11 +174,18 @@ export default function CalendarPage() {
       if (t.status === "completed") continue;
       const start = combine(String(t.deadline).slice(0, 10), null);
       out.push({
-        id: `task-${t.id}`, source: "task", refId: t.id,
+        id: `task-${t.id}`,
+        source: "task",
+        refId: t.id,
         title: `${t.title}${t.assigneeName ? ` · ${t.assigneeName}` : ""}`,
-        start, end: new Date(start.getTime() + 60 * 60 * 1000),
-        allDay: true, kind: "task", audience: "all", notes: null,
-        caseId: t.caseId, draggable: canReschedule,
+        start,
+        end: new Date(start.getTime() + 60 * 60 * 1000),
+        allDay: true,
+        kind: "task",
+        audience: "all",
+        notes: null,
+        caseId: t.caseId,
+        draggable: canReschedule,
       });
     }
 
@@ -161,20 +199,45 @@ export default function CalendarPage() {
       const when = start instanceof Date ? start : new Date(start);
 
       if (ev.source === "task") {
-        if (!canReschedule) { toast({ title: "Only Admin and Senior Advocate can reschedule work", variant: "destructive" }); return; }
+        if (!canReschedule) {
+          toast({
+            title: "Only Admin and Senior Advocate can reschedule work",
+            variant: "destructive",
+          });
+          return;
+        }
         updateTask.mutate(
           { id: ev.refId, data: { deadline: dateOnly(when) } },
-          { onSuccess: () => { refresh(); toast({ title: "Deadline moved", description: format(when, "d MMM yyyy") }); },
-            onError: () => toast({ title: "Couldn't move that deadline", variant: "destructive" }) },
+          {
+            onSuccess: () => {
+              refresh();
+              toast({ title: "Deadline moved", description: format(when, "d MMM yyyy") });
+            },
+            onError: () => toast({ title: "Couldn't move that deadline", variant: "destructive" }),
+          },
         );
         return;
       }
 
-      if (!canWrite) { toast({ title: "Only Admin and Senior Advocate can edit the calendar", variant: "destructive" }); return; }
+      if (!canWrite) {
+        toast({
+          title: "Only Admin and Senior Advocate can edit the calendar",
+          variant: "destructive",
+        });
+        return;
+      }
       updateEntry.mutate(
-        { id: ev.refId, data: { entryDate: dateOnly(when), entryTime: ev.allDay ? undefined : timeOnly(when) } },
-        { onSuccess: () => { refresh(); toast({ title: "Moved", description: format(when, "d MMM yyyy") }); },
-          onError: () => toast({ title: "Couldn't move that entry", variant: "destructive" }) },
+        {
+          id: ev.refId,
+          data: { entryDate: dateOnly(when), entryTime: ev.allDay ? undefined : timeOnly(when) },
+        },
+        {
+          onSuccess: () => {
+            refresh();
+            toast({ title: "Moved", description: format(when, "d MMM yyyy") });
+          },
+          onError: () => toast({ title: "Couldn't move that entry", variant: "destructive" }),
+        },
       );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,9 +247,13 @@ export default function CalendarPage() {
   const openNew = (slotDate?: Date) => {
     setEditing(null);
     setForm({
-      title: "", notes: "", kind: "hearing",
-      entryDate: dateOnly(slotDate ?? new Date()), entryTime: "",
-      audience: "all", caseId: "none",
+      title: "",
+      notes: "",
+      kind: "hearing",
+      entryDate: dateOnly(slotDate ?? new Date()),
+      entryTime: "",
+      audience: "all",
+      caseId: "none",
     });
     setIsOpen(true);
   };
@@ -195,9 +262,13 @@ export default function CalendarPage() {
     if (ev.source === "task" || !canWrite) return;
     setEditing(ev);
     setForm({
-      title: ev.title, notes: ev.notes ?? "", kind: ev.kind,
-      entryDate: dateOnly(ev.start), entryTime: ev.allDay ? "" : timeOnly(ev.start),
-      audience: ev.audience, caseId: ev.caseId ? String(ev.caseId) : "none",
+      title: ev.title,
+      notes: ev.notes ?? "",
+      kind: ev.kind,
+      entryDate: dateOnly(ev.start),
+      entryTime: ev.allDay ? "" : timeOnly(ev.start),
+      audience: ev.audience,
+      caseId: ev.caseId ? String(ev.caseId) : "none",
     });
     setIsOpen(true);
   };
@@ -216,19 +287,34 @@ export default function CalendarPage() {
       caseId: form.caseId !== "none" ? Number(form.caseId) : undefined,
     };
 
-    const done = (msg: string) => () => { refresh(); toast({ title: msg }); setIsOpen(false); };
+    const done = (msg: string) => () => {
+      refresh();
+      toast({ title: msg });
+      setIsOpen(false);
+    };
     const failed = () => toast({ title: "Couldn't save that entry", variant: "destructive" });
 
-    if (editing) updateEntry.mutate({ id: editing.refId, data: payload }, { onSuccess: done("Entry updated"), onError: failed });
+    if (editing)
+      updateEntry.mutate(
+        { id: editing.refId, data: payload },
+        { onSuccess: done("Entry updated"), onError: failed },
+      );
     else createEntry.mutate({ data: payload }, { onSuccess: done("Entry added"), onError: failed });
   };
 
   const remove = () => {
     if (!editing) return;
-    deleteEntry.mutate({ id: editing.refId }, {
-      onSuccess: () => { refresh(); toast({ title: "Entry removed" }); setIsOpen(false); },
-      onError: () => toast({ title: "Couldn't remove that entry", variant: "destructive" }),
-    });
+    deleteEntry.mutate(
+      { id: editing.refId },
+      {
+        onSuccess: () => {
+          refresh();
+          toast({ title: "Entry removed" });
+          setIsOpen(false);
+        },
+        onError: () => toast({ title: "Couldn't remove that entry", variant: "destructive" }),
+      },
+    );
   };
 
   if (entriesLoading || tasksLoading) return <CalendarSkeleton />;
@@ -241,7 +327,9 @@ export default function CalendarPage() {
         <p className="text-sm text-muted-foreground">
           {error instanceof Error ? error.message : "The request failed."}
         </p>
-        <Button variant="outline" className="rounded-none mt-5" onClick={refresh}>Retry</Button>
+        <Button variant="outline" className="rounded-none mt-5" onClick={refresh}>
+          Retry
+        </Button>
       </div>
     );
   }
@@ -314,7 +402,9 @@ export default function CalendarPage() {
 
           <form onSubmit={submit} className="space-y-4 pt-2">
             <div className="space-y-2">
-              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">What is it? *</label>
+              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                What is it? *
+              </label>
               <Input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
@@ -326,9 +416,13 @@ export default function CalendarPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Type</label>
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Type
+                </label>
                 <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })}>
-                  <SelectTrigger className="rounded-none bg-background font-mono text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="rounded-none">
                     <SelectItem value="hearing">Hearing</SelectItem>
                     <SelectItem value="filing">Filing</SelectItem>
@@ -338,7 +432,9 @@ export default function CalendarPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Date *</label>
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Date *
+                </label>
                 <Input
                   type="date"
                   value={form.entryDate}
@@ -351,7 +447,9 @@ export default function CalendarPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Time</label>
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Time
+                </label>
                 <Input
                   type="time"
                   value={form.entryTime}
@@ -360,9 +458,16 @@ export default function CalendarPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Who sees it</label>
-                <Select value={form.audience} onValueChange={(v) => setForm({ ...form, audience: v })}>
-                  <SelectTrigger className="rounded-none bg-background font-mono text-sm"><SelectValue /></SelectTrigger>
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Who sees it
+                </label>
+                <Select
+                  value={form.audience}
+                  onValueChange={(v) => setForm({ ...form, audience: v })}
+                >
+                  <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="rounded-none">
                     <SelectItem value="all">Everyone</SelectItem>
                     <SelectItem value="staff">Chamber staff only</SelectItem>
@@ -376,15 +481,21 @@ export default function CalendarPage() {
 
             {cases.length > 0 && (
               <div className="space-y-2">
-                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Related matter</label>
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Related matter
+                </label>
                 <Select value={form.caseId} onValueChange={(v) => setForm({ ...form, caseId: v })}>
                   <SelectTrigger className="rounded-none bg-background font-mono text-sm">
                     <SelectValue placeholder="OPTIONAL" />
                   </SelectTrigger>
                   <SelectContent className="rounded-none">
-                    <SelectItem value="none" className="italic text-muted-foreground">None</SelectItem>
+                    <SelectItem value="none" className="italic text-muted-foreground">
+                      None
+                    </SelectItem>
                     {cases.map((c) => (
-                      <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">{c.title}</SelectItem>
+                      <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">
+                        {c.title}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -392,7 +503,9 @@ export default function CalendarPage() {
             )}
 
             <div className="space-y-2">
-              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Notes (optional)</label>
+              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                Notes (optional)
+              </label>
               <Textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -403,12 +516,27 @@ export default function CalendarPage() {
 
             <DialogFooter className="pt-2 sm:justify-between">
               {editing ? (
-                <Button type="button" variant="outline" className="rounded-none text-destructive border-destructive/40" onClick={remove} disabled={deleteEntry.isPending}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none text-destructive border-destructive/40"
+                  onClick={remove}
+                  disabled={deleteEntry.isPending}
+                >
                   <Trash2 className="h-4 w-4 mr-2" /> Remove
                 </Button>
-              ) : <span />}
+              ) : (
+                <span />
+              )}
               <div className="flex gap-2">
-                <Button type="button" variant="outline" className="rounded-none" onClick={() => setIsOpen(false)}>Cancel</Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Cancel
+                </Button>
                 <Button
                   type="submit"
                   className="rounded-none font-mono uppercase tracking-wider"

@@ -7,5 +7,7 @@ export async function addTimelineEvent(
   description: string,
   actorName?: string,
 ): Promise<void> {
-  await db.insert(timelineEventsTable).values({ caseId, eventType, description, actorName: actorName ?? null });
+  await db
+    .insert(timelineEventsTable)
+    .values({ caseId, eventType, description, actorName: actorName ?? null });
 }
