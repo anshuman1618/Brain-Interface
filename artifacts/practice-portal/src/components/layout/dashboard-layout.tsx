@@ -34,7 +34,16 @@ import {
   ShieldCheck,
   FileText,
   Star,
+  MoreVertical,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { PricingModalProvider, usePricingModal } from "@/components/pricing-modal";
 import { NotificationBell } from "@/components/notification-bell";
 import { GlobalSearch } from "@/components/global-search";
@@ -129,90 +138,123 @@ function DashboardLayoutContent() {
     { href: "/team", label: "Team Roles", icon: ShieldCheck, show: can("team.manage") },
   ].filter((item) => item.show);
 
+  const activeItem = navItems.find(
+    (item) =>
+      location.startsWith(item.href) &&
+      item.href !== "/" &&
+      (item.href !== "/dashboard" || location === "/dashboard"),
+  );
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PreviewBar />
       <div className="flex min-h-screen bg-background text-foreground">
-        {/* Sidebar */}
-        <aside className="w-64 border-r border-border bg-sidebar flex-shrink-0 flex flex-col relative z-20">
-          <div className="h-16 flex items-center px-6 border-b border-sidebar-border">
-            <Link href="/dashboard" className="flex items-center gap-2 group">
-              <div className="h-8 w-8 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter">
+        {/*
+          Navigation lives behind the three-dot button on this rail rather than
+          in a permanently expanded list. The rail keeps the menu anchored to a
+          fixed spot on the left, so the destination list is always one click
+          from the same place no matter which page is open.
+        */}
+        {/* Sticky and exactly one viewport tall: the menu button and the
+            signed-in identity must both stay reachable on a long page, which
+            they would not be if the rail grew with the content and pushed the
+            avatar below the fold. */}
+        <aside className="w-16 border-r border-border bg-sidebar shrink-0 flex flex-col items-center sticky top-0 h-screen z-20">
+          <div className="h-16 flex items-center justify-center border-b border-sidebar-border w-full">
+            <Link href="/dashboard" title="LEX Practice">
+              <div className="h-9 w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-xs">
                 LEX
               </div>
-              <span className="font-mono font-semibold tracking-tight text-sidebar-foreground group-hover:text-primary transition-colors">
-                PRACTICE
-              </span>
             </Link>
           </div>
 
-          <div className="p-3 border-b border-sidebar-border">
-            <WorkspaceSwitcher />
-          </div>
-
-          <div className="flex-1 py-6 px-3 flex flex-col gap-1 overflow-y-auto">
-            {navItems.map((item) => {
-              const isActive =
-                location.startsWith(item.href) &&
-                item.href !== "/" &&
-                (item.href !== "/dashboard" || location === "/dashboard");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-                  }`}
+          <div className="py-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="h-10 w-10 flex items-center justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground transition-colors"
+                  aria-label="Open navigation menu"
                 >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="right"
+                align="start"
+                sideOffset={8}
+                className="w-60 rounded-none"
+              >
+                <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Go to
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {navItems.map((item) => {
+                  const isActive = item.href === activeItem?.href;
+                  return (
+                    <DropdownMenuItem key={item.href} asChild>
+                      <Link
+                        href={item.href}
+                        className={`flex items-center gap-3 cursor-pointer rounded-none ${
+                          isActive ? "bg-accent font-semibold text-accent-foreground" : ""
+                        }`}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+
+                {can("billing.manage") && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => setPricingModalOpen(true)}
+                      className="flex items-center gap-3 cursor-pointer rounded-none"
+                    >
+                      <CreditCard className="h-4 w-4 shrink-0" />
+                      Subscription
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => signOut()}
+                  className="flex items-center gap-3 cursor-pointer rounded-none text-destructive focus:text-destructive"
+                >
+                  <LogOut className="h-4 w-4 shrink-0" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          <div className="p-4 border-t border-sidebar-border flex flex-col gap-2">
-            {can("billing.manage") && (
-              <button
-                onClick={() => setPricingModalOpen(true)}
-                className="flex items-center justify-center gap-2 w-full py-2 bg-gradient-to-r from-gray-300 to-gray-500 text-black font-bold rounded-none uppercase text-xs tracking-wider mb-2 hover:opacity-90 transition-opacity"
-              >
-                <CreditCard className="h-4 w-4" />
-                Manage Subscription
-              </button>
-            )}
-            <div className="flex items-center gap-3 px-3 py-3 border border-border bg-background shadow-sm">
-              <div className="h-8 w-8 bg-muted flex items-center justify-center text-xs font-medium uppercase shrink-0">
-                {initial}
-              </div>
-              <div className="flex flex-col flex-1 overflow-hidden">
-                <span className="text-sm font-semibold truncate">{displayName}</span>
-                <span className="text-xs text-muted-foreground truncate font-mono uppercase">
-                  {displayRole}
-                </span>
-              </div>
-              <button
-                onClick={() => signOut()}
-                className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent shrink-0 transition-colors"
-                title="Sign out"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
+          {/* Identity stays visible on the rail: which account you are signed in
+              as should never require opening a menu to discover. */}
+          <div className="mt-auto pb-4 flex flex-col items-center gap-2">
+            <div
+              className="h-9 w-9 bg-muted flex items-center justify-center text-xs font-medium uppercase"
+              title={`${displayName} - ${displayRole}`}
+            >
+              {initial}
             </div>
           </div>
         </aside>
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="h-16 border-b border-border bg-background flex items-center px-8 z-10 sticky top-0 justify-between">
-            <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground min-w-0">
-              <span className="uppercase tracking-widest truncate">{activeWorkspace.name}</span>
-              <ChevronRight className="h-3 w-3 shrink-0" />
-              <span className="text-foreground capitalize truncate">
-                {location.split("/")[1] || "Dashboard"}
-              </span>
+          <header className="h-16 border-b border-border bg-background flex items-center gap-4 px-6 z-10 sticky top-0 justify-between">
+            <div className="flex items-center gap-4 min-w-0">
+              {/* The switcher moves up here now that the sidebar is a rail. It
+                  is a tenant boundary, not a nav item, so it stays in sight. */}
+              <div className="w-56 shrink-0 hidden sm:block">
+                <WorkspaceSwitcher />
+              </div>
+              <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground min-w-0">
+                <ChevronRight className="h-3 w-3 shrink-0 hidden sm:block" />
+                <span className="text-foreground truncate">{activeItem?.label ?? "Dashboard"}</span>
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
