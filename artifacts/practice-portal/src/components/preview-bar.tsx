@@ -19,7 +19,7 @@ export function PreviewBar() {
     <div className="border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
       <span className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-amber-700 dark:text-amber-400">
         <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-        Preview — sign-in is mocked, and data is held in memory until the server restarts
+        Preview — sign-in is mocked; data is stored on disk and survives restarts
       </span>
 
       {email && (

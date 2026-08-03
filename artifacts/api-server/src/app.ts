@@ -14,6 +14,7 @@ import previewRouter from "./routes/preview";
 import { mountStaticClient } from "./middlewares/staticClient";
 import { isPreviewAuth } from "./lib/preview-mode";
 import { logger } from "./lib/logger";
+import { securityHeaders } from "./middlewares/securityHeaders";
 
 const app: Express = express();
 
@@ -36,6 +37,8 @@ app.use(
     },
   }),
 );
+
+app.use(securityHeaders());
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 

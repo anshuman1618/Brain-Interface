@@ -60,7 +60,7 @@ export function initDatabase(): Promise<Database> {
     // database in place of real client records — fail loudly instead.
     if (process.env.NODE_ENV === "production") {
       throw new Error(
-        "DATABASE_URL must be set in production. The in-memory preview database is refused outside development.",
+        "DATABASE_URL must be set in production. The local preview database is refused outside development.",
       );
     }
 
