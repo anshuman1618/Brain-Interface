@@ -61,6 +61,11 @@ export type Session = {
 
   /** Begins sign-in with a provider. Establishes identity only — never access. */
   signInWithProvider: (provider: ProviderId, email: string, name?: string) => Promise<void>;
+  /** Submits the one-time code sent to the address. Passwordless: there is no password path. */
+  verifyEmailCode: (code: string) => Promise<void>;
+  /** True once a code has been sent and the UI should ask for it. */
+  awaitingCode: boolean;
+  cancelCodeEntry: () => void;
   isSigningIn: boolean;
   signInError: string | null;
 
@@ -186,6 +191,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
 
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  const [awaitingCode, setAwaitingCode] = useState(false);
 
   /**
    * Hands off to the identity provider.
@@ -207,10 +213,11 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       setIsSigningIn(true);
       try {
         if (provider === "email") {
+          // Passwordless: a one-time code to the inbox. There is no password
+          // field anywhere in this app and no password strategy is attempted.
           const { error } = await signIn.emailCode.sendCode({ emailAddress });
           if (error) throw error;
-          // Clerk's hosted component owns code entry from here.
-          window.location.href = `${BASE_PATH}/sign-in`;
+          setAwaitingCode(true);
           return;
         }
 
@@ -242,6 +249,37 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
     [signIn],
   );
 
+  /** Second leg of the passwordless email flow: verify the emailed code. */
+  const verifyEmailCode = useCallback(
+    async (code: string) => {
+      if (!signIn) return;
+      setSignInError(null);
+      setIsSigningIn(true);
+      try {
+        const { error } = await signIn.emailCode.verifyCode({ code: code.trim() });
+        if (error) throw error;
+        setAwaitingCode(false);
+        // Clerk has established the session; the app then asks the backend what
+        // this identity may reach.
+        window.location.href = `${BASE_PATH}/dashboard`;
+      } catch (err) {
+        const message =
+          err && typeof err === "object" && "message" in err
+            ? String((err as { message?: unknown }).message ?? "")
+            : "";
+        setSignInError(message || "That code wasn't accepted. Check it and try again.");
+      } finally {
+        setIsSigningIn(false);
+      }
+    },
+    [signIn],
+  );
+
+  const cancelCodeEntry = useCallback(() => {
+    setAwaitingCode(false);
+    setSignInError(null);
+  }, []);
+
   const value = useMemo<Session>(() => {
     const email = user?.emailAddresses?.[0]?.emailAddress ?? "";
     return {
@@ -264,11 +302,15 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       createWorkspace: backend.createWorkspace,
       isCreatingWorkspace: backend.isCreatingWorkspace,
       signInWithProvider,
+      verifyEmailCode,
+      awaitingCode,
+      cancelCodeEntry,
       isSigningIn,
       signInError,
       previewMode: false,
     };
-  }, [isLoaded, isSignedIn, user, signOut, backend, signInWithProvider, isSigningIn, signInError]);
+  }, [isLoaded, isSignedIn, user, signOut, backend, signInWithProvider, verifyEmailCode,
+      awaitingCode, cancelCodeEntry, isSigningIn, signInError]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
@@ -328,6 +370,10 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
       createWorkspace: backend.createWorkspace,
       isCreatingWorkspace: backend.isCreatingWorkspace,
       signInWithProvider,
+      // No provider is connected in preview, so there is no code to verify.
+      verifyEmailCode: async () => {},
+      awaitingCode: false,
+      cancelCodeEntry: () => {},
       isSigningIn: false,
       signInError: null,
       previewMode: true,

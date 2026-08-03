@@ -1,13 +1,22 @@
 /**
- * In-memory Postgres for preview mode.
+ * File-backed Postgres for preview mode.
  *
  * When DATABASE_URL is absent the app boots against PGlite — a real Postgres
  * compiled to WASM running in-process — rather than failing at import time.
  * Every query in the codebase therefore runs unchanged (same SQL dialect, same
  * Drizzle driver surface); nothing is stubbed at the query-builder level.
  *
- * The database is ephemeral: it lives for the life of the process and is
- * recreated, schema and seed data included, on every start.
+ * PERSISTENCE: PGlite is pointed at a data directory (PREVIEW_DATA_DIR, default
+ * `.preview-data`), so everything entered survives a restart. It is only
+ * discarded if that directory is deleted.
+ *
+ * Why PGlite-on-disk rather than SQLite or lowdb: those are different storage
+ * engines with a different SQL dialect (or none at all). Every query in this
+ * codebase is Drizzle-for-Postgres — `serial`, `timestamptz`, `ilike`,
+ * `ON CONFLICT`, `returning()` — so swapping the engine would mean rewriting the
+ * data layer twice over and leaving preview running different SQL from
+ * production. Pointing PGlite at a directory gets the same durability with zero
+ * dialect drift: preview and production run identical Postgres.
  */
 
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
@@ -139,8 +148,15 @@ CREATE TABLE IF NOT EXISTS documents (
   name TEXT NOT NULL,
   file_type TEXT,
   file_size INTEGER,
+  url TEXT,
   encrypted BOOLEAN NOT NULL DEFAULT true,
   storage_path TEXT,
+  visibility TEXT NOT NULL DEFAULT 'firm',
+  uploaded_by TEXT NOT NULL DEFAULT '',
+  uploaded_by_clerk_id TEXT NOT NULL DEFAULT '',
+  uploaded_by_role TEXT NOT NULL DEFAULT '',
+  document_request_id INTEGER,
+  note TEXT,
   uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -168,6 +184,8 @@ CREATE TABLE IF NOT EXISTS document_requests (
   due_date TEXT,
   case_id INTEGER,
   status TEXT NOT NULL DEFAULT 'pending',
+  fulfilled_document_id INTEGER,
+  fulfilled_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -182,6 +200,22 @@ CREATE TABLE IF NOT EXISTS invites (
   used_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS feedback (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  client_id INTEGER NOT NULL,
+  client_clerk_id TEXT NOT NULL,
+  client_name TEXT NOT NULL DEFAULT '',
+  rating INTEGER NOT NULL,
+  comment TEXT,
+  response TEXT,
+  responded_by TEXT,
+  responded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS timeline_events (
@@ -208,7 +242,38 @@ CREATE TABLE IF NOT EXISTS timeline_events (
  * fixtures.
  */
 
-/** Boots PGlite and applies the schema. Seeds nothing. */
+/**
+ * Idempotent column additions.
+ *
+ * `CREATE TABLE IF NOT EXISTS` above creates missing tables but will not add a
+ * column to a table that already exists — so on a persisted database an upgrade
+ * would silently leave new columns off and every insert would fail. These run on
+ * every boot and are no-ops once applied, which is what lets the data directory
+ * survive a schema change instead of having to be thrown away.
+ */
+const MIGRATIONS = `
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT NOT NULL DEFAULT '';
+ALTER TABLE workspace_memberships ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS url TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'firm';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_by TEXT NOT NULL DEFAULT '';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_by_clerk_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_by_role TEXT NOT NULL DEFAULT '';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS document_request_id INTEGER;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS fulfilled_document_id INTEGER;
+ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS fulfilled_at TIMESTAMPTZ;
+`;
+
+/** Where the preview database lives on disk. */
+export function previewDataDir(): string {
+  return process.env.PREVIEW_DATA_DIR?.trim() || ".preview-data";
+}
+
+/**
+ * Boots PGlite against a data directory and applies the schema. Seeds nothing —
+ * the platform starts empty and stays however the user left it.
+ */
 export async function createPreviewDatabase(): Promise<NodePgDatabase<typeof schema>> {
   // Imported dynamically: PGlite is a dev-only dependency and must never be
   // required on a production boot, where DATABASE_URL is always set.
@@ -217,9 +282,10 @@ export async function createPreviewDatabase(): Promise<NodePgDatabase<typeof sch
     import("drizzle-orm/pglite"),
   ]);
 
-  const client = new PGlite();
+  const client = new PGlite(previewDataDir());
   await client.waitReady;
   await client.exec(DDL);
+  await client.exec(MIGRATIONS);
 
   return drizzle(client, { schema }) as unknown as NodePgDatabase<typeof schema>;
 }

@@ -48,6 +48,9 @@ export const CAPABILITIES = [
   "document_requests.respond",
   "calendar.read",
   "calendar.write",
+  "feedback.read",
+  "feedback.write",
+  "feedback.respond",
   "kpi.read",
   "billing.manage",
   "access_control.manage",
@@ -85,11 +88,22 @@ const ADVOCATE_CAPABILITIES = [
   "document_requests.read",
   "document_requests.create",
   "calendar.read",
+  "feedback.read",
 ] as const satisfies readonly Capability[];
+
+/**
+ * Capabilities that are NOT "everything an admin can do".
+ *
+ * `feedback.write` is the client's side of the review — leaving a rating on a
+ * matter. Handing it to admin along with the rest would let a chamber post
+ * five-star reviews of itself, which makes the whole module worthless. Admin
+ * still reads every rating and may reply; it simply cannot author one.
+ */
+const CLIENT_ONLY_CAPABILITIES: readonly Capability[] = ["feedback.write"];
 
 const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
   admin: {
-    capabilities: CAPABILITIES,
+    capabilities: CAPABILITIES.filter((c) => !CLIENT_ONLY_CAPABILITIES.includes(c)),
     caseScope: "all",
     taskScope: "all",
   },
@@ -104,6 +118,7 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
       "tasks.write",
       "tasks.delete",
       "calendar.write",
+      "feedback.respond",
     ],
     caseScope: "all",
     taskScope: "all",
@@ -125,6 +140,7 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
       "documents.read",
       "document_requests.read",
       "document_requests.create",
+      "documents.write",
       "calendar.read",
     ],
     // Blocked from unassigned matters: a clerk sees only what they hold a task on.
@@ -132,8 +148,9 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
     taskScope: "assigned",
   },
   client: {
-    // Clients get a calendar too — their own hearings, consultations and any
-    // notice addressed to them. Read-only, like the rest of their portal.
+    // No calendar. A client's portal is their own matters, the firm's shared
+    // files, the requests addressed to them, and their feedback — the chamber's
+    // listing schedule is not theirs to browse.
     capabilities: [
       "workspace.view",
       "cases.read",
@@ -142,7 +159,8 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
       "consultations.read",
       "document_requests.read",
       "document_requests.respond",
-      "calendar.read",
+      "feedback.write",
+      "feedback.read",
     ],
     caseScope: "own",
     taskScope: "own",

@@ -291,6 +291,27 @@ export interface CalendarEntryInput {
   audience?: string;
 }
 
+export type CalendarEntryUpdateKind = typeof CalendarEntryUpdateKind[keyof typeof CalendarEntryUpdateKind];
+
+
+export const CalendarEntryUpdateKind = {
+  hearing: 'hearing',
+  filing: 'filing',
+  meeting: 'meeting',
+  note: 'note',
+} as const;
+
+export interface CalendarEntryUpdate {
+  /** @minLength 1 */
+  title?: string;
+  notes?: string;
+  kind?: CalendarEntryUpdateKind;
+  entryDate?: string;
+  entryTime?: string;
+  caseId?: number;
+  audience?: string;
+}
+
 export type AccessListEntryKind = typeof AccessListEntryKind[keyof typeof AccessListEntryKind];
 
 
@@ -509,6 +530,57 @@ export interface TimelineEvent {
   createdAt: string;
 }
 
+export interface Feedback {
+  id: number;
+  workspaceId: number;
+  caseId: number;
+  /** @nullable */
+  caseTitle?: string | null;
+  clientId: number;
+  /** @nullable */
+  clientName?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  /** @nullable */
+  comment?: string | null;
+  /** @nullable */
+  response?: string | null;
+  /** @nullable */
+  respondedBy?: string | null;
+  /** @nullable */
+  respondedAt?: string | null;
+  createdAt: string;
+}
+
+export interface FeedbackInput {
+  caseId: number;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  comment?: string;
+}
+
+export interface FeedbackResponseInput {
+  /** @minLength 1 */
+  response: string;
+}
+
+/**
+ * 'firm' is internal working material a client never sees. 'shared' is visible to the client on the matter. A client's own upload is always 'shared'.
+ */
+export type DocumentVisibility = typeof DocumentVisibility[keyof typeof DocumentVisibility];
+
+
+export const DocumentVisibility = {
+  firm: 'firm',
+  shared: 'shared',
+} as const;
+
 export interface Document {
   id: number;
   caseId: number;
@@ -520,8 +592,36 @@ export interface Document {
   encrypted: boolean;
   /** @nullable */
   storagePath?: string | null;
+  /**
+     * Where the file lives. Object storage in production.
+     * @nullable
+     */
+  url?: string | null;
+  /** 'firm' is internal working material a client never sees. 'shared' is visible to the client on the matter. A client's own upload is always 'shared'. */
+  visibility?: DocumentVisibility;
+  /** @nullable */
+  uploadedBy?: string | null;
+  /** @nullable */
+  uploadedByRole?: string | null;
+  /** @nullable */
+  documentRequestId?: number | null;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  caseTitle?: string | null;
   uploadedAt: string;
 }
+
+/**
+ * Ignored for clients, whose uploads are always 'shared'.
+ */
+export type DocumentInputVisibility = typeof DocumentInputVisibility[keyof typeof DocumentInputVisibility];
+
+
+export const DocumentInputVisibility = {
+  firm: 'firm',
+  shared: 'shared',
+} as const;
 
 export interface DocumentInput {
   /** @minLength 1 */
@@ -529,6 +629,12 @@ export interface DocumentInput {
   fileType?: string;
   fileSize?: number;
   storagePath?: string;
+  url?: string;
+  note?: string;
+  /** Ignored for clients, whose uploads are always 'shared'. */
+  visibility?: DocumentInputVisibility;
+  /** Set to fulfil a specific document request. */
+  documentRequestId?: number;
 }
 
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
@@ -913,6 +1019,10 @@ export interface DocumentRequest {
   /** @nullable */
   caseTitle?: string | null;
   status: DocumentRequestStatus;
+  /** @nullable */
+  fulfilledDocumentId?: number | null;
+  /** @nullable */
+  fulfilledAt?: string | null;
   createdAt: string;
   /** @nullable */
   updatedAt?: string | null;

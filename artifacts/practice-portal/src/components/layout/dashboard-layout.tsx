@@ -12,15 +12,19 @@ import KpiPage from "@/pages/kpi"
 import InvitesPage from "@/pages/invites"
 import ClientPortalPage from "@/pages/client-portal"
 import CalendarPage from "@/pages/calendar"
+import DocumentsPage from "@/pages/documents"
+import FeedbackPage from "@/pages/feedback"
 import TeamPage from "@/pages/team"
 import PendingApprovalPage from "@/pages/pending-approval"
 import AccessDeniedPage from "@/pages/access-denied"
 import UnauthorizedPage from "@/pages/unauthorized"
 import NotFound from "@/pages/not-found"
-import { Briefcase, LayoutDashboard, CheckSquare, PhoneCall, BarChart2, Users, LogOut, Loader2, ChevronRight, Calendar as CalendarIcon, CreditCard, ShieldCheck } from "lucide-react"
+import { Briefcase, LayoutDashboard, CheckSquare, PhoneCall, BarChart2, Users, LogOut, Loader2, ChevronRight, Calendar as CalendarIcon, CreditCard, ShieldCheck, FileText, Star } from "lucide-react"
 import { PricingModalProvider, usePricingModal } from "@/components/pricing-modal"
 import { NotificationBell } from "@/components/notification-bell"
 import { GlobalSearch } from "@/components/global-search"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { ErrorBoundary } from "@/components/error-boundary"
 
 function DashboardLayoutContent() {
   const {
@@ -87,6 +91,8 @@ function DashboardLayoutContent() {
     { href: "/client-portal", label: "My Portal", icon: Briefcase, show: !can("cases.write") && !can("tasks.read") },
     { href: "/cases", label: "Cases", icon: Briefcase, show: can("cases.write") },
     { href: "/tasks", label: "Tasks", icon: CheckSquare, show: can("tasks.read") },
+    { href: "/documents", label: "Documents", icon: FileText, show: can("documents.read") },
+    { href: "/feedback", label: can("feedback.write") ? "My Feedback" : "Client Feedback", icon: Star, show: can("feedback.read") },
     { href: "/consultations", label: "Consultations", icon: PhoneCall, show: can("consultations.write") },
     { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: can("kpi.read") },
     { href: "/invites", label: "Access Control", icon: Users, show: can("access_control.manage") },
@@ -172,9 +178,10 @@ function DashboardLayoutContent() {
             <span className="text-foreground capitalize truncate">{location.split('/')[1] || 'Dashboard'}</span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <GlobalSearch />
             <NotificationBell />
+            <ThemeToggle />
           </div>
         </header>
 
@@ -190,7 +197,19 @@ function DashboardLayoutContent() {
               <Route path="/dashboard" component={DashboardPage} />
               <Route path="/unauthorized" component={UnauthorizedPage} />
               <Route path="/calendar">
-                <RequireCapability capability="calendar.read"><CalendarPage /></RequireCapability>
+                <RequireCapability capability="calendar.read">
+                  <ErrorBoundary label="Master Calendar"><CalendarPage /></ErrorBoundary>
+                </RequireCapability>
+              </Route>
+              <Route path="/documents">
+                <RequireCapability capability="documents.read">
+                  <ErrorBoundary label="Documents"><DocumentsPage /></ErrorBoundary>
+                </RequireCapability>
+              </Route>
+              <Route path="/feedback">
+                <RequireCapability capability="feedback.read">
+                  <ErrorBoundary label="Client Feedback"><FeedbackPage /></ErrorBoundary>
+                </RequireCapability>
               </Route>
               <Route path="/cases">
                 <RequireCapability capability="cases.write"><CasesPage /></RequireCapability>

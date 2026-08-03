@@ -31,15 +31,31 @@ Under the hood:
 | Dependency | In preview |
 | --- | --- |
 | Clerk (auth) | Mocked — any address you type is treated as verified. The access-list check that follows is the real one |
-| Postgres | In-memory Postgres (PGlite), empty. **Data is lost when the process exits** — set `DATABASE_URL` to keep it |
+| Postgres | File-backed Postgres (PGlite) in `.preview-data`, empty on first boot. **Data persists across restarts** |
 | Speech-to-text | Mocked — stopping a recording produces a sample transcript |
 
 Everything is real application code against a real Postgres dialect; only the
 external services are substituted.
 
-> Preview data lives in memory and is **discarded on restart**. To keep what you
-> enter, point `DATABASE_URL` at a real Postgres and run
-> `pnpm --filter @workspace/db run push`.
+### Preview persistence
+
+Preview mode runs PGlite against a data directory (`PREVIEW_DATA_DIR`, default
+`.preview-data`), so what you enter survives a restart. Delete that directory to
+start over.
+
+PGlite-on-disk rather than SQLite or lowdb, deliberately: those are different
+storage engines with a different SQL dialect (or none). Every query here is
+Drizzle-for-Postgres — `serial`, `timestamptz`, `ilike`, `returning()` — so
+swapping engines would mean rewriting the data layer and leaving preview running
+different SQL from production. A data directory gets the same durability with
+zero dialect drift.
+
+Schema upgrades are handled by idempotent `ALTER TABLE … ADD COLUMN IF NOT
+EXISTS` statements that run on every boot, so a persisted database survives a
+column being added instead of having to be thrown away.
+
+For a real deployment, set `DATABASE_URL` and run
+`pnpm --filter @workspace/db run push`.
 
 > **Preview mode cannot be enabled in production.** The server refuses to mock
 > auth or fall back to the in-memory database when `NODE_ENV=production`, and the
@@ -83,13 +99,19 @@ pnpm --filter @workspace/api-spec run codegen
 
 ## Sign-in providers
 
+**Passwordless only.** There is no password field anywhere in this app, no
+password strategy is ever attempted, and `/sign-in` and `/sign-up` redirect to
+`/portal`. (Clerk's hosted `<SignIn>`/`<SignUp>` components used to live on those
+routes; they render whatever the Clerk dashboard enables, including a password
+field, so they were removed rather than configured around.)
+
 The chamber portal (`/portal`) offers three ways in:
 
 | Provider | Clerk strategy | Notes |
 | --- | --- | --- |
 | Google | `oauth_google` | Built into Clerk. Enable under **SSO connections**. |
 | Zoho Mail | `oauth_custom_zoho` | **Not** a Clerk built-in — add a *custom OAuth connection* with the slug `zoho` (below). |
-| Email | one-time code | Clerk's email-code strategy. |
+| Email | one-time code | Clerk's `emailCode` strategy — send, then verify, in the app's own UI. |
 
 All three do the same job and nothing more: they establish a **verified email
 address**. Which chamber that address may enter, and as what, is decided
@@ -230,12 +252,17 @@ token expiry. Both run, every time.
 | Senior Advocate | `senior_advocate` | Matters, drafting, consultation recorder, document requests, **task assignment**, **calendar updates** | KPI engine, billing, access control, team roles |
 | Junior Advocate | `junior_advocate` | Matters, drafting, consultations, document requests. Completes work | **Assigning work**, posting calendar updates, KPI, billing, access control |
 | Clerk / Intern | `clerk_intern` | Their calendar, and only matters they hold a task on | Assigning work, billing, unassigned matters |
-| Client | `client` | Their own matters (read-only), their calendar, document upload | Everything else |
+| Client | `client` | Their own matters (read-only), files shared with them, fulfilling document requests, leaving feedback | **The master calendar**, firm-internal documents, everything else |
 
 **Only Admin and Senior Advocate direct work.** They alone hold `tasks.write`
 and `calendar.write` — assigning a task and posting a chamber-wide update are the
 same boundary. A Junior Advocate completes what they are given but cannot hand
 work to anyone.
+
+**Admin is not "everything".** `feedback.write` — leaving a rating on a matter —
+is client-only and explicitly withheld from admin. Handing it over along with the
+rest would let a chamber post five-star reviews of itself. Admin still reads every
+rating and may reply; it cannot author one.
 
 A chamber's **owner** additionally holds `access_control.manage`, `team.manage`
 and `billing.manage` whichever of the two roles they founded it as.
@@ -253,13 +280,25 @@ page, because every endpoint behind it re-checks independently.
 
 ## Core flows
 
-- **Master calendar** — one calendar per portal. It draws from three sources,
-  each already scoped to the caller server-side: chamber updates by *audience*,
-  task deadlines by assignment, consultations by matter. A clerk's calendar shows
-  their own deadlines; a client's shows their own hearings; an admin's shows the
-  chamber's. An update carries an audience (`all`, `staff`, a role, or one
-  person), so a client never receives a staff-only notice — the filter runs in
-  the API, not the browser.
+- **Master calendar** — an interactive month/week/day/agenda grid
+  (react-big-calendar) with full CRUD and drag-to-reschedule. Two sources share
+  it: chamber cause-list entries, and task deadlines drawn in for context.
+  Dragging an entry moves it; dragging a deadline reschedules the task, which is
+  why that needs `tasks.write` rather than `calendar.write`. An entry carries an
+  audience (`all`, `staff`, a role, or one person) and the filter runs in the
+  API, so a clerk never receives a notice addressed to advocates. **Staff only** —
+  the client portal has no calendar.
+- **Documents** — bi-directional. The chamber uploads case files marked either
+  `firm` (internal working material) or `shared` (visible to the client), raises
+  document requests, and sees what has come back. A client sees only `shared`
+  files and the requests addressed to them, and uploading against a request marks
+  it fulfilled and notifies whoever raised it. A client's upload is forced to
+  `shared` server-side regardless of what the request says — a client cannot
+  create firm-internal material.
+- **Client feedback** — a client rates their own matters 1–5 with an optional
+  comment. Staff read every rating and may reply, but the reply is a separate
+  field: nobody can edit or delete what a client wrote, because a review the
+  subject can silently rewrite is not feedback.
 - **SLA delay logging** — completing a task after its deadline is refused
   (`422`) unless a delay reason is supplied. Reasons are a fixed set:
   `client_unresponsive`, `court_delay`, `document_missing`,
@@ -304,10 +343,24 @@ See `.env.example`. In short:
 | `CORS_ALLOWED_ORIGINS` | split hosting | Comma-separated; production sends no CORS headers without it |
 | `PORT` / `HOST` | no | Default `5000` / `0.0.0.0` |
 | `CLIENT_DIST_PATH` | no | Override where the API reads the built SPA from |
+| `PREVIEW_DATA_DIR` | no | Where the file-backed preview database lives. Default `.preview-data`; delete it to start over |
 | `WORKSPACE_TOKEN_SECRET` | recommended | Signs scoped workspace tokens. Unset → a random per-process secret, so tokens die on restart and clients re-switch (fine in dev, not across replicas) |
 
 Google, Zoho and email sign-in are configured in the Clerk dashboard, not by
 environment variable — see [Sign-in providers](#sign-in-providers).
+
+## Theming
+
+Light is the strict default. The theme provider (`next-themes`, Tailwind's
+`class` strategy) runs with `enableSystem={false}` — without that, a viewer whose
+OS is set to dark would get a dark portal on first load, which is not what "light
+by default" means. Dark is opt-in through the header toggle and remembered per
+browser.
+
+`color-scheme` flips with the class, so the browser's own chrome — scrollbars,
+date pickers, native selects — matches rather than staying light on a dark page.
+react-big-calendar ships fixed light colours, so `src/styles/calendar.css`
+re-points it at the app's design tokens and it follows the toggle for free.
 
 ## Conventions worth knowing
 

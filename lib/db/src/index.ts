@@ -56,7 +56,7 @@ export function initDatabase(): Promise<Database> {
       return instance;
     }
 
-    // Falling back in production would silently serve an empty, ephemeral
+    // Falling back in production would silently serve a local file-backed
     // database in place of real client records — fail loudly instead.
     if (process.env.NODE_ENV === "production") {
       throw new Error(
@@ -74,4 +74,5 @@ export function initDatabase(): Promise<Database> {
 }
 
 export * from "./schema";
+export { previewDataDir } from "./preview";
 

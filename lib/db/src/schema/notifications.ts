@@ -35,6 +35,9 @@ export const documentRequestsTable = pgTable("document_requests", {
   dueDate: text("due_date"),
   caseId: integer("case_id"),
   status: text("status").notNull().default("pending"), // pending | fulfilled | dismissed
+  /** The document the client uploaded to close this request. */
+  fulfilledDocumentId: integer("fulfilled_document_id"),
+  fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

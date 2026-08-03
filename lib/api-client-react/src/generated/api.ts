@@ -27,6 +27,7 @@ import type {
   AccessRequestInput,
   CalendarEntry,
   CalendarEntryInput,
+  CalendarEntryUpdate,
   Case,
   CaseInput,
   CaseUpdate,
@@ -41,6 +42,9 @@ import type {
   DocumentRequest,
   DocumentRequestInput,
   DocumentRequestUpdate,
+  Feedback,
+  FeedbackInput,
+  FeedbackResponseInput,
   GetSlaReportParams,
   GlobalSearchParams,
   HealthStatus,
@@ -992,6 +996,78 @@ export const useCreateCalendarEntry = <TError = ErrorType<void>,
       return useMutation(getCreateCalendarEntryMutationOptions(options));
     }
 
+export const getUpdateCalendarEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/calendar/${id}`
+}
+
+/**
+ * @summary Move or edit a calendar entry (Admin and Senior Advocate only)
+ */
+export const updateCalendarEntry = async (id: number,
+    calendarEntryUpdate: CalendarEntryUpdate, options?: RequestInit): Promise<CalendarEntry> => {
+
+  return customFetch<CalendarEntry>(getUpdateCalendarEntryUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(calendarEntryUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateCalendarEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCalendarEntry>>, TError,{id: number;data: BodyType<CalendarEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCalendarEntry>>, TError,{id: number;data: BodyType<CalendarEntryUpdate>}, TContext> => {
+
+const mutationKey = ['updateCalendarEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCalendarEntry>>, {id: number;data: BodyType<CalendarEntryUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCalendarEntry(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCalendarEntryMutationResult = NonNullable<Awaited<ReturnType<typeof updateCalendarEntry>>>
+    export type UpdateCalendarEntryMutationBody = BodyType<CalendarEntryUpdate>
+    export type UpdateCalendarEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Move or edit a calendar entry (Admin and Senior Advocate only)
+ */
+export const useUpdateCalendarEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCalendarEntry>>, TError,{id: number;data: BodyType<CalendarEntryUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCalendarEntry>>,
+        TError,
+        {id: number;data: BodyType<CalendarEntryUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateCalendarEntryMutationOptions(options));
+    }
+
 export const getDeleteCalendarEntryUrl = (id: number,) => {
 
 
@@ -1062,6 +1138,305 @@ export const useDeleteCalendarEntry = <TError = ErrorType<void>,
       > => {
       return useMutation(getDeleteCalendarEntryMutationOptions(options));
     }
+
+export const getListFeedbackUrl = () => {
+
+
+
+
+  return `/api/feedback`
+}
+
+/**
+ * Staff see every rating in the workspace; a client sees only their own.
+ * @summary Feedback visible to the caller
+ */
+export const listFeedback = async ( options?: RequestInit): Promise<Feedback[]> => {
+
+  return customFetch<Feedback[]>(getListFeedbackUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListFeedbackQueryKey = () => {
+    return [
+    `/api/feedback`
+    ] as const;
+    }
+
+
+export const getListFeedbackQueryOptions = <TData = Awaited<ReturnType<typeof listFeedback>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFeedback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListFeedbackQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listFeedback>>> = ({ signal }) => listFeedback({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listFeedback>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListFeedbackQueryResult = NonNullable<Awaited<ReturnType<typeof listFeedback>>>
+export type ListFeedbackQueryError = ErrorType<void>
+
+
+/**
+ * @summary Feedback visible to the caller
+ */
+
+export function useListFeedback<TData = Awaited<ReturnType<typeof listFeedback>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listFeedback>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListFeedbackQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateFeedbackUrl = () => {
+
+
+
+
+  return `/api/feedback`
+}
+
+/**
+ * @summary Leave feedback on one of your matters (clients only)
+ */
+export const createFeedback = async (feedbackInput: FeedbackInput, options?: RequestInit): Promise<Feedback> => {
+
+  return customFetch<Feedback>(getCreateFeedbackUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(feedbackInput)
+  }
+);}
+
+
+
+
+
+export const getCreateFeedbackMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFeedback>>, TError,{data: BodyType<FeedbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createFeedback>>, TError,{data: BodyType<FeedbackInput>}, TContext> => {
+
+const mutationKey = ['createFeedback'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createFeedback>>, {data: BodyType<FeedbackInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createFeedback(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateFeedbackMutationResult = NonNullable<Awaited<ReturnType<typeof createFeedback>>>
+    export type CreateFeedbackMutationBody = BodyType<FeedbackInput>
+    export type CreateFeedbackMutationError = ErrorType<void>
+
+    /**
+ * @summary Leave feedback on one of your matters (clients only)
+ */
+export const useCreateFeedback = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createFeedback>>, TError,{data: BodyType<FeedbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createFeedback>>,
+        TError,
+        {data: BodyType<FeedbackInput>},
+        TContext
+      > => {
+      return useMutation(getCreateFeedbackMutationOptions(options));
+    }
+
+export const getRespondToFeedbackUrl = (id: number,) => {
+
+
+
+
+  return `/api/feedback/${id}/response`
+}
+
+/**
+ * @summary Reply to a client's feedback (Admin and Senior Advocate)
+ */
+export const respondToFeedback = async (id: number,
+    feedbackResponseInput: FeedbackResponseInput, options?: RequestInit): Promise<Feedback> => {
+
+  return customFetch<Feedback>(getRespondToFeedbackUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(feedbackResponseInput)
+  }
+);}
+
+
+
+
+
+export const getRespondToFeedbackMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToFeedback>>, TError,{id: number;data: BodyType<FeedbackResponseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof respondToFeedback>>, TError,{id: number;data: BodyType<FeedbackResponseInput>}, TContext> => {
+
+const mutationKey = ['respondToFeedback'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof respondToFeedback>>, {id: number;data: BodyType<FeedbackResponseInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  respondToFeedback(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RespondToFeedbackMutationResult = NonNullable<Awaited<ReturnType<typeof respondToFeedback>>>
+    export type RespondToFeedbackMutationBody = BodyType<FeedbackResponseInput>
+    export type RespondToFeedbackMutationError = ErrorType<void>
+
+    /**
+ * @summary Reply to a client's feedback (Admin and Senior Advocate)
+ */
+export const useRespondToFeedback = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof respondToFeedback>>, TError,{id: number;data: BodyType<FeedbackResponseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof respondToFeedback>>,
+        TError,
+        {id: number;data: BodyType<FeedbackResponseInput>},
+        TContext
+      > => {
+      return useMutation(getRespondToFeedbackMutationOptions(options));
+    }
+
+export const getListWorkspaceDocumentsUrl = () => {
+
+
+
+
+  return `/api/documents`
+}
+
+/**
+ * Scoped by matter visibility and, for clients, by document visibility — firm-internal files are never returned to a client.
+ * @summary Every document the caller may see, across their matters
+ */
+export const listWorkspaceDocuments = async ( options?: RequestInit): Promise<Document[]> => {
+
+  return customFetch<Document[]>(getListWorkspaceDocumentsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWorkspaceDocumentsQueryKey = () => {
+    return [
+    `/api/documents`
+    ] as const;
+    }
+
+
+export const getListWorkspaceDocumentsQueryOptions = <TData = Awaited<ReturnType<typeof listWorkspaceDocuments>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWorkspaceDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWorkspaceDocumentsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWorkspaceDocuments>>> = ({ signal }) => listWorkspaceDocuments({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWorkspaceDocuments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWorkspaceDocumentsQueryResult = NonNullable<Awaited<ReturnType<typeof listWorkspaceDocuments>>>
+export type ListWorkspaceDocumentsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Every document the caller may see, across their matters
+ */
+
+export function useListWorkspaceDocuments<TData = Awaited<ReturnType<typeof listWorkspaceDocuments>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWorkspaceDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWorkspaceDocumentsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListAccessListUrl = () => {
 

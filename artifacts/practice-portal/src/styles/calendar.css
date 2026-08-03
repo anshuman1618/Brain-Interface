@@ -1,0 +1,153 @@
+/*
+ * react-big-calendar theme bridge.
+ *
+ * The library ships fixed light colours (#fff grounds, #ddd borders), so on a
+ * dark page the grid stays a white slab. Everything below re-points it at the
+ * app's design tokens, which means it follows the light/dark toggle for free
+ * rather than needing a second palette.
+ */
+
+.rbc-calendar {
+  font-family: inherit;
+  color: hsl(var(--foreground));
+}
+
+/* Toolbar */
+.rbc-toolbar {
+  margin-bottom: 14px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rbc-toolbar .rbc-toolbar-label {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-size: 1.05rem;
+}
+.rbc-toolbar button {
+  border-radius: 0;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 12px;
+}
+.rbc-toolbar button:hover,
+.rbc-toolbar button:focus-visible {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  border-color: hsl(var(--border));
+}
+.rbc-toolbar button.rbc-active,
+.rbc-toolbar button.rbc-active:hover,
+.rbc-toolbar button.rbc-active:focus-visible {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary));
+  box-shadow: none;
+}
+
+/* Grid surfaces */
+.rbc-month-view,
+.rbc-time-view,
+.rbc-agenda-view table.rbc-agenda-table {
+  border-color: hsl(var(--border));
+  background: hsl(var(--background));
+}
+.rbc-header,
+.rbc-time-header-content,
+.rbc-time-header.rbc-overflowing,
+.rbc-timeslot-group,
+.rbc-day-bg + .rbc-day-bg,
+.rbc-month-row + .rbc-month-row,
+.rbc-time-content,
+.rbc-time-content > * + * > *,
+.rbc-agenda-view table.rbc-agenda-table tbody > tr > td,
+.rbc-agenda-view table.rbc-agenda-table thead > tr > th {
+  border-color: hsl(var(--border));
+}
+.rbc-header {
+  padding: 8px 4px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: hsl(var(--muted-foreground));
+  font-weight: 600;
+}
+.rbc-off-range-bg {
+  background: hsl(var(--muted) / 0.4);
+}
+.rbc-off-range {
+  color: hsl(var(--muted-foreground) / 0.6);
+}
+.rbc-today {
+  background: hsl(var(--primary) / 0.09);
+}
+.rbc-date-cell {
+  padding: 4px 6px;
+  font-size: 0.78rem;
+}
+
+/* Events. Colour encodes kind — the same vocabulary the entry form uses. */
+.rbc-event,
+.rbc-day-slot .rbc-background-event {
+  border-radius: 0;
+  border: 1px solid transparent;
+  padding: 2px 6px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+.rbc-event:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 1px;
+}
+.rbc-event.rbc-selected { filter: brightness(0.94); }
+
+.rbc-kind-hearing { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+.rbc-kind-filing  { background: hsl(var(--muted)); color: hsl(var(--foreground)); border-color: hsl(var(--border)); }
+.rbc-kind-meeting { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); border-color: hsl(var(--border)); }
+.rbc-kind-note    { background: transparent; color: hsl(var(--foreground)); border-color: hsl(var(--border)); }
+/* Deadlines read as work, not as listings — a left rail rather than a fill. */
+.rbc-kind-task {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border-color: hsl(var(--border));
+  border-left: 3px solid hsl(var(--destructive));
+}
+
+.rbc-show-more {
+  background: transparent;
+  color: hsl(var(--primary));
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.rbc-overlay {
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: 0;
+  box-shadow: 0 12px 32px hsl(var(--foreground) / 0.14);
+}
+.rbc-overlay-header {
+  border-color: hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+}
+
+.rbc-agenda-view table.rbc-agenda-table tbody > tr:hover {
+  background: hsl(var(--accent) / 0.5);
+}
+.rbc-agenda-empty {
+  padding: 32px;
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+}
+
+/* Drag feedback */
+.rbc-addons-dnd .rbc-addons-dnd-drag-preview { opacity: 0.75; }
+.rbc-addons-dnd-dragged-event { opacity: 0.4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rbc-event, .rbc-addons-dnd-dragged-event { transition: none !important; }
+}

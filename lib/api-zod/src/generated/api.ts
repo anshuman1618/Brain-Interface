@@ -333,6 +333,44 @@ export const CreateCalendarEntryResponse = zod.object({
 
 
 /**
+ * @summary Move or edit a calendar entry (Admin and Senior Advocate only)
+ */
+export const UpdateCalendarEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateCalendarEntryBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "notes": zod.string().optional(),
+  "kind": zod.enum(['hearing', 'filing', 'meeting', 'note']).optional(),
+  "entryDate": zod.string().optional(),
+  "entryTime": zod.string().optional(),
+  "caseId": zod.number().optional(),
+  "audience": zod.string().optional()
+})
+
+export const UpdateCalendarEntryResponse = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "title": zod.string(),
+  "notes": zod.string().nullish(),
+  "kind": zod.enum(['hearing', 'filing', 'meeting', 'note']),
+  "entryDate": zod.string(),
+  "entryTime": zod.string().nullish(),
+  "caseId": zod.number().nullish(),
+  "caseTitle": zod.string().nullish(),
+  "audience": zod.string(),
+  "audienceLabel": zod.string().nullish(),
+  "createdBy": zod.string().nullish(),
+  "createdByRole": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Remove a calendar update (Admin and Senior Advocate only)
  */
 export const DeleteCalendarEntryParams = zod.object({
@@ -340,6 +378,122 @@ export const DeleteCalendarEntryParams = zod.object({
 })
 
 export const DeleteCalendarEntryResponse = zod.void()
+
+
+/**
+ * Staff see every rating in the workspace; a client sees only their own.
+ * @summary Feedback visible to the caller
+ */
+export const listFeedbackResponseRatingMax = 5;
+
+
+
+export const ListFeedbackResponseItem = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "caseId": zod.number(),
+  "caseTitle": zod.string().nullish(),
+  "clientId": zod.number(),
+  "clientName": zod.string().nullish(),
+  "rating": zod.number().min(1).max(listFeedbackResponseRatingMax),
+  "comment": zod.string().nullish(),
+  "response": zod.string().nullish(),
+  "respondedBy": zod.string().nullish(),
+  "respondedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListFeedbackResponse = zod.array(ListFeedbackResponseItem)
+
+
+/**
+ * @summary Leave feedback on one of your matters (clients only)
+ */
+export const createFeedbackBodyRatingMax = 5;
+
+
+
+export const CreateFeedbackBody = zod.object({
+  "caseId": zod.number(),
+  "rating": zod.number().min(1).max(createFeedbackBodyRatingMax),
+  "comment": zod.string().optional()
+})
+
+export const createFeedbackResponseRatingMax = 5;
+
+
+
+export const CreateFeedbackResponse = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "caseId": zod.number(),
+  "caseTitle": zod.string().nullish(),
+  "clientId": zod.number(),
+  "clientName": zod.string().nullish(),
+  "rating": zod.number().min(1).max(createFeedbackResponseRatingMax),
+  "comment": zod.string().nullish(),
+  "response": zod.string().nullish(),
+  "respondedBy": zod.string().nullish(),
+  "respondedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Reply to a client's feedback (Admin and Senior Advocate)
+ */
+export const RespondToFeedbackParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const RespondToFeedbackBody = zod.object({
+  "response": zod.string().min(1)
+})
+
+export const respondToFeedbackResponseRatingMax = 5;
+
+
+
+export const RespondToFeedbackResponse = zod.object({
+  "id": zod.number(),
+  "workspaceId": zod.number(),
+  "caseId": zod.number(),
+  "caseTitle": zod.string().nullish(),
+  "clientId": zod.number(),
+  "clientName": zod.string().nullish(),
+  "rating": zod.number().min(1).max(respondToFeedbackResponseRatingMax),
+  "comment": zod.string().nullish(),
+  "response": zod.string().nullish(),
+  "respondedBy": zod.string().nullish(),
+  "respondedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Scoped by matter visibility and, for clients, by document visibility — firm-internal files are never returned to a client.
+ * @summary Every document the caller may see, across their matters
+ */
+export const ListWorkspaceDocumentsResponseItem = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "name": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "encrypted": zod.boolean(),
+  "storagePath": zod.string().nullish(),
+  "url": zod.string().nullish().describe('Where the file lives. Object storage in production.'),
+  "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
+  "uploadedBy": zod.string().nullish(),
+  "uploadedByRole": zod.string().nullish(),
+  "documentRequestId": zod.number().nullish(),
+  "note": zod.string().nullish(),
+  "caseTitle": zod.string().nullish(),
+  "uploadedAt": zod.coerce.date()
+})
+export const ListWorkspaceDocumentsResponse = zod.array(ListWorkspaceDocumentsResponseItem)
 
 
 /**
@@ -624,6 +778,13 @@ export const ListDocumentsResponseItem = zod.object({
   "fileSize": zod.number().nullish(),
   "encrypted": zod.boolean(),
   "storagePath": zod.string().nullish(),
+  "url": zod.string().nullish().describe('Where the file lives. Object storage in production.'),
+  "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
+  "uploadedBy": zod.string().nullish(),
+  "uploadedByRole": zod.string().nullish(),
+  "documentRequestId": zod.number().nullish(),
+  "note": zod.string().nullish(),
+  "caseTitle": zod.string().nullish(),
   "uploadedAt": zod.coerce.date()
 })
 export const ListDocumentsResponse = zod.array(ListDocumentsResponseItem)
@@ -643,7 +804,11 @@ export const UploadDocumentBody = zod.object({
   "name": zod.string().min(1),
   "fileType": zod.string().optional(),
   "fileSize": zod.number().optional(),
-  "storagePath": zod.string().optional()
+  "storagePath": zod.string().optional(),
+  "url": zod.string().optional(),
+  "note": zod.string().optional(),
+  "visibility": zod.enum(['firm', 'shared']).optional().describe('Ignored for clients, whose uploads are always \'shared\'.'),
+  "documentRequestId": zod.number().optional().describe('Set to fulfil a specific document request.')
 })
 
 export const UploadDocumentResponse = zod.object({
@@ -654,6 +819,13 @@ export const UploadDocumentResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "encrypted": zod.boolean(),
   "storagePath": zod.string().nullish(),
+  "url": zod.string().nullish().describe('Where the file lives. Object storage in production.'),
+  "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
+  "uploadedBy": zod.string().nullish(),
+  "uploadedByRole": zod.string().nullish(),
+  "documentRequestId": zod.number().nullish(),
+  "note": zod.string().nullish(),
+  "caseTitle": zod.string().nullish(),
   "uploadedAt": zod.coerce.date()
 })
 
@@ -1104,6 +1276,8 @@ export const ListDocumentRequestsResponseItem = zod.object({
   "caseId": zod.number().nullish(),
   "caseTitle": zod.string().nullish(),
   "status": zod.enum(['pending', 'fulfilled', 'dismissed']),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -1139,6 +1313,8 @@ export const CreateDocumentRequestResponse = zod.object({
   "caseId": zod.number().nullish(),
   "caseTitle": zod.string().nullish(),
   "status": zod.enum(['pending', 'fulfilled', 'dismissed']),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })
@@ -1170,6 +1346,8 @@ export const UpdateDocumentRequestResponse = zod.object({
   "caseId": zod.number().nullish(),
   "caseTitle": zod.string().nullish(),
   "status": zod.enum(['pending', 'fulfilled', 'dismissed']),
+  "fulfilledDocumentId": zod.number().nullish(),
+  "fulfilledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date().nullish()
 })

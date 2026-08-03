@@ -5,6 +5,8 @@ import {
   ListCalendarEntriesResponse,
   CreateCalendarEntryBody,
   CreateCalendarEntryResponse,
+  UpdateCalendarEntryBody,
+  UpdateCalendarEntryResponse,
 } from "@workspace/api-zod";
 import { requireWorkspace, requireCapability, ctx, type AuthRequest } from "../middlewares/requireAuth";
 import { caseInWorkspace } from "../lib/scope";
@@ -87,6 +89,50 @@ router.post("/calendar", requireWorkspace, requireCapability("calendar.write"), 
   }).returning();
 
   res.status(201).json(CreateCalendarEntryResponse.parse(await view(created)));
+});
+
+/**
+ * Edit or move an entry — this is what a drag on the calendar grid becomes.
+ * Scoped to the workspace on the WHERE clause, so an id from another chamber
+ * matches nothing rather than being edited.
+ */
+router.patch("/calendar/:id", requireWorkspace, requireCapability("calendar.write"), async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
+
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const parsed = UpdateCalendarEntryBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const [existing] = await db
+    .select()
+    .from(calendarEntriesTable)
+    .where(and(eq(calendarEntriesTable.id, id), eq(calendarEntriesTable.workspaceId, c.workspaceId)));
+  if (!existing) { res.status(404).json({ error: "Entry not found" }); return; }
+
+  if (parsed.data.caseId != null && !(await caseInWorkspace(c, parsed.data.caseId))) {
+    res.status(404).json({ error: "Matter not found" });
+    return;
+  }
+
+  const update: Partial<typeof calendarEntriesTable.$inferSelect> = {};
+  if (parsed.data.title != null) update.title = parsed.data.title;
+  if (parsed.data.notes != null) update.notes = parsed.data.notes;
+  if (parsed.data.kind != null) update.kind = parsed.data.kind;
+  if (parsed.data.entryDate != null) update.entryDate = String(parsed.data.entryDate).slice(0, 10);
+  // An explicit empty time clears it, turning a timed entry back into all-day.
+  if (parsed.data.entryTime !== undefined) update.entryTime = parsed.data.entryTime || null;
+  if (parsed.data.caseId != null) update.caseId = parsed.data.caseId;
+  if (parsed.data.audience != null) update.audience = parsed.data.audience;
+
+  const [updated] = await db
+    .update(calendarEntriesTable)
+    .set(update)
+    .where(eq(calendarEntriesTable.id, id))
+    .returning();
+
+  res.json(UpdateCalendarEntryResponse.parse(await view(updated)));
 });
 
 router.delete("/calendar/:id", requireWorkspace, requireCapability("calendar.write"), async (req: AuthRequest, res): Promise<void> => {

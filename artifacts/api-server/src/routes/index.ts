@@ -11,6 +11,7 @@ import notificationsRouter from "./notifications";
 import documentRequestsRouter from "./document-requests";
 import searchRouter from "./search";
 import calendarRouter from "./calendar";
+import feedbackRouter from "./feedback";
 
 const router: IRouter = Router();
 
@@ -29,5 +30,6 @@ router.use(notificationsRouter);
 router.use(documentRequestsRouter);
 router.use(searchRouter);
 router.use(calendarRouter);
+router.use(feedbackRouter);
 
 export default router;

@@ -34,6 +34,10 @@ export interface DocumentRequest {
   /** @nullable */
   caseTitle?: string | null;
   status: DocumentRequestStatus;
+  /** @nullable */
+  fulfilledDocumentId?: number | null;
+  /** @nullable */
+  fulfilledAt?: Date | null;
   createdAt: Date;
   /** @nullable */
   updatedAt?: Date | null;

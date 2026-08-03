@@ -15,7 +15,10 @@ import { useSession } from "@/lib/session";
  * Zoho changes nothing about what you can reach.
  */
 export default function PortalSignInPage() {
-  const { previewMode, signInWithProvider, signInError, isSigningIn } = useSession();
+  const {
+    previewMode, signInWithProvider, verifyEmailCode, awaitingCode, cancelCodeEntry,
+    signInError, isSigningIn,
+  } = useSession();
   // Both paths are the same sign-in; only the framing differs, because a founder
   // and an invited colleague arrive with different expectations.
   const isSetup = new URLSearchParams(useSearch()).get("new") === "1";
@@ -23,6 +26,7 @@ export default function PortalSignInPage() {
   const [chosen, setChosen] = useState<ProviderId | null>(null);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [code, setCode] = useState("");
 
   const startProvider = (id: ProviderId) => {
     // Outside preview, Google and Zoho hand off to the identity provider
@@ -73,6 +77,11 @@ export default function PortalSignInPage() {
               : "Sign in with the address your chamber admin invited. A different address will be turned away."}
           </p>
 
+          <p className="text-xs text-muted-foreground mb-6 flex items-center gap-1.5">
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            Passwordless — you'll never be asked to create or remember one.
+          </p>
+
           {signInError && (
             <div className="border border-destructive bg-destructive/5 p-4 mb-6 flex gap-3">
               <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
@@ -80,7 +89,63 @@ export default function PortalSignInPage() {
             </div>
           )}
 
-          {chosen === null ? (
+          {/* Passwordless: once the code is out, the only thing we ask for is
+              the code. There is no password field anywhere in this flow. */}
+          {awaitingCode ? (
+            <form
+              onSubmit={(e) => { e.preventDefault(); void verifyEmailCode(code); }}
+              className="flex flex-col gap-4"
+            >
+              <div className="border border-border bg-muted/30 px-4 py-3">
+                <p className="text-sm">
+                  We sent a one-time code to{" "}
+                  <span className="font-mono font-medium break-all">{email}</span>.
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  It expires shortly. No password is involved — the code is the whole sign-in.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  One-time code
+                </label>
+                <Input
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  className="rounded-none bg-background font-mono tracking-[0.4em] text-center text-lg"
+                  placeholder="000000"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <Button type="submit" className="rounded-none w-full" disabled={isSigningIn || code.trim().length < 4}>
+                {isSigningIn ? "Verifying..." : "Verify and continue"}
+              </Button>
+
+              <div className="flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => { cancelCodeEntry(); setCode(""); }}
+                  className="text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Use a different address
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void signInWithProvider("email", email)}
+                  disabled={isSigningIn}
+                  className="text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                >
+                  Resend code
+                </button>
+              </div>
+            </form>
+          ) : chosen === null ? (
             <div className="flex flex-col gap-3">
               {AUTH_PROVIDERS.map((p) => (
                 <button
