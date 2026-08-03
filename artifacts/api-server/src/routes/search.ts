@@ -3,12 +3,11 @@ import { and, ilike, or, inArray, eq } from "drizzle-orm";
 import {
   db,
   casesTable,
-  tasksTable,
   consultationsTable,
   usersTable,
   workspaceMembershipsTable,
 } from "@workspace/db";
-import { requireWorkspace, requireCapability, ctx, type AuthRequest } from "../middlewares/requireAuth";
+import { requireWorkspace, ctx, type AuthRequest } from "../middlewares/requireAuth";
 import { visibleCaseIds, visibleTasks } from "../lib/scope";
 import { roleHasCapability } from "../lib/permissions";
 
@@ -57,7 +56,12 @@ router.get("/search", requireWorkspace, async (req: AuthRequest, res): Promise<v
   const consultRows = await db
     .select()
     .from(consultationsTable)
-    .where(and(inArray(consultationsTable.caseId, allowedCaseIds), ilike(consultationsTable.title, pattern)))
+    .where(
+      and(
+        inArray(consultationsTable.caseId, allowedCaseIds),
+        ilike(consultationsTable.title, pattern),
+      ),
+    )
     .limit(6);
 
   // People search is a directory read — gated on the same capability as the
@@ -79,9 +83,21 @@ router.get("/search", requireWorkspace, async (req: AuthRequest, res): Promise<v
     : [];
 
   res.json({
-    cases: caseRows.map((row) => ({ id: row.id, title: row.title, subtitle: `Case · ${row.status}` })),
-    tasks: taskRows.map((t) => ({ id: t.id, title: t.title, subtitle: `Task · due ${t.deadline}` })),
-    consultations: consultRows.map((row) => ({ id: row.id, title: row.title, subtitle: `Consultation · ${row.status}` })),
+    cases: caseRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      subtitle: `Case · ${row.status}`,
+    })),
+    tasks: taskRows.map((t) => ({
+      id: t.id,
+      title: t.title,
+      subtitle: `Task · due ${t.deadline}`,
+    })),
+    consultations: consultRows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      subtitle: `Consultation · ${row.status}`,
+    })),
     clients: userRows.map((r) => ({ id: r.user.id, title: r.user.displayName, subtitle: r.role })),
   });
 });

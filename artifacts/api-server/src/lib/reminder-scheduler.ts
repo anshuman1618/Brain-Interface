@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { eq, and, ne, sql } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { db, tasksTable, consultationsTable, notificationsTable } from "@workspace/db";
 import { logger } from "./logger";
 
@@ -23,7 +23,9 @@ export function startReminderScheduler(): void {
 }
 
 async function alreadyNotified(userId: string, message: string): Promise<boolean> {
-  const rows = await db.select().from(notificationsTable)
+  const rows = await db
+    .select()
+    .from(notificationsTable)
     .where(and(eq(notificationsTable.userId, userId), eq(notificationsTable.message, message)))
     .limit(1);
   return rows.length > 0;
@@ -54,12 +56,18 @@ async function emitReminders(): Promise<void> {
         message,
         link: "/tasks",
       });
-      logger.info({ taskId: task.id, window: w.label }, "EMAIL STUB: deadline reminder would be emailed to assignee");
+      logger.info(
+        { taskId: task.id, window: w.label },
+        "EMAIL STUB: deadline reminder would be emailed to assignee",
+      );
     }
   }
 
   // Upcoming consultations
-  const consults = await db.select().from(consultationsTable).where(eq(consultationsTable.status, "scheduled"));
+  const consults = await db
+    .select()
+    .from(consultationsTable)
+    .where(eq(consultationsTable.status, "scheduled"));
   for (const consult of consults) {
     if (!consult.scheduledAt) continue;
     const scheduled = new Date(consult.scheduledAt);
@@ -69,8 +77,13 @@ async function emitReminders(): Promise<void> {
     ];
     // Broadcast to all staff assignees — we store consultation reminders per-case; notify via a wildcard is not
     // supported, so consultations notify task assignees of the same case when present.
-    const relatedTasks = await db.select().from(tasksTable).where(eq(tasksTable.caseId, consult.caseId));
-    const recipients = Array.from(new Set(relatedTasks.map(t => t.assigneeId).filter((x): x is string => !!x)));
+    const relatedTasks = await db
+      .select()
+      .from(tasksTable)
+      .where(eq(tasksTable.caseId, consult.caseId));
+    const recipients = Array.from(
+      new Set(relatedTasks.map((t) => t.assigneeId).filter((x): x is string => !!x)),
+    );
     for (const recipient of recipients) {
       for (const w of windows) {
         if (!w.inWindow) continue;
@@ -82,7 +95,10 @@ async function emitReminders(): Promise<void> {
           message,
           link: "/consultations",
         });
-        logger.info({ consultId: consult.id, window: w.label }, "EMAIL STUB: consultation reminder would be emailed");
+        logger.info(
+          { consultId: consult.id, window: w.label },
+          "EMAIL STUB: consultation reminder would be emailed",
+        );
       }
     }
   }

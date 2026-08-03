@@ -1,18 +1,13 @@
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cn } from "@/lib/utils"
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
 const Skeleton = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
     return (
-      <div
-        ref={ref}
-        className={cn("animate-pulse bg-muted rounded-none", className)}
-        {...props}
-      />
-    )
-  }
-)
-Skeleton.displayName = "Skeleton"
+      <div ref={ref} className={cn("animate-pulse bg-muted rounded-none", className)} {...props} />
+    );
+  },
+);
+Skeleton.displayName = "Skeleton";
 
-export { Skeleton }
+export { Skeleton };

@@ -1,8 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { ClerkProvider, Show, AuthenticateWithRedirectCallback, useClerk, useAuth as useClerkAuth } from '@clerk/react';
-import { publishableKeyFromHost } from '@clerk/react/internal';
-import { shadcn } from '@clerk/themes';
-import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
+import { useEffect, useRef } from "react";
+import {
+  ClerkProvider,
+  Show,
+  AuthenticateWithRedirectCallback,
+  useClerk,
+  useAuth as useClerkAuth,
+} from "@clerk/react";
+import { publishableKeyFromHost } from "@clerk/react/internal";
+import { shadcn } from "@clerk/themes";
+import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,23 +24,18 @@ import "@/lib/api-config";
 
 const clerkPubKey = isPreviewMode
   ? ""
-  : publishableKeyFromHost(
-      window.location.hostname,
-      import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-    );
+  : publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath)
-    ? path.slice(basePath.length) || "/"
-    : path;
+  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || "/" : path;
 }
 
 // In preview mode there is intentionally no Clerk key — the app renders with a
 // mocked session instead of failing to boot.
 if (!clerkPubKey && !isPreviewMode) {
-  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
+  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env file");
 }
 
 const clerkAppearance = {
@@ -59,7 +60,8 @@ const clerkAppearance = {
   },
   elements: {
     rootBox: "w-full flex justify-center",
-    cardBox: "bg-[hsl(220_15%_95%)] border border-[hsl(220_15%_85%)] rounded-none w-[440px] max-w-full overflow-hidden shadow-none",
+    cardBox:
+      "bg-[hsl(220_15%_95%)] border border-[hsl(220_15%_85%)] rounded-none w-[440px] max-w-full overflow-hidden shadow-none",
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
     headerTitle: "text-foreground font-semibold font-mono tracking-tight",
@@ -75,8 +77,10 @@ const clerkAppearance = {
     logoBox: "h-12 w-auto object-contain",
     logoImage: "h-12 w-auto",
     socialButtonsBlockButton: "border border-input hover:bg-accent bg-background rounded-none",
-    formButtonPrimary: "bg-primary text-primary-foreground hover:bg-primary/90 rounded-none shadow-none",
-    formFieldInput: "border border-input bg-background rounded-none focus:ring-2 focus:ring-ring focus:border-transparent text-foreground",
+    formButtonPrimary:
+      "bg-primary text-primary-foreground hover:bg-primary/90 rounded-none shadow-none",
+    formFieldInput:
+      "border border-input bg-background rounded-none focus:ring-2 focus:ring-ring focus:border-transparent text-foreground",
     footerAction: "mt-6",
     dividerLine: "bg-border",
     alert: "bg-destructive/10 border border-destructive text-destructive",
@@ -149,8 +153,12 @@ function PreviewRoutes() {
       <Switch>
         <Route path="/portal" component={PortalSignInPage} />
         {/* Legacy entry points, same as the Clerk tree: one passwordless door. */}
-        <Route path="/sign-in/*?"><Redirect to="/portal" /></Route>
-        <Route path="/sign-up/*?"><Redirect to="/portal?new=1" /></Route>
+        <Route path="/sign-in/*?">
+          <Redirect to="/portal" />
+        </Route>
+        <Route path="/sign-up/*?">
+          <Redirect to="/portal?new=1" />
+        </Route>
         {/* "/:rest*" does not match the bare root in wouter, so it needs its
             own route — without it, "/" renders nothing at all. */}
         <Route path="/" component={LandingPage} />
@@ -163,13 +171,21 @@ function PreviewRoutes() {
     <Switch>
       {/* "/:rest*" does not match the bare root, so send it to the dashboard
           explicitly — otherwise entering the portal renders an empty page. */}
-      <Route path="/"><Redirect to="/dashboard" /></Route>
+      <Route path="/">
+        <Redirect to="/dashboard" />
+      </Route>
       {/* Already signed in — the sign-in screens are a no-op, so land in the
           portal rather than leaving the URL on a door that has been walked
           through. */}
-      <Route path="/portal"><Redirect to="/dashboard" /></Route>
-      <Route path="/sign-in/*?"><Redirect to="/dashboard" /></Route>
-      <Route path="/sign-up/*?"><Redirect to="/dashboard" /></Route>
+      <Route path="/portal">
+        <Redirect to="/dashboard" />
+      </Route>
+      <Route path="/sign-in/*?">
+        <Redirect to="/dashboard" />
+      </Route>
+      <Route path="/sign-up/*?">
+        <Redirect to="/dashboard" />
+      </Route>
       <Route path="/:rest*" component={DashboardLayout} />
     </Switch>
   );
@@ -221,8 +237,12 @@ function ClerkApp() {
                   />
                 </Route>
                 {/* Legacy entry points — both are the same passwordless door now. */}
-                <Route path="/sign-in/*?"><Redirect to="/portal" /></Route>
-                <Route path="/sign-up/*?"><Redirect to="/portal?new=1" /></Route>
+                <Route path="/sign-in/*?">
+                  <Redirect to="/portal" />
+                </Route>
+                <Route path="/sign-up/*?">
+                  <Redirect to="/portal?new=1" />
+                </Route>
                 <Route path="/:rest*" component={DashboardLayout} />
               </Switch>
               <Toaster />
@@ -237,9 +257,7 @@ function ClerkApp() {
 function App() {
   // One provider around both trees: the theme is a property of the browser, not
   // of whether Clerk happens to be configured.
-  return (
-    <ThemeProvider>{isPreviewMode ? <PreviewApp /> : <ClerkApp />}</ThemeProvider>
-  );
+  return <ThemeProvider>{isPreviewMode ? <PreviewApp /> : <ClerkApp />}</ThemeProvider>;
 }
 
 export default App;
