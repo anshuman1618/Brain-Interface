@@ -28,11 +28,11 @@ address, create your chamber, and invite your team.
 
 Under the hood:
 
-| Dependency | In preview |
-| --- | --- |
-| Clerk (auth) | Mocked — any address you type is treated as verified. The access-list check that follows is the real one |
-| Postgres | File-backed Postgres (PGlite) in `.preview-data`, empty on first boot. **Data persists across restarts** |
-| Speech-to-text | Mocked — stopping a recording produces a sample transcript |
+| Dependency     | In preview                                                                                               |
+| -------------- | -------------------------------------------------------------------------------------------------------- |
+| Clerk (auth)   | Mocked — any address you type is treated as verified. The access-list check that follows is the real one |
+| Postgres       | File-backed Postgres (PGlite) in `.preview-data`, empty on first boot. **Data persists across restarts** |
+| Speech-to-text | Mocked — stopping a recording produces a sample transcript                                               |
 
 Everything is real application code against a real Postgres dialect; only the
 external services are substituted.
@@ -80,15 +80,15 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the two supported hosting topologies
 
 ## Repository layout
 
-| Path | What it is |
-| --- | --- |
+| Path                        | What it is                                                          |
+| --------------------------- | ------------------------------------------------------------------- |
 | `artifacts/practice-portal` | Vite + React 19 SPA (Radix UI, Tailwind v4, wouter, TanStack Query) |
-| `artifacts/api-server` | Express 5 API; also serves the built SPA in single-origin mode |
-| `artifacts/mockup-sandbox` | Replit-only UI mockup sandbox, not part of the product |
-| `lib/db` | Drizzle ORM schema, connection, and the preview database |
-| `lib/api-spec` | OpenAPI spec — the source of truth for the API contract |
-| `lib/api-zod` | Zod validators generated from the spec |
-| `lib/api-client-react` | React Query hooks generated from the spec |
+| `artifacts/api-server`      | Express 5 API; also serves the built SPA in single-origin mode      |
+| `artifacts/mockup-sandbox`  | Replit-only UI mockup sandbox, not part of the product              |
+| `lib/db`                    | Drizzle ORM schema, connection, and the preview database            |
+| `lib/api-spec`              | OpenAPI spec — the source of truth for the API contract             |
+| `lib/api-zod`               | Zod validators generated from the spec                              |
+| `lib/api-client-react`      | React Query hooks generated from the spec                           |
 
 `lib/api-zod` and `lib/api-client-react` are **generated**. After changing
 `lib/api-spec/openapi.yaml`, regenerate rather than editing them by hand:
@@ -107,11 +107,11 @@ field, so they were removed rather than configured around.)
 
 The chamber portal (`/portal`) offers three ways in:
 
-| Provider | Clerk strategy | Notes |
-| --- | --- | --- |
-| Google | `oauth_google` | Built into Clerk. Enable under **SSO connections**. |
-| Zoho Mail | `oauth_custom_zoho` | **Not** a Clerk built-in — add a *custom OAuth connection* with the slug `zoho` (below). |
-| Email | one-time code | Clerk's `emailCode` strategy — send, then verify, in the app's own UI. |
+| Provider  | Clerk strategy      | Notes                                                                                    |
+| --------- | ------------------- | ---------------------------------------------------------------------------------------- |
+| Google    | `oauth_google`      | Built into Clerk. Enable under **SSO connections**.                                      |
+| Zoho Mail | `oauth_custom_zoho` | **Not** a Clerk built-in — add a _custom OAuth connection_ with the slug `zoho` (below). |
+| Email     | one-time code       | Clerk's `emailCode` strategy — send, then verify, in the app's own UI.                   |
 
 All three do the same job and nothing more: they establish a **verified email
 address**. Which chamber that address may enter, and as what, is decided
@@ -190,7 +190,7 @@ protected endpoint.
 - **Only verified addresses are matched.** An unverified Clerk email is stored as
   empty and matches nothing — otherwise anyone could claim a colleague's address
   and inherit their role.
-- **Revoking is not retroactive.** Removing an entry stops *future* sign-ins.
+- **Revoking is not retroactive.** Removing an entry stops _future_ sign-ins.
   Someone already admitted keeps their membership until it is revoked in Team
   Roles. The UI says so on both screens.
 
@@ -210,7 +210,7 @@ users ──< workspace_memberships >── workspaces
 **Nothing else grants access.** In particular:
 
 - **Sign-up grants nothing.** The pre-auth role picker is a preview and an
-  access-request *intent*. Clerk's `publicMetadata` is not consulted at all —
+  access-request _intent_. Clerk's `publicMetadata` is not consulted at all —
   it used to seed the role, which meant anything that could write metadata could
   hand itself `admin`. A new account whose address is on no access list is
   **refused**; one that has asked for access sits in **Pending Approval**. Both
@@ -218,7 +218,7 @@ users ──< workspace_memberships >── workspaces
 - **An admin decides the role, not the applicant.** Approval takes the role from
   the admin's decision body; `requested_role` is stored for their information and
   read by no authorization path. The grant selector defaults to Client.
-- **`admin` is not a global rank.** It means admin *of that workspace*. An admin
+- **`admin` is not a global rank.** It means admin _of that workspace_. An admin
   of one chamber gets `403`/`404` against another's data, members and requests.
 - **The client never computes permissions.** `GET /session` returns a
   server-resolved `capabilities` list; the UI renders from it and nothing else.
@@ -241,18 +241,18 @@ Every protected endpoint runs through `requireWorkspace` (see
    `lib/permissions.ts`.
 
 The signed token proves the switch was authorized; the database check is what
-makes a revocation or demotion take effect on the *next request* rather than at
+makes a revocation or demotion take effect on the _next request_ rather than at
 token expiry. Both run, every time.
 
 ### Capability matrix
 
-| Tier | Role | Reaches | Refused |
-| --- | --- | --- | --- |
-| Admin | `admin` | Everything in their workspace: KPI engine, billing, access control, team roles, **task assignment**, **calendar updates** | Any other workspace |
-| Senior Advocate | `senior_advocate` | Matters, drafting, consultation recorder, document requests, **task assignment**, **calendar updates** | KPI engine, billing, access control, team roles |
-| Junior Advocate | `junior_advocate` | Matters, drafting, consultations, document requests. Completes work | **Assigning work**, posting calendar updates, KPI, billing, access control |
-| Clerk / Intern | `clerk_intern` | Their calendar, and only matters they hold a task on | Assigning work, billing, unassigned matters |
-| Client | `client` | Their own matters (read-only), files shared with them, fulfilling document requests, leaving feedback | **The master calendar**, firm-internal documents, everything else |
+| Tier            | Role              | Reaches                                                                                                                   | Refused                                                                    |
+| --------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Admin           | `admin`           | Everything in their workspace: KPI engine, billing, access control, team roles, **task assignment**, **calendar updates** | Any other workspace                                                        |
+| Senior Advocate | `senior_advocate` | Matters, drafting, consultation recorder, document requests, **task assignment**, **calendar updates**                    | KPI engine, billing, access control, team roles                            |
+| Junior Advocate | `junior_advocate` | Matters, drafting, consultations, document requests. Completes work                                                       | **Assigning work**, posting calendar updates, KPI, billing, access control |
+| Clerk / Intern  | `clerk_intern`    | Their calendar, and only matters they hold a task on                                                                      | Assigning work, billing, unassigned matters                                |
+| Client          | `client`          | Their own matters (read-only), files shared with them, fulfilling document requests, leaving feedback                     | **The master calendar**, firm-internal documents, everything else          |
 
 **Only Admin and Senior Advocate direct work.** They alone hold `tasks.write`
 and `calendar.write` — assigning a task and posting a chamber-wide update are the
@@ -308,7 +308,7 @@ page, because every endpoint behind it re-checks independently.
   on-device. Stopping the recording generates the transcript **server-side**, so
   the client never invents an audio URL or transcript of its own.
 - **Document requests** — an advocate requests a document from a named client;
-  both ends of the request are recorded and displayed (who it is *from* and who
+  both ends of the request are recorded and displayed (who it is _from_ and who
   raised it, with their role), along with an optional due date. The client sees
   it in their portal and uploads against it.
 - **Task assignment** — Admin and both Advocate tiers can create a task on any
@@ -320,31 +320,54 @@ page, because every endpoint behind it re-checks independently.
 
 ## Commands
 
-| Command | Does |
-| --- | --- |
-| `pnpm run preview` | Build everything and serve the full app in preview mode on :5000 |
-| `pnpm run typecheck` | Typecheck every package |
-| `pnpm run build` | Typecheck, then build every package |
-| `pnpm --filter @workspace/api-server run dev` | Build and run the API |
-| `pnpm --filter @workspace/practice-portal run dev` | Vite dev server on :5173 |
-| `pnpm --filter @workspace/db run push` | Push schema changes (real database only) |
+| Command                                            | Does                                                             |
+| -------------------------------------------------- | ---------------------------------------------------------------- |
+| `pnpm run preview`                                 | Build everything and serve the full app in preview mode on :5000 |
+| `pnpm run typecheck`                               | Typecheck every package                                          |
+| `pnpm run build`                                   | Typecheck, then build every package                              |
+| `pnpm run lint`                                    | ESLint over the whole workspace                                  |
+| `pnpm run lint:fix`                                | ESLint with `--fix`                                              |
+| `pnpm run format`                                  | Rewrite every file with Prettier                                 |
+| `pnpm run format:check`                            | Fail if anything is unformatted (use in CI)                      |
+| `pnpm run check`                                   | `format:check` + `lint` + `typecheck` — the full gate            |
+| `pnpm --filter @workspace/api-server run dev`      | Build and run the API                                            |
+| `pnpm --filter @workspace/practice-portal run dev` | Vite dev server on :5173                                         |
+| `pnpm --filter @workspace/db run push`             | Push schema changes (real database only)                         |
+
+### Formatting and linting
+
+Prettier owns formatting; ESLint owns everything else (`eslint-config-prettier`
+switches off the stylistic rules so the two never disagree). The lint config is
+deliberately not type-aware — `pnpm run typecheck` already runs the compiler, so
+ESLint is here for what tsc cannot see: a mis-ordered hook, an unused binding, a
+stray `any`.
+
+Generated code is excluded from both. `lib/api-zod` and `lib/api-client-react`
+are written by orval, so reformatting them would be undone by the next codegen
+run.
+
+The repository-wide formatting sweep is listed in `.git-blame-ignore-revs`:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
 
 ## Environment variables
 
 See `.env.example`. In short:
 
-| Variable | Required | Notes |
-| --- | --- | --- |
-| `DATABASE_URL` | production | Absent outside production → in-memory preview database |
-| `CLERK_SECRET_KEY` | production | Absent outside production → auth is mocked |
-| `CLERK_PUBLISHABLE_KEY` | production | Server-side Clerk key |
-| `VITE_CLERK_PUBLISHABLE_KEY` | build time | Absent → frontend builds in preview mode |
-| `VITE_API_BASE_URL` | split hosting | Absolute API origin; unset means same-origin |
-| `CORS_ALLOWED_ORIGINS` | split hosting | Comma-separated; production sends no CORS headers without it |
-| `PORT` / `HOST` | no | Default `5000` / `0.0.0.0` |
-| `CLIENT_DIST_PATH` | no | Override where the API reads the built SPA from |
-| `PREVIEW_DATA_DIR` | no | Where the file-backed preview database lives. Default `.preview-data`; delete it to start over |
-| `WORKSPACE_TOKEN_SECRET` | recommended | Signs scoped workspace tokens. Unset → a random per-process secret, so tokens die on restart and clients re-switch (fine in dev, not across replicas) |
+| Variable                     | Required      | Notes                                                                                                                                                 |
+| ---------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`               | production    | Absent outside production → in-memory preview database                                                                                                |
+| `CLERK_SECRET_KEY`           | production    | Absent outside production → auth is mocked                                                                                                            |
+| `CLERK_PUBLISHABLE_KEY`      | production    | Server-side Clerk key                                                                                                                                 |
+| `VITE_CLERK_PUBLISHABLE_KEY` | build time    | Absent → frontend builds in preview mode                                                                                                              |
+| `VITE_API_BASE_URL`          | split hosting | Absolute API origin; unset means same-origin                                                                                                          |
+| `CORS_ALLOWED_ORIGINS`       | split hosting | Comma-separated; production sends no CORS headers without it                                                                                          |
+| `PORT` / `HOST`              | no            | Default `5000` / `0.0.0.0`                                                                                                                            |
+| `CLIENT_DIST_PATH`           | no            | Override where the API reads the built SPA from                                                                                                       |
+| `PREVIEW_DATA_DIR`           | no            | Where the file-backed preview database lives. Default `.preview-data`; delete it to start over                                                        |
+| `WORKSPACE_TOKEN_SECRET`     | recommended   | Signs scoped workspace tokens. Unset → a random per-process secret, so tokens die on restart and clients re-switch (fine in dev, not across replicas) |
 
 Google, Zoho and email sign-in are configured in the Clerk dashboard, not by
 environment variable — see [Sign-in providers](#sign-in-providers).
