@@ -23,8 +23,32 @@ import {
 } from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
+import { checkQuota, quotaMessage, usageFor } from "../lib/quota";
+import { screenForConflicts } from "../lib/conflicts";
+import { recordAudit } from "../lib/audit";
+import { CheckConflictsBody } from "@workspace/api-zod";
 
 const router: IRouter = Router();
+
+/**
+ * Screen a party before committing to a matter, so the advocate sees the
+ * conflict while they are still filling the form rather than on submit.
+ * The POST /cases check is the authoritative one; this is the courtesy.
+ */
+router.post(
+  "/cases/conflict-check",
+  requireWorkspace,
+  requireCapability("cases.write"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    const body = CheckConflictsBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "invalid_request" });
+      return;
+    }
+    res.json({ hits: await screenForConflicts(c.workspaceId, body.data.opposingParty) });
+  },
+);
 
 async function enrichCase(c: typeof casesTable.$inferSelect) {
   let clientName: string | null = null;
@@ -84,6 +108,51 @@ router.post(
       return;
     }
 
+    // The plan is a real limit, not a line on the pricing page.
+    const breach = await checkQuota(c.workspaceId, "matters");
+    if (breach) {
+      const usage = await usageFor(c.workspaceId);
+      res.status(402).json({
+        error: "plan_limit",
+        reason: "matters",
+        message: quotaMessage(breach, usage.plan),
+        usage,
+      });
+      return;
+    }
+
+    /**
+     * Conflict screening happens before the matter exists, not after.
+     *
+     * If the other side is already a client, or already appears on another
+     * matter, the request is refused with the specific hits. The advocate can
+     * re-submit with `conflictAcknowledged` and a note explaining their
+     * judgement — which is recorded, because the decision is theirs to make
+     * and the chamber's to be able to show later.
+     */
+    const opposing = parsed.data.opposingParty?.trim() ?? "";
+    let conflictHits: Awaited<ReturnType<typeof screenForConflicts>> = [];
+    if (opposing) {
+      conflictHits = await screenForConflicts(c.workspaceId, opposing);
+      if (conflictHits.length && !parsed.data.conflictAcknowledged) {
+        res.status(409).json({
+          error: "conflict_of_interest",
+          message: `${opposing} may already be connected to this chamber. Review before opening the matter.`,
+          hits: conflictHits,
+        });
+        return;
+      }
+      if (conflictHits.length && !parsed.data.conflictNote?.trim()) {
+        res.status(400).json({
+          error: "conflict_note_required",
+          message: "Record why this conflict does not apply before proceeding.",
+        });
+        return;
+      }
+    }
+
+    const acknowledged = conflictHits.length > 0;
+
     const [newCase] = await db
       .insert(casesTable)
       .values({
@@ -95,6 +164,9 @@ router.post(
         status: parsed.data.status ?? "open",
         clientId: parsed.data.clientId ?? null,
         filingRef: parsed.data.filingRef ?? null,
+        opposingParty: opposing || null,
+        conflictAcknowledgedBy: acknowledged ? c.user.clerkId : null,
+        conflictNote: acknowledged ? (parsed.data.conflictNote?.trim() ?? null) : null,
         priority: parsed.data.priority ?? "medium",
       })
       .returning();
@@ -105,6 +177,20 @@ router.post(
       `Case "${newCase.title}" created`,
       c.user.displayName,
     );
+    await recordAudit(req, c, {
+      action: "case.created",
+      entityType: "case",
+      entityId: newCase.id,
+      summary: `Opened "${newCase.title}"${opposing ? ` against ${opposing}` : ""}`,
+    });
+    if (acknowledged) {
+      await recordAudit(req, c, {
+        action: "case.conflict_acknowledged",
+        entityType: "case",
+        entityId: newCase.id,
+        summary: `Proceeded despite ${conflictHits.length} possible conflict(s) on "${newCase.title}": ${parsed.data.conflictNote?.trim()}`,
+      });
+    }
 
     res.status(201).json(CreateCaseResponse.parse(await enrichCase(newCase)));
   },

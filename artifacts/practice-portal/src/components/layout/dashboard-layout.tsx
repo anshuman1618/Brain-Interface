@@ -1,20 +1,31 @@
+import { lazy, Suspense } from "react";
 import { Link, Route, Switch, useLocation } from "wouter";
 import { useSession } from "@/lib/session";
 import { PreviewBar } from "@/components/preview-bar";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { RequireCapability } from "@/components/auth/route-guard";
 import DashboardPage from "@/pages/dashboard";
-import CasesPage from "@/pages/cases";
-import CaseDetailPage from "@/pages/case-detail";
-import TasksPage from "@/pages/tasks";
-import ConsultationsPage from "@/pages/consultations";
-import KpiPage from "@/pages/kpi";
-import InvitesPage from "@/pages/invites";
-import ClientPortalPage from "@/pages/client-portal";
-import CalendarPage from "@/pages/calendar";
-import DocumentsPage from "@/pages/documents";
-import FeedbackPage from "@/pages/feedback";
-import TeamPage from "@/pages/team";
+/**
+ * Everything except the dashboard is loaded on demand.
+ *
+ * The calendar alone pulls in react-big-calendar, react-dnd and moment; a
+ * client who only ever opens their own portal should not download any of it.
+ * Each of these becomes its own chunk, fetched the first time its route is
+ * visited and cached thereafter.
+ */
+const CasesPage = lazy(() => import("@/pages/cases"));
+const CaseDetailPage = lazy(() => import("@/pages/case-detail"));
+const TasksPage = lazy(() => import("@/pages/tasks"));
+const ConsultationsPage = lazy(() => import("@/pages/consultations"));
+const KpiPage = lazy(() => import("@/pages/kpi"));
+const InvitesPage = lazy(() => import("@/pages/invites"));
+const ClientPortalPage = lazy(() => import("@/pages/client-portal"));
+const CalendarPage = lazy(() => import("@/pages/calendar"));
+const DocumentsPage = lazy(() => import("@/pages/documents"));
+const FeedbackPage = lazy(() => import("@/pages/feedback"));
+const TeamPage = lazy(() => import("@/pages/team"));
+const ActivityPage = lazy(() => import("@/pages/activity"));
+const PrivacyPage = lazy(() => import("@/pages/privacy"));
 import PendingApprovalPage from "@/pages/pending-approval";
 import AccessDeniedPage from "@/pages/access-denied";
 import UnauthorizedPage from "@/pages/unauthorized";
@@ -35,6 +46,8 @@ import {
   FileText,
   Star,
   MoreVertical,
+  History,
+  ShieldOff,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -136,6 +149,9 @@ function DashboardLayoutContent() {
     { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: can("kpi.read") },
     { href: "/invites", label: "Access Control", icon: Users, show: can("access_control.manage") },
     { href: "/team", label: "Team Roles", icon: ShieldCheck, show: can("team.manage") },
+    { href: "/activity", label: "Activity", icon: History, show: can("audit.read") },
+    // Everyone gets their own data rights; admins additionally see the queue.
+    { href: "/privacy", label: "Your Data", icon: ShieldOff, show: true },
   ].filter((item) => item.show);
 
   const activeItem = navItems.find(
@@ -159,10 +175,10 @@ function DashboardLayoutContent() {
             signed-in identity must both stay reachable on a long page, which
             they would not be if the rail grew with the content and pushed the
             avatar below the fold. */}
-        <aside className="w-16 border-r border-border bg-sidebar shrink-0 flex flex-col items-center sticky top-0 h-screen z-20">
-          <div className="h-16 flex items-center justify-center border-b border-sidebar-border w-full">
+        <aside className="w-12 sm:w-16 border-r border-border bg-sidebar shrink-0 flex flex-col items-center sticky top-0 h-dvh z-20">
+          <div className="h-14 sm:h-16 flex items-center justify-center border-b border-sidebar-border w-full">
             <Link href="/dashboard" title="LEX Practice">
-              <div className="h-9 w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-xs">
+              <div className="h-8 w-8 sm:h-9 sm:w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-[10px] sm:text-xs">
                 LEX
               </div>
             </Link>
@@ -172,7 +188,7 @@ function DashboardLayoutContent() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="h-10 w-10 flex items-center justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground transition-colors"
+                  className="h-11 w-11 flex items-center justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground transition-colors"
                   aria-label="Open navigation menu"
                 >
                   <MoreVertical className="h-5 w-5" />
@@ -182,7 +198,8 @@ function DashboardLayoutContent() {
                 side="right"
                 align="start"
                 sideOffset={8}
-                className="w-60 rounded-none"
+                collisionPadding={8}
+                className="w-[min(15rem,calc(100vw-4.5rem))] rounded-none"
               >
                 <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                   Go to
@@ -194,7 +211,7 @@ function DashboardLayoutContent() {
                     <DropdownMenuItem key={item.href} asChild>
                       <Link
                         href={item.href}
-                        className={`flex items-center gap-3 cursor-pointer rounded-none ${
+                        className={`flex items-center gap-3 cursor-pointer rounded-none min-h-11 ${
                           isActive ? "bg-accent font-semibold text-accent-foreground" : ""
                         }`}
                       >
@@ -210,7 +227,7 @@ function DashboardLayoutContent() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onSelect={() => setPricingModalOpen(true)}
-                      className="flex items-center gap-3 cursor-pointer rounded-none"
+                      className="flex items-center gap-3 cursor-pointer rounded-none min-h-11"
                     >
                       <CreditCard className="h-4 w-4 shrink-0" />
                       Subscription
@@ -221,7 +238,7 @@ function DashboardLayoutContent() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() => signOut()}
-                  className="flex items-center gap-3 cursor-pointer rounded-none text-destructive focus:text-destructive"
+                  className="flex items-center gap-3 cursor-pointer rounded-none min-h-11 text-destructive focus:text-destructive"
                 >
                   <LogOut className="h-4 w-4 shrink-0" />
                   Sign out
@@ -244,11 +261,11 @@ function DashboardLayoutContent() {
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="h-16 border-b border-border bg-background flex items-center gap-4 px-6 z-10 sticky top-0 justify-between">
-            <div className="flex items-center gap-4 min-w-0">
+          <header className="min-h-14 sm:h-16 border-b border-border bg-background flex items-center gap-2 sm:gap-4 px-3 sm:px-6 z-10 sticky top-0 justify-between">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               {/* The switcher moves up here now that the sidebar is a rail. It
                   is a tenant boundary, not a nav item, so it stays in sight. */}
-              <div className="w-56 shrink-0 hidden sm:block">
+              <div className="w-40 lg:w-56 shrink-0 hidden xs:block">
                 <WorkspaceSwitcher />
               </div>
               <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground min-w-0">
@@ -257,14 +274,14 @@ function DashboardLayoutContent() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1 sm:gap-3 min-w-0 flex-1 justify-end">
               <GlobalSearch />
               <NotificationBell />
               <ThemeToggle />
             </div>
           </header>
 
-          <div className="flex-1 p-8 overflow-y-auto relative">
+          <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.2] pointer-events-none z-0" />
             <div className="relative z-10 max-w-6xl mx-auto animate-in fade-in duration-500">
               {/*
@@ -272,68 +289,88 @@ function DashboardLayoutContent() {
               Navigating straight to /kpi or /invites without the backend claim
               redirects to the 401 page instead of rendering the component.
             */}
-              <Switch>
-                <Route path="/dashboard" component={DashboardPage} />
-                <Route path="/unauthorized" component={UnauthorizedPage} />
-                <Route path="/calendar">
-                  <RequireCapability capability="calendar.read">
-                    <ErrorBoundary label="Master Calendar">
-                      <CalendarPage />
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center py-24">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                }
+              >
+                <Switch>
+                  <Route path="/dashboard" component={DashboardPage} />
+                  <Route path="/unauthorized" component={UnauthorizedPage} />
+                  <Route path="/calendar">
+                    <RequireCapability capability="calendar.read">
+                      <ErrorBoundary label="Master Calendar">
+                        <CalendarPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/documents">
+                    <RequireCapability capability="documents.read">
+                      <ErrorBoundary label="Documents">
+                        <DocumentsPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/feedback">
+                    <RequireCapability capability="feedback.read">
+                      <ErrorBoundary label="Client Feedback">
+                        <FeedbackPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/cases">
+                    <RequireCapability capability="cases.write">
+                      <CasesPage />
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/cases/:id">
+                    <RequireCapability capability="cases.read">
+                      <CaseDetailPage />
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/tasks">
+                    <RequireCapability capability="tasks.read">
+                      <TasksPage />
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/consultations">
+                    <RequireCapability capability="consultations.write">
+                      <ConsultationsPage />
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/kpi">
+                    <RequireCapability capability="kpi.read">
+                      <KpiPage />
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/invites">
+                    <RequireCapability capability="access_control.manage">
+                      <InvitesPage />
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/team">
+                    <RequireCapability capability="team.manage">
+                      <TeamPage />
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/activity">
+                    <RequireCapability capability="audit.read">
+                      <ErrorBoundary label="Activity">
+                        <ActivityPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/privacy">
+                    <ErrorBoundary label="Your data">
+                      <PrivacyPage />
                     </ErrorBoundary>
-                  </RequireCapability>
-                </Route>
-                <Route path="/documents">
-                  <RequireCapability capability="documents.read">
-                    <ErrorBoundary label="Documents">
-                      <DocumentsPage />
-                    </ErrorBoundary>
-                  </RequireCapability>
-                </Route>
-                <Route path="/feedback">
-                  <RequireCapability capability="feedback.read">
-                    <ErrorBoundary label="Client Feedback">
-                      <FeedbackPage />
-                    </ErrorBoundary>
-                  </RequireCapability>
-                </Route>
-                <Route path="/cases">
-                  <RequireCapability capability="cases.write">
-                    <CasesPage />
-                  </RequireCapability>
-                </Route>
-                <Route path="/cases/:id">
-                  <RequireCapability capability="cases.read">
-                    <CaseDetailPage />
-                  </RequireCapability>
-                </Route>
-                <Route path="/tasks">
-                  <RequireCapability capability="tasks.read">
-                    <TasksPage />
-                  </RequireCapability>
-                </Route>
-                <Route path="/consultations">
-                  <RequireCapability capability="consultations.write">
-                    <ConsultationsPage />
-                  </RequireCapability>
-                </Route>
-                <Route path="/kpi">
-                  <RequireCapability capability="kpi.read">
-                    <KpiPage />
-                  </RequireCapability>
-                </Route>
-                <Route path="/invites">
-                  <RequireCapability capability="access_control.manage">
-                    <InvitesPage />
-                  </RequireCapability>
-                </Route>
-                <Route path="/team">
-                  <RequireCapability capability="team.manage">
-                    <TeamPage />
-                  </RequireCapability>
-                </Route>
-                <Route path="/client-portal" component={ClientPortalPage} />
-                <Route component={NotFound} />
-              </Switch>
+                  </Route>
+                  <Route path="/client-portal" component={ClientPortalPage} />
+                  <Route component={NotFound} />
+                </Switch>
+              </Suspense>
             </div>
           </div>
         </main>

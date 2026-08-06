@@ -13,6 +13,7 @@ import searchRouter from "./search";
 import calendarRouter from "./calendar";
 import feedbackRouter from "./feedback";
 import subscriptionRouter from "./subscription";
+import governanceRouter from "./governance";
 
 const router: IRouter = Router();
 
@@ -33,5 +34,6 @@ router.use(searchRouter);
 router.use(calendarRouter);
 router.use(feedbackRouter);
 router.use(subscriptionRouter);
+router.use(governanceRouter);
 
 export default router;

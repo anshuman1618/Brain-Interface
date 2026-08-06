@@ -455,6 +455,12 @@ export interface Case {
   clientName?: string | null;
   /** @nullable */
   filingRef?: string | null;
+  /** @nullable */
+  opposingParty?: string | null;
+  /** @nullable */
+  conflictAcknowledgedBy?: string | null;
+  /** @nullable */
+  conflictNote?: string | null;
   priority?: CasePriority;
   createdAt: string;
   updatedAt: string;
@@ -483,6 +489,12 @@ export const CaseInputPriority = {
 export interface CaseInput {
   /** @minLength 1 */
   title: string;
+  /** Who the matter is against. Screened for conflicts before the matter opens. */
+  opposingParty?: string;
+  /** Set to proceed despite a reported conflict. Requires conflictNote. */
+  conflictAcknowledged?: boolean;
+  /** Why the advocate judged the conflict not to apply. Recorded in the audit log. */
+  conflictNote?: string;
   description?: string;
   status?: CaseInputStatus;
   clientId?: number;
@@ -528,6 +540,139 @@ export interface TimelineEvent {
   /** @nullable */
   actorName?: string | null;
   createdAt: string;
+}
+
+export interface AuditEvent {
+  id: number;
+  actorName?: string;
+  actorRole?: string;
+  action: string;
+  entityType?: string;
+  /** @nullable */
+  entityId?: string | null;
+  summary: string;
+  /** @nullable */
+  ip?: string | null;
+  at: string;
+}
+
+export interface UsageCounter {
+  used: number;
+  /**
+     * Null means unlimited on this plan.
+     * @nullable
+     */
+  limit?: number | null;
+}
+
+export type UsagePlan = typeof UsagePlan[keyof typeof UsagePlan];
+
+
+export const UsagePlan = {
+  starter: 'starter',
+  pro: 'pro',
+  firm: 'firm',
+} as const;
+
+export interface Usage {
+  plan: UsagePlan;
+  matters: UsageCounter;
+  seats: UsageCounter;
+}
+
+export interface ConflictCheckInput {
+  opposingParty: string;
+}
+
+export interface ErasureRequestInput {
+  reason?: string;
+}
+
+export type ErasureDecisionInputDecision = typeof ErasureDecisionInputDecision[keyof typeof ErasureDecisionInputDecision];
+
+
+export const ErasureDecisionInputDecision = {
+  complete: 'complete',
+  reject: 'reject',
+} as const;
+
+export interface ErasureDecisionInput {
+  decision: ErasureDecisionInputDecision;
+  note?: string;
+}
+
+export type ConflictHitKind = typeof ConflictHitKind[keyof typeof ConflictHitKind];
+
+
+export const ConflictHitKind = {
+  existing_client: 'existing_client',
+  opposing_party: 'opposing_party',
+  matter_title: 'matter_title',
+} as const;
+
+export interface ConflictHit {
+  kind: ConflictHitKind;
+  detail: string;
+  /** @nullable */
+  caseId?: number | null;
+}
+
+export type ErasureRequestStatus = typeof ErasureRequestStatus[keyof typeof ErasureRequestStatus];
+
+
+export const ErasureRequestStatus = {
+  pending: 'pending',
+  completed: 'completed',
+  rejected: 'rejected',
+} as const;
+
+export interface ErasureRequest {
+  id: number;
+  requestedName?: string;
+  requestedEmail?: string;
+  /** @nullable */
+  reason?: string | null;
+  status: ErasureRequestStatus;
+  /** @nullable */
+  decidedBy?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  /** @nullable */
+  decisionNote?: string | null;
+  createdAt: string;
+}
+
+export type DataExportSubject = {
+  name?: string;
+  email?: string;
+  role?: string;
+  /** @nullable */
+  joinedAt?: string | null;
+};
+
+export type DataExportWorkspace = {
+  name?: string;
+};
+
+export type DataExportCasesItem = { [key: string]: unknown };
+
+export type DataExportDocumentsItem = { [key: string]: unknown };
+
+export type DataExportDocumentRequestsItem = { [key: string]: unknown };
+
+export type DataExportFeedbackItem = { [key: string]: unknown };
+
+export type DataExportConsultationsItem = { [key: string]: unknown };
+
+export interface DataExport {
+  generatedAt: string;
+  subject: DataExportSubject;
+  workspace: DataExportWorkspace;
+  cases?: DataExportCasesItem[];
+  documents?: DataExportDocumentsItem[];
+  documentRequests?: DataExportDocumentRequestsItem[];
+  feedback?: DataExportFeedbackItem[];
+  consultations?: DataExportConsultationsItem[];
 }
 
 export type PlanQuotePlan = typeof PlanQuotePlan[keyof typeof PlanQuotePlan];
@@ -704,6 +849,11 @@ export interface Document {
   encrypted: boolean;
   /** @nullable */
   storagePath?: string | null;
+  /**
+     * SHA-256 of the stored bytes.
+     * @nullable
+     */
+  checksum?: string | null;
   /**
      * Where the file lives. Object storage in production.
      * @nullable
@@ -1176,6 +1326,18 @@ export interface SearchResults {
   consultations: SearchResultItem[];
   clients: SearchResultItem[];
 }
+
+export type ListAuditEventsParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+};
+
+export type CheckConflicts200 = {
+  hits: ConflictHit[];
+};
 
 export type ListUsersParams = {
 role?: ListUsersRole;

@@ -20,12 +20,21 @@ export const documentsTable = pgTable("documents", {
   id: serial("id").primaryKey(),
   caseId: integer("case_id").notNull(),
   name: text("name").notNull(),
-  /** Where the file actually lives. External object storage in production. */
+  /** Optional external link, for material that lives somewhere else entirely. */
   url: text("url"),
   fileType: text("file_type"),
   fileSize: integer("file_size"),
   encrypted: boolean("encrypted").notNull().default(true),
+  /**
+   * Opaque key into the blob store — NOT a path the client supplies or sees.
+   * It is generated server-side, so a crafted filename cannot escape the
+   * storage root, and the original name is kept separately in `name`.
+   * Null means the row is a stub with no bytes behind it.
+   */
   storagePath: text("storage_path"),
+  /** SHA-256 of the stored bytes. Detects silent corruption, and lets an
+   *  identical re-upload be recognised rather than duplicated blindly. */
+  checksum: text("checksum"),
   visibility: text("visibility").notNull().default("firm"),
   uploadedBy: text("uploaded_by").notNull().default(""),
   uploadedByClerkId: text("uploaded_by_clerk_id").notNull().default(""),

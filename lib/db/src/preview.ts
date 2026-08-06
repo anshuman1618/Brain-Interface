@@ -97,6 +97,51 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   CONSTRAINT subscriptions_workspace_key UNIQUE (workspace_id)
 );
 
+CREATE TABLE IF NOT EXISTS audit_events (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  actor_clerk_id TEXT NOT NULL DEFAULT '',
+  actor_name TEXT NOT NULL DEFAULT '',
+  actor_role TEXT NOT NULL DEFAULT '',
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL DEFAULT '',
+  entity_id TEXT,
+  summary TEXT NOT NULL DEFAULT '',
+  ip TEXT,
+  at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS audit_events_workspace_at_idx ON audit_events (workspace_id, at);
+
+CREATE TABLE IF NOT EXISTS deletion_requests (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  clerk_id TEXT NOT NULL,
+  requested_email TEXT NOT NULL DEFAULT '',
+  requested_name TEXT NOT NULL DEFAULT '',
+  reason TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  decided_by TEXT,
+  decided_at TIMESTAMPTZ,
+  decision_note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS mail_outbox (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER,
+  to_email TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'notice',
+  status TEXT NOT NULL DEFAULT 'queued',
+  transport TEXT NOT NULL DEFAULT '',
+  error TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sent_at TIMESTAMPTZ
+);
+
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   clerk_id TEXT NOT NULL UNIQUE,
@@ -272,6 +317,10 @@ const MIGRATIONS = `
 ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT NOT NULL DEFAULT '';
 ALTER TABLE workspace_memberships ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS url TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS checksum TEXT;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS opposing_party TEXT;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS conflict_acknowledged_by TEXT;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS conflict_note TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS visibility TEXT NOT NULL DEFAULT 'firm';
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_by TEXT NOT NULL DEFAULT '';
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS uploaded_by_clerk_id TEXT NOT NULL DEFAULT '';

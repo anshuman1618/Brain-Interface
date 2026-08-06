@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, raw, type IRouter } from "express";
 import { and, eq, inArray } from "drizzle-orm";
 import {
   db,
@@ -26,6 +26,8 @@ import {
 import { addTimelineEvent } from "../lib/timeline";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { displayRole } from "../lib/permissions";
+import { recordAudit } from "../lib/audit";
+import * as blobs from "../lib/blob-store";
 
 const router: IRouter = Router();
 
@@ -205,6 +207,202 @@ router.post(
     );
 
     res.status(201).json(UploadDocumentResponse.parse(doc));
+  },
+);
+
+/* ── Real bytes ───────────────────────────────────────────────────────────
+   Binary upload and download.
+
+   Deliberately raw-body rather than multipart: a single file per request needs
+   no multipart parser, and not adding one keeps a well-known class of parser
+   bug out of the dependency tree entirely. Metadata rides in headers.
+
+   The JSON POST above still exists for records that point at something else
+   (an external URL) or that are placeholders. This endpoint is the one that
+   puts a file in the vault. ───────────────────────────────────────────────── */
+
+router.post(
+  "/cases/:caseId/documents/content",
+  requireWorkspace,
+  requireCapability("documents.write"),
+  // Cap enforced by the body parser, so oversized uploads are refused before
+  // the bytes are ever buffered in full.
+  raw({ type: () => true, limit: blobs.maxUploadBytes() }),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    const caseId = Number(req.params["caseId"]);
+    if (!Number.isFinite(caseId) || !(await getVisibleCase(c, caseId))) {
+      res.status(404).json({ error: "Case not found" });
+      return;
+    }
+
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: "empty_upload", message: "No file content was received." });
+      return;
+    }
+
+    const mime = (req.headers["content-type"] ?? "").split(";")[0]!.trim().toLowerCase();
+    if (!blobs.isAllowedMime(mime)) {
+      res.status(415).json({
+        error: "unsupported_type",
+        message: `${mime || "That file type"} is not accepted. Allowed: PDF, images, plain text, CSV and Office documents.`,
+      });
+      return;
+    }
+
+    const rawName = req.headers["x-document-name"];
+    const name = blobs.sanitiseFileName(
+      decodeURIComponent(Array.isArray(rawName) ? rawName[0]! : (rawName ?? "file")),
+    );
+
+    const fromClient = clientSideOnly(c);
+    const wantShared = String(req.headers["x-document-visibility"] ?? "") === "shared";
+    const visibility = fromClient ? "shared" : wantShared ? "shared" : "firm";
+
+    // Same request-ownership rule as the JSON path: you can only close a
+    // request that is in this workspace and, for a client, addressed to you.
+    let request: typeof documentRequestsTable.$inferSelect | undefined;
+    const reqIdRaw = req.headers["x-document-request-id"];
+    const reqId = Number(Array.isArray(reqIdRaw) ? reqIdRaw[0] : reqIdRaw);
+    if (Number.isFinite(reqId) && reqId > 0) {
+      [request] = await db
+        .select()
+        .from(documentRequestsTable)
+        .where(
+          and(
+            eq(documentRequestsTable.id, reqId),
+            eq(documentRequestsTable.workspaceId, c.workspaceId),
+          ),
+        );
+      if (!request) {
+        res.status(404).json({ error: "Document request not found" });
+        return;
+      }
+      if (fromClient && request.clientClerkId !== c.user.clerkId) {
+        res.status(403).json({ error: "That request is not addressed to you." });
+        return;
+      }
+    }
+
+    let stored: blobs.StoredBlob;
+    try {
+      stored = await blobs.put(buf);
+    } catch {
+      res.status(413).json({ error: "too_large", message: "That file is too large." });
+      return;
+    }
+
+    const [doc] = await db
+      .insert(documentsTable)
+      .values({
+        caseId,
+        name,
+        fileType: mime,
+        fileSize: stored.bytes,
+        storagePath: stored.key,
+        checksum: stored.checksum,
+        visibility,
+        uploadedBy: c.user.displayName,
+        uploadedByClerkId: c.user.clerkId,
+        uploadedByRole: c.role,
+        documentRequestId: request?.id ?? null,
+        encrypted: true,
+      })
+      .returning();
+
+    if (request && request.status === "pending") {
+      await db
+        .update(documentRequestsTable)
+        .set({ status: "fulfilled", fulfilledDocumentId: doc!.id, fulfilledAt: new Date() })
+        .where(eq(documentRequestsTable.id, request.id));
+      if (request.requestedByClerkId) {
+        await db.insert(notificationsTable).values({
+          userId: request.requestedByClerkId,
+          type: "document_request",
+          message: `${c.user.displayName} uploaded "${doc!.name}" for "${request.documentName}".`,
+          link: "/documents",
+        });
+      }
+    }
+
+    await addTimelineEvent(
+      caseId,
+      "document_added",
+      `Document "${doc!.name}" uploaded by ${c.user.displayName} (${displayRole(c.role)})`,
+      c.user.displayName,
+    );
+    await recordAudit(req, c, {
+      action: "document.uploaded",
+      entityType: "document",
+      entityId: doc!.id,
+      summary: `Uploaded "${doc!.name}" (${Math.ceil(stored.bytes / 1024)} KB, ${visibility})`,
+    });
+
+    res.status(201).json(UploadDocumentResponse.parse(doc));
+  },
+);
+
+/**
+ * Download.
+ *
+ * Every boundary the list endpoint applies is re-applied here — matter scope
+ * and visibility — because a direct link to /documents/42/content must not be
+ * a way around a filter that only ran on the list.
+ */
+router.get(
+  "/documents/:id/content",
+  requireWorkspace,
+  requireCapability("documents.read"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    const id = Number(req.params["id"]);
+    if (!Number.isFinite(id)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const [doc] = await db.select().from(documentsTable).where(eq(documentsTable.id, id));
+    if (!doc) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const allowedCases = await visibleCaseIds(c);
+    if (!allowedCases.includes(doc.caseId)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    if (clientSideOnly(c) && doc.visibility !== "shared") {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    if (!doc.storagePath || !(await blobs.exists(doc.storagePath))) {
+      res.status(404).json({
+        error: "no_content",
+        message: "This record has no file attached.",
+      });
+      return;
+    }
+
+    await recordAudit(req, c, {
+      action: "document.downloaded",
+      entityType: "document",
+      entityId: doc.id,
+      summary: `Downloaded "${doc.name}"`,
+    });
+
+    // Always an attachment, never inline: nothing a user uploaded should be
+    // rendered by the browser in this origin.
+    res.setHeader("Content-Type", blobs.safeContentType(doc.fileType));
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${blobs.sanitiseFileName(doc.name)}"`,
+    );
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    if (doc.fileSize) res.setHeader("Content-Length", String(doc.fileSize));
+
+    blobs.openRead(doc.storagePath).pipe(res);
   },
 );
 

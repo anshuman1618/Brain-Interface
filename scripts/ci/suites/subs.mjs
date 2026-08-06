@@ -1,0 +1,216 @@
+// Subscription: who may change the plan, and can a client name its own price?
+const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
+let pass = 0,
+  fail = 0;
+const check = (n, ok, d = "") => {
+  if (ok) {
+    pass++;
+    console.log(`  PASS  ${n}`);
+  } else {
+    fail++;
+    console.log(`  FAIL  ${n} ${d}`);
+  }
+};
+const section = (t) => console.log(`\n== ${t}`);
+const as = (email, name = "", provider = "google") =>
+  `preview:email:${provider}:${encodeURIComponent(email)}:${encodeURIComponent(name)}`;
+
+async function call(path, { token, wsToken, method = "GET", body } = {}) {
+  const headers = {};
+  if (token) headers.authorization = `Bearer ${token}`;
+  if (wsToken) headers["x-workspace-token"] = wsToken;
+  if (body) headers["content-type"] = "application/json";
+  const res = await fetch(BASE + path, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = null;
+  try {
+    data = await res.json();
+  } catch {}
+  return { status: res.status, data };
+}
+
+const stamp = Date.now();
+const owner = `sub.owner${stamp}@chambers.test`;
+const senior = `sub.senior${stamp}@chambers.test`;
+const client = `sub.client${stamp}@x.test`;
+
+section("Setup");
+const created = await call("/workspaces", {
+  token: as(owner, "S Owner"),
+  method: "POST",
+  body: { name: `Sub Chambers ${stamp}`, role: "admin" },
+});
+check("chamber created", created.status === 201, `got ${created.status}`);
+const ws = created.data.workspaceToken;
+
+for (const [email, role] of [
+  [senior, "senior_advocate"],
+  [client, "client"],
+]) {
+  await call("/invites", { token: as(owner), wsToken: ws, method: "POST", body: { email, role } });
+}
+const seniorS = (await call("/session", { token: as(senior, "S Senior") })).data;
+const clientS = (await call("/session", { token: as(client, "S Client") })).data;
+
+section("A new chamber is on trial, not on a paid plan");
+const initial = await call("/workspace/subscription", { token: as(owner), wsToken: ws });
+check("readable", initial.status === 200, `got ${initial.status}`);
+check(
+  "starts trialing",
+  initial.data.subscription.status === "trialing",
+  initial.data.subscription?.status,
+);
+check("nothing charged yet", initial.data.subscription.amountMinor === 0);
+check("owner may manage", initial.data.canManage === true);
+
+section("The catalogue is served by the server, not assumed by the client");
+const cat = initial.data.catalogue;
+check("3 plans x 3 periods", cat.length === 9, `${cat.length} entries`);
+const yearlyPro = cat.find((q) => q.plan === "pro" && q.billingPeriod === "yearly");
+const monthlyPro = cat.find((q) => q.plan === "pro" && q.billingPeriod === "monthly");
+const halfPro = cat.find((q) => q.plan === "pro" && q.billingPeriod === "half_yearly");
+
+check(
+  "yearly gives exactly TWO months free",
+  yearlyPro.freeMonths === 2,
+  String(yearlyPro.freeMonths),
+);
+check("...i.e. 12 months charged as 10", yearlyPro.months === 12 && yearlyPro.paidMonths === 10);
+check(
+  "...priced at 10x the monthly rate",
+  yearlyPro.amountMinor === monthlyPro.amountMinor * 10,
+  `${yearlyPro.amountMinor} vs ${monthlyPro.amountMinor * 10}`,
+);
+check(
+  "...and the saving is the 2 free months",
+  yearlyPro.savingsMinor === monthlyPro.amountMinor * 2,
+);
+check("half-yearly gives one month free", halfPro.freeMonths === 1 && halfPro.paidMonths === 5);
+check("monthly has no discount", monthlyPro.freeMonths === 0 && monthlyPro.savingsMinor === 0);
+check(
+  "effective monthly beats list on yearly",
+  yearlyPro.effectiveMonthlyMinor < monthlyPro.amountMinor,
+  `${yearlyPro.effectiveMonthlyMinor} vs ${monthlyPro.amountMinor}`,
+);
+
+section("Only billing.manage may change the plan");
+const seniorSet = await call("/workspace/subscription", {
+  token: as(senior),
+  wsToken: seniorS.workspaceToken,
+  method: "PUT",
+  body: { plan: "firm", billingPeriod: "yearly" },
+});
+check("a plain Senior Advocate cannot (403)", seniorSet.status === 403, `got ${seniorSet.status}`);
+check("...and holds no billing.manage", !seniorS.capabilities.includes("billing.manage"));
+
+const clientSet = await call("/workspace/subscription", {
+  token: as(client),
+  wsToken: clientS.workspaceToken,
+  method: "PUT",
+  body: { plan: "firm", billingPeriod: "yearly" },
+});
+check("a client cannot (403)", clientSet.status === 403, `got ${clientSet.status}`);
+
+const clientRead = await call("/workspace/subscription", {
+  token: as(client),
+  wsToken: clientS.workspaceToken,
+});
+check("but everyone may READ the plan", clientRead.status === 200, `got ${clientRead.status}`);
+check("...and is told they cannot manage it", clientRead.data.canManage === false);
+
+section("The owner selects a yearly plan");
+const chosen = await call("/workspace/subscription", {
+  token: as(owner),
+  wsToken: ws,
+  method: "PUT",
+  body: { plan: "pro", billingPeriod: "yearly" },
+});
+check("accepted", chosen.status === 200, `got ${chosen.status}`);
+const sub = chosen.data.subscription;
+check("now active", sub.status === "active");
+check("plan recorded", sub.plan === "pro" && sub.billingPeriod === "yearly");
+check("two free months recorded", sub.freeMonths === 2 && sub.paidMonths === 10);
+check("amount matches the catalogue", sub.amountMinor === yearlyPro.amountMinor);
+check(
+  "period runs 12 months out",
+  (() => {
+    const end = new Date(sub.currentPeriodEnd),
+      start = new Date(sub.startedAt);
+    const months =
+      (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    return months === 12;
+  })(),
+  sub.currentPeriodEnd,
+);
+
+section("A client cannot name its own price");
+const cheeky = await call("/workspace/subscription", {
+  token: as(owner),
+  wsToken: ws,
+  method: "PUT",
+  body: { plan: "firm", billingPeriod: "yearly", amountMinor: 1, freeMonths: 999, paidMonths: 0 },
+});
+check("extra fields are ignored, not honoured", cheeky.status === 200, `got ${cheeky.status}`);
+const firmYearly = cat.find((q) => q.plan === "firm" && q.billingPeriod === "yearly");
+check(
+  "price came from the server catalogue",
+  cheeky.data.subscription.amountMinor === firmYearly.amountMinor,
+  `${cheeky.data.subscription.amountMinor} vs ${firmYearly.amountMinor}`,
+);
+check(
+  "free months came from the server too",
+  cheeky.data.subscription.freeMonths === 2,
+  String(cheeky.data.subscription.freeMonths),
+);
+
+const bogus = await call("/workspace/subscription", {
+  token: as(owner),
+  wsToken: ws,
+  method: "PUT",
+  body: { plan: "enterprise_unlimited", billingPeriod: "yearly" },
+});
+check("an unknown plan is refused (400)", bogus.status === 400, `got ${bogus.status}`);
+const bogusPeriod = await call("/workspace/subscription", {
+  token: as(owner),
+  wsToken: ws,
+  method: "PUT",
+  body: { plan: "pro", billingPeriod: "decade" },
+});
+check(
+  "an unknown period is refused (400)",
+  bogusPeriod.status === 400,
+  `got ${bogusPeriod.status}`,
+);
+
+section("Tenant isolation still holds");
+const rival = await call("/workspaces", {
+  token: as(`rival${stamp}@other.test`, "R Rival"),
+  method: "POST",
+  body: { name: `Rival ${stamp}`, role: "admin" },
+});
+const rivalSub = await call("/workspace/subscription", {
+  token: as(`rival${stamp}@other.test`),
+  wsToken: rival.data.workspaceToken,
+});
+check("a second chamber has its own trial", rivalSub.data.subscription.status === "trialing");
+check("...unaffected by the first chamber's plan", rivalSub.data.subscription.amountMinor === 0);
+
+const noToken = await call("/workspace/subscription", {
+  token: as(owner),
+  wsToken: "forged.token.here",
+});
+check("a forged workspace token is refused (401)", noToken.status === 401, `got ${noToken.status}`);
+
+section("The selection survives a re-read");
+const reread = await call("/workspace/subscription", { token: as(owner), wsToken: ws });
+check(
+  "still on the Firm yearly plan",
+  reread.data.subscription.plan === "firm" && reread.data.subscription.billingPeriod === "yearly",
+);
+check("who changed it is recorded", Boolean(reread.data.subscription.updatedBy));
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail === 0 ? 0 : 1);

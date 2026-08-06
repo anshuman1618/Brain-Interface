@@ -55,6 +55,10 @@ export const CAPABILITIES = [
   "billing.manage",
   "access_control.manage",
   "team.manage",
+  /** Read the workspace's audit log. Management, not practice. */
+  "audit.read",
+  /** Decide erasure requests. Sits with access control, not billing. */
+  "privacy.manage",
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 

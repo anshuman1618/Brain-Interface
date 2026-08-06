@@ -4,7 +4,7 @@ import {
   useListWorkspaceDocuments,
   useListDocumentRequests,
   useListCases,
-  useUploadDocument,
+  customFetch,
   getListWorkspaceDocumentsQueryKey,
   getListDocumentRequestsQueryKey,
   getListCasesQueryKey,
@@ -44,6 +44,7 @@ import {
   Check,
   Clock,
   Plus,
+  Download,
 } from "lucide-react";
 
 function bytes(n: number | null | undefined): string {
@@ -86,7 +87,8 @@ export default function DocumentsPage() {
     query: { queryKey: getListCasesQueryKey() },
   });
 
-  const upload = useUploadDocument();
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const [requestOpen, setRequestOpen] = useState(false);
   const [uploadFor, setUploadFor] = useState<{
@@ -104,6 +106,7 @@ export default function DocumentsPage() {
 
   const openUpload = (opts: { requestId?: number; caseId?: number; label: string }) => {
     setUploadFor(opts);
+    setFile(null);
     setForm({
       name: "",
       caseId: opts.caseId ? String(opts.caseId) : cases[0] ? String(cases[0].id) : "",
@@ -112,42 +115,69 @@ export default function DocumentsPage() {
     });
   };
 
-  const submitUpload = (e: React.FormEvent) => {
+  /**
+   * Sends the file itself.
+   *
+   * The bytes go as a raw body with the metadata in headers — the API has no
+   * multipart parser by design. `customFetch` is used rather than a generated
+   * hook because the generated client speaks JSON; this is the one request in
+   * the app that is not JSON, and it still needs the same auth and workspace
+   * headers every other call carries.
+   */
+  const submitUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     const caseId = Number(form.caseId);
-    if (!form.name.trim() || !Number.isInteger(caseId)) return;
+    if (!file || !Number.isInteger(caseId)) return;
 
-    upload.mutate(
-      {
-        caseId,
-        data: {
-          name: form.name.trim(),
-          note: form.note.trim() || undefined,
-          // A client's upload is forced to 'shared' by the API regardless.
-          visibility: (isStaff ? form.visibility : "shared") as never,
-          documentRequestId: uploadFor?.requestId,
-          // Stand-in for object storage: production swaps this for a signed
-          // upload URL, and the record keeps the same shape.
-          url: `local://${encodeURIComponent(form.name.trim())}`,
+    setUploading(true);
+    try {
+      await customFetch(`/api/cases/${caseId}/documents/content`, {
+        method: "POST",
+        headers: {
+          "content-type": file.type || "application/octet-stream",
+          "x-document-name": encodeURIComponent(form.name.trim() || file.name),
+          "x-document-visibility": isStaff ? form.visibility : "shared",
+          ...(uploadFor?.requestId ? { "x-document-request-id": String(uploadFor.requestId) } : {}),
         },
-      },
-      {
-        onSuccess: () => {
-          refresh();
-          toast({
-            title: "Document added",
-            description: uploadFor?.requestId ? "The request is now marked fulfilled." : undefined,
-          });
-          setUploadFor(null);
-        },
-        onError: (err: unknown) =>
-          toast({
-            title: "Upload failed",
-            description: err instanceof Error ? err.message : undefined,
-            variant: "destructive",
-          }),
-      },
-    );
+        body: file,
+      });
+      refresh();
+      toast({
+        title: "Document uploaded",
+        description: uploadFor?.requestId ? "The request is now marked fulfilled." : undefined,
+      });
+      setUploadFor(null);
+      setFile(null);
+    } catch (err) {
+      toast({
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  /** Fetch the bytes, then hand the browser a blob to save. */
+  const download = async (id: number, name: string) => {
+    try {
+      const blob = await customFetch<Blob>(`/api/documents/${id}/content`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast({
+        title: "Could not download",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    }
   };
 
   if (docsLoading || reqLoading) return <DocumentsSkeleton />;
@@ -314,7 +344,7 @@ export default function DocumentsPage() {
         ) : (
           <div className="divide-y divide-border">
             {documents.map((d: CaseDocument) => (
-              <div key={d.id} className="p-5 flex items-center gap-4">
+              <div key={d.id} className="p-4 sm:p-5 flex items-center gap-3 sm:gap-4">
                 <div className="h-9 w-9 border border-border flex items-center justify-center shrink-0">
                   <FileText className="h-4 w-4 text-muted-foreground" />
                 </div>
@@ -356,6 +386,19 @@ export default function DocumentsPage() {
                     <p className="text-sm text-muted-foreground italic mt-1">"{d.note}"</p>
                   )}
                 </div>
+                {/* Only offered when there are bytes behind the record. */}
+                {d.storagePath && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-none shrink-0"
+                    onClick={() => download(d.id, d.name)}
+                    title={`Download ${d.name}`}
+                  >
+                    <Download className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Download</span>
+                  </Button>
+                )}
               </div>
             ))}
           </div>
@@ -384,10 +427,31 @@ export default function DocumentsPage() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 className="rounded-none font-mono text-sm bg-background"
-                placeholder="e.g. Notarised affidavit.pdf"
-                autoFocus
+                placeholder="Defaults to the file name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                File *
+              </label>
+              <Input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png,.tif,.tiff,.webp,.txt,.csv,.doc,.docx,.xls,.xlsx"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setFile(f);
+                  // Pre-fill the label from the file unless one was typed.
+                  if (f && !form.name.trim()) setForm((prev) => ({ ...prev, name: f.name }));
+                }}
+                className="rounded-none font-mono text-xs bg-background file:mr-3 file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-mono file:uppercase"
                 required
               />
+              {file && (
+                <p className="text-[11px] font-mono text-muted-foreground">
+                  {(file.size / 1024).toFixed(0)} KB · {file.type || "unknown type"}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -452,9 +516,9 @@ export default function DocumentsPage() {
               <Button
                 type="submit"
                 className="rounded-none font-mono uppercase tracking-wider"
-                disabled={upload.isPending || !form.name.trim() || !form.caseId}
+                disabled={uploading || !file || !form.caseId}
               >
-                {upload.isPending ? "Uploading..." : "Upload"}
+                {uploading ? "Uploading..." : "Upload"}
               </Button>
             </DialogFooter>
           </form>

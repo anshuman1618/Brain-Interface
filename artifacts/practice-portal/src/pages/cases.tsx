@@ -35,9 +35,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, FileText, ChevronRight } from "lucide-react";
+import { Search, Plus, FileText, ChevronRight, AlertTriangle, CreditCard } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { getListCasesQueryKey } from "@workspace/api-client-react";
+import {
+  getListCasesQueryKey,
+  useCheckConflicts,
+  type ConflictHit,
+} from "@workspace/api-client-react";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { usePricingModal } from "@/components/pricing-modal";
 
 export default function CasesPage() {
   const [search, setSearch] = useState("");
@@ -46,6 +53,20 @@ export default function CasesPage() {
 
   const { data: cases, isLoading } = useListCases();
   const createCaseMutation = useCreateCase();
+  const conflictCheck = useCheckConflicts();
+  const { toast } = useToast();
+  const { setOpen: setPricingOpen } = usePricingModal();
+
+  /**
+   * Conflict state for the create dialog.
+   *
+   * `hits` is what the screening found; `note` is the advocate's reason for
+   * proceeding anyway. Both are cleared whenever the dialog opens, so a note
+   * written for one party can never be silently reused for another.
+   */
+  const [hits, setHits] = useState<ConflictHit[]>([]);
+  const [conflictNote, setConflictNote] = useState("");
+  const [planBlock, setPlanBlock] = useState<string | null>(null);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newCase, setNewCase] = useState<CaseInput>({
@@ -65,13 +86,54 @@ export default function CasesPage() {
     return matchesSearch && matchesStatus;
   });
 
+  /** Screen as soon as the field loses focus, so the warning arrives early. */
+  const screen = () => {
+    const party = newCase.opposingParty?.trim();
+    if (!party) {
+      setHits([]);
+      return;
+    }
+    conflictCheck.mutate({ data: { opposingParty: party } }, { onSuccess: (r) => setHits(r.hits) });
+  };
+
   const handleCreate = () => {
+    setPlanBlock(null);
     createCaseMutation.mutate(
-      { data: newCase },
       {
+        data: {
+          ...newCase,
+          // Only sent when the advocate has actually been shown a conflict.
+          conflictAcknowledged: hits.length > 0 ? true : undefined,
+          conflictNote: hits.length > 0 ? conflictNote.trim() : undefined,
+        },
+      },
+      {
+        onError: (err: unknown) => {
+          const body = (err as { data?: Record<string, unknown> })?.data ?? {};
+          if (body["error"] === "conflict_of_interest") {
+            setHits((body["hits"] as ConflictHit[]) ?? []);
+            toast({
+              title: "Possible conflict of interest",
+              description: "Review the matches and record why the matter can proceed.",
+              variant: "destructive",
+            });
+            return;
+          }
+          if (body["error"] === "plan_limit") {
+            setPlanBlock(String(body["message"] ?? "Your plan is full."));
+            return;
+          }
+          toast({
+            title: "Could not open the matter",
+            description: err instanceof Error ? err.message : undefined,
+            variant: "destructive",
+          });
+        },
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getListCasesQueryKey() });
           setIsCreateOpen(false);
+          setHits([]);
+          setConflictNote("");
           setNewCase({
             title: "",
             description: "",
@@ -124,7 +186,17 @@ export default function CasesPage() {
           </p>
         </div>
 
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog
+          open={isCreateOpen}
+          onOpenChange={(o) => {
+            setIsCreateOpen(o);
+            if (o) {
+              setHits([]);
+              setConflictNote("");
+              setPlanBlock(null);
+            }
+          }}
+        >
           <DialogTrigger asChild>
             <Button className="rounded-none">
               <Plus className="mr-2 h-4 w-4" /> New Case File
@@ -144,6 +216,59 @@ export default function CasesPage() {
                   placeholder="e.g. Smith v. Megacorp"
                 />
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="opposing">Opposing party</Label>
+                <Input
+                  id="opposing"
+                  value={newCase.opposingParty ?? ""}
+                  onChange={(e) => setNewCase({ ...newCase, opposingParty: e.target.value })}
+                  onBlur={screen}
+                  placeholder="Who the matter is against"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Checked against your existing clients and matters before the file opens.
+                </p>
+              </div>
+
+              {/* A conflict is surfaced before the matter exists, and cannot be
+                  passed by clicking again — the API requires the reason too. */}
+              {hits.length > 0 && (
+                <div className="border border-destructive bg-destructive/10 p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-destructive font-semibold text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    Possible conflict of interest
+                  </div>
+                  <ul className="text-xs space-y-1 list-disc pl-5">
+                    {hits.map((h, i) => (
+                      <li key={i}>{h.detail}</li>
+                    ))}
+                  </ul>
+                  <Textarea
+                    value={conflictNote}
+                    onChange={(e) => setConflictNote(e.target.value)}
+                    rows={2}
+                    className="rounded-none"
+                    placeholder="Why can this matter proceed? (recorded in the audit log)"
+                  />
+                </div>
+              )}
+
+              {planBlock && (
+                <div className="border border-primary bg-primary/10 p-3 space-y-2">
+                  <p className="text-sm">{planBlock}</p>
+                  <Button
+                    size="sm"
+                    className="rounded-none"
+                    onClick={() => {
+                      setIsCreateOpen(false);
+                      setPricingOpen(true);
+                    }}
+                  >
+                    <CreditCard className="mr-2 h-4 w-4" /> View plans
+                  </Button>
+                </div>
+              )}
+
               <div className="grid gap-2">
                 <Label htmlFor="ref">Filing Reference (Optional)</Label>
                 <Input
@@ -194,7 +319,12 @@ export default function CasesPage() {
             </div>
             <DialogFooter>
               <Button
-                disabled={!newCase.title || createCaseMutation.isPending}
+                disabled={
+                  !newCase.title ||
+                  createCaseMutation.isPending ||
+                  // A reported conflict needs a reason before it can be passed.
+                  (hits.length > 0 && !conflictNote.trim())
+                }
                 onClick={handleCreate}
                 className="rounded-none"
               >

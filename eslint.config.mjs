@@ -30,6 +30,8 @@ export default tseslint.config(
       "lib/api-zod/src/generated/**",
       "lib/api-client-react/src/generated/**",
       "artifacts/mockup-sandbox/src/.generated/**",
+      // Standalone integration scripts, run by node against a live server.
+      "scripts/ci/**",
     ],
   },
 

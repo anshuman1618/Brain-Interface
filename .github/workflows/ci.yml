@@ -1,0 +1,98 @@
+name: CI
+
+# Runs on every push and pull request. The point is that nobody has to
+# remember to run `pnpm run check` — a change that breaks formatting, lint,
+# types, the build or the API contract fails here before it can be merged.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+# A new push supersedes the run in flight for the same ref; no value in
+# finishing a check against code that has already been replaced.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Format, lint, types, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # --frozen-lockfile fails if the lockfile and manifests disagree, which
+      # is what catches a dependency added without committing the lockfile.
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Format, lint and typecheck
+        run: pnpm run check
+
+      - name: Build
+        run: pnpm run build
+
+      # The zod validators and React hooks are generated from openapi.yaml.
+      # Regenerating and diffing catches a spec edit that was never codegen'd —
+      # otherwise the committed client silently drifts from the contract.
+      - name: Generated client is in step with the spec
+        run: |
+          pnpm --filter @workspace/api-spec run codegen
+          if ! git diff --quiet -- lib/api-zod lib/api-client-react; then
+            echo "::error::Generated API client is out of date. Run: pnpm --filter @workspace/api-spec run codegen"
+            git diff --stat -- lib/api-zod lib/api-client-react
+            exit 1
+          fi
+
+  api:
+    name: API suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the API
+        run: pnpm --filter @workspace/api-server run build
+
+      # Preview mode: a real Postgres (PGlite) in-process, so the suites run
+      # the same SQL as production without a database service to stand up.
+      - name: Start the API
+        run: |
+          PREVIEW_DATA_DIR=$RUNNER_TEMP/ci-db \
+          FILE_STORAGE_DIR=$RUNNER_TEMP/ci-files \
+          PORT=5000 node artifacts/api-server/dist/index.mjs &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5000/api/healthz >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "::error::API did not become healthy"
+          exit 1
+
+      - name: Zero-trust, chamber, subscription and governance suites
+        run: node scripts/ci/run-suites.mjs

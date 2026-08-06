@@ -23,8 +23,8 @@ export function PreviewBar() {
       </span>
 
       {email && (
-        <div className="flex items-center gap-3 ml-auto">
-          <span className="text-xs font-mono text-muted-foreground truncate max-w-[280px]">
+        <div className="flex items-center gap-2 sm:gap-3 sm:ml-auto min-w-0 max-w-full">
+          <span className="text-xs font-mono text-muted-foreground truncate min-w-0 max-w-[160px] sm:max-w-[280px]">
             {email}
             {authProvider ? ` · ${providerLabel(authProvider)}` : ""}
           </span>

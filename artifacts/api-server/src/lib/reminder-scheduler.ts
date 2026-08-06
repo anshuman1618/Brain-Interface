@@ -1,10 +1,34 @@
 import cron from "node-cron";
 import { eq, and, ne } from "drizzle-orm";
-import { db, tasksTable, consultationsTable, notificationsTable } from "@workspace/db";
+import {
+  db,
+  tasksTable,
+  consultationsTable,
+  notificationsTable,
+  usersTable,
+  casesTable,
+} from "@workspace/db";
 import { logger } from "./logger";
+import { sendMail } from "./mailer";
 
-// Runs every 30 minutes; inserts T-24h and T-2h reminders for tasks and consultations.
-// Email trigger is stubbed — logged only (real SMTP integration is future work).
+/**
+ * Reminders reach people, not just the log.
+ *
+ * Each reminder writes an in-app notification AND emails the assignee. The
+ * in-app record is what deduplicates: if a notification with this exact text
+ * already exists for this person, neither is sent again, so a scheduler tick
+ * that overlaps a previous one cannot double-send.
+ */
+async function emailRecipient(clerkId: string, subject: string, body: string): Promise<void> {
+  const [u] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
+  // An empty email means the address was never verified, or was erased on
+  // request. Either way there is nowhere to send it.
+  if (!u?.email) return;
+  await sendMail({ to: u.email, subject, body, kind: "reminder" });
+}
+
+// Runs every 30 minutes; inserts T-24h and T-2h reminders for tasks and consultations,
+// and emails each recipient through the mailer (see lib/mailer.ts).
 let running = false;
 
 export function startReminderScheduler(): void {
@@ -56,9 +80,11 @@ async function emitReminders(): Promise<void> {
         message,
         link: "/tasks",
       });
-      logger.info(
-        { taskId: task.id, window: w.label },
-        "EMAIL STUB: deadline reminder would be emailed to assignee",
+      const [matter] = await db.select().from(casesTable).where(eq(casesTable.id, task.caseId));
+      await emailRecipient(
+        task.assigneeId,
+        `Deadline ${w.label === "T-2h" ? "in 2 hours" : "tomorrow"}: ${task.title}`,
+        `${message}\n\nMatter: ${matter?.title ?? "-"}\n\nOpen LEX Practice to complete or reschedule it.`,
       );
     }
   }
@@ -95,9 +121,10 @@ async function emitReminders(): Promise<void> {
           message,
           link: "/consultations",
         });
-        logger.info(
-          { consultId: consult.id, window: w.label },
-          "EMAIL STUB: consultation reminder would be emailed",
+        await emailRecipient(
+          recipient,
+          `Consultation ${w.label === "T-2h" ? "in 2 hours" : "tomorrow"}: ${consult.title}`,
+          message,
         );
       }
     }

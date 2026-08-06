@@ -122,9 +122,16 @@
   --chart-4: 220 10% 75%;
   --chart-5: 220 10% 85%;
 
-  --app-font-sans: "Plus Jakarta Sans", sans-serif;
-  --app-font-serif: Georgia, serif;
-  --app-font-mono: "Space Mono", monospace;
+  /* System stacks: nothing is fetched, so no visitor data leaves the browser
+     before sign-in and there is no render-blocking font request. The named
+     faces are used when a machine already has them. */
+  --app-font-sans:
+    "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --app-font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --app-font-mono:
+    "Space Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+    monospace;
   --radius: 0rem; /* brutalist/square look for precision tool */
 
   --shadow-2xs: 0px 2px 0px 0px rgba(0, 0, 0, 0.05);

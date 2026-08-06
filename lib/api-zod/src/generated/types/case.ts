@@ -22,6 +22,12 @@ export interface Case {
   clientName?: string | null;
   /** @nullable */
   filingRef?: string | null;
+  /** @nullable */
+  opposingParty?: string | null;
+  /** @nullable */
+  conflictAcknowledgedBy?: string | null;
+  /** @nullable */
+  conflictNote?: string | null;
   priority?: CasePriority;
   createdAt: Date;
   updatedAt: Date;

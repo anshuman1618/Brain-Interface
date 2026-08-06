@@ -118,17 +118,21 @@ pnpm --filter @workspace/api-server run start
 
 Environment:
 
-| Variable                 | Required             | Purpose                                                          |
-| ------------------------ | -------------------- | ---------------------------------------------------------------- |
-| `DATABASE_URL`           | yes                  | Postgres connection string, with `sslmode=require`               |
-| `CLERK_SECRET_KEY`       | yes                  | Clerk backend API key                                            |
-| `CLERK_PUBLISHABLE_KEY`  | yes                  | Clerk publishable key                                            |
-| `WORKSPACE_TOKEN_SECRET` | **yes in prod**      | HMAC key for scoped workspace tokens (section 2)                 |
-| `NODE_ENV`               | yes                  | `production` — also switches on HSTS and the strict CORS default |
-| `CORS_ALLOWED_ORIGINS`   | Topology B only      | Comma-separated frontend origins                                 |
-| `PORT` / `HOST`          | usually injected     | Default `5000` / `0.0.0.0`                                       |
-| `CLIENT_DIST_PATH`       | Topology A, if moved | Where the built SPA lives                                        |
-| `HSTS`                   | no                   | `off` only if TLS terminates at a proxy that already sends HSTS  |
+| Variable                                                | Required             | Purpose                                                                               |
+| ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                          | yes                  | Postgres connection string, with `sslmode=require`                                    |
+| `CLERK_SECRET_KEY`                                      | yes                  | Clerk backend API key                                                                 |
+| `CLERK_PUBLISHABLE_KEY`                                 | yes                  | Clerk publishable key                                                                 |
+| `WORKSPACE_TOKEN_SECRET`                                | **yes in prod**      | HMAC key for scoped workspace tokens (section 2)                                      |
+| `NODE_ENV`                                              | yes                  | `production` — also switches on HSTS and the strict CORS default                      |
+| `CORS_ALLOWED_ORIGINS`                                  | Topology B only      | Comma-separated frontend origins                                                      |
+| `PORT` / `HOST`                                         | usually injected     | Default `5000` / `0.0.0.0`                                                            |
+| `CLIENT_DIST_PATH`                                      | Topology A, if moved | Where the built SPA lives                                                             |
+| `HSTS`                                                  | no                   | `off` only if TLS terminates at a proxy that already sends HSTS                       |
+| `TRUST_PROXY`                                           | no                   | `off` when NOT behind a proxy, so a forged `X-Forwarded-For` cannot dodge rate limits |
+| `FILE_STORAGE_DIR`                                      | **yes in prod**      | Where uploaded case files are written (section 4a)                                    |
+| `MAX_UPLOAD_BYTES`                                      | no                   | Per-file cap. Defaults to 25 MB                                                       |
+| `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `MAIL_FROM` | for email            | Unset, reminders are recorded but never delivered (section 4b)                        |
 
 Apply the schema once the database is reachable:
 
@@ -138,6 +142,54 @@ pnpm --filter @workspace/db run push
 
 Run this on every deploy that changes `lib/db/src/schema/`. It is additive; it
 does not drop columns.
+
+### 4a. Persistent storage for case files
+
+Uploaded documents are written to `FILE_STORAGE_DIR`, not to the database.
+
+- **It must survive a restart.** On Render, Railway or Fly this means a mounted
+  volume — a container's own filesystem is discarded on every deploy, and with
+  it every file a chamber uploaded.
+- **It must be outside the web root.** Nothing should be able to request a file
+  by path; the only way in is `GET /api/documents/:id/content`, which re-checks
+  matter scope and visibility on every request.
+- **Back it up alongside the database.** The two are useless separately: rows
+  without bytes are broken links, bytes without rows are unidentifiable.
+- Only PDF, common image formats, plain text, CSV and Office documents are
+  accepted. Everything is served as an attachment with `nosniff`, so nothing a
+  user uploads is ever rendered by the browser in this origin.
+
+```bash
+FILE_STORAGE_DIR=/data/lex-files     # a mounted volume, not the container FS
+MAX_UPLOAD_BYTES=26214400            # 25 MB
+```
+
+> Storage keys are generated server-side. A file named `../../etc/passwd`
+> is kept as a display label only; it never touches the filesystem path.
+
+### 4b. Email
+
+Without `SMTP_HOST`, deadline reminders and erasure notices are still written
+to the `mail_outbox` table but marked **`suppressed`** and never delivered.
+That is deliberate — a suppressed message is visible and countable, where a
+silently dropped one is not.
+
+```bash
+SMTP_HOST=smtp.your-provider.com
+SMTP_PORT=587                        # 587 STARTTLS, or 465 implicit TLS
+SMTP_USER=...
+SMTP_PASS=...
+MAIL_FROM=no-reply@yourchamber.in
+```
+
+Check delivery after go-live:
+
+```sql
+SELECT status, count(*) FROM mail_outbox GROUP BY status;
+```
+
+Anything in `failed` carries the reason in `error`. Anything in `suppressed`
+means no transport was configured when it was queued.
 
 ### Terminate TLS
 
@@ -362,6 +414,11 @@ Everything here should be true before the first real client signs in.
 - [ ] CSP rolled out at the edge, report-only first
 - [ ] Fonts self-hosted, or the third-party transfer consciously accepted
 - [ ] `pnpm --filter @workspace/db run push` applied against production
+- [ ] `FILE_STORAGE_DIR` points at a mounted volume, is outside the web root,
+      and is included in backups
+- [ ] SMTP configured, and `mail_outbox` shows `sent` rather than `suppressed`
+- [ ] Plan limits are the ones you intend to sell — they are enforced, so a
+      chamber on Starter is genuinely stopped at 5 open matters and 2 seats
 - [ ] Browser walkthrough in section 7 completed, including the `/kpi` check
 - [ ] No `.env` file committed — `git log --all --full-history -- .env` is empty
 - [ ] The first chamber founded, and the founding address confirmed correct:

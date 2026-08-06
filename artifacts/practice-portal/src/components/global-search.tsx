@@ -60,7 +60,7 @@ export function GlobalSearch() {
       (data.clients && data.clients.length > 0));
 
   return (
-    <div ref={containerRef} className="relative w-64 md:w-80">
+    <div ref={containerRef} className="relative min-w-0 flex-1 sm:flex-none sm:w-56 md:w-80">
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input

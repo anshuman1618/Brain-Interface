@@ -11,6 +11,12 @@ import type { CaseInputStatus } from './caseInputStatus';
 export interface CaseInput {
   /** @minLength 1 */
   title: string;
+  /** Who the matter is against. Screened for conflicts before the matter opens. */
+  opposingParty?: string;
+  /** Set to proceed despite a reported conflict. Requires conflictNote. */
+  conflictAcknowledged?: boolean;
+  /** Why the advocate judged the conflict not to apply. Recorded in the audit log. */
+  conflictNote?: string;
   description?: string;
   status?: CaseInputStatus;
   clientId?: number;

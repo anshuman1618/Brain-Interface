@@ -38,6 +38,8 @@ tags:
     description: Master calendar updates
   - name: feedback
     description: Client feedback on matters
+  - name: privacy
+    description: Data export and erasure requests
 
 paths:
   /healthz:
@@ -430,6 +432,171 @@ paths:
                   $ref: "#/components/schemas/Document"
         "403":
           description: Forbidden
+
+  /workspace/audit:
+    get:
+      operationId: listAuditEvents
+      tags: [session]
+      summary: The workspace's audit log, newest first (audit.read only)
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditEvent"
+        "403":
+          description: Forbidden
+
+  /workspace/usage:
+    get:
+      operationId: getUsage
+      tags: [session]
+      summary: What the workspace is using against its plan allowance
+      responses:
+        "200":
+          description: Usage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usage"
+        "403":
+          description: Forbidden
+
+  /cases/conflict-check:
+    post:
+      operationId: checkConflicts
+      tags: [cases]
+      summary: Screen a proposed opposing party before opening a matter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConflictCheckInput"
+      responses:
+        "200":
+          description: Possible conflicts, empty when clear
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [hits]
+                properties:
+                  hits:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConflictHit"
+        "403":
+          description: Forbidden
+
+  /documents/{id}/content:
+    get:
+      operationId: downloadDocument
+      tags: [documents]
+      summary: Download the stored bytes of a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "403":
+          description: Forbidden
+        "404":
+          description: No such document, or no bytes stored
+
+  /privacy/export:
+    get:
+      operationId: exportMyData
+      tags: [privacy]
+      summary: Everything this workspace holds about the caller
+      responses:
+        "200":
+          description: Personal data export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataExport"
+        "403":
+          description: Forbidden
+
+  /privacy/erasure:
+    get:
+      operationId: listErasureRequests
+      tags: [privacy]
+      summary: Erasure requests - your own, or all of them with privacy.manage
+      responses:
+        "200":
+          description: Erasure requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ErasureRequest"
+        "403":
+          description: Forbidden
+    post:
+      operationId: requestErasure
+      tags: [privacy]
+      summary: Ask the chamber to erase your personal data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ErasureRequestInput"
+      responses:
+        "201":
+          description: Request recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErasureRequest"
+        "403":
+          description: Forbidden
+        "409":
+          description: A request is already pending
+
+  /privacy/erasure/{id}:
+    patch:
+      operationId: decideErasure
+      tags: [privacy]
+      summary: Complete or reject an erasure request (privacy.manage only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ErasureDecisionInput"
+      responses:
+        "200":
+          description: Decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErasureRequest"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such request
 
   /workspace/subscription:
     get:
@@ -1610,6 +1777,12 @@ components:
           type: ["string", "null"]
         filingRef:
           type: ["string", "null"]
+        opposingParty:
+          type: ["string", "null"]
+        conflictAcknowledgedBy:
+          type: ["string", "null"]
+        conflictNote:
+          type: ["string", "null"]
         priority:
           type: string
           enum: [low, medium, high, urgent]
@@ -1627,6 +1800,15 @@ components:
         title:
           type: string
           minLength: 1
+        opposingParty:
+          type: string
+          description: Who the matter is against. Screened for conflicts before the matter opens.
+        conflictAcknowledged:
+          type: boolean
+          description: Set to proceed despite a reported conflict. Requires conflictNote.
+        conflictNote:
+          type: string
+          description: Why the advocate judged the conflict not to apply. Recorded in the audit log.
         description:
           type: string
         status:
@@ -1678,6 +1860,100 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    # -- Audit, quota, privacy, conflicts -----------------------------------
+    AuditEvent:
+      type: object
+      required: [id, action, summary, at]
+      properties:
+        id: { type: integer }
+        actorName: { type: string }
+        actorRole: { type: string }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["string", "null"] }
+        summary: { type: string }
+        ip: { type: ["string", "null"] }
+        at: { type: string, format: date-time }
+
+    UsageCounter:
+      type: object
+      required: [used]
+      properties:
+        used: { type: integer }
+        limit:
+          type: ["integer", "null"]
+          description: Null means unlimited on this plan.
+
+    Usage:
+      type: object
+      required: [plan, matters, seats]
+      properties:
+        plan: { type: string, enum: [starter, pro, firm] }
+        matters: { $ref: "#/components/schemas/UsageCounter" }
+        seats: { $ref: "#/components/schemas/UsageCounter" }
+
+    ConflictCheckInput:
+      type: object
+      required: [opposingParty]
+      properties:
+        opposingParty: { type: string }
+
+    ErasureRequestInput:
+      type: object
+      properties:
+        reason: { type: string }
+
+    ErasureDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [complete, reject] }
+        note: { type: string }
+
+    ConflictHit:
+      type: object
+      required: [kind, detail]
+      properties:
+        kind: { type: string, enum: [existing_client, opposing_party, matter_title] }
+        detail: { type: string }
+        caseId: { type: ["integer", "null"] }
+
+    ErasureRequest:
+      type: object
+      required: [id, status, createdAt]
+      properties:
+        id: { type: integer }
+        requestedName: { type: string }
+        requestedEmail: { type: string }
+        reason: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, completed, rejected] }
+        decidedBy: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"], format: date-time }
+        decisionNote: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    DataExport:
+      type: object
+      required: [generatedAt, subject, workspace]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        subject:
+          type: object
+          properties:
+            name: { type: string }
+            email: { type: string }
+            role: { type: string }
+            joinedAt: { type: ["string", "null"], format: date-time }
+        workspace:
+          type: object
+          properties:
+            name: { type: string }
+        cases: { type: array, items: { type: object, additionalProperties: true } }
+        documents: { type: array, items: { type: object, additionalProperties: true } }
+        documentRequests: { type: array, items: { type: object, additionalProperties: true } }
+        feedback: { type: array, items: { type: object, additionalProperties: true } }
+        consultations: { type: array, items: { type: object, additionalProperties: true } }
 
     # ── Subscription ──────────────────────────────────────────────────────
     PlanQuote:
@@ -1855,6 +2131,9 @@ components:
           type: boolean
         storagePath:
           type: ["string", "null"]
+        checksum:
+          type: ["string", "null"]
+          description: SHA-256 of the stored bytes.
         url:
           type: ["string", "null"]
           description: Where the file lives. Object storage in production.

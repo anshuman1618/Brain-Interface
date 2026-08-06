@@ -25,16 +25,20 @@ import type {
   AccessListEntryInput,
   AccessRequest,
   AccessRequestInput,
+  AuditEvent,
   CalendarEntry,
   CalendarEntryInput,
   CalendarEntryUpdate,
   Case,
   CaseInput,
   CaseUpdate,
+  CheckConflicts200,
+  ConflictCheckInput,
   Consultation,
   ConsultationInput,
   ConsultationUpdate,
   DashboardSummary,
+  DataExport,
   DelayLog,
   DelayLogInput,
   Document,
@@ -42,6 +46,9 @@ import type {
   DocumentRequest,
   DocumentRequestInput,
   DocumentRequestUpdate,
+  ErasureDecisionInput,
+  ErasureRequest,
+  ErasureRequestInput,
   Feedback,
   FeedbackInput,
   FeedbackResponseInput,
@@ -51,6 +58,7 @@ import type {
   Invite,
   InviteInput,
   KpiDashboard,
+  ListAuditEventsParams,
   ListCasesParams,
   ListConsultationsParams,
   ListTasksParams,
@@ -68,6 +76,7 @@ import type {
   TaskInput,
   TaskUpdate,
   TimelineEvent,
+  Usage,
   UserProfile,
   UserProfileUpdate,
   WorkspaceCreateInput,
@@ -1439,6 +1448,612 @@ export function useListWorkspaceDocuments<TData = Awaited<ReturnType<typeof list
 
 
 
+
+export const getListAuditEventsUrl = (params?: ListAuditEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/workspace/audit?${stringifiedParams}` : `/api/workspace/audit`
+}
+
+/**
+ * @summary The workspace's audit log, newest first (audit.read only)
+ */
+export const listAuditEvents = async (params?: ListAuditEventsParams, options?: RequestInit): Promise<AuditEvent[]> => {
+
+  return customFetch<AuditEvent[]>(getListAuditEventsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAuditEventsQueryKey = (params?: ListAuditEventsParams,) => {
+    return [
+    `/api/workspace/audit`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAuditEventsQueryOptions = <TData = Awaited<ReturnType<typeof listAuditEvents>>, TError = ErrorType<void>>(params?: ListAuditEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAuditEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAuditEventsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAuditEvents>>> = ({ signal }) => listAuditEvents(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAuditEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAuditEventsQueryResult = NonNullable<Awaited<ReturnType<typeof listAuditEvents>>>
+export type ListAuditEventsQueryError = ErrorType<void>
+
+
+/**
+ * @summary The workspace's audit log, newest first (audit.read only)
+ */
+
+export function useListAuditEvents<TData = Awaited<ReturnType<typeof listAuditEvents>>, TError = ErrorType<void>>(
+ params?: ListAuditEventsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAuditEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAuditEventsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetUsageUrl = () => {
+
+
+
+
+  return `/api/workspace/usage`
+}
+
+/**
+ * @summary What the workspace is using against its plan allowance
+ */
+export const getUsage = async ( options?: RequestInit): Promise<Usage> => {
+
+  return customFetch<Usage>(getGetUsageUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUsageQueryKey = () => {
+    return [
+    `/api/workspace/usage`
+    ] as const;
+    }
+
+
+export const getGetUsageQueryOptions = <TData = Awaited<ReturnType<typeof getUsage>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUsage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUsageQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsage>>> = ({ signal }) => getUsage({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsage>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetUsageQueryResult = NonNullable<Awaited<ReturnType<typeof getUsage>>>
+export type GetUsageQueryError = ErrorType<void>
+
+
+/**
+ * @summary What the workspace is using against its plan allowance
+ */
+
+export function useGetUsage<TData = Awaited<ReturnType<typeof getUsage>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getUsage>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetUsageQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCheckConflictsUrl = () => {
+
+
+
+
+  return `/api/cases/conflict-check`
+}
+
+/**
+ * @summary Screen a proposed opposing party before opening a matter
+ */
+export const checkConflicts = async (conflictCheckInput: ConflictCheckInput, options?: RequestInit): Promise<CheckConflicts200> => {
+
+  return customFetch<CheckConflicts200>(getCheckConflictsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(conflictCheckInput)
+  }
+);}
+
+
+
+
+
+export const getCheckConflictsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkConflicts>>, TError,{data: BodyType<ConflictCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkConflicts>>, TError,{data: BodyType<ConflictCheckInput>}, TContext> => {
+
+const mutationKey = ['checkConflicts'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkConflicts>>, {data: BodyType<ConflictCheckInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  checkConflicts(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckConflictsMutationResult = NonNullable<Awaited<ReturnType<typeof checkConflicts>>>
+    export type CheckConflictsMutationBody = BodyType<ConflictCheckInput>
+    export type CheckConflictsMutationError = ErrorType<void>
+
+    /**
+ * @summary Screen a proposed opposing party before opening a matter
+ */
+export const useCheckConflicts = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkConflicts>>, TError,{data: BodyType<ConflictCheckInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof checkConflicts>>,
+        TError,
+        {data: BodyType<ConflictCheckInput>},
+        TContext
+      > => {
+      return useMutation(getCheckConflictsMutationOptions(options));
+    }
+
+export const getDownloadDocumentUrl = (id: number,) => {
+
+
+
+
+  return `/api/documents/${id}/content`
+}
+
+/**
+ * @summary Download the stored bytes of a document
+ */
+export const downloadDocument = async (id: number, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getDownloadDocumentUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getDownloadDocumentQueryKey = (id: number,) => {
+    return [
+    `/api/documents/${id}/content`
+    ] as const;
+    }
+
+
+export const getDownloadDocumentQueryOptions = <TData = Awaited<ReturnType<typeof downloadDocument>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadDocument>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getDownloadDocumentQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof downloadDocument>>> = ({ signal }) => downloadDocument(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof downloadDocument>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type DownloadDocumentQueryResult = NonNullable<Awaited<ReturnType<typeof downloadDocument>>>
+export type DownloadDocumentQueryError = ErrorType<void>
+
+
+/**
+ * @summary Download the stored bytes of a document
+ */
+
+export function useDownloadDocument<TData = Awaited<ReturnType<typeof downloadDocument>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof downloadDocument>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getDownloadDocumentQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getExportMyDataUrl = () => {
+
+
+
+
+  return `/api/privacy/export`
+}
+
+/**
+ * @summary Everything this workspace holds about the caller
+ */
+export const exportMyData = async ( options?: RequestInit): Promise<DataExport> => {
+
+  return customFetch<DataExport>(getExportMyDataUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getExportMyDataQueryKey = () => {
+    return [
+    `/api/privacy/export`
+    ] as const;
+    }
+
+
+export const getExportMyDataQueryOptions = <TData = Awaited<ReturnType<typeof exportMyData>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportMyData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getExportMyDataQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof exportMyData>>> = ({ signal }) => exportMyData({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof exportMyData>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ExportMyDataQueryResult = NonNullable<Awaited<ReturnType<typeof exportMyData>>>
+export type ExportMyDataQueryError = ErrorType<void>
+
+
+/**
+ * @summary Everything this workspace holds about the caller
+ */
+
+export function useExportMyData<TData = Awaited<ReturnType<typeof exportMyData>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof exportMyData>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getExportMyDataQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListErasureRequestsUrl = () => {
+
+
+
+
+  return `/api/privacy/erasure`
+}
+
+/**
+ * @summary Erasure requests - your own, or all of them with privacy.manage
+ */
+export const listErasureRequests = async ( options?: RequestInit): Promise<ErasureRequest[]> => {
+
+  return customFetch<ErasureRequest[]>(getListErasureRequestsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListErasureRequestsQueryKey = () => {
+    return [
+    `/api/privacy/erasure`
+    ] as const;
+    }
+
+
+export const getListErasureRequestsQueryOptions = <TData = Awaited<ReturnType<typeof listErasureRequests>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listErasureRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListErasureRequestsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listErasureRequests>>> = ({ signal }) => listErasureRequests({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listErasureRequests>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListErasureRequestsQueryResult = NonNullable<Awaited<ReturnType<typeof listErasureRequests>>>
+export type ListErasureRequestsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Erasure requests - your own, or all of them with privacy.manage
+ */
+
+export function useListErasureRequests<TData = Awaited<ReturnType<typeof listErasureRequests>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listErasureRequests>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListErasureRequestsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getRequestErasureUrl = () => {
+
+
+
+
+  return `/api/privacy/erasure`
+}
+
+/**
+ * @summary Ask the chamber to erase your personal data
+ */
+export const requestErasure = async (erasureRequestInput: ErasureRequestInput, options?: RequestInit): Promise<ErasureRequest> => {
+
+  return customFetch<ErasureRequest>(getRequestErasureUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(erasureRequestInput)
+  }
+);}
+
+
+
+
+
+export const getRequestErasureMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestErasure>>, TError,{data: BodyType<ErasureRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestErasure>>, TError,{data: BodyType<ErasureRequestInput>}, TContext> => {
+
+const mutationKey = ['requestErasure'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestErasure>>, {data: BodyType<ErasureRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestErasure(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestErasureMutationResult = NonNullable<Awaited<ReturnType<typeof requestErasure>>>
+    export type RequestErasureMutationBody = BodyType<ErasureRequestInput>
+    export type RequestErasureMutationError = ErrorType<void>
+
+    /**
+ * @summary Ask the chamber to erase your personal data
+ */
+export const useRequestErasure = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestErasure>>, TError,{data: BodyType<ErasureRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestErasure>>,
+        TError,
+        {data: BodyType<ErasureRequestInput>},
+        TContext
+      > => {
+      return useMutation(getRequestErasureMutationOptions(options));
+    }
+
+export const getDecideErasureUrl = (id: number,) => {
+
+
+
+
+  return `/api/privacy/erasure/${id}`
+}
+
+/**
+ * @summary Complete or reject an erasure request (privacy.manage only)
+ */
+export const decideErasure = async (id: number,
+    erasureDecisionInput: ErasureDecisionInput, options?: RequestInit): Promise<ErasureRequest> => {
+
+  return customFetch<ErasureRequest>(getDecideErasureUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(erasureDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getDecideErasureMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideErasure>>, TError,{id: number;data: BodyType<ErasureDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideErasure>>, TError,{id: number;data: BodyType<ErasureDecisionInput>}, TContext> => {
+
+const mutationKey = ['decideErasure'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideErasure>>, {id: number;data: BodyType<ErasureDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  decideErasure(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideErasureMutationResult = NonNullable<Awaited<ReturnType<typeof decideErasure>>>
+    export type DecideErasureMutationBody = BodyType<ErasureDecisionInput>
+    export type DecideErasureMutationError = ErrorType<void>
+
+    /**
+ * @summary Complete or reject an erasure request (privacy.manage only)
+ */
+export const useDecideErasure = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideErasure>>, TError,{id: number;data: BodyType<ErasureDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideErasure>>,
+        TError,
+        {id: number;data: BodyType<ErasureDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getDecideErasureMutationOptions(options));
+    }
 
 export const getGetSubscriptionUrl = () => {
 

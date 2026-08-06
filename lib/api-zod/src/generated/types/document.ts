@@ -19,6 +19,11 @@ export interface Document {
   /** @nullable */
   storagePath?: string | null;
   /**
+     * SHA-256 of the stored bytes.
+     * @nullable
+     */
+  checksum?: string | null;
+  /**
      * Where the file lives. Object storage in production.
      * @nullable
      */

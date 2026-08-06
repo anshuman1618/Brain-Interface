@@ -107,7 +107,13 @@ export type MembershipLookup = {
 export function capabilitiesFor(role: string, isOwner: boolean): Capability[] {
   const base = capabilitiesForRole(role);
   if (!isOwner) return base;
-  const owner: Capability[] = ["access_control.manage", "team.manage", "billing.manage"];
+  const owner: Capability[] = [
+    "access_control.manage",
+    "team.manage",
+    "billing.manage",
+    "audit.read",
+    "privacy.manage",
+  ];
   return [...new Set([...base, ...owner])];
 }
 

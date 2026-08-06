@@ -15,6 +15,7 @@ import { mountStaticClient } from "./middlewares/staticClient";
 import { isPreviewAuth } from "./lib/preview-mode";
 import { logger } from "./lib/logger";
 import { securityHeaders } from "./middlewares/securityHeaders";
+import { rateLimit } from "./middlewares/rateLimit";
 
 const app: Express = express();
 
@@ -98,6 +99,24 @@ if (isPreviewAuth()) {
     })),
   );
 }
+
+/**
+ * Rate limits, strictest first.
+ *
+ * /session is the sign-in path: it is what an attacker hits to enumerate
+ * addresses or spam one-time codes, so it gets the tightest budget. Writes get
+ * a moderate one keyed per user where we know who they are. Reads are left
+ * generous — a busy chamber refreshing a cause list is not an attack.
+ */
+app.use("/api/session", rateLimit({ name: "auth", max: 30, windowMs: 60_000 }));
+app.use("/api/workspaces", rateLimit({ name: "auth", max: 30, windowMs: 60_000 }));
+app.use("/api/access-requests", rateLimit({ name: "auth", max: 20, windowMs: 60_000 }));
+app.use("/api/privacy", rateLimit({ name: "privacy", max: 20, windowMs: 60_000, perUser: true }));
+app.use("/api", (req, res, next) =>
+  req.method === "GET" || req.method === "HEAD"
+    ? next()
+    : rateLimit({ name: "write", max: 120, windowMs: 60_000, perUser: true })(req, res, next),
+);
 
 app.use("/api", router);
 

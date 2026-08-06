@@ -484,6 +484,7 @@ export const ListWorkspaceDocumentsResponseItem = zod.object({
   "fileSize": zod.number().nullish(),
   "encrypted": zod.boolean(),
   "storagePath": zod.string().nullish(),
+  "checksum": zod.string().nullish().describe('SHA-256 of the stored bytes.'),
   "url": zod.string().nullish().describe('Where the file lives. Object storage in production.'),
   "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
   "uploadedBy": zod.string().nullish(),
@@ -494,6 +495,157 @@ export const ListWorkspaceDocumentsResponseItem = zod.object({
   "uploadedAt": zod.coerce.date()
 })
 export const ListWorkspaceDocumentsResponse = zod.array(ListWorkspaceDocumentsResponseItem)
+
+
+/**
+ * @summary The workspace's audit log, newest first (audit.read only)
+ */
+export const listAuditEventsQueryLimitMax = 200;
+
+
+
+export const ListAuditEventsQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listAuditEventsQueryLimitMax).optional()
+})
+
+export const ListAuditEventsResponseItem = zod.object({
+  "id": zod.number(),
+  "actorName": zod.string().optional(),
+  "actorRole": zod.string().optional(),
+  "action": zod.string(),
+  "entityType": zod.string().optional(),
+  "entityId": zod.string().nullish(),
+  "summary": zod.string(),
+  "ip": zod.string().nullish(),
+  "at": zod.coerce.date()
+})
+export const ListAuditEventsResponse = zod.array(ListAuditEventsResponseItem)
+
+
+/**
+ * @summary What the workspace is using against its plan allowance
+ */
+export const GetUsageResponse = zod.object({
+  "plan": zod.enum(['starter', 'pro', 'firm']),
+  "matters": zod.object({
+  "used": zod.number(),
+  "limit": zod.number().nullish().describe('Null means unlimited on this plan.')
+}),
+  "seats": zod.object({
+  "used": zod.number(),
+  "limit": zod.number().nullish().describe('Null means unlimited on this plan.')
+})
+})
+
+
+/**
+ * @summary Screen a proposed opposing party before opening a matter
+ */
+export const CheckConflictsBody = zod.object({
+  "opposingParty": zod.string()
+})
+
+export const CheckConflictsResponse = zod.object({
+  "hits": zod.array(zod.object({
+  "kind": zod.enum(['existing_client', 'opposing_party', 'matter_title']),
+  "detail": zod.string(),
+  "caseId": zod.number().nullish()
+}))
+})
+
+
+/**
+ * @summary Download the stored bytes of a document
+ */
+export const DownloadDocumentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DownloadDocumentResponse = zod.unknown()
+
+
+/**
+ * @summary Everything this workspace holds about the caller
+ */
+export const ExportMyDataResponse = zod.object({
+  "generatedAt": zod.coerce.date(),
+  "subject": zod.object({
+  "name": zod.string().optional(),
+  "email": zod.string().optional(),
+  "role": zod.string().optional(),
+  "joinedAt": zod.coerce.date().nullish()
+}),
+  "workspace": zod.object({
+  "name": zod.string().optional()
+}),
+  "cases": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "documents": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "documentRequests": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "feedback": zod.array(zod.record(zod.string(), zod.unknown())).optional(),
+  "consultations": zod.array(zod.record(zod.string(), zod.unknown())).optional()
+})
+
+
+/**
+ * @summary Erasure requests - your own, or all of them with privacy.manage
+ */
+export const ListErasureRequestsResponseItem = zod.object({
+  "id": zod.number(),
+  "requestedName": zod.string().optional(),
+  "requestedEmail": zod.string().optional(),
+  "reason": zod.string().nullish(),
+  "status": zod.enum(['pending', 'completed', 'rejected']),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListErasureRequestsResponse = zod.array(ListErasureRequestsResponseItem)
+
+
+/**
+ * @summary Ask the chamber to erase your personal data
+ */
+export const RequestErasureBody = zod.object({
+  "reason": zod.string().optional()
+})
+
+export const RequestErasureResponse = zod.object({
+  "id": zod.number(),
+  "requestedName": zod.string().optional(),
+  "requestedEmail": zod.string().optional(),
+  "reason": zod.string().nullish(),
+  "status": zod.enum(['pending', 'completed', 'rejected']),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Complete or reject an erasure request (privacy.manage only)
+ */
+export const DecideErasureParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DecideErasureBody = zod.object({
+  "decision": zod.enum(['complete', 'reject']),
+  "note": zod.string().optional()
+})
+
+export const DecideErasureResponse = zod.object({
+  "id": zod.number(),
+  "requestedName": zod.string().optional(),
+  "requestedEmail": zod.string().optional(),
+  "reason": zod.string().nullish(),
+  "status": zod.enum(['pending', 'completed', 'rejected']),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "decisionNote": zod.string().nullish(),
+  "createdAt": zod.coerce.date()
+})
 
 
 /**
@@ -713,6 +865,9 @@ export const ListCasesResponseItem = zod.object({
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
   "filingRef": zod.string().nullish(),
+  "opposingParty": zod.string().nullish(),
+  "conflictAcknowledgedBy": zod.string().nullish(),
+  "conflictNote": zod.string().nullish(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -729,6 +884,9 @@ export const createCaseBodyPriorityDefault = `medium`;
 
 export const CreateCaseBody = zod.object({
   "title": zod.string().min(1),
+  "opposingParty": zod.string().optional().describe('Who the matter is against. Screened for conflicts before the matter opens.'),
+  "conflictAcknowledged": zod.boolean().optional().describe('Set to proceed despite a reported conflict. Requires conflictNote.'),
+  "conflictNote": zod.string().optional().describe('Why the advocate judged the conflict not to apply. Recorded in the audit log.'),
   "description": zod.string().optional(),
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']).default(createCaseBodyStatusDefault),
   "clientId": zod.number().optional(),
@@ -745,6 +903,9 @@ export const CreateCaseResponse = zod.object({
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
   "filingRef": zod.string().nullish(),
+  "opposingParty": zod.string().nullish(),
+  "conflictAcknowledgedBy": zod.string().nullish(),
+  "conflictNote": zod.string().nullish(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -767,6 +928,9 @@ export const GetCaseResponse = zod.object({
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
   "filingRef": zod.string().nullish(),
+  "opposingParty": zod.string().nullish(),
+  "conflictAcknowledgedBy": zod.string().nullish(),
+  "conflictNote": zod.string().nullish(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -801,6 +965,9 @@ export const UpdateCaseResponse = zod.object({
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
   "filingRef": zod.string().nullish(),
+  "opposingParty": zod.string().nullish(),
+  "conflictAcknowledgedBy": zod.string().nullish(),
+  "conflictNote": zod.string().nullish(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -850,6 +1017,7 @@ export const ListDocumentsResponseItem = zod.object({
   "fileSize": zod.number().nullish(),
   "encrypted": zod.boolean(),
   "storagePath": zod.string().nullish(),
+  "checksum": zod.string().nullish().describe('SHA-256 of the stored bytes.'),
   "url": zod.string().nullish().describe('Where the file lives. Object storage in production.'),
   "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
   "uploadedBy": zod.string().nullish(),
@@ -891,6 +1059,7 @@ export const UploadDocumentResponse = zod.object({
   "fileSize": zod.number().nullish(),
   "encrypted": zod.boolean(),
   "storagePath": zod.string().nullish(),
+  "checksum": zod.string().nullish().describe('SHA-256 of the stored bytes.'),
   "url": zod.string().nullish().describe('Where the file lives. Object storage in production.'),
   "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
   "uploadedBy": zod.string().nullish(),

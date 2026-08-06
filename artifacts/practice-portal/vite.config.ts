@@ -49,6 +49,23 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // The whole app used to arrive as one ~1.3MB chunk, so a client opening
+    // their portal downloaded the calendar and charting libraries they will
+    // never see. Splitting the heavy, rarely-changing dependencies out means
+    // they cache independently of application code, and the route-level
+    // lazy() calls in dashboard-layout keep the rest off the first paint.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "wouter"],
+          query: ["@tanstack/react-query"],
+          calendar: ["react-big-calendar", "react-dnd", "react-dnd-html5-backend", "moment"],
+          charts: ["recharts"],
+          clerk: ["@clerk/react", "@clerk/themes"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 700,
   },
   server: {
     port,

@@ -89,6 +89,35 @@ export function periodLabel(billingPeriod: BillingPeriod): string {
   return TERMS[billingPeriod].label;
 }
 
+/**
+ * What each plan actually entitles a chamber to.
+ *
+ * These are enforced, not advertised. The pricing screen lists "5 active
+ * matters, 2 seats" on Starter, and `assertWithinLimits` is what makes that
+ * sentence true — without it the plans would be decoration and nobody would
+ * ever have a reason to upgrade.
+ *
+ * `null` means unlimited. A chamber that has not chosen a plan is on trial and
+ * gets the Starter allowance, which is enough to evaluate the product and not
+ * enough to run a practice on indefinitely.
+ */
+export type PlanLimits = { matters: number | null; seats: number | null };
+
+const LIMITS: Record<SubscriptionPlan, PlanLimits> = {
+  starter: { matters: 5, seats: 2 },
+  pro: { matters: null, seats: 10 },
+  firm: { matters: null, seats: null },
+};
+
+export function limitsFor(plan: SubscriptionPlan): PlanLimits {
+  return LIMITS[plan];
+}
+
+/** Every plan's allowance, for the pricing screen and the quota display. */
+export function limitsCatalogue(): Record<SubscriptionPlan, PlanLimits> {
+  return { ...LIMITS };
+}
+
 /** End of the period that starts now, for the chosen term. */
 export function periodEnd(billingPeriod: BillingPeriod, from = new Date()): Date {
   const end = new Date(from);

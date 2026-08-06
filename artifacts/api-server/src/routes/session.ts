@@ -42,6 +42,8 @@ import { getOrCreateUser } from "../lib/jit";
 import { displayRole, isWorkspaceRole } from "../lib/permissions";
 import { mintWorkspaceToken, verifyWorkspaceToken } from "../lib/workspace-token";
 import { reconcileAccessList } from "../lib/access-list";
+import { recordAudit } from "../lib/audit";
+import { checkQuota, quotaMessage, usageFor } from "../lib/quota";
 
 const router: IRouter = Router();
 
@@ -258,6 +260,17 @@ router.post("/workspaces", requireAuth, async (req: AuthRequest, res): Promise<v
     .set({ role: parsed.data.role, roleSelected: true })
     .where(eq(usersTable.id, user.id));
 
+  await recordAudit(
+    req,
+    { workspaceId: workspace.id, role: parsed.data.role, user },
+    {
+      action: "workspace.created",
+      entityType: "workspace",
+      entityId: workspace.id,
+      summary: `Founded "${workspace.name}" as ${displayRole(parsed.data.role)}`,
+    },
+  );
+
   res
     .status(201)
     .json(CreateWorkspaceResponse.parse(await buildSessionClaims(user.id, workspace.id)));
@@ -359,6 +372,17 @@ router.post("/access-requests", requireAuth, async (req: AuthRequest, res): Prom
   // reviewing. Nothing reads users.role for authorization any more.
   await db.update(usersTable).set({ roleSelected: true }).where(eq(usersTable.id, user.id));
 
+  await recordAudit(
+    req,
+    { workspaceId: workspace.id, role: "client", user },
+    {
+      action: "access.requested",
+      entityType: "membership",
+      entityId: created.id,
+      summary: `${user.displayName || user.email} requested access to "${workspace.name}"`,
+    },
+  );
+
   res.status(201).json(
     CreateAccessRequestResponse.parse({
       ...created,
@@ -454,6 +478,19 @@ router.post(
         return;
       }
 
+      // Admitting somebody takes a seat, and seats are what the plan sells.
+      const seatBreach = await checkQuota(c.workspaceId, "seats");
+      if (seatBreach) {
+        const usage = await usageFor(c.workspaceId);
+        res.status(402).json({
+          error: "plan_limit",
+          reason: "seats",
+          message: quotaMessage(seatBreach, usage.plan),
+          usage,
+        });
+        return;
+      }
+
       const [updated] = await db
         .update(workspaceMembershipsTable)
         .set({
@@ -470,6 +507,13 @@ router.post(
         .update(usersTable)
         .set({ role: grantedRole, roleSelected: true })
         .where(eq(usersTable.id, existing.userId));
+
+      await recordAudit(req, c, {
+        action: "access.granted",
+        entityType: "membership",
+        entityId: updated.id,
+        summary: `Granted ${displayRole(grantedRole)} to ${existing.clerkId}`,
+      });
 
       res.json(DecideAccessRequestResponse.parse(await membershipView(updated, c.workspace.name)));
       return;
