@@ -189,6 +189,26 @@ const clerkAssign = await call("/tasks", {
 });
 check("clerk CANNOT assign work (403)", clerkAssign.status === 403, `got ${clerkAssign.status}`);
 
+// Client ratings are a scorecard, and answering for one is Admin's and Senior
+// Advocate's job. A junior sees the matters and the tasks, not the reviews.
+check(
+  "junior advocate does NOT hold feedback.read",
+  !sessions.junior_advocate.capabilities.includes("feedback.read"),
+  JSON.stringify(sessions.junior_advocate.capabilities),
+);
+const juniorFeedback = await call("/feedback", {
+  token: as("junior@chambers.test"),
+  wsToken: sessions.junior_advocate.workspaceToken,
+});
+check(
+  "...and is refused the feedback list (403)",
+  juniorFeedback.status === 403,
+  `got ${juniorFeedback.status}`,
+);
+check(
+  "a Senior Advocate still reads feedback",
+  sessions.senior_advocate.capabilities.includes("feedback.read"),
+);
 check(
   "junior can still complete their own work",
   sessions.junior_advocate.capabilities.includes("tasks.complete"),

@@ -569,9 +569,10 @@ export type UsagePlan = typeof UsagePlan[keyof typeof UsagePlan];
 
 
 export const UsagePlan = {
-  starter: 'starter',
+  trial: 'trial',
   pro: 'pro',
   firm: 'firm',
+  custom: 'custom',
 } as const;
 
 export interface Usage {
@@ -679,15 +680,17 @@ export type PlanQuotePlan = typeof PlanQuotePlan[keyof typeof PlanQuotePlan];
 
 
 export const PlanQuotePlan = {
-  starter: 'starter',
+  trial: 'trial',
   pro: 'pro',
   firm: 'firm',
+  custom: 'custom',
 } as const;
 
 export type PlanQuoteBillingPeriod = typeof PlanQuoteBillingPeriod[keyof typeof PlanQuoteBillingPeriod];
 
 
 export const PlanQuoteBillingPeriod = {
+  one_time: 'one_time',
   monthly: 'monthly',
   half_yearly: 'half_yearly',
   yearly: 'yearly',
@@ -700,7 +703,7 @@ export interface PlanQuote {
   months: number;
   /** Months actually charged for. */
   paidMonths: number;
-  /** Months granted free. Two on the yearly plan. */
+  /** Months granted free. Two on the yearly plans. */
   freeMonths: number;
   /** Total for the period, in paise. */
   amountMinor: number;
@@ -710,21 +713,29 @@ export interface PlanQuote {
   listMinor: number;
   savingsMinor: number;
   currency: string;
+  /** Display name of the plan. */
+  name: string;
+  /** True when the plan has no list price and is scoped by a person. Selecting it records an enquiry; it never becomes an active plan. */
+  quoteOnly: boolean;
+  /** False for the trial pack, which runs its two months and stops. */
+  renews: boolean;
 }
 
 export type SubscriptionPlan = typeof SubscriptionPlan[keyof typeof SubscriptionPlan];
 
 
 export const SubscriptionPlan = {
-  starter: 'starter',
+  trial: 'trial',
   pro: 'pro',
   firm: 'firm',
+  custom: 'custom',
 } as const;
 
 export type SubscriptionBillingPeriod = typeof SubscriptionBillingPeriod[keyof typeof SubscriptionBillingPeriod];
 
 
 export const SubscriptionBillingPeriod = {
+  one_time: 'one_time',
   monthly: 'monthly',
   half_yearly: 'half_yearly',
   yearly: 'yearly',
@@ -768,15 +779,17 @@ export type SubscriptionInputPlan = typeof SubscriptionInputPlan[keyof typeof Su
 
 
 export const SubscriptionInputPlan = {
-  starter: 'starter',
+  trial: 'trial',
   pro: 'pro',
   firm: 'firm',
+  custom: 'custom',
 } as const;
 
 export type SubscriptionInputBillingPeriod = typeof SubscriptionInputBillingPeriod[keyof typeof SubscriptionInputBillingPeriod];
 
 
 export const SubscriptionInputBillingPeriod = {
+  one_time: 'one_time',
   monthly: 'monthly',
   half_yearly: 'half_yearly',
   yearly: 'yearly',

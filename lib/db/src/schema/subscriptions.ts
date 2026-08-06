@@ -16,10 +16,17 @@ import { z } from "zod/v4";
  * a client that posts its own amount cannot buy a year for a rupee.
  */
 
-export const SUBSCRIPTION_PLANS = ["starter", "pro", "firm"] as const;
+/**
+ * trial   a two-month evaluation pack, bought once
+ * pro     metered monthly, three terms
+ * firm    metered monthly, three terms
+ * custom  quote-only; selecting it records an enquiry, never an active plan
+ */
+export const SUBSCRIPTION_PLANS = ["trial", "pro", "firm", "custom"] as const;
 export type SubscriptionPlan = (typeof SUBSCRIPTION_PLANS)[number];
 
-export const BILLING_PERIODS = ["monthly", "half_yearly", "yearly"] as const;
+/** `one_time` is what the trial pack and a custom enquiry are normalised to. */
+export const BILLING_PERIODS = ["one_time", "monthly", "half_yearly", "yearly"] as const;
 export type BillingPeriod = (typeof BILLING_PERIODS)[number];
 
 /**
@@ -36,8 +43,8 @@ export const subscriptionsTable = pgTable(
   {
     id: serial("id").primaryKey(),
     workspaceId: integer("workspace_id").notNull(),
-    plan: text("plan").notNull().default("starter"),
-    billingPeriod: text("billing_period").notNull().default("monthly"),
+    plan: text("plan").notNull().default("trial"),
+    billingPeriod: text("billing_period").notNull().default("one_time"),
     status: text("status").notNull().default("trialing"),
     /** Months charged for in the current period. */
     paidMonths: integer("paid_months").notNull().default(1),
@@ -46,7 +53,12 @@ export const subscriptionsTable = pgTable(
     /** Minor units (paise), so no float ever touches a price. */
     amountMinor: integer("amount_minor").notNull().default(0),
     currency: text("currency").notNull().default("INR"),
-    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Null until the plan is actually in force. A custom-plan enquiry is
+     * recorded as a row with no start and no period end, because nothing has
+     * started — it is a request for a quote, not a subscription.
+     */
+    startedAt: timestamp("started_at", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
     updatedBy: text("updated_by"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

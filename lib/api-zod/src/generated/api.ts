@@ -526,7 +526,7 @@ export const ListAuditEventsResponse = zod.array(ListAuditEventsResponseItem)
  * @summary What the workspace is using against its plan allowance
  */
 export const GetUsageResponse = zod.object({
-  "plan": zod.enum(['starter', 'pro', 'firm']),
+  "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
   "matters": zod.object({
   "used": zod.number(),
   "limit": zod.number().nullish().describe('Null means unlimited on this plan.')
@@ -654,8 +654,8 @@ export const DecideErasureResponse = zod.object({
 export const GetSubscriptionResponse = zod.object({
   "subscription": zod.object({
   "workspaceId": zod.number(),
-  "plan": zod.enum(['starter', 'pro', 'firm']),
-  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly']),
+  "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
+  "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly']),
   "status": zod.enum(['trialing', 'active', 'past_due', 'cancelled']),
   "paidMonths": zod.number().optional(),
   "freeMonths": zod.number().optional(),
@@ -666,16 +666,19 @@ export const GetSubscriptionResponse = zod.object({
   "updatedBy": zod.string().nullish()
 }),
   "catalogue": zod.array(zod.object({
-  "plan": zod.enum(['starter', 'pro', 'firm']),
-  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly']),
+  "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
+  "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly']),
   "months": zod.number().describe('Months of service the period covers.'),
   "paidMonths": zod.number().describe('Months actually charged for.'),
-  "freeMonths": zod.number().describe('Months granted free. Two on the yearly plan.'),
+  "freeMonths": zod.number().describe('Months granted free. Two on the yearly plans.'),
   "amountMinor": zod.number().describe('Total for the period, in paise.'),
   "effectiveMonthlyMinor": zod.number().describe('Amount per month across the term, in paise.'),
   "listMinor": zod.number().describe('What the same months cost billed monthly, in paise.'),
   "savingsMinor": zod.number(),
-  "currency": zod.string()
+  "currency": zod.string(),
+  "name": zod.string().describe('Display name of the plan.'),
+  "quoteOnly": zod.boolean().describe('True when the plan has no list price and is scoped by a person. Selecting it records an enquiry; it never becomes an active plan.'),
+  "renews": zod.boolean().describe('False for the trial pack, which runs its two months and stops.')
 })),
   "canManage": zod.boolean().describe('Whether the caller holds billing.manage in this workspace.')
 })
@@ -686,15 +689,15 @@ export const GetSubscriptionResponse = zod.object({
  * @summary Choose a plan and billing period (billing.manage only)
  */
 export const SetSubscriptionBody = zod.object({
-  "plan": zod.enum(['starter', 'pro', 'firm']),
-  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly'])
+  "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
+  "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly'])
 })
 
 export const SetSubscriptionResponse = zod.object({
   "subscription": zod.object({
   "workspaceId": zod.number(),
-  "plan": zod.enum(['starter', 'pro', 'firm']),
-  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly']),
+  "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
+  "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly']),
   "status": zod.enum(['trialing', 'active', 'past_due', 'cancelled']),
   "paidMonths": zod.number().optional(),
   "freeMonths": zod.number().optional(),
@@ -705,16 +708,19 @@ export const SetSubscriptionResponse = zod.object({
   "updatedBy": zod.string().nullish()
 }),
   "catalogue": zod.array(zod.object({
-  "plan": zod.enum(['starter', 'pro', 'firm']),
-  "billingPeriod": zod.enum(['monthly', 'half_yearly', 'yearly']),
+  "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
+  "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly']),
   "months": zod.number().describe('Months of service the period covers.'),
   "paidMonths": zod.number().describe('Months actually charged for.'),
-  "freeMonths": zod.number().describe('Months granted free. Two on the yearly plan.'),
+  "freeMonths": zod.number().describe('Months granted free. Two on the yearly plans.'),
   "amountMinor": zod.number().describe('Total for the period, in paise.'),
   "effectiveMonthlyMinor": zod.number().describe('Amount per month across the term, in paise.'),
   "listMinor": zod.number().describe('What the same months cost billed monthly, in paise.'),
   "savingsMinor": zod.number(),
-  "currency": zod.string()
+  "currency": zod.string(),
+  "name": zod.string().describe('Display name of the plan.'),
+  "quoteOnly": zod.boolean().describe('True when the plan has no list price and is scoped by a person. Selecting it records an enquiry; it never becomes an active plan.'),
+  "renews": zod.boolean().describe('False for the trial pack, which runs its two months and stops.')
 })),
   "canManage": zod.boolean().describe('Whether the caller holds billing.manage in this workspace.')
 })

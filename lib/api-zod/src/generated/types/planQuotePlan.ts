@@ -10,7 +10,8 @@ export type PlanQuotePlan = typeof PlanQuotePlan[keyof typeof PlanQuotePlan];
 
 
 export const PlanQuotePlan = {
-  starter: 'starter',
+  trial: 'trial',
   pro: 'pro',
   firm: 'firm',
+  custom: 'custom',
 } as const;

@@ -83,14 +83,15 @@ CREATE TABLE IF NOT EXISTS workspace_access_list (
 CREATE TABLE IF NOT EXISTS subscriptions (
   id SERIAL PRIMARY KEY,
   workspace_id INTEGER NOT NULL,
-  plan TEXT NOT NULL DEFAULT 'starter',
-  billing_period TEXT NOT NULL DEFAULT 'monthly',
+  plan TEXT NOT NULL DEFAULT 'trial',
+  billing_period TEXT NOT NULL DEFAULT 'one_time',
   status TEXT NOT NULL DEFAULT 'trialing',
   paid_months INTEGER NOT NULL DEFAULT 1,
   free_months INTEGER NOT NULL DEFAULT 0,
   amount_minor INTEGER NOT NULL DEFAULT 0,
   currency TEXT NOT NULL DEFAULT 'INR',
-  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Null until the plan is in force. A custom-plan enquiry has no start.
+  started_at TIMESTAMPTZ,
   current_period_end TIMESTAMPTZ,
   updated_by TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -315,6 +316,10 @@ CREATE TABLE IF NOT EXISTS timeline_events (
  */
 const MIGRATIONS = `
 ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT NOT NULL DEFAULT '';
+-- subscriptions.started_at became nullable when the quote-only Custom plan
+-- arrived: an enquiry is recorded, but nothing has started. DROP NOT NULL is a
+-- no-op once applied, so this is safe to run on every boot like the rest.
+ALTER TABLE subscriptions ALTER COLUMN started_at DROP NOT NULL;
 ALTER TABLE workspace_memberships ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS url TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS checksum TEXT;

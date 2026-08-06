@@ -15,7 +15,7 @@ export interface PlanQuote {
   months: number;
   /** Months actually charged for. */
   paidMonths: number;
-  /** Months granted free. Two on the yearly plan. */
+  /** Months granted free. Two on the yearly plans. */
   freeMonths: number;
   /** Total for the period, in paise. */
   amountMinor: number;
@@ -25,4 +25,10 @@ export interface PlanQuote {
   listMinor: number;
   savingsMinor: number;
   currency: string;
+  /** Display name of the plan. */
+  name: string;
+  /** True when the plan has no list price and is scoped by a person. Selecting it records an enquiry; it never becomes an active plan. */
+  quoteOnly: boolean;
+  /** False for the trial pack, which runs its two months and stops. */
+  renews: boolean;
 }

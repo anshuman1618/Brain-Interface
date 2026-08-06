@@ -10,7 +10,8 @@ export type UsagePlan = typeof UsagePlan[keyof typeof UsagePlan];
 
 
 export const UsagePlan = {
-  starter: 'starter',
+  trial: 'trial',
   pro: 'pro',
   firm: 'firm',
+  custom: 'custom',
 } as const;

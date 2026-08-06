@@ -41,16 +41,23 @@ const PERIODS: { value: SubscriptionInputBillingPeriod; label: string; note: str
   { value: "yearly", label: "Yearly", note: "2 months free" },
 ];
 
-const PLAN_ORDER: SubscriptionInputPlan[] = ["starter", "pro", "firm"];
+const PLAN_ORDER: SubscriptionInputPlan[] = ["trial", "pro", "firm", "custom"];
 
+/**
+ * `metered` marks the plans the billing-period selector governs. The trial is
+ * a one-off two-month pack and the custom plan is quoted, so neither moves
+ * when the term changes — and a control that visibly does nothing to half the
+ * cards needs the sentence under it that explains its scope.
+ */
 const PLAN_COPY: Record<
   SubscriptionInputPlan,
-  { name: string; blurb: string; features: string[] }
+  { name: string; blurb: string; features: string[]; metered: boolean }
 > = {
-  starter: {
-    name: "Starter",
-    blurb: "A sole practitioner finding their feet.",
-    features: ["5 active matters", "2 seats", "Documents and cause list", "Email support"],
+  trial: {
+    name: "Trial",
+    blurb: "Two months to decide, at the price of a coffee.",
+    features: ["5 open matters", "2 seats", "Every module unlocked", "Runs two months, then stops"],
+    metered: false,
   },
   pro: {
     name: "Pro",
@@ -62,6 +69,7 @@ const PLAN_COPY: Record<
       "KPI engine",
       "Priority support",
     ],
+    metered: true,
   },
   firm: {
     name: "Firm",
@@ -69,10 +77,22 @@ const PLAN_COPY: Record<
     features: [
       "Unlimited matters",
       "Unlimited seats",
-      "Advanced analytics",
+      "KPI engine and audit log",
       "Audit export",
       "Dedicated support",
     ],
+    metered: true,
+  },
+  custom: {
+    name: "Custom",
+    blurb: "A curated deployment, scoped to your chamber.",
+    features: [
+      "Everything in Firm",
+      "Migration from your existing files",
+      "Bespoke roles and workflows",
+      "Named contact and onboarding",
+    ],
+    metered: false,
   },
 };
 
@@ -98,18 +118,31 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
 
   const current = data?.subscription;
   const canManage = data?.canManage ?? false;
+  // A plan that is not metered publishes exactly one quote, under `one_time`.
+  // Looking it up by the selected period would find nothing and render "-".
   const quoteFor = (plan: SubscriptionInputPlan): PlanQuote | undefined =>
-    data?.catalogue.find((q) => q.plan === plan && q.billingPeriod === period);
+    data?.catalogue.find(
+      (q) => q.plan === plan && q.billingPeriod === (PLAN_COPY[plan].metered ? period : "one_time"),
+    );
 
   const choose = (plan: SubscriptionInputPlan) => {
+    const copy = PLAN_COPY[plan];
     setSubscription.mutate(
-      { data: { plan, billingPeriod: period } },
+      // The server normalises the period for the plans that do not have one,
+      // so what is sent here for those two does not matter. It is sent anyway
+      // because the field is required, not because it is honoured.
+      { data: { plan, billingPeriod: copy.metered ? period : "one_time" } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetSubscriptionQueryKey() });
           toast({
-            title: "Plan selected",
-            description: `${PLAN_COPY[plan].name}, billed ${PERIODS.find((p) => p.value === period)?.label.toLowerCase()}.`,
+            title: plan === "custom" ? "Enquiry recorded" : "Plan selected",
+            description:
+              plan === "custom"
+                ? "We will be in touch. Your current allowance is unchanged until the quote is agreed."
+                : copy.metered
+                  ? `${copy.name}, billed ${PERIODS.find((p) => p.value === period)?.label.toLowerCase()}.`
+                  : `${copy.name}, a one-off two-month pack.`,
           });
         },
         onError: (err: Error) => {
@@ -134,11 +167,18 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
             </DialogTitle>
             <DialogDescription className="font-mono text-muted-foreground uppercase text-xs mt-2">
               {current?.status === "active"
-                ? `Currently on ${PLAN_COPY[current.plan as SubscriptionInputPlan]?.name ?? current.plan}, billed ${
-                    PERIODS.find((p) => p.value === current.billingPeriod)?.label.toLowerCase() ??
-                    current.billingPeriod
+                ? `Currently on ${PLAN_COPY[current.plan as SubscriptionInputPlan]?.name ?? current.plan}${
+                    PLAN_COPY[current.plan as SubscriptionInputPlan]?.metered
+                      ? `, billed ${
+                          PERIODS.find(
+                            (p) => p.value === current.billingPeriod,
+                          )?.label.toLowerCase() ?? current.billingPeriod
+                        }`
+                      : ""
                   }`
-                : "Your chamber is on trial - choose a plan to continue"}
+                : current?.plan === "custom"
+                  ? "A custom quote is with our team - your current allowance is unchanged"
+                  : "No plan chosen yet - start on the two-month Trial, or commit for longer and pay less"}
             </DialogDescription>
 
             {/* Billing period. Commit longer, pay for fewer months. */}
@@ -175,10 +215,14 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                 );
               })}
             </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              The billing period applies to Pro and Firm. Trial is a one-off two-month pack; Custom
+              is quoted.
+            </p>
           </DialogHeader>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-border">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
               {PLAN_ORDER.map((p) => (
                 <div key={p} className="p-8 space-y-4">
                   <Skeleton className="h-5 w-24" />
@@ -189,14 +233,19 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-border bg-background">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border bg-background">
               {PLAN_ORDER.map((plan) => {
                 const q = quoteFor(plan);
                 const copy = PLAN_COPY[plan];
-                const isCurrent =
-                  current?.status === "active" &&
-                  current.plan === plan &&
-                  current.billingPeriod === period;
+                const quoteOnly = q?.quoteOnly ?? false;
+                // A custom plan never goes active — selecting it records an
+                // enquiry — so "current" for that card means "we have your
+                // enquiry", which is a different sentence.
+                const isCurrent = quoteOnly
+                  ? current?.plan === plan
+                  : current?.status === "active" &&
+                    current.plan === plan &&
+                    (!copy.metered || current.billingPeriod === period);
                 const featured = plan === "pro";
 
                 return (
@@ -208,7 +257,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                   >
                     {isCurrent && (
                       <div className="absolute top-0 right-0 bg-foreground text-background text-[10px] font-bold font-mono uppercase tracking-widest px-3 py-1">
-                        Current plan
+                        {quoteOnly ? "Enquiry sent" : "Current plan"}
                       </div>
                     )}
 
@@ -218,15 +267,25 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                     <p className="text-xs text-muted-foreground mt-1 mb-4">{copy.blurb}</p>
 
                     <div className="mb-1">
-                      <span className="text-3xl font-mono text-foreground tabular-nums">
-                        {q ? rupees(q.effectiveMonthlyMinor) : "-"}
-                      </span>
-                      <span className="text-sm text-muted-foreground">/mo</span>
+                      {quoteOnly ? (
+                        <span className="text-3xl font-mono text-foreground">On request</span>
+                      ) : (
+                        <>
+                          <span className="text-3xl font-mono text-foreground tabular-nums">
+                            {q ? rupees(q.effectiveMonthlyMinor) : "-"}
+                          </span>
+                          <span className="text-sm text-muted-foreground">/mo</span>
+                        </>
+                      )}
                     </div>
 
                     {/* The real commitment, stated plainly under the headline rate. */}
                     <p className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider min-h-[2.5rem]">
-                      {q && q.months > 1 ? (
+                      {quoteOnly ? (
+                        "Priced against what you actually need"
+                      ) : q && !q.renews ? (
+                        `${rupees(q.amountMinor)} once, covering ${q.months} months`
+                      ) : q && q.months > 1 ? (
                         <>
                           {rupees(q.amountMinor)} billed every {q.months} months
                           {q.freeMonths > 0 && (
@@ -256,7 +315,15 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                       disabled={!canManage || isCurrent || setSubscription.isPending}
                       onClick={() => choose(plan)}
                     >
-                      {isCurrent ? "Selected" : setSubscription.isPending ? "Saving..." : "Choose"}
+                      {isCurrent
+                        ? quoteOnly
+                          ? "Enquiry sent"
+                          : "Selected"
+                        : setSubscription.isPending
+                          ? "Saving..."
+                          : quoteOnly
+                            ? "Talk to us"
+                            : "Choose"}
                     </Button>
                   </div>
                 );

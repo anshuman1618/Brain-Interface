@@ -10,6 +10,7 @@ export type SubscriptionInputBillingPeriod = typeof SubscriptionInputBillingPeri
 
 
 export const SubscriptionInputBillingPeriod = {
+  one_time: 'one_time',
   monthly: 'monthly',
   half_yearly: 'half_yearly',
   yearly: 'yearly',

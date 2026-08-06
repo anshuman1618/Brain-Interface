@@ -1889,7 +1889,7 @@ components:
       type: object
       required: [plan, matters, seats]
       properties:
-        plan: { type: string, enum: [starter, pro, firm] }
+        plan: { type: string, enum: [trial, pro, firm, custom] }
         matters: { $ref: "#/components/schemas/UsageCounter" }
         seats: { $ref: "#/components/schemas/UsageCounter" }
 
@@ -1970,14 +1970,17 @@ components:
           listMinor,
           savingsMinor,
           currency,
+          name,
+          quoteOnly,
+          renews,
         ]
       properties:
         plan:
           type: string
-          enum: [starter, pro, firm]
+          enum: [trial, pro, firm, custom]
         billingPeriod:
           type: string
-          enum: [monthly, half_yearly, yearly]
+          enum: [one_time, monthly, half_yearly, yearly]
         months:
           type: integer
           description: Months of service the period covers.
@@ -1986,7 +1989,7 @@ components:
           description: Months actually charged for.
         freeMonths:
           type: integer
-          description: Months granted free. Two on the yearly plan.
+          description: Months granted free. Two on the yearly plans.
         amountMinor:
           type: integer
           description: Total for the period, in paise.
@@ -2000,6 +2003,17 @@ components:
           type: integer
         currency:
           type: string
+        name:
+          type: string
+          description: Display name of the plan.
+        quoteOnly:
+          type: boolean
+          description: >-
+            True when the plan has no list price and is scoped by a person.
+            Selecting it records an enquiry; it never becomes an active plan.
+        renews:
+          type: boolean
+          description: False for the trial pack, which runs its two months and stops.
 
     Subscription:
       type: object
@@ -2009,10 +2023,10 @@ components:
           type: integer
         plan:
           type: string
-          enum: [starter, pro, firm]
+          enum: [trial, pro, firm, custom]
         billingPeriod:
           type: string
-          enum: [monthly, half_yearly, yearly]
+          enum: [one_time, monthly, half_yearly, yearly]
         status:
           type: string
           enum: [trialing, active, past_due, cancelled]
@@ -2053,10 +2067,10 @@ components:
       properties:
         plan:
           type: string
-          enum: [starter, pro, firm]
+          enum: [trial, pro, firm, custom]
         billingPeriod:
           type: string
-          enum: [monthly, half_yearly, yearly]
+          enum: [one_time, monthly, half_yearly, yearly]
 
     # ── Document ──────────────────────────────────────────────────────────
     Feedback:

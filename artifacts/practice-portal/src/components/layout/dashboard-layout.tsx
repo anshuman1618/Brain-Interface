@@ -25,7 +25,6 @@ const DocumentsPage = lazy(() => import("@/pages/documents"));
 const FeedbackPage = lazy(() => import("@/pages/feedback"));
 const TeamPage = lazy(() => import("@/pages/team"));
 const ActivityPage = lazy(() => import("@/pages/activity"));
-const PrivacyPage = lazy(() => import("@/pages/privacy"));
 import PendingApprovalPage from "@/pages/pending-approval";
 import AccessDeniedPage from "@/pages/access-denied";
 import UnauthorizedPage from "@/pages/unauthorized";
@@ -47,7 +46,6 @@ import {
   Star,
   MoreVertical,
   History,
-  ShieldOff,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -151,7 +149,6 @@ function DashboardLayoutContent() {
     { href: "/team", label: "Team Roles", icon: ShieldCheck, show: can("team.manage") },
     { href: "/activity", label: "Activity", icon: History, show: can("audit.read") },
     // Everyone gets their own data rights; admins additionally see the queue.
-    { href: "/privacy", label: "Your Data", icon: ShieldOff, show: true },
   ].filter((item) => item.show);
 
   const activeItem = navItems.find(
@@ -361,11 +358,6 @@ function DashboardLayoutContent() {
                         <ActivityPage />
                       </ErrorBoundary>
                     </RequireCapability>
-                  </Route>
-                  <Route path="/privacy">
-                    <ErrorBoundary label="Your data">
-                      <PrivacyPage />
-                    </ErrorBoundary>
                   </Route>
                   <Route path="/client-portal" component={ClientPortalPage} />
                   <Route component={NotFound} />

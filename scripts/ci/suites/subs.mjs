@@ -68,9 +68,25 @@ check("owner may manage", initial.data.canManage === true);
 
 section("The catalogue is served by the server, not assumed by the client");
 const cat = initial.data.catalogue;
-check("3 plans x 3 periods", cat.length === 9, `${cat.length} entries`);
+// Trial and Custom publish one entry each; Pro and Firm publish three.
+check(
+  "catalogue is 2 metered plans x 3 terms, plus trial and custom",
+  cat.length === 8,
+  `${cat.length} entries`,
+);
+const trialQ = cat.find((q) => q.plan === "trial");
+const customQ = cat.find((q) => q.plan === "custom");
+check("the trial pack costs Rs 99", trialQ.amountMinor === 9900, String(trialQ?.amountMinor));
+check("...and covers two months", trialQ.months === 2 && trialQ.paidMonths === 2);
+check(
+  "...billed once, not renewing",
+  trialQ.renews === false && trialQ.billingPeriod === "one_time",
+);
+check("the custom plan has no price", customQ.quoteOnly === true && customQ.amountMinor === 0);
+check("...and no term", customQ.months === 0 && customQ.billingPeriod === "one_time");
 const yearlyPro = cat.find((q) => q.plan === "pro" && q.billingPeriod === "yearly");
 const monthlyPro = cat.find((q) => q.plan === "pro" && q.billingPeriod === "monthly");
+const monthlyFirm = cat.find((q) => q.plan === "firm" && q.billingPeriod === "monthly");
 const halfPro = cat.find((q) => q.plan === "pro" && q.billingPeriod === "half_yearly");
 
 check(
@@ -87,6 +103,12 @@ check(
 check(
   "...and the saving is the 2 free months",
   yearlyPro.savingsMinor === monthlyPro.amountMinor * 2,
+);
+check("Pro is Rs 1,999 a month", monthlyPro.amountMinor === 199900, String(monthlyPro.amountMinor));
+check(
+  "Firm is Rs 4,999 a month",
+  monthlyFirm.amountMinor === 499900,
+  String(monthlyFirm.amountMinor),
 );
 check("half-yearly gives one month free", halfPro.freeMonths === 1 && halfPro.paidMonths === 5);
 check("monthly has no discount", monthlyPro.freeMonths === 0 && monthlyPro.savingsMinor === 0);
@@ -146,6 +168,56 @@ check(
   sub.currentPeriodEnd,
 );
 
+section("Selecting Custom records an enquiry, not an unlimited plan");
+const custom = await call("/workspace/subscription", {
+  token: as(owner),
+  wsToken: ws,
+  method: "PUT",
+  body: { plan: "custom", billingPeriod: "yearly" },
+});
+check("accepted", custom.status === 200, `got ${custom.status}`);
+check("plan recorded as custom", custom.data.subscription.plan === "custom");
+check(
+  "...but NOT active - it is a quote request",
+  custom.data.subscription.status === "trialing",
+  custom.data.subscription.status,
+);
+check("...nothing charged", custom.data.subscription.amountMinor === 0);
+check("...and no period is running", custom.data.subscription.currentPeriodEnd === null);
+// The whole point: an unactivated custom plan must not hand out its limits.
+const customUsage = await call("/workspace/usage", { token: as(owner), wsToken: ws });
+check(
+  "the chamber keeps the trial allowance, not unlimited",
+  customUsage.data.plan === "trial" && customUsage.data.matters.limit === 5,
+  JSON.stringify(customUsage.data),
+);
+
+section("The trial pack is always two months, whatever term is sent");
+const trialSet = await call("/workspace/subscription", {
+  token: as(owner),
+  wsToken: ws,
+  method: "PUT",
+  body: { plan: "trial", billingPeriod: "yearly" },
+});
+check("accepted", trialSet.status === 200, `got ${trialSet.status}`);
+check(
+  "the yearly term was normalised away",
+  trialSet.data.subscription.billingPeriod === "one_time",
+  trialSet.data.subscription.billingPeriod,
+);
+check("priced at Rs 99", trialSet.data.subscription.amountMinor === 9900);
+check(
+  "period runs 2 months out",
+  (() => {
+    const end = new Date(trialSet.data.subscription.currentPeriodEnd);
+    const start = new Date(trialSet.data.subscription.startedAt);
+    return (
+      (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) === 2
+    );
+  })(),
+  trialSet.data.subscription.currentPeriodEnd,
+);
+
 section("A client cannot name its own price");
 const cheeky = await call("/workspace/subscription", {
   token: as(owner),
@@ -170,9 +242,9 @@ const bogus = await call("/workspace/subscription", {
   token: as(owner),
   wsToken: ws,
   method: "PUT",
-  body: { plan: "enterprise_unlimited", billingPeriod: "yearly" },
+  body: { plan: "starter", billingPeriod: "yearly" },
 });
-check("an unknown plan is refused (400)", bogus.status === 400, `got ${bogus.status}`);
+check("a retired plan name is refused (400)", bogus.status === 400, `got ${bogus.status}`);
 const bogusPeriod = await call("/workspace/subscription", {
   token: as(owner),
   wsToken: ws,

@@ -77,7 +77,10 @@ type RoleDefinition = {
 };
 
 /**
- * Shared by both advocate tiers. Assignment is NOT in here — see below.
+ * Shared by both advocate tiers. Assignment is NOT in here — see below, and
+ * neither is `feedback.read`: client ratings are visible to the people who
+ * answer for them, which is Admin and Senior Advocate. A junior sees the
+ * matters and the tasks, not the scorecard.
  */
 const ADVOCATE_CAPABILITIES = [
   "workspace.view",
@@ -92,7 +95,6 @@ const ADVOCATE_CAPABILITIES = [
   "document_requests.read",
   "document_requests.create",
   "calendar.read",
-  "feedback.read",
 ] as const satisfies readonly Capability[];
 
 /**
@@ -122,6 +124,10 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
       "tasks.write",
       "tasks.delete",
       "calendar.write",
+      // Reads AND answers client ratings. This is granted here rather than in
+      // the shared advocate list precisely so the junior tier does not inherit
+      // it — you cannot sensibly reply to a review you were never shown.
+      "feedback.read",
       "feedback.respond",
     ],
     caseScope: "all",

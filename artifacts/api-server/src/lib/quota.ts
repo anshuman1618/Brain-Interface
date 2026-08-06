@@ -7,7 +7,7 @@ import {
   isSubscriptionPlan,
   type SubscriptionPlan,
 } from "@workspace/db";
-import { limitsFor, type PlanLimits } from "./plans";
+import { FALLBACK_PLAN, PLAN_NAMES, limitsFor, type PlanLimits } from "./plans";
 
 /**
  * Plan enforcement.
@@ -33,7 +33,7 @@ async function planFor(workspaceId: number): Promise<SubscriptionPlan> {
     .from(subscriptionsTable)
     .where(eq(subscriptionsTable.workspaceId, workspaceId));
   // No row, or a lapsed/cancelled one, falls back to the trial allowance.
-  if (!row || row.status !== "active" || !isSubscriptionPlan(row.plan)) return "starter";
+  if (!row || row.status !== "active" || !isSubscriptionPlan(row.plan)) return FALLBACK_PLAN;
   return row.plan;
 }
 
@@ -87,6 +87,6 @@ export async function checkQuota(
 
 export function quotaMessage(b: QuotaBreach, plan: SubscriptionPlan): string {
   const noun = b.resource === "matters" ? "open matters" : "team members";
-  const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
+  const planName = PLAN_NAMES[plan] ?? plan;
   return `Your ${planName} plan covers ${b.limit} ${noun} and you have ${b.used}. Upgrade the plan, or close a matter to free a slot.`;
 }

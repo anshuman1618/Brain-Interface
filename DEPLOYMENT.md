@@ -143,6 +143,26 @@ pnpm --filter @workspace/db run push
 Run this on every deploy that changes `lib/db/src/schema/`. It is additive; it
 does not drop columns.
 
+> **Upgrading a database that predates the current plan names.** The plan
+> catalogue was `starter` / `pro` / `firm`; it is now `trial` / `pro` / `firm` /
+> `custom`. `push` will not rewrite existing rows, and a row still reading
+> `starter` is treated as an unknown plan — which falls back to the trial
+> allowance, so it fails closed rather than granting anything. Rename them
+> explicitly if you have any:
+>
+> ```sql
+> UPDATE subscriptions SET plan = 'trial', billing_period = 'one_time'
+>  WHERE plan = 'starter';
+> ```
+>
+> `started_at` also became nullable, because a Custom-plan enquiry is recorded
+> before anything has started. Dropping a `NOT NULL` is not something `push`
+> will always do on its own:
+>
+> ```sql
+> ALTER TABLE subscriptions ALTER COLUMN started_at DROP NOT NULL;
+> ```
+
 ### 4a. Persistent storage for case files
 
 Uploaded documents are written to `FILE_STORAGE_DIR`, not to the database.

@@ -10,7 +10,8 @@ export type SubscriptionPlan = typeof SubscriptionPlan[keyof typeof Subscription
 
 
 export const SubscriptionPlan = {
-  starter: 'starter',
+  trial: 'trial',
   pro: 'pro',
   firm: 'firm',
+  custom: 'custom',
 } as const;

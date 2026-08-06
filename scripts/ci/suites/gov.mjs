@@ -180,11 +180,11 @@ section("3. Plan limits are enforced, not advertised");
 const usage0 = await call("/workspace/usage", { token: as(owner), wsToken: ws });
 check(
   "usage readable",
-  usage0.status === 200 && usage0.data.plan === "starter",
+  usage0.status === 200 && usage0.data.plan === "trial",
   JSON.stringify(usage0.data),
 );
-check("starter caps matters at 5", usage0.data.matters.limit === 5);
-check("starter caps seats at 2", usage0.data.seats.limit === 2);
+check("the trial caps matters at 5", usage0.data.matters.limit === 5);
+check("the trial caps seats at 2", usage0.data.seats.limit === 2);
 
 // One matter exists; add four more to reach the cap.
 for (let i = 2; i <= 5; i++) {
@@ -204,7 +204,7 @@ const sixth = await call("/cases", {
 check("the 6th matter is refused (402)", sixth.status === 402, `got ${sixth.status}`);
 check(
   "...with a message naming the plan and number",
-  /Starter/.test(sixth.data?.message ?? "") && /5/.test(sixth.data?.message ?? ""),
+  /Trial/.test(sixth.data?.message ?? "") && /5/.test(sixth.data?.message ?? ""),
   sixth.data?.message,
 );
 

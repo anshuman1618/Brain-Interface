@@ -10,6 +10,7 @@ export type PlanQuoteBillingPeriod = typeof PlanQuoteBillingPeriod[keyof typeof 
 
 
 export const PlanQuoteBillingPeriod = {
+  one_time: 'one_time',
   monthly: 'monthly',
   half_yearly: 'half_yearly',
   yearly: 'yearly',

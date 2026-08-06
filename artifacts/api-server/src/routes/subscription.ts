@@ -14,7 +14,14 @@ import {
   ctx,
   type AuthRequest,
 } from "../middlewares/requireAuth";
-import { CURRENCY, catalogue, periodEnd, quote } from "../lib/plans";
+import {
+  CURRENCY,
+  activatesOnSelection,
+  catalogue,
+  normalisePeriod,
+  periodEnd,
+  quote,
+} from "../lib/plans";
 
 const router: IRouter = Router();
 
@@ -26,8 +33,8 @@ const router: IRouter = Router();
 function trialDefault(workspaceId: number) {
   return {
     workspaceId,
-    plan: "starter" as const,
-    billingPeriod: "monthly" as const,
+    plan: "trial" as const,
+    billingPeriod: "one_time" as const,
     status: "trialing" as const,
     paidMonths: 0,
     freeMonths: 0,
@@ -110,19 +117,29 @@ router.put(
       return;
     }
 
-    const q = quote(plan, billingPeriod);
+    // The term is normalised, not validated: a trial pack is two months or it
+    // is not a trial pack, and a quote has no term at all, so there is nothing
+    // the caller could usefully have sent for those two.
+    const period = normalisePeriod(plan, billingPeriod);
+    const q = quote(plan, period);
     const now = new Date();
+
+    // A custom plan is an ENQUIRY. Marking it active here would let anyone with
+    // billing.manage grant themselves the unlimited plan for nothing, because
+    // the quota check honours any active row. It stays `trialing`, so the
+    // chamber keeps the allowance it already had until an operator prices it.
+    const activates = activatesOnSelection(plan);
     const values = {
       workspaceId: c.workspaceId,
       plan,
-      billingPeriod,
-      status: "active" as const,
+      billingPeriod: period,
+      status: (activates ? "active" : "trialing") as "active" | "trialing",
       paidMonths: q.paidMonths,
       freeMonths: q.freeMonths,
       amountMinor: q.amountMinor,
       currency: q.currency,
-      startedAt: now,
-      currentPeriodEnd: periodEnd(billingPeriod, now),
+      startedAt: activates ? now : null,
+      currentPeriodEnd: activates ? periodEnd(period, now) : null,
       updatedBy: c.user.clerkId,
       updatedAt: now,
     };

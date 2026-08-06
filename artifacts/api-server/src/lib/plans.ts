@@ -9,42 +9,102 @@ import type { BillingPeriod, SubscriptionPlan } from "@workspace/db";
  * that buys a year of the Firm plan for a rupee.
  *
  * Amounts are in minor units (paise). Money never touches a float.
+ *
+ * Four plans, and they are not the same shape as each other, which is why this
+ * is no longer a simple plan-times-period grid:
+ *
+ *   trial   a fixed two-month pack at Rs 99 TOTAL. Not a monthly rate, and not
+ *           renewable — you buy it once to evaluate the product.
+ *   pro     Rs 1,999 a month, billed monthly, half-yearly or yearly.
+ *   firm    Rs 4,999 a month, same three terms.
+ *   custom  no price at all. A curated deployment is scoped and quoted by a
+ *           person, so the app records an ENQUIRY and never a plan that is in
+ *           force. See `activatesOnSelection` below — this is a security
+ *           property, not a UI nicety.
  */
 
 export const CURRENCY = "INR";
 
-/** Monthly list price per plan, in paise. */
-const MONTHLY_MINOR: Record<SubscriptionPlan, number> = {
-  starter: 99_900, // Rs 999
-  pro: 249_900, // Rs 2,499
-  firm: 599_900, // Rs 5,999
+/** Monthly list price, in paise, for the plans that have one. */
+const MONTHLY_MINOR: Partial<Record<SubscriptionPlan, number>> = {
+  pro: 199_900, // Rs 1,999
+  firm: 499_900, // Rs 4,999
 };
 
+/** The trial pack: a total, not a rate. Two months of service for Rs 99. */
+const TRIAL_MONTHS = 2;
+const TRIAL_MINOR = 9_900; // Rs 99
+
 /**
- * How each billing period bills.
+ * How each billing period bills, for the plans that are billed per month.
  *
- * The brief specifies two months free. Those two months are the annual
- * incentive: a year runs twelve months and is charged for ten. Half-yearly is
- * the same offer at half the commitment — six months charged as five — so the
- * discount scales with the term instead of appearing from nowhere at twelve.
- * Monthly carries no discount, which is what makes the other two worth taking.
+ * Two months free is the annual incentive: a year runs twelve months and is
+ * charged for ten. Half-yearly is the same offer at half the commitment — six
+ * months charged as five — so the discount scales with the term instead of
+ * appearing from nowhere at twelve. Monthly carries no discount, which is what
+ * makes the other two worth taking.
+ *
+ * `one_time` is the term the trial and custom plans use. It is not a choice a
+ * pricing screen offers; it is what those plans are normalised to.
  */
 const TERMS: Record<BillingPeriod, { months: number; paidMonths: number; label: string }> = {
+  one_time: { months: TRIAL_MONTHS, paidMonths: TRIAL_MONTHS, label: "One-time" },
   monthly: { months: 1, paidMonths: 1, label: "Monthly" },
   half_yearly: { months: 6, paidMonths: 5, label: "Half-yearly" },
   yearly: { months: 12, paidMonths: 10, label: "Yearly" },
 };
 
+/** The periods a pricing screen actually offers, in display order. */
+export const SELECTABLE_PERIODS: BillingPeriod[] = ["monthly", "half_yearly", "yearly"];
+
+export const PLAN_NAMES: Record<SubscriptionPlan, string> = {
+  trial: "Trial",
+  pro: "Pro",
+  firm: "Firm",
+  custom: "Custom",
+};
+
+/** Plans billed at a monthly rate, so the term selector applies to them. */
+function isMetered(plan: SubscriptionPlan): boolean {
+  return MONTHLY_MINOR[plan] !== undefined;
+}
+
+/**
+ * Whether choosing this plan puts it in force.
+ *
+ * `custom` is deliberately false. If selecting it made the subscription active,
+ * anyone with `billing.manage` could pick the unlimited plan and grant
+ * themselves unlimited matters and seats for nothing — the quota check only
+ * honours an ACTIVE row, so an enquiry leaves the chamber on trial limits
+ * exactly as it was. An operator moves it to active out of band, after the
+ * commercial conversation that the plan exists to start.
+ */
+export function activatesOnSelection(plan: SubscriptionPlan): boolean {
+  return plan !== "custom";
+}
+
+/**
+ * The term a plan is actually billed on, whatever the client asked for.
+ *
+ * A trial pack is two months or it is not a trial pack, and a quote has no
+ * term at all. Both are forced to `one_time` here rather than being validated
+ * and rejected, because there is nothing the caller could usefully have sent.
+ */
+export function normalisePeriod(plan: SubscriptionPlan, requested: BillingPeriod): BillingPeriod {
+  return isMetered(plan) ? requested : "one_time";
+}
+
 export type Quote = {
   plan: SubscriptionPlan;
+  name: string;
   billingPeriod: BillingPeriod;
-  /** Months of service the period covers. */
+  /** Months of service the period covers. Zero on a quote-only plan. */
   months: number;
   /** Months actually charged for. */
   paidMonths: number;
-  /** months - paidMonths. Two on the annual plan. */
+  /** months - paidMonths. Two on the annual plans. */
   freeMonths: number;
-  /** Total charged for the period, in paise. */
+  /** Total charged for the period, in paise. Zero on a quote-only plan. */
   amountMinor: number;
   /** What a month works out to across the term, in paise. Rounded down. */
   effectiveMonthlyMinor: number;
@@ -52,17 +112,58 @@ export type Quote = {
   listMinor: number;
   savingsMinor: number;
   currency: string;
+  /** True when there is no price to show and the answer is "talk to us". */
+  quoteOnly: boolean;
+  /** False for the trial pack — it runs its two months and stops. */
+  renews: boolean;
 };
 
 export function quote(plan: SubscriptionPlan, billingPeriod: BillingPeriod): Quote {
-  const term = TERMS[billingPeriod];
-  const monthly = MONTHLY_MINOR[plan];
+  const period = normalisePeriod(plan, billingPeriod);
+  const base = {
+    plan,
+    name: PLAN_NAMES[plan],
+    billingPeriod: period,
+    currency: CURRENCY,
+  };
+
+  if (plan === "custom") {
+    return {
+      ...base,
+      months: 0,
+      paidMonths: 0,
+      freeMonths: 0,
+      amountMinor: 0,
+      effectiveMonthlyMinor: 0,
+      listMinor: 0,
+      savingsMinor: 0,
+      quoteOnly: true,
+      renews: false,
+    };
+  }
+
+  if (plan === "trial") {
+    return {
+      ...base,
+      months: TRIAL_MONTHS,
+      paidMonths: TRIAL_MONTHS,
+      freeMonths: 0,
+      amountMinor: TRIAL_MINOR,
+      effectiveMonthlyMinor: Math.floor(TRIAL_MINOR / TRIAL_MONTHS),
+      listMinor: TRIAL_MINOR,
+      savingsMinor: 0,
+      quoteOnly: false,
+      renews: false,
+    };
+  }
+
+  const term = TERMS[period];
+  const monthly = MONTHLY_MINOR[plan]!;
   const amountMinor = monthly * term.paidMonths;
   const listMinor = monthly * term.months;
 
   return {
-    plan,
-    billingPeriod,
+    ...base,
     months: term.months,
     paidMonths: term.paidMonths,
     freeMonths: term.months - term.paidMonths,
@@ -70,18 +171,21 @@ export function quote(plan: SubscriptionPlan, billingPeriod: BillingPeriod): Quo
     effectiveMonthlyMinor: Math.floor(amountMinor / term.months),
     listMinor,
     savingsMinor: listMinor - amountMinor,
-    currency: CURRENCY,
+    quoteOnly: false,
+    renews: true,
   };
 }
 
-/** Every plan crossed with every period — what the pricing screen renders. */
+/**
+ * Everything the pricing screen renders: the metered plans crossed with the
+ * three selectable terms, plus one entry each for the trial pack and the quote.
+ */
 export function catalogue(): Quote[] {
-  const out: Quote[] = [];
-  for (const plan of Object.keys(MONTHLY_MINOR) as SubscriptionPlan[]) {
-    for (const period of Object.keys(TERMS) as BillingPeriod[]) {
-      out.push(quote(plan, period));
-    }
+  const out: Quote[] = [quote("trial", "one_time")];
+  for (const plan of ["pro", "firm"] as SubscriptionPlan[]) {
+    for (const period of SELECTABLE_PERIODS) out.push(quote(plan, period));
   }
+  out.push(quote("custom", "one_time"));
   return out;
 }
 
@@ -92,25 +196,32 @@ export function periodLabel(billingPeriod: BillingPeriod): string {
 /**
  * What each plan actually entitles a chamber to.
  *
- * These are enforced, not advertised. The pricing screen lists "5 active
- * matters, 2 seats" on Starter, and `assertWithinLimits` is what makes that
- * sentence true — without it the plans would be decoration and nobody would
- * ever have a reason to upgrade.
+ * These are enforced, not advertised. The pricing screen lists "5 open matters,
+ * 2 seats" on the trial, and the quota check is what makes that sentence true —
+ * without it the plans would be decoration and nobody would ever have a reason
+ * to move off the trial.
  *
- * `null` means unlimited. A chamber that has not chosen a plan is on trial and
- * gets the Starter allowance, which is enough to evaluate the product and not
- * enough to run a practice on indefinitely.
+ * `null` means unlimited. A chamber that has not chosen a plan, or whose plan
+ * lapsed, gets the trial allowance: enough to evaluate the product, not enough
+ * to run a practice on indefinitely.
+ *
+ * `custom` carries the trial allowance on purpose. Its real limits are whatever
+ * the contract says, and until an operator sets them a selected-but-unquoted
+ * custom plan must not be a free upgrade to unlimited.
  */
 export type PlanLimits = { matters: number | null; seats: number | null };
 
+export const FALLBACK_PLAN: SubscriptionPlan = "trial";
+
 const LIMITS: Record<SubscriptionPlan, PlanLimits> = {
-  starter: { matters: 5, seats: 2 },
+  trial: { matters: 5, seats: 2 },
   pro: { matters: null, seats: 10 },
   firm: { matters: null, seats: null },
+  custom: { matters: 5, seats: 2 },
 };
 
 export function limitsFor(plan: SubscriptionPlan): PlanLimits {
-  return LIMITS[plan];
+  return LIMITS[plan] ?? LIMITS[FALLBACK_PLAN];
 }
 
 /** Every plan's allowance, for the pricing screen and the quota display. */
