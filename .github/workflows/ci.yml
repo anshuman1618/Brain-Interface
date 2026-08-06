@@ -1,18 +1,22 @@
 name: CI
 
-# Runs on every push and pull request. The point is that nobody has to
-# remember to run `pnpm run check` — a change that breaks formatting, lint,
-# types, the build or the API contract fails here before it can be merged.
+# The point is that nobody has to remember to run `pnpm run check` — a change
+# that breaks formatting, lint, types, the build or the API contract fails here
+# before it can be merged.
+#
+# Feature branches are covered by their pull request rather than by `push`:
+# listening to both meant every push to a branch with an open PR started two
+# identical runs. `push` is left on the default branch, which has no PR.
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
-# A new push supersedes the run in flight for the same ref; no value in
+# A new push supersedes the run in flight for the same branch; no value in
 # finishing a check against code that has already been replaced.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 permissions:
