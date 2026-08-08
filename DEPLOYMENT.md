@@ -131,6 +131,9 @@ Environment:
 | `HSTS`                                                  | no                   | `off` only if TLS terminates at a proxy that already sends HSTS                       |
 | `TRUST_PROXY`                                           | no                   | `off` when NOT behind a proxy, so a forged `X-Forwarded-For` cannot dodge rate limits |
 | `FILE_STORAGE_DIR`                                      | **yes in prod**      | Where uploaded case files are written (section 4a)                                    |
+| `FILE_ENCRYPTION_KEY`                                   | **yes in prod**      | 32 bytes of hex. Without it the server refuses to start (section 4a)                  |
+| `RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET`   | to take payment      | All three, or the plan screen records selections and charges nothing (section 4c)     |
+| `ERROR_WEBHOOK_URL`                                     | strongly advised     | Where faults are reported. Unset, you find out from a customer (section 4d)           |
 | `MAX_UPLOAD_BYTES`                                      | no                   | Per-file cap. Defaults to 25 MB                                                       |
 | `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `MAIL_FROM` | for email            | Unset, reminders are recorded but never delivered (section 4b)                        |
 
@@ -163,9 +166,37 @@ does not drop columns.
 > ALTER TABLE subscriptions ALTER COLUMN started_at DROP NOT NULL;
 > ```
 
-### 4a. Persistent storage for case files
+### 4a. Persistent storage for case files, and the key that protects them
 
-Uploaded documents are written to `FILE_STORAGE_DIR`, not to the database.
+Uploaded documents are written to `FILE_STORAGE_DIR`, not to the database, and
+they are **encrypted at rest** with AES-256-GCM before they touch the disk.
+
+```bash
+openssl rand -hex 32   # -> FILE_ENCRYPTION_KEY
+```
+
+- **Production will not start without it.** That is deliberate: writing
+  privileged client files in the clear is a worse outcome than a failed deploy.
+- **Back the key up somewhere other than the files it protects.** Lose it and
+  every uploaded document is unrecoverable. A password manager or your host's
+  secret store, not the same volume.
+- **Rotating it is not yet automatic.** Files are encrypted under the key that
+  was current when they were written; changing the key makes older files
+  unreadable. If you must rotate, decrypt and rewrite first.
+- **Upgrading an existing deployment**: files written before encryption existed
+  are read back as-is, so nothing breaks. Convert them with
+
+  ```bash
+  FILE_ENCRYPTION_KEY=... FILE_STORAGE_DIR=... \
+    pnpm --filter @workspace/api-server run encrypt-existing
+  ```
+
+  It is idempotent and resumable. Back up the directory first.
+
+> **Object storage is markedly cheaper than a mounted disk.** A persistent disk
+> runs about $0.25/GB/month against $0.015/GB/month with zero egress on
+> Cloudflare R2. The blob store is four functions behind an interface so the
+> swap is contained. See `docs/UNIT-ECONOMICS.md`.
 
 - **It must survive a restart.** On Render, Railway or Fly this means a mounted
   volume — a container's own filesystem is discarded on every deploy, and with
@@ -186,6 +217,50 @@ MAX_UPLOAD_BYTES=26214400            # 25 MB
 
 > Storage keys are generated server-side. A file named `../../etc/passwd`
 > is kept as a display label only; it never touches the filesystem path.
+
+### 4c. Payments
+
+Unset, the plan screen records a chamber's selection and charges nothing, which
+is a supported state — self-hosted and preview deployments run this way.
+
+To take money, set all three of `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` and
+`RAZORPAY_WEBHOOK_SECRET`, then in the Razorpay dashboard:
+
+1. Add a webhook pointing at `https://your-host/api/billing/webhook`.
+2. Subscribe it to **`payment.captured`** and **`order.paid`**. Nothing else is
+   acted on — an `authorized` payment can still fail.
+3. Set the webhook secret to the same value as `RAZORPAY_WEBHOOK_SECRET`. Test
+   and live mode have **separate webhooks and separate secrets**.
+
+Two things to verify once, against the live deployment:
+
+```bash
+# An unsigned webhook must be refused.
+curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  -H 'content-type: application/json' -d '{"event":"order.paid"}' \
+  https://your-host/api/billing/webhook
+# expect: 400
+```
+
+and that the plan did not change afterwards. The server recomputes the price
+from its own catalogue and refuses a payment whose amount does not match, so a
+tampered order cannot buy a year for a rupee — but confirm the 400, because a
+webhook that verifies nothing is the classic failure here.
+
+**CSP.** The browser checkout loads `https://checkout.razorpay.com`. Add it to
+`script-src` and `frame-src`, and `https://api.razorpay.com` to `connect-src`,
+or the pay button will fail silently in the console.
+
+### 4d. Error reporting
+
+Set `ERROR_WEBHOOK_URL` to any https endpoint that accepts a JSON POST — a
+Slack or Discord incoming webhook needs no adaptation. Uncaught exceptions,
+unhandled rejections and every 500 are forwarded, rate-limited to ten per
+minute and de-duplicated, carrying the message and stack frames only — never
+request bodies or chamber content.
+
+Unset, faults are logged and nothing is forwarded, which in practice means you
+learn about them from a customer.
 
 ### 4b. Email
 
@@ -427,6 +502,11 @@ Everything here should be true before the first real client signs in.
 - [ ] `DATABASE_URL` uses `sslmode=require`, and the role is not a superuser
 - [ ] Database not reachable from the public internet, or IP-restricted
 - [ ] Automated backups on, and one restore tested
+- [ ] `FILE_ENCRYPTION_KEY` set, and backed up somewhere other than the volume
+- [ ] An unsigned POST to `/api/billing/webhook` returns 400
+- [ ] `ERROR_WEBHOOK_URL` set, and a deliberate error seen arriving
+- [ ] The legal documents at `/legal/terms` and `/legal/privacy` reviewed by
+      counsel and their placeholders filled in
 - [ ] TLS terminated; HTTP redirects to HTTPS
 - [ ] `CORS_ALLOWED_ORIGINS` set to exact origins (Topology B) — or unset and
       unused (Topology A)
