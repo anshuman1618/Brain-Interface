@@ -84,12 +84,18 @@ jobs:
       - name: Build the API
         run: pnpm --filter @workspace/api-server run build
 
+      # A throwaway key: the suites assert that what lands on disk is ciphertext,
+      # which needs encryption actually switched on.
+      - name: Generate a run-scoped encryption key
+        run: echo "FILE_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
       # Preview mode: a real Postgres (PGlite) in-process, so the suites run
       # the same SQL as production without a database service to stand up.
       - name: Start the API
         run: |
           PREVIEW_DATA_DIR=$RUNNER_TEMP/ci-db \
           FILE_STORAGE_DIR=$RUNNER_TEMP/ci-files \
+          FILE_ENCRYPTION_KEY=$FILE_ENCRYPTION_KEY \
           PORT=5000 node artifacts/api-server/dist/index.mjs &
           for i in $(seq 1 30); do
             if curl -sf http://localhost:5000/api/healthz >/dev/null; then exit 0; fi
@@ -100,3 +106,5 @@ jobs:
 
       - name: Zero-trust, chamber, subscription and governance suites
         run: node scripts/ci/run-suites.mjs
+        env:
+          FILE_STORAGE_DIR: ${{ runner.temp }}/ci-files

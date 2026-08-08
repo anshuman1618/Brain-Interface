@@ -367,7 +367,33 @@ function DashboardLayoutContent() {
           </div>
         </main>
       </div>
+      <LegalFooter />
     </div>
+  );
+}
+
+/**
+ * The legal documents are served by the API as plain pages, outside the SPA, so
+ * these are real navigations rather than routes. They have to be reachable from
+ * inside the app as well as before sign-in — "where are the terms I agreed to"
+ * is a question people ask after they have an account.
+ */
+function LegalFooter() {
+  return (
+    <footer className="border-t border-border px-4 sm:px-6 py-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] font-mono uppercase tracking-widest text-muted-foreground">
+      <a href="/legal/terms" className="hover:text-foreground">
+        Terms
+      </a>
+      <a href="/legal/privacy" className="hover:text-foreground">
+        Privacy
+      </a>
+      <a href="/legal/notice" className="hover:text-foreground">
+        Data notice
+      </a>
+      <a href="/legal/dpa" className="hover:text-foreground">
+        Processing
+      </a>
+    </footer>
   );
 }
 

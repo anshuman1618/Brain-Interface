@@ -3,6 +3,12 @@ import app from "./app";
 import { initDatabase, isPreviewDatabase, previewDataDir } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminder-scheduler";
+import { assertEncryptionConfigured } from "./lib/blob-store";
+
+// Before anything can accept an upload. In production a missing key throws and
+// the process never listens, which is the intended outcome: writing privileged
+// client files in the clear is worse than not starting.
+assertEncryptionConfigured((msg) => logger.warn(msg));
 
 // The db client is a lazy proxy, so the connection must be established before
 // anything can query it — including the reminder scheduler below.

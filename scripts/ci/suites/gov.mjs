@@ -94,6 +94,38 @@ check(
   up.data?.storagePath,
 );
 
+// The point of encryption at rest: whatever is on the volume is not the file.
+// Read the raw bytes off disk and confirm the plaintext is not in them.
+{
+  const { readFile } = await import("node:fs/promises");
+  const { join, resolve } = await import("node:path");
+  const root = resolve(process.env.FILE_STORAGE_DIR?.trim() || ".file-storage");
+  let raw = null;
+  try {
+    raw = await readFile(join(root, up.data.storagePath));
+  } catch {}
+  if (raw === null) {
+    check("on-disk bytes readable for inspection", false, `not found under ${root}`);
+  } else if (!process.env.FILE_ENCRYPTION_KEY) {
+    console.log("  SKIP  encryption at rest (FILE_ENCRYPTION_KEY unset in this run)");
+  } else {
+    check(
+      "the file on disk is encrypted",
+      raw.subarray(0, 5).toString() === "LEXP1",
+      raw.subarray(0, 8).toString("hex"),
+    );
+    check(
+      "...and the plaintext is not present on the volume",
+      !raw.includes(Buffer.from("this is a real affidavit")),
+    );
+    check(
+      "...while the recorded size is the plaintext size",
+      up.data.fileSize === pdf.length,
+      `${up.data.fileSize} vs ${pdf.length}`,
+    );
+  }
+}
+
 const dl = await call(`/documents/${up.data.id}/content`, { token: as(owner), wsToken: ws });
 check(
   "download returns the same bytes",

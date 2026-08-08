@@ -12,6 +12,7 @@ import router from "./routes";
 import healthRouter from "./routes/health";
 import previewRouter from "./routes/preview";
 import { mountStaticClient } from "./middlewares/staticClient";
+import legalRouter from "./routes/legal";
 import { isPreviewAuth } from "./lib/preview-mode";
 import { logger } from "./lib/logger";
 import { securityHeaders } from "./middlewares/securityHeaders";
@@ -127,6 +128,12 @@ app.use("/api", router);
 app.use("/api", (_req, res) => {
   res.status(404).json({ error: "Not found" });
 });
+
+// Terms, privacy and the processing agreement, as plain pages. Before the SPA
+// fallback so they resolve as documents rather than being swallowed by the app
+// shell, and outside /api because someone who has not signed in — and may never
+// sign in — has to be able to read them.
+app.use(legalRouter);
 
 // Mounted last so the SPA fallback can never shadow an /api route.
 mountStaticClient(app);

@@ -28,6 +28,7 @@ import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { displayRole } from "../lib/permissions";
 import { recordAudit } from "../lib/audit";
 import * as blobs from "../lib/blob-store";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -400,9 +401,21 @@ router.get(
       `attachment; filename="${blobs.sanitiseFileName(doc.name)}"`,
     );
     res.setHeader("X-Content-Type-Options", "nosniff");
-    if (doc.fileSize) res.setHeader("Content-Length", String(doc.fileSize));
 
-    blobs.openRead(doc.storagePath).pipe(res);
+    // Decrypted whole before a byte is sent: the GCM tag only verifies at the
+    // end, so streaming would mean shipping unauthenticated bytes and then
+    // discovering the file had been tampered with, with nothing left to do
+    // about it. A failure here is a 500 with no partial body.
+    let plain: Buffer;
+    try {
+      plain = await blobs.read(doc.storagePath);
+    } catch (err) {
+      logger.error({ err, documentId: doc.id }, "Failed to read document bytes");
+      res.status(500).json({ error: "Unreadable", message: "The stored file could not be read." });
+      return;
+    }
+    res.setHeader("Content-Length", String(plain.length));
+    res.end(plain);
   },
 );
 
