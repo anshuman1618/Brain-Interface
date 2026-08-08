@@ -4,6 +4,7 @@ export * from "./workspace_access_list";
 export * from "./subscriptions";
 export * from "./audit_events";
 export * from "./deletion_requests";
+export * from "./payment_events";
 export * from "./mail_outbox";
 export * from "./calendar_entries";
 export * from "./feedback";

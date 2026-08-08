@@ -9,7 +9,7 @@ import {
   casesTable,
 } from "@workspace/db";
 import { logger } from "./logger";
-import { sendMail } from "./mailer";
+import { sendMail, drainOutbox } from "./mailer";
 
 /**
  * Reminders reach people, not just the log.
@@ -30,6 +30,7 @@ async function emailRecipient(clerkId: string, subject: string, body: string): P
 // Runs every 30 minutes; inserts T-24h and T-2h reminders for tasks and consultations,
 // and emails each recipient through the mailer (see lib/mailer.ts).
 let running = false;
+let draining = false;
 
 export function startReminderScheduler(): void {
   cron.schedule("*/30 * * * *", async () => {
@@ -43,7 +44,22 @@ export function startReminderScheduler(): void {
       running = false;
     }
   });
-  logger.info("Reminder scheduler started (every 30 min)");
+  // Separate and more frequent: a retry schedule that starts at one minute is
+  // pointless if nothing looks for due messages until the half hour.
+  cron.schedule("* * * * *", async () => {
+    if (draining) return;
+    draining = true;
+    try {
+      const r = await drainOutbox();
+      if (r.attempted > 0) logger.info(r, "Drained the mail outbox");
+    } catch (err) {
+      logger.error({ err }, "Mail outbox drain failed");
+    } finally {
+      draining = false;
+    }
+  });
+
+  logger.info("Reminder scheduler started (every 30 min), mail retry every minute");
 }
 
 async function alreadyNotified(userId: string, message: string): Promise<boolean> {

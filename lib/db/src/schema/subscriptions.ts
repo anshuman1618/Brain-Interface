@@ -60,6 +60,9 @@ export const subscriptionsTable = pgTable(
      */
     startedAt: timestamp("started_at", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    /** The provider's order and payment ids, for reconciliation and refunds. */
+    providerOrderId: text("provider_order_id"),
+    providerPaymentId: text("provider_payment_id"),
     updatedBy: text("updated_by"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

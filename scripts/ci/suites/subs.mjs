@@ -284,5 +284,94 @@ check(
 );
 check("who changed it is recorded", Boolean(reread.data.subscription.updatedBy));
 
+section("Payments: the webhook is the only thing that can mark a plan paid");
+// This deployment has no provider configured, which is itself a supported state
+// and the one CI runs in. What must hold either way: checkout refuses politely,
+// and the webhook refuses anything it cannot verify.
+const billingCfg = await call("/billing/config", { token: as(owner), wsToken: ws });
+check("billing config readable", billingCfg.status === 200, `got ${billingCfg.status}`);
+check(
+  "reports payments as unconfigured here",
+  billingCfg.data.enabled === false,
+  JSON.stringify(billingCfg.data),
+);
+check("...and exposes no key", billingCfg.data.keyId === null);
+
+const checkoutOff = await call("/billing/checkout", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { plan: "pro", billingPeriod: "yearly" },
+});
+check(
+  "checkout says so rather than failing obscurely (503)",
+  checkoutOff.status === 503 && checkoutOff.data?.reason === "not_configured",
+  `got ${checkoutOff.status} ${JSON.stringify(checkoutOff.data)}`,
+);
+
+// An unsigned webhook must never be believed, configured or not.
+const forged = await fetch(BASE + "/billing/webhook", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    event: "order.paid",
+    payload: {
+      order: {
+        entity: {
+          id: "order_forged",
+          amount: 1,
+          notes: { workspaceId: "1", plan: "firm", billingPeriod: "yearly" },
+        },
+      },
+    },
+  }),
+});
+check(
+  "an unsigned payment webhook is refused (400)",
+  forged.status === 400,
+  `got ${forged.status}`,
+);
+
+const badSig = await fetch(BASE + "/billing/webhook", {
+  method: "POST",
+  headers: { "content-type": "application/json", "x-razorpay-signature": "deadbeef" },
+  body: JSON.stringify({ event: "order.paid" }),
+});
+check("...and so is a wrong signature", badSig.status === 400, `got ${badSig.status}`);
+
+// The plan must not have moved. A forged webhook that changed anything would be
+// the whole failure mode this endpoint exists to avoid.
+const afterForge = await call("/workspace/subscription", { token: as(owner), wsToken: ws });
+check(
+  "the forged webhook changed nothing",
+  afterForge.data.subscription.plan === reread.data.subscription.plan &&
+    afterForge.data.subscription.amountMinor === reread.data.subscription.amountMinor,
+  JSON.stringify(afterForge.data.subscription),
+);
+
+const quoteOnlyCheckout = await call("/billing/checkout", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { plan: "custom", billingPeriod: "yearly" },
+});
+check(
+  "a quote-only plan cannot be checked out",
+  quoteOnlyCheckout.status === 400 || quoteOnlyCheckout.status === 503,
+  `got ${quoteOnlyCheckout.status}`,
+);
+
+const clientCheckout = await call("/billing/checkout", {
+  token: as(client),
+  wsToken: clientS.workspaceToken,
+  method: "POST",
+  body: { plan: "pro", billingPeriod: "yearly" },
+});
+check(
+  "a client cannot start a checkout (403)",
+  clientCheckout.status === 403,
+  `got ${clientCheckout.status}`,
+);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

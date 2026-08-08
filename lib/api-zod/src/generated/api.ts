@@ -649,6 +649,34 @@ export const DecideErasureResponse = zod.object({
 
 
 /**
+ * @summary Whether online payment is available, and the public key for it
+ */
+export const GetBillingConfigResponse = zod.object({
+  "enabled": zod.boolean().describe('False when no payment provider is configured.'),
+  "keyId": zod.string().nullish().describe('The provider\'s PUBLIC key, for the browser checkout.'),
+  "provider": zod.string().nullish()
+})
+
+
+/**
+ * Creates an order with the payment provider for an amount this server computed from the plan catalogue. It does NOT change the subscription: nothing is in force until the provider's signed webhook confirms the money arrived.
+ * @summary Create a payment order for a plan (billing.manage only)
+ */
+export const CreateCheckoutBody = zod.object({
+  "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
+  "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly'])
+})
+
+export const CreateCheckoutResponse = zod.object({
+  "orderId": zod.string(),
+  "amountMinor": zod.number().describe('Total in paise, computed server-side.'),
+  "currency": zod.string(),
+  "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
+  "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly'])
+})
+
+
+/**
  * @summary The workspace's current plan, alongside the full price catalogue
  */
 export const GetSubscriptionResponse = zod.object({

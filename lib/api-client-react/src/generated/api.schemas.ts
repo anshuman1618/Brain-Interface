@@ -775,6 +775,47 @@ export interface SubscriptionState {
   canManage: boolean;
 }
 
+export interface BillingConfig {
+  /** False when no payment provider is configured. */
+  enabled: boolean;
+  /**
+     * The provider's PUBLIC key, for the browser checkout.
+     * @nullable
+     */
+  keyId?: string | null;
+  /** @nullable */
+  provider?: string | null;
+}
+
+export type CheckoutOrderPlan = typeof CheckoutOrderPlan[keyof typeof CheckoutOrderPlan];
+
+
+export const CheckoutOrderPlan = {
+  trial: 'trial',
+  pro: 'pro',
+  firm: 'firm',
+  custom: 'custom',
+} as const;
+
+export type CheckoutOrderBillingPeriod = typeof CheckoutOrderBillingPeriod[keyof typeof CheckoutOrderBillingPeriod];
+
+
+export const CheckoutOrderBillingPeriod = {
+  one_time: 'one_time',
+  monthly: 'monthly',
+  half_yearly: 'half_yearly',
+  yearly: 'yearly',
+} as const;
+
+export interface CheckoutOrder {
+  orderId: string;
+  /** Total in paise, computed server-side. */
+  amountMinor: number;
+  currency: string;
+  plan: CheckoutOrderPlan;
+  billingPeriod: CheckoutOrderBillingPeriod;
+}
+
 export type SubscriptionInputPlan = typeof SubscriptionInputPlan[keyof typeof SubscriptionInputPlan];
 
 

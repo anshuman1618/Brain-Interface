@@ -598,6 +598,49 @@ paths:
         "404":
           description: No such request
 
+  /billing/config:
+    get:
+      operationId: getBillingConfig
+      tags: [session]
+      summary: Whether online payment is available, and the public key for it
+      responses:
+        "200":
+          description: Payment configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingConfig"
+
+  /billing/checkout:
+    post:
+      operationId: createCheckout
+      tags: [session]
+      summary: Create a payment order for a plan (billing.manage only)
+      description: >
+        Creates an order with the payment provider for an amount this server
+        computed from the plan catalogue. It does NOT change the subscription:
+        nothing is in force until the provider's signed webhook confirms the
+        money arrived.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionInput"
+      responses:
+        "200":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutOrder"
+        "400":
+          description: Unknown plan, or a plan that is priced by quotation
+        "403":
+          description: Forbidden
+        "503":
+          description: Payments are not configured for this deployment
+
   /workspace/subscription:
     get:
       operationId: getSubscription
@@ -2060,6 +2103,37 @@ components:
         canManage:
           type: boolean
           description: Whether the caller holds billing.manage in this workspace.
+
+    BillingConfig:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          description: False when no payment provider is configured.
+        keyId:
+          type: ["string", "null"]
+          description: The provider's PUBLIC key, for the browser checkout.
+        provider:
+          type: ["string", "null"]
+
+    CheckoutOrder:
+      type: object
+      required: [orderId, amountMinor, currency, plan, billingPeriod]
+      properties:
+        orderId:
+          type: string
+        amountMinor:
+          type: integer
+          description: Total in paise, computed server-side.
+        currency:
+          type: string
+        plan:
+          type: string
+          enum: [trial, pro, firm, custom]
+        billingPeriod:
+          type: string
+          enum: [one_time, monthly, half_yearly, yearly]
 
     SubscriptionInput:
       type: object

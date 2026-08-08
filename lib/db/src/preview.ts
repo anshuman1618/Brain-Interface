@@ -98,6 +98,20 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   CONSTRAINT subscriptions_workspace_key UNIQUE (workspace_id)
 );
 
+CREATE TABLE IF NOT EXISTS payment_events (
+  id SERIAL PRIMARY KEY,
+  event_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  workspace_id INTEGER,
+  order_id TEXT,
+  payment_id TEXT,
+  amount_minor INTEGER,
+  outcome TEXT NOT NULL DEFAULT 'applied',
+  detail TEXT,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT payment_events_event_key UNIQUE (event_id)
+);
+
 CREATE TABLE IF NOT EXISTS audit_events (
   id SERIAL PRIMARY KEY,
   workspace_id INTEGER NOT NULL,
@@ -320,6 +334,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider TEXT NOT NULL DEFAULT '
 -- arrived: an enquiry is recorded, but nothing has started. DROP NOT NULL is a
 -- no-op once applied, so this is safe to run on every boot like the rest.
 ALTER TABLE subscriptions ALTER COLUMN started_at DROP NOT NULL;
+ALTER TABLE mail_outbox ADD COLUMN IF NOT EXISTS next_attempt_at TIMESTAMPTZ;
+ALTER TABLE mail_outbox ADD COLUMN IF NOT EXISTS last_attempt_at TIMESTAMPTZ;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider_order_id TEXT;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider_payment_id TEXT;
 ALTER TABLE workspace_memberships ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS url TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS checksum TEXT;

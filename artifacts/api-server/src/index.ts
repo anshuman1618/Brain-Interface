@@ -4,6 +4,10 @@ import { initDatabase, isPreviewDatabase, previewDataDir } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminder-scheduler";
 import { assertEncryptionConfigured } from "./lib/blob-store";
+import { installProcessHandlers } from "./lib/error-reporter";
+
+// First, so a crash during the rest of startup is still reported.
+installProcessHandlers();
 
 // Before anything can accept an upload. In production a missing key throws and
 // the process never listens, which is the intended outcome: writing privileged

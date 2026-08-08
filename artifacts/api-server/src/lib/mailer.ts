@@ -1,7 +1,7 @@
 import { createConnection, type Socket } from "node:net";
 import { connect as tlsConnect, type TLSSocket } from "node:tls";
-import { eq } from "drizzle-orm";
-import { db, mailOutboxTable } from "@workspace/db";
+import { and, eq, lt, lte } from "drizzle-orm";
+import { db, mailOutboxTable, type MailMessage } from "@workspace/db";
 import { logger } from "./logger";
 
 /**
@@ -209,11 +209,118 @@ export async function sendMail(mail: Mail): Promise<{ id: number; status: string
     return { id, status: "sent" };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logger.error({ err, to: mail.to }, "Mail delivery failed");
+    logger.error({ err, to: mail.to }, "Mail delivery failed — queued for retry");
     await db
       .update(mailOutboxTable)
-      .set({ status: "failed", error: message.slice(0, 500) })
+      .set({
+        status: "failed",
+        error: message.slice(0, 500),
+        lastAttemptAt: new Date(),
+        nextAttemptAt: dueAfter(1),
+      })
       .where(eq(mailOutboxTable.id, id));
     return { id, status: "failed" };
   }
+}
+
+/* ── Retry ────────────────────────────────────────────────────────────────
+ *
+ * A mail server being down for ten minutes should not silently cost a chamber
+ * a hearing reminder. `failed` therefore means "will be tried again", and the
+ * drain below is what tries.
+ *
+ * Backoff is exponential with a cap, so a provider outage is ridden out rather
+ * than hammered: roughly 1 min, 5, 25, 2 h, 6 h, then given up on. A message
+ * that exhausts its attempts becomes `abandoned` — a state that exists so
+ * somebody can see it, because a reminder nobody received and nobody knows
+ * about is the failure this whole module is built to avoid.
+ */
+
+const MAX_ATTEMPTS = 6;
+const BACKOFF_MINUTES = [1, 5, 25, 120, 360];
+
+function dueAfter(attempts: number): Date {
+  const mins = BACKOFF_MINUTES[Math.min(attempts, BACKOFF_MINUTES.length) - 1] ?? 360;
+  return new Date(Date.now() + mins * 60_000);
+}
+
+/**
+ * Send everything that is due. Returns what it did.
+ *
+ * Never throws: it runs on a timer, and a scheduler that dies on one bad row
+ * stops delivering for everybody.
+ */
+export async function drainOutbox(limit = 25): Promise<{
+  attempted: number;
+  sent: number;
+  failed: number;
+  abandoned: number;
+}> {
+  const result = { attempted: 0, sent: 0, failed: 0, abandoned: 0 };
+  const cfg = smtpConfig();
+  if (!cfg) return result;
+
+  let due: MailMessage[];
+  try {
+    due = await db
+      .select()
+      .from(mailOutboxTable)
+      .where(
+        and(
+          eq(mailOutboxTable.status, "failed"),
+          lte(mailOutboxTable.nextAttemptAt, new Date()),
+          lt(mailOutboxTable.attempts, MAX_ATTEMPTS),
+        ),
+      )
+      .limit(limit);
+  } catch (err) {
+    logger.error({ err }, "Could not read the mail outbox");
+    return result;
+  }
+
+  for (const row of due) {
+    result.attempted++;
+    const attempts = row.attempts + 1;
+    try {
+      await sendSmtp(cfg, { to: row.toEmail, subject: row.subject, body: row.body });
+      await db
+        .update(mailOutboxTable)
+        .set({
+          status: "sent",
+          sentAt: new Date(),
+          attempts,
+          lastAttemptAt: new Date(),
+          nextAttemptAt: null,
+          error: null,
+        })
+        .where(eq(mailOutboxTable.id, row.id));
+      result.sent++;
+      logger.info({ id: row.id, attempts }, "Outbox message delivered on retry");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const spent = attempts >= MAX_ATTEMPTS;
+      await db
+        .update(mailOutboxTable)
+        .set({
+          status: spent ? "abandoned" : "failed",
+          error: message.slice(0, 500),
+          attempts,
+          lastAttemptAt: new Date(),
+          nextAttemptAt: spent ? null : dueAfter(attempts),
+        })
+        .where(eq(mailOutboxTable.id, row.id));
+      if (spent) {
+        result.abandoned++;
+        // Loud on purpose: this is the one outcome a person has to act on.
+        logger.error(
+          { id: row.id, to: row.toEmail, subject: row.subject, attempts },
+          "Giving up on an outbox message after the final attempt",
+        );
+      } else {
+        result.failed++;
+      }
+    }
+  }
+
+  return result;
 }

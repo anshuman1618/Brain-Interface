@@ -12,6 +12,9 @@ import { Check, Info } from "lucide-react";
 import {
   useGetSubscription,
   useSetSubscription,
+  useGetBillingConfig,
+  useCreateCheckout,
+  getGetBillingConfigQueryKey,
   getGetSubscriptionQueryKey,
   type PlanQuote,
   type SubscriptionInputPlan,
@@ -19,6 +22,40 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+
+/**
+ * Razorpay's checkout script, loaded on demand.
+ *
+ * Deliberately not in index.html: a third-party script on every page load is
+ * exactly the disclosure the fonts were removed for. It is fetched the moment
+ * somebody chooses to pay, and not before. The deployment's CSP has to allow
+ * checkout.razorpay.com — see DEPLOYMENT.md.
+ */
+const CHECKOUT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
+  }
+}
+
+function loadCheckout(): Promise<void> {
+  if (window.Razorpay) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${CHECKOUT_SRC}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("checkout script failed to load")));
+      return;
+    }
+    const el = document.createElement("script");
+    el.src = CHECKOUT_SRC;
+    el.async = true;
+    el.onload = () => resolve();
+    el.onerror = () => reject(new Error("checkout script failed to load"));
+    document.head.appendChild(el);
+  });
+}
 
 interface PricingModalContextType {
   open: boolean;
@@ -115,6 +152,17 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     query: { enabled: open, queryKey: getGetSubscriptionQueryKey() },
   });
   const setSubscription = useSetSubscription();
+  const { data: billing } = useGetBillingConfig({
+    query: { enabled: open, queryKey: getGetBillingConfigQueryKey() },
+  });
+  const createCheckout = useCreateCheckout();
+  const [paying, setPaying] = useState<SubscriptionInputPlan | null>(null);
+
+  // Only the plans that cost money, and only when a provider is configured.
+  // Everywhere else the button records the selection as it always did, which is
+  // what keeps preview mode and self-hosted deployments working.
+  const payable = (plan: SubscriptionInputPlan) =>
+    (billing?.enabled ?? false) && PLAN_COPY[plan].metered;
 
   const current = data?.subscription;
   const canManage = data?.canManage ?? false;
@@ -124,6 +172,55 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     data?.catalogue.find(
       (q) => q.plan === plan && q.billingPeriod === (PLAN_COPY[plan].metered ? period : "one_time"),
     );
+
+  /**
+   * Pay for a plan.
+   *
+   * The order is created server-side for an amount the server computed; this
+   * only hands the resulting id to the provider's widget. Success here means
+   * "the widget closed happily", NOT "the subscription is active" — that is
+   * decided by the signed webhook, so the UI refetches and reports what the
+   * server says rather than assuming.
+   */
+  const pay = async (plan: SubscriptionInputPlan) => {
+    const copy = PLAN_COPY[plan];
+    setPaying(plan);
+    try {
+      const order = await createCheckout.mutateAsync({
+        data: { plan, billingPeriod: copy.metered ? period : "one_time" },
+      });
+      await loadCheckout();
+      if (!window.Razorpay) throw new Error("checkout unavailable");
+
+      const rzp = new window.Razorpay({
+        key: billing?.keyId,
+        order_id: order.orderId,
+        amount: order.amountMinor,
+        currency: order.currency,
+        name: "LEX Practice",
+        description: `${copy.name} plan`,
+        handler: () => {
+          // The webhook is the source of truth and may land a moment later.
+          queryClient.invalidateQueries({ queryKey: getGetSubscriptionQueryKey() });
+          toast({
+            title: "Payment received",
+            description: "Your plan activates as soon as the payment is confirmed.",
+          });
+        },
+        modal: { ondismiss: () => setPaying(null) },
+        theme: { color: "#5b3a1c" },
+      });
+      rzp.open();
+    } catch (err) {
+      toast({
+        title: "Could not start payment",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setPaying(null);
+    }
+  };
 
   const choose = (plan: SubscriptionInputPlan) => {
     const copy = PLAN_COPY[plan];
@@ -312,18 +409,24 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                     <Button
                       variant={featured ? "default" : "outline"}
                       className="w-full rounded-none font-mono uppercase tracking-wider"
-                      disabled={!canManage || isCurrent || setSubscription.isPending}
-                      onClick={() => choose(plan)}
+                      disabled={
+                        !canManage || isCurrent || setSubscription.isPending || paying !== null
+                      }
+                      onClick={() => (payable(plan) ? void pay(plan) : choose(plan))}
                     >
                       {isCurrent
                         ? quoteOnly
                           ? "Enquiry sent"
                           : "Selected"
-                        : setSubscription.isPending
-                          ? "Saving..."
-                          : quoteOnly
-                            ? "Talk to us"
-                            : "Choose"}
+                        : paying === plan
+                          ? "Opening..."
+                          : setSubscription.isPending
+                            ? "Saving..."
+                            : quoteOnly
+                              ? "Talk to us"
+                              : payable(plan)
+                                ? "Subscribe"
+                                : "Choose"}
                     </Button>
                   </div>
                 );
@@ -334,9 +437,11 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
           <div className="px-8 py-4 border-t border-border bg-muted/30 flex items-start gap-2 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <p>
-              {canManage
-                ? "Choosing a plan records it against your chamber. No payment provider is connected to this deployment yet, so nothing is charged."
-                : "Only a chamber owner or Firm Admin can change the plan. You are seeing the plan your chamber is on."}
+              {!canManage
+                ? "Only a chamber owner or Firm Admin can change the plan. You are seeing the plan your chamber is on."
+                : billing?.enabled
+                  ? "Payment is taken by Razorpay. Card details never reach our servers, and your plan activates once the payment is confirmed."
+                  : "Choosing a plan records it against your chamber. No payment provider is connected to this deployment, so nothing is charged."}
             </p>
           </div>
         </DialogContent>

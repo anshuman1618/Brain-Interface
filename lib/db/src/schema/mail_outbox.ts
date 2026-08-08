@@ -11,7 +11,12 @@ import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
  * `status` is the delivery attempt, not the recipient's behaviour - nothing
  * here tracks opens or clicks, and nothing should.
  */
-export const MAIL_STATUSES = ["queued", "sent", "failed", "suppressed"] as const;
+/**
+ * `failed` is not terminal — it means "the last attempt failed and another is
+ * due". A message that has exhausted its attempts becomes `abandoned`, which is
+ * the state a human needs to look at.
+ */
+export const MAIL_STATUSES = ["queued", "sent", "failed", "abandoned", "suppressed"] as const;
 export type MailStatus = (typeof MAIL_STATUSES)[number];
 
 export const mailOutboxTable = pgTable("mail_outbox", {
@@ -27,6 +32,9 @@ export const mailOutboxTable = pgTable("mail_outbox", {
   transport: text("transport").notNull().default(""),
   error: text("error"),
   attempts: integer("attempts").notNull().default(0),
+  /** When the next retry becomes due. Null once the message is settled. */
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   sentAt: timestamp("sent_at", { withTimezone: true }),
 });

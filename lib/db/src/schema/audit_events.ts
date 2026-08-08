@@ -32,6 +32,8 @@ export const AUDIT_ACTIONS = [
   "document.deleted",
   "document_request.created",
   "subscription.changed",
+  "billing.checkout_started",
+  "billing.paid",
   "data.exported",
   "erasure.requested",
   "erasure.completed",

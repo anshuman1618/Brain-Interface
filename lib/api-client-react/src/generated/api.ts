@@ -26,6 +26,7 @@ import type {
   AccessRequest,
   AccessRequestInput,
   AuditEvent,
+  BillingConfig,
   CalendarEntry,
   CalendarEntryInput,
   CalendarEntryUpdate,
@@ -33,6 +34,7 @@ import type {
   CaseInput,
   CaseUpdate,
   CheckConflicts200,
+  CheckoutOrder,
   ConflictCheckInput,
   Consultation,
   ConsultationInput,
@@ -2053,6 +2055,155 @@ export const useDecideErasure = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDecideErasureMutationOptions(options));
+    }
+
+export const getGetBillingConfigUrl = () => {
+
+
+
+
+  return `/api/billing/config`
+}
+
+/**
+ * @summary Whether online payment is available, and the public key for it
+ */
+export const getBillingConfig = async ( options?: RequestInit): Promise<BillingConfig> => {
+
+  return customFetch<BillingConfig>(getGetBillingConfigUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetBillingConfigQueryKey = () => {
+    return [
+    `/api/billing/config`
+    ] as const;
+    }
+
+
+export const getGetBillingConfigQueryOptions = <TData = Awaited<ReturnType<typeof getBillingConfig>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetBillingConfigQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getBillingConfig>>> = ({ signal }) => getBillingConfig({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getBillingConfig>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetBillingConfigQueryResult = NonNullable<Awaited<ReturnType<typeof getBillingConfig>>>
+export type GetBillingConfigQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Whether online payment is available, and the public key for it
+ */
+
+export function useGetBillingConfig<TData = Awaited<ReturnType<typeof getBillingConfig>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getBillingConfig>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetBillingConfigQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCheckoutUrl = () => {
+
+
+
+
+  return `/api/billing/checkout`
+}
+
+/**
+ * Creates an order with the payment provider for an amount this server computed from the plan catalogue. It does NOT change the subscription: nothing is in force until the provider's signed webhook confirms the money arrived.
+ * @summary Create a payment order for a plan (billing.manage only)
+ */
+export const createCheckout = async (subscriptionInput: SubscriptionInput, options?: RequestInit): Promise<CheckoutOrder> => {
+
+  return customFetch<CheckoutOrder>(getCreateCheckoutUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(subscriptionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCheckoutMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCheckout>>, TError,{data: BodyType<SubscriptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCheckout>>, TError,{data: BodyType<SubscriptionInput>}, TContext> => {
+
+const mutationKey = ['createCheckout'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCheckout>>, {data: BodyType<SubscriptionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCheckout(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCheckoutMutationResult = NonNullable<Awaited<ReturnType<typeof createCheckout>>>
+    export type CreateCheckoutMutationBody = BodyType<SubscriptionInput>
+    export type CreateCheckoutMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a payment order for a plan (billing.manage only)
+ */
+export const useCreateCheckout = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCheckout>>, TError,{data: BodyType<SubscriptionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCheckout>>,
+        TError,
+        {data: BodyType<SubscriptionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCheckoutMutationOptions(options));
     }
 
 export const getGetSubscriptionUrl = () => {

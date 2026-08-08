@@ -13,6 +13,8 @@ import healthRouter from "./routes/health";
 import previewRouter from "./routes/preview";
 import { mountStaticClient } from "./middlewares/staticClient";
 import legalRouter from "./routes/legal";
+import billingRouter, { handleRazorpayWebhook } from "./routes/billing";
+import { reportError } from "./lib/error-reporter";
 import { isPreviewAuth } from "./lib/preview-mode";
 import { logger } from "./lib/logger";
 import { securityHeaders } from "./middlewares/securityHeaders";
@@ -65,6 +67,16 @@ if (allowedOrigins.length > 0) {
 } else {
   app.use(cors({ credentials: true, origin: true }));
 }
+// BEFORE the JSON parser, and with a raw body on purpose: the payment webhook
+// signature covers the exact bytes the provider sent. Parsing and re-serialising
+// changes key order and whitespace, the digest stops matching, and the usual
+// "fix" is to skip verification — which is how these integrations end up
+// authenticating nothing. Mounted here so the ordering is visible rather than
+// buried in a router.
+app.post("/api/billing/webhook", express.raw({ type: "*/*", limit: "1mb" }), (req, res, next) => {
+  void handleRazorpayWebhook(req, res).catch(next);
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -119,6 +131,7 @@ app.use("/api", (req, res, next) =>
     : rateLimit({ name: "write", max: 120, windowMs: 60_000, perUser: true })(req, res, next),
 );
 
+app.use("/api", billingRouter);
 app.use("/api", router);
 
 // Unmatched API paths must answer in JSON. Without this they fall through to
@@ -148,7 +161,14 @@ app.use((err: unknown, req: express.Request, res: express.Response, next: expres
     return;
   }
 
-  req.log?.error({ err }, "Unhandled error");
+  // Logged AND forwarded. The log is for the investigation; the report is so
+  // somebody knows there is one to do.
+  reportError(err, {
+    at: "express",
+    method: req.method,
+    path: req.path,
+    statusCode: 500,
+  });
 
   const isApi = req.path === "/api" || req.path.startsWith("/api/");
   if (isApi) {
