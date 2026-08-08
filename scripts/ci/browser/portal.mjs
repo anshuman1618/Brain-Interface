@@ -243,6 +243,85 @@ check(
   JSON.stringify(focusRing),
 );
 
+/* ─────────── 8. The signed-in application, at every screen size ──────────
+ *
+ * The pages above are the front door. This is the part a chamber lives in all
+ * day, and the part that carries tables, a calendar grid and a pricing screen
+ * — everything that actually breaks when the viewport narrows.
+ *
+ * Preview mode treats any address as verified, so no Clerk tenant is needed;
+ * everything after sign-in is the real authorisation path.
+ */
+section("8. The signed-in application");
+await page.setViewportSize({ width: 1280, height: 800 });
+await page.goto(`${BASE}/portal`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Continue with email/i }).click();
+await page.waitForTimeout(400);
+await page.locator('input[type="email"]').fill(`founder${Date.now()}@chambers.test`);
+await page.locator("input").nth(1).fill("B Founder");
+await page.getByRole("button", { name: /^Continue$/ }).click();
+await page.waitForTimeout(1500);
+
+const afterSignIn = await text();
+check(
+  "a fresh platform offers to create the first chamber",
+  /chamber/i.test(afterSignIn),
+  afterSignIn.slice(0, 200),
+);
+
+// Found a chamber so there is a dashboard to measure.
+const nameField = page.locator('input[type="text"]').first();
+if (await nameField.count()) {
+  await nameField.fill("Browser Chambers");
+  const admin = page.getByText(/Firm Admin/).first();
+  if (await admin.count()) await admin.click();
+  const create = page.getByRole("button", { name: /create|found|continue/i }).last();
+  if (await create.count()) await create.click();
+  await page.waitForTimeout(2000);
+}
+
+const inApp = await text();
+const signedIn = !/sign in to your chamber/i.test(inApp);
+check("reached the application", signedIn, inApp.slice(0, 220));
+
+if (signedIn) {
+  for (const { w, h, label } of VIEWPORTS) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(250);
+    const o = await overflow();
+    if (o > 1) {
+      check(
+        `dashboard @ ${w}px (${label}) has no horizontal scroll`,
+        false,
+        `overflow ${o}px — ${(await widest()).join(" ; ")}`,
+      );
+    } else {
+      check(`dashboard @ ${w}px (${label}) has no horizontal scroll`, true);
+    }
+  }
+
+  // The pricing screen is the newest and most crowded thing in the app: four
+  // plan cards where there used to be three.
+  await page.setViewportSize({ width: 360, height: 740 });
+  const upgrade = page.getByRole("button", { name: /plan|upgrade|subscription/i }).first();
+  if (await upgrade.count()) {
+    await upgrade.click();
+    await page.waitForTimeout(700);
+    const pricing = await text();
+    if (/trial/i.test(pricing) && /custom/i.test(pricing)) {
+      check("all four plans render on a phone", true);
+      check(
+        "pricing screen does not scroll sideways",
+        (await overflow()) <= 1,
+        `overflow ${await overflow()}px`,
+      );
+    }
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+}
+
 /* ───────────────────────────── Wrap up ──────────────────────────────────── */
 
 console.log(`\nConsole errors: ${consoleErrors.length}`);
