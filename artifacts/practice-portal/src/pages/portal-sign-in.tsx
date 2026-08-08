@@ -251,13 +251,13 @@ export default function PortalSignInPage() {
       </main>
       {/* Readable before anyone signs in, which is the point of them. */}
       <footer className="border-t border-border px-6 py-5 flex flex-wrap justify-center gap-x-6 gap-y-2 text-[11px] font-mono uppercase tracking-widest text-muted-foreground">
-        <a href="/legal/terms" className="hover:text-foreground">
+        <a href="/legal/terms" className="hover:text-foreground py-2.5 px-1">
           Terms of Service
         </a>
-        <a href="/legal/privacy" className="hover:text-foreground">
+        <a href="/legal/privacy" className="hover:text-foreground py-2.5 px-1">
           Privacy Policy
         </a>
-        <a href="/legal/notice" className="hover:text-foreground">
+        <a href="/legal/notice" className="hover:text-foreground py-2.5 px-1">
           Data Protection Notice
         </a>
       </footer>

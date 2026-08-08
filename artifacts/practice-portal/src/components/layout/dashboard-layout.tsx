@@ -381,16 +381,16 @@ function DashboardLayoutContent() {
 function LegalFooter() {
   return (
     <footer className="border-t border-border px-4 sm:px-6 py-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] font-mono uppercase tracking-widest text-muted-foreground">
-      <a href="/legal/terms" className="hover:text-foreground">
+      <a href="/legal/terms" className="hover:text-foreground py-2.5 px-1">
         Terms
       </a>
-      <a href="/legal/privacy" className="hover:text-foreground">
+      <a href="/legal/privacy" className="hover:text-foreground py-2.5 px-1">
         Privacy
       </a>
-      <a href="/legal/notice" className="hover:text-foreground">
+      <a href="/legal/notice" className="hover:text-foreground py-2.5 px-1">
         Data notice
       </a>
-      <a href="/legal/dpa" className="hover:text-foreground">
+      <a href="/legal/dpa" className="hover:text-foreground py-2.5 px-1">
         Processing
       </a>
     </footer>

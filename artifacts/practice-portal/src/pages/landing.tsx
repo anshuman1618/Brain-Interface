@@ -4,14 +4,14 @@ import { Briefcase, ArrowRight, ShieldCheck, Scale, Globe } from "lucide-react";
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-sans">
-      <header className="h-20 border-b border-border flex items-center justify-between px-8 relative z-10 bg-background/80 backdrop-blur-md">
+      <header className="min-h-20 border-b border-border flex flex-wrap items-center justify-between gap-y-2 py-3 sm:py-0 px-4 sm:px-8 relative z-10 bg-background/80 backdrop-blur-md">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 bg-primary text-primary-foreground flex items-center justify-center font-mono font-bold text-lg tracking-tighter shadow-sm">
             LEX
           </div>
           <span className="font-mono font-bold tracking-tight text-xl">PRACTICE</span>
         </div>
-        <div className="flex gap-4 items-center">
+        <div className="flex gap-2 sm:gap-4 items-center">
           <Link
             href="/portal"
             className="text-sm font-semibold hover:text-primary transition-colors px-4 py-2"
@@ -20,7 +20,7 @@ export default function LandingPage() {
           </Link>
           <Link
             href="/portal?new=1"
-            className="text-sm font-semibold bg-primary text-primary-foreground px-6 py-2.5 shadow-sm hover:bg-primary/90 transition-all active:scale-95 border border-primary"
+            className="text-sm font-semibold bg-primary text-primary-foreground px-4 sm:px-6 py-2.5 shadow-sm hover:bg-primary/90 transition-all active:scale-95 border border-primary"
           >
             Set up a chamber
           </Link>
