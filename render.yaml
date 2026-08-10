@@ -1,6 +1,6 @@
 # Render Blueprint for LEX Practice.
 #
-# Creates the API server (which also serves the built SPA on the same origin)
+# Creates the API server — which also serves the built SPA on the same origin —
 # and a managed Postgres, wired together. Render reads this when you point a
 # Blueprint at the repository, so the shape of the deployment lives in version
 # control rather than in twenty dashboard fields somebody typed once.
@@ -8,35 +8,48 @@
 #   Render dashboard -> New -> Blueprint -> pick this repo
 #
 # Secrets are deliberately NOT in here. Every `sync: false` below is a value you
-# paste into the dashboard once; a blueprint is a public file in a public repo.
+# paste into the dashboard once; a blueprint is a file in the repository.
 #
-# Full walkthrough, including what to do before and after: DEPLOYMENT.md §10.
+# Full walkthrough and troubleshooting: DEPLOYMENT.md section 10.
+#
+# COST. As written this is a PAID deployment: roughly $47/month (standard
+# service, basic-1gb Postgres, 10 GB disk). Two of those are not optional for a
+# real chamber — the disk is where case files live, and Render's free Postgres
+# expires after 30 days. DEPLOYMENT.md section 10 has a free-tier variant for
+# trying it out, in which uploaded files do not survive a restart.
 
 services:
   - type: web
     name: lex-practice
     runtime: node
-    plan:
-      standard # 1 vCPU / 2 GB. Starter's 512 MB is tight once files are
-      # encrypted in memory on upload.
-    region: singapore # Closest Render region to India. Oregon adds ~200ms.
+    plan: standard
+    region: singapore
     branch: main
     autoDeploy: true
 
     # corepack activates the pnpm version pinned in package.json, so the build
     # uses the same package manager the lockfile was written by.
+    #
+    # --prod=false because NODE_ENV=production below would otherwise let the
+    # installer skip devDependencies, and the build needs typescript, vite and
+    # esbuild.
     buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm run build
-    startCommand: pnpm --filter @workspace/api-server run start
 
-    # Runs after the build, before traffic moves to the new version. Schema
-    # changes are additive, so this is safe to run on every deploy.
-    preDeployCommand: pnpm --filter @workspace/db run push
+    # Schema first, then serve. This runs on every start rather than in a
+    # preDeployCommand for two reasons: preDeployCommand requires a paid
+    # instance type, and Render only shifts traffic once the new instance passes
+    # its health check — so a failed migration means the deploy does not go live
+    # while the previous instance keeps serving. Same safety, no plan dependency.
+    startCommand: pnpm --filter @workspace/db run push && pnpm run start
 
     healthCheckPath: /api/healthz
 
-    # Uploaded case files. See DEPLOYMENT.md §4a — object storage is roughly
-    # 16x cheaper than a disk at any real volume, and this is the simplest
-    # starting point rather than the cheapest one.
+    # Uploaded case files. See DEPLOYMENT.md section 4a — object storage is
+    # roughly 16x cheaper than a disk at any real volume, and this is the
+    # simplest starting point rather than the cheapest one.
+    #
+    # A disk also pins the service to ONE instance: Render disks cannot be
+    # shared, so scaling to a second replica means moving files off it first.
     disk:
       name: case-files
       mountPath: /var/data
@@ -44,9 +57,15 @@ services:
 
     envVars:
       # NOT a log level here: outside production the API reflects any Origin
-      # with credentials. Render also reads .nvmrc for the Node version.
+      # with credentials. Render reads .node-version for the Node version.
       - key: NODE_ENV
         value: production
+
+      # Without this, corepack asks for confirmation before downloading pnpm.
+      # There is nobody to answer in a build container, and the build fails on a
+      # prompt that never appears in the log.
+      - key: COREPACK_ENABLE_DOWNLOAD_PROMPT
+        value: "0"
 
       - key: DATABASE_URL
         fromDatabase:
@@ -63,11 +82,11 @@ services:
 
       # MUST be exactly 32 bytes as 64 hex characters. Generate with
       #   openssl rand -hex 32
-      # and paste it in the dashboard. Not generateValue: the format is
-      # checked at startup and a value of the wrong length stops the deploy.
+      # and paste it in the dashboard. Not generateValue: the format is checked
+      # at startup and a value of the wrong length stops the deploy.
       #
-      # BACK THIS UP somewhere other than this disk. Lose it and every
-      # uploaded document is unrecoverable — there is no recovery path.
+      # BACK THIS UP somewhere other than this disk. Lose it and every uploaded
+      # document is unrecoverable — there is no recovery path.
       - key: FILE_ENCRYPTION_KEY
         sync: false
 
@@ -81,20 +100,20 @@ services:
       - key: VITE_CLERK_PUBLISHABLE_KEY
         sync: false
 
-      # Makes the build FAIL if the key above is missing, rather than shipping
-      # a bundle in preview mode that nobody can sign in to. Not keyed on
+      # Makes the build FAIL if the key above is missing, rather than shipping a
+      # bundle in preview mode that nobody can sign in to. Not keyed on
       # NODE_ENV, because `vite build` sets that itself and CI builds preview
       # bundles on purpose.
       - key: REQUIRE_CLERK_KEY
         value: "true"
 
-      # Behind Render's proxy, so X-Forwarded-For is trustworthy and rate
-      # limits key on the real client rather than on the proxy.
+      # Behind Render's proxy, so X-Forwarded-For is trustworthy and rate limits
+      # key on the real client rather than on the proxy.
       - key: TRUST_PROXY
         value: "on"
 
-      # Payments. Leave unset and the plan screen records selections and
-      # charges nothing, which is a fine state to launch a pilot in.
+      # Payments. Leave unset and the plan screen records selections and charges
+      # nothing, which is a fine state to launch a pilot in.
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
@@ -108,8 +127,8 @@ services:
       - key: SERVICE_NAME
         value: lex-practice
 
-      # Outbound email. Unset, reminders are recorded in the outbox with
-      # status "suppressed" and never delivered.
+      # Outbound email. Unset, reminders are recorded in the outbox with status
+      # "suppressed" and never delivered.
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -125,9 +144,9 @@ databases:
   - name: lex-practice-db
     databaseName: lex_practice
     user: lex_practice
-    plan:
-      basic-1gb # The free tier expires after 30 days and the 256 MB tier
-      # runs out of room quickly once documents carry metadata.
+    # The free tier expires after 30 days and the 256 MB tier runs out of room
+    # quickly once documents carry metadata.
+    plan: basic-1gb
     region: singapore
     # Restrict to Render's internal network. With no ipAllowList entries the
     # database is not reachable from the public internet at all — the service

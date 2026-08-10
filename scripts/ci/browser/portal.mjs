@@ -92,6 +92,12 @@ check(
 /* ── 2. Nothing is fetched from a third party ───────────────────────────────
  * The privacy policy states this in terms. A regression here makes a written
  * claim false, which is worse than the request itself.
+ *
+ * Scope: this runs against a PREVIEW build, which has no authentication
+ * provider configured. A production build additionally loads the Clerk script
+ * from Clerk's domain — that is required to sign in, is disclosed in the
+ * privacy policy, and is not what this check is guarding against. What it
+ * guards against is fonts, analytics and tracking creeping back in.
  */
 section("2. No third-party requests");
 const thirdParty = await page.evaluate(() =>

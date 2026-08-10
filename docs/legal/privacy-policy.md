@@ -60,8 +60,11 @@ messages. We store and secure it. We do not decide what goes in it.
 - We do not use chamber content to train machine-learning models.
 - We do not advertise to your clients, and we do not contact them except where
   the Service sends a notification your chamber asked it to send.
-- We do not load fonts, analytics or scripts from third parties into the
-  application, so using it does not disclose your IP address to anyone else.
+- We do not load fonts, analytics, advertising or tracking scripts from third
+  parties. The one third-party script the application loads is our
+  authentication provider's, which is required to sign you in and which is
+  listed as a subprocessor above — signing in therefore discloses your IP
+  address to that provider, and to nobody else.
 
 ## Legal basis
 
