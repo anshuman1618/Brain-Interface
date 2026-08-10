@@ -1,62 +1,36 @@
-import { useUser } from "@clerk/react";
-import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
+import { useSession } from "@/lib/session";
 
-// Role is sourced from the DB via /users/me (not Clerk's publicMetadata) so
-// that an admin changing a user's role takes effect immediately, without
-// waiting on a Clerk session token refresh.
+/**
+ * Convenience view over the verified session.
+ *
+ * Every field here is derived from `GET /session` — the backend's answer, built
+ * from the caller's ACTIVE membership row. Nothing is read from localStorage,
+ * Clerk metadata, or a role the client chose for itself.
+ *
+ * Prefer `can("capability")` for gating: the role booleans are for wording and
+ * layout ("you are the admin here"), while `can` is the thing that matches what
+ * the server will actually permit.
+ */
 export function useUserRole() {
-  const { user, isLoaded: clerkLoaded, isSignedIn } = useUser();
-  const { data: profile, isLoading: profileLoading } = useGetMe({
-    query: { queryKey: getGetMeQueryKey(), enabled: !!isSignedIn },
-  });
+  const session = useSession();
+  const { claims, role, isLoaded, isSignedIn, can } = session;
 
-  const isLoaded = clerkLoaded && (!isSignedIn || !profileLoading);
-
-  if (!isLoaded || !isSignedIn || !profile) {
-    return {
-      role: null,
-      roleSelected: false,
-      isLoaded,
-      isSignedIn,
-      profile,
-      user,
-      isAdmin: false,
-      isSenior: false,
-      isJunior: false,
-      isAdvocate: false,
-      isClerk: false,
-      isClient: false,
-      isStaff: false,
-      displayRole: ""
-    };
-  }
-
-  let role = profile.role || "client";
-
-  if (role === "clerk") {
-    role = "clerk_intern";
-  }
-
-  // Admin is a distinct master-access role — it is NOT the same as senior_advocate.
-  // Conflating them previously leaked Admin-only capabilities (KPI, Billing, Access
-  // Control) to the Advocate tier, contradicting the RBAC matrix.
   const isAdmin = role === "admin";
   const isSenior = role === "senior_advocate";
   const isJunior = role === "junior_advocate";
   const isAdvocate = isSenior || isJunior;
   const isClerk = role === "clerk_intern";
   const isClient = role === "client";
-  const isStaff = !isClient;
-
-  let displayRole = "Client";
-  if (role === "admin") displayRole = "Firm Admin";
-  else if (role === "senior_advocate") displayRole = "Senior Advocate";
-  else if (role === "junior_advocate") displayRole = "Junior Advocate";
-  else if (role === "clerk_intern") displayRole = "Clerk / Intern";
+  const isStaff = Boolean(role) && !isClient;
 
   return {
     role,
-    roleSelected: profile.roleSelected,
+    isLoaded,
+    isSignedIn,
+    isPendingApproval: session.isPendingApproval,
+    can,
+    capabilities: claims?.capabilities ?? [],
+    activeWorkspace: session.activeWorkspace,
     isAdmin,
     isSenior,
     isJunior,
@@ -64,10 +38,9 @@ export function useUserRole() {
     isClerk,
     isClient,
     isStaff,
-    displayRole,
-    isLoaded,
-    isSignedIn,
-    profile,
-    user,
+    displayRole: session.displayRole,
+    profile: claims,
+    // Identity for assignee matching — the clerkId the backend authorized us as.
+    user: { id: claims?.clerkId, displayName: session.displayName },
   };
 }

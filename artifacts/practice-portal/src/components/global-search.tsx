@@ -25,23 +25,26 @@ export function GlobalSearch() {
       }
     };
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key === "Escape") setOpen(false);
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, []);
 
-  const { data, isFetching } = useGlobalSearch({ q: debouncedQuery }, {
-    query: {
-      enabled: debouncedQuery.length >= 2,
-      queryKey: getGlobalSearchQueryKey({ q: debouncedQuery })
-    }
-  });
+  const { data, isFetching } = useGlobalSearch(
+    { q: debouncedQuery },
+    {
+      query: {
+        enabled: debouncedQuery.length >= 2,
+        queryKey: getGlobalSearchQueryKey({ q: debouncedQuery }),
+      },
+    },
+  );
 
   const handleNavigate = (path: string) => {
     setLocation(path);
@@ -49,15 +52,15 @@ export function GlobalSearch() {
     setQuery("");
   };
 
-  const hasResults = data && (
-    (data.cases && data.cases.length > 0) || 
-    (data.tasks && data.tasks.length > 0) || 
-    (data.consultations && data.consultations.length > 0) || 
-    (data.clients && data.clients.length > 0)
-  );
+  const hasResults =
+    data &&
+    ((data.cases && data.cases.length > 0) ||
+      (data.tasks && data.tasks.length > 0) ||
+      (data.consultations && data.consultations.length > 0) ||
+      (data.clients && data.clients.length > 0));
 
   return (
-    <div ref={containerRef} className="relative w-64 md:w-80">
+    <div ref={containerRef} className="relative min-w-0 flex-1 sm:flex-none sm:w-56 md:w-80">
       <div className="relative">
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
@@ -96,14 +99,16 @@ export function GlobalSearch() {
                   <div className="px-3 py-1 text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
                     Cases
                   </div>
-                  {data.cases.map((c: any) => (
+                  {data.cases.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => handleNavigate(`/cases/${c.id}`)}
                       className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm transition-colors"
                     >
                       <div className="font-semibold truncate">{c.title}</div>
-                      {c.subtitle && <div className="text-xs text-muted-foreground truncate">{c.subtitle}</div>}
+                      {c.subtitle && (
+                        <div className="text-xs text-muted-foreground truncate">{c.subtitle}</div>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -114,14 +119,16 @@ export function GlobalSearch() {
                   <div className="px-3 py-1 text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
                     Tasks
                   </div>
-                  {data.tasks.map((t: any) => (
+                  {data.tasks.map((t) => (
                     <button
                       key={t.id}
                       onClick={() => handleNavigate(`/tasks`)}
                       className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm transition-colors"
                     >
                       <div className="font-semibold truncate">{t.title}</div>
-                      {t.subtitle && <div className="text-xs text-muted-foreground truncate">{t.subtitle}</div>}
+                      {t.subtitle && (
+                        <div className="text-xs text-muted-foreground truncate">{t.subtitle}</div>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -132,14 +139,16 @@ export function GlobalSearch() {
                   <div className="px-3 py-1 text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
                     Consultations
                   </div>
-                  {data.consultations.map((c: any) => (
+                  {data.consultations.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => handleNavigate(`/consultations`)}
                       className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm transition-colors"
                     >
                       <div className="font-semibold truncate">{c.title}</div>
-                      {c.subtitle && <div className="text-xs text-muted-foreground truncate">{c.subtitle}</div>}
+                      {c.subtitle && (
+                        <div className="text-xs text-muted-foreground truncate">{c.subtitle}</div>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -150,14 +159,16 @@ export function GlobalSearch() {
                   <div className="px-3 py-1 text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
                     Clients
                   </div>
-                  {data.clients.map((c: any) => (
+                  {data.clients.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => handleNavigate(`/invites`)}
                       className="w-full text-left px-3 py-2 hover:bg-muted/50 text-sm transition-colors"
                     >
                       <div className="font-semibold truncate">{c.title}</div>
-                      {c.subtitle && <div className="text-xs text-muted-foreground truncate">{c.subtitle}</div>}
+                      {c.subtitle && (
+                        <div className="text-xs text-muted-foreground truncate">{c.subtitle}</div>
+                      )}
                     </button>
                   ))}
                 </div>

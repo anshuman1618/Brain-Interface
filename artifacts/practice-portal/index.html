@@ -1,21 +1,38 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <title>Practice Management Portal</title>
-    <meta name="description" content="Practice Management Portal — built on Replit. Update this description to reflect the app." />
+    <meta
+      name="description"
+      content="Practice Management Portal — built on Replit. Update this description to reflect the app."
+    />
     <meta name="robots" content="index, follow" />
     <meta property="og:title" content="Practice Management Portal" />
-    <meta property="og:description" content="Practice Management Portal — built on Replit. Update this description to reflect the app." />
+    <meta
+      property="og:description"
+      content="Practice Management Portal — built on Replit. Update this description to reflect the app."
+    />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Practice Management Portal" />
-    <meta name="twitter:description" content="Practice Management Portal — built on Replit. Update this description to reflect the app." />
+    <meta
+      name="twitter:description"
+      content="Practice Management Portal — built on Replit. Update this description to reflect the app."
+    />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!--
+      No webfont CDN on purpose.
+
+      Loading fonts from a third party discloses every visitor's IP address to
+      that third party before they have signed in, which is difficult to
+      reconcile with the DPDP notice this product carries. The type stack in
+      index.css is built from faces the operating system already has, so
+      nothing leaves the browser and there is no render-blocking request.
+    -->
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#e6ded2" />
   </head>
   <body>
     <div id="root"></div>

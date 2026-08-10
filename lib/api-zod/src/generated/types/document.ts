@@ -5,6 +5,7 @@
  * Private Practice Management & Client Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { DocumentVisibility } from './documentVisibility';
 
 export interface Document {
   id: number;
@@ -17,5 +18,27 @@ export interface Document {
   encrypted: boolean;
   /** @nullable */
   storagePath?: string | null;
+  /**
+     * SHA-256 of the stored bytes.
+     * @nullable
+     */
+  checksum?: string | null;
+  /**
+     * Where the file lives. Object storage in production.
+     * @nullable
+     */
+  url?: string | null;
+  /** 'firm' is internal working material a client never sees. 'shared' is visible to the client on the matter. A client's own upload is always 'shared'. */
+  visibility?: DocumentVisibility;
+  /** @nullable */
+  uploadedBy?: string | null;
+  /** @nullable */
+  uploadedByRole?: string | null;
+  /** @nullable */
+  documentRequestId?: number | null;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  caseTitle?: string | null;
   uploadedAt: Date;
 }

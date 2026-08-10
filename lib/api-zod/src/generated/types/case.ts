@@ -10,6 +10,8 @@ import type { CaseStatus } from './caseStatus';
 
 export interface Case {
   id: number;
+  /** Tenant the matter belongs to. Always the caller's active workspace. */
+  workspaceId: number;
   title: string;
   /** @nullable */
   description?: string | null;
@@ -20,6 +22,12 @@ export interface Case {
   clientName?: string | null;
   /** @nullable */
   filingRef?: string | null;
+  /** @nullable */
+  opposingParty?: string | null;
+  /** @nullable */
+  conflictAcknowledgedBy?: string | null;
+  /** @nullable */
+  conflictNote?: string | null;
   priority?: CasePriority;
   createdAt: Date;
   updatedAt: Date;

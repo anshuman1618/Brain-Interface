@@ -1,0 +1,80 @@
+import { pgTable, text, serial, integer, timestamp, unique } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+/**
+ * The admin-managed access list: which email addresses may enter a workspace,
+ * and as what.
+ *
+ * This is how "only an admin grants access" survives contact with federated
+ * sign-in. Google and Zoho will happily authenticate anybody on earth — they
+ * establish *who you are*, not whether you belong here. Signing in proves an
+ * email address; this table decides whether that address is admitted.
+ *
+ * An entry is a standing grant made in advance, which is still an admin
+ * decision — it is written only by someone holding `access_control.manage` in
+ * the workspace, and it names the role explicitly.
+ *
+ * kind:
+ *   email  — one exact address, e.g. "krishnan@chambers.in"
+ *   domain — every address at a domain, e.g. "chambers.in". Convenient for a
+ *            firm's own Google Workspace / Zoho Mail tenant, and deliberately
+ *            more dangerous: anyone who can get an address at that domain gets
+ *            in, so the UI says so.
+ */
+export const ACCESS_LIST_KINDS = ["email", "domain"] as const;
+export type AccessListKind = (typeof ACCESS_LIST_KINDS)[number];
+
+export const workspaceAccessListTable = pgTable(
+  "workspace_access_list",
+  {
+    id: serial("id").primaryKey(),
+    workspaceId: integer("workspace_id").notNull(),
+    kind: text("kind").notNull().default("email"),
+    /** Always stored lowercased and trimmed; matching is done on the normalised form. */
+    value: text("value").notNull(),
+    /** The role granted on first sign-in. Chosen by the admin, never by the applicant. */
+    role: text("role").notNull().default("client"),
+    note: text("note"),
+    addedBy: text("added_by").notNull().default(""),
+    /** Set instead of deleting, so a revoked grant stays auditable. */
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** Stamped the first time somebody actually signs in against this entry. */
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("workspace_access_list_ws_kind_value_key").on(
+      table.workspaceId,
+      table.kind,
+      table.value,
+    ),
+  ],
+);
+
+export const insertWorkspaceAccessListSchema = createInsertSchema(workspaceAccessListTable).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertWorkspaceAccessListEntry = z.infer<typeof insertWorkspaceAccessListSchema>;
+export type WorkspaceAccessListEntry = typeof workspaceAccessListTable.$inferSelect;
+
+/** Normalises an address for storage and comparison. */
+export function normaliseEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** Normalises a domain, tolerating "@example.com" and "https://example.com". */
+export function normaliseDomain(domain: string): string {
+  return domain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/^@/, "")
+    .replace(/\/.*$/, "");
+}
+
+export function domainOf(email: string): string {
+  const at = normaliseEmail(email).lastIndexOf("@");
+  return at === -1 ? "" : normaliseEmail(email).slice(at + 1);
+}

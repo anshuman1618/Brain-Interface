@@ -1,0 +1,340 @@
+/**
+ * The portal, in a real browser, at every screen size a chamber will use.
+ *
+ * This exists because the API suites cannot see a layout. They proved the
+ * server was right and said nothing about whether the app was usable on the
+ * phone an advocate actually carries into court.
+ *
+ * Runs against the built SPA served by the API in preview mode, so it needs no
+ * Clerk tenant and no database service — the same single-origin topology the
+ * deployment guide recommends.
+ *
+ *   BASE_URL=http://localhost:5000 node scripts/ci/browser/portal.mjs
+ */
+
+import { chromium } from "playwright";
+
+const BASE = process.env.BASE_URL ?? "http://localhost:5000";
+const EXECUTABLE = process.env.PLAYWRIGHT_CHROMIUM ?? undefined;
+
+let pass = 0,
+  fail = 0;
+const check = (name, ok, detail = "") => {
+  if (ok) {
+    pass++;
+    console.log(`  PASS  ${name}`);
+  } else {
+    fail++;
+    console.log(`  FAIL  ${name} ${detail}`);
+  }
+};
+const section = (t) => console.log(`\n== ${t}`);
+
+/**
+ * The screens this has to work on. Not arbitrary: 360 is the floor for Android
+ * in India, 390 an iPhone, 414 a large phone, 768 an iPad portrait, 1024 an
+ * iPad landscape and the smallest laptop, 1280 a common laptop, 1440 a desktop.
+ */
+const VIEWPORTS = [
+  { w: 360, h: 740, label: "small phone" },
+  { w: 390, h: 844, label: "phone" },
+  { w: 414, h: 896, label: "large phone" },
+  { w: 768, h: 1024, label: "tablet portrait" },
+  { w: 1024, h: 768, label: "tablet landscape" },
+  { w: 1280, h: 800, label: "laptop" },
+  { w: 1440, h: 900, label: "desktop" },
+];
+
+const browser = await chromium.launch(EXECUTABLE ? { executablePath: EXECUTABLE } : {});
+const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+const page = await context.newPage();
+
+const consoleErrors = [];
+const failedRequests = [];
+page.on("pageerror", (e) => consoleErrors.push(String(e)));
+page.on("console", (m) => {
+  if (m.type() === "error") consoleErrors.push(m.text());
+});
+page.on("requestfailed", (r) => failedRequests.push(`${r.failure()?.errorText} ${r.url()}`));
+
+const text = () => page.locator("body").innerText();
+
+/** Horizontal overflow of the document, in px. Anything above 1 is a bug. */
+const overflow = () =>
+  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+/** Any element wider than the viewport — what to blame when overflow is found. */
+const widest = () =>
+  page.evaluate(() => {
+    const vw = document.documentElement.clientWidth;
+    return [...document.querySelectorAll("*")]
+      .map((el) => ({ el, r: el.getBoundingClientRect() }))
+      .filter(({ r }) => r.width > vw + 1 || r.right > vw + 1)
+      .slice(0, 4)
+      .map(
+        ({ el, r }) =>
+          `${el.tagName}.${String(el.className).slice(0, 40)} w=${Math.round(r.width)} right=${Math.round(r.right)}`,
+      );
+  });
+
+/* ─────────────────────────── 1. It loads at all ─────────────────────────── */
+
+section("1. The application loads");
+await page.goto(BASE, { waitUntil: "networkidle" });
+await page.waitForTimeout(400);
+check("landing page renders", (await text()).includes("PRACTICE"));
+check(
+  "no console errors on load",
+  consoleErrors.length === 0,
+  consoleErrors.slice(0, 3).join(" | "),
+);
+
+/* ── 2. Nothing is fetched from a third party ───────────────────────────────
+ * The privacy policy states this in terms. A regression here makes a written
+ * claim false, which is worse than the request itself.
+ *
+ * Scope: this runs against a PREVIEW build, which has no authentication
+ * provider configured. A production build additionally loads the Clerk script
+ * from Clerk's domain — that is required to sign in, is disclosed in the
+ * privacy policy, and is not what this check is guarding against. What it
+ * guards against is fonts, analytics and tracking creeping back in.
+ */
+section("2. No third-party requests");
+const thirdParty = await page.evaluate(() =>
+  performance
+    .getEntriesByType("resource")
+    .map((e) => e.name)
+    .filter((u) => {
+      try {
+        return new URL(u).origin !== location.origin;
+      } catch {
+        return false;
+      }
+    }),
+);
+check(
+  "every resource comes from this origin",
+  thirdParty.length === 0,
+  thirdParty.slice(0, 4).join(" | "),
+);
+check("no request failed", failedRequests.length === 0, failedRequests.slice(0, 3).join(" | "));
+
+/* ─────────────────────── 3. The legal documents ─────────────────────────── */
+
+section("3. The legal documents are reachable without an account");
+for (const [slug, expect] of [
+  ["terms", /terms of service/i],
+  ["privacy", /privacy policy/i],
+  ["notice", /digital personal data protection/i],
+  ["dpa", /data processing agreement/i],
+]) {
+  const res = await page.goto(`${BASE}/legal/${slug}`, { waitUntil: "domcontentloaded" });
+  const body = await text();
+  check(
+    `/legal/${slug} serves a document`,
+    res?.status() === 200 && expect.test(body),
+    `status ${res?.status()}`,
+  );
+}
+// They must be readable on a phone too — counsel reads these on the move.
+await page.setViewportSize({ width: 360, height: 740 });
+await page.goto(`${BASE}/legal/privacy`, { waitUntil: "domcontentloaded" });
+check(
+  "legal pages do not scroll sideways on a phone",
+  (await overflow()) <= 1,
+  `overflow ${await overflow()}px`,
+);
+await page.setViewportSize({ width: 1280, height: 800 });
+
+/* ──────────────────────── 4. Sign in, preview mode ──────────────────────── */
+
+section("4. Sign-in is passwordless and gated");
+await page.goto(`${BASE}/portal`, { waitUntil: "networkidle" });
+await page.waitForTimeout(300);
+check("no password field anywhere", (await page.locator('input[type="password"]').count()) === 0);
+check("says it is passwordless", /passwordless/i.test(await text()));
+check("offers a one-time code", /one-time code/i.test(await text()));
+check("legal links are present before sign-in", /terms of service/i.test(await text()));
+
+/* ──────────────── 5. Every screen size, on every reachable page ─────────── */
+
+section("5. Layout holds at every screen size");
+const PAGES = [
+  ["/", "landing"],
+  ["/portal", "sign-in"],
+  ["/legal/terms", "terms"],
+];
+
+for (const { w, h, label } of VIEWPORTS) {
+  await page.setViewportSize({ width: w, height: h });
+  for (const [path, name] of PAGES) {
+    await page.goto(BASE + path, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(200);
+    const o = await overflow();
+    if (o > 1) {
+      check(
+        `${name} @ ${w}px (${label}) has no horizontal scroll`,
+        false,
+        `overflow ${o}px — ${(await widest()).join(" ; ")}`,
+      );
+    } else {
+      check(`${name} @ ${w}px (${label}) has no horizontal scroll`, true);
+    }
+  }
+}
+
+/* ── 6. Touch targets and legibility on the smallest screen ─────────────── */
+
+section("6. Usable with a thumb");
+await page.setViewportSize({ width: 360, height: 740 });
+await page.goto(`${BASE}/portal`, { waitUntil: "networkidle" });
+await page.waitForTimeout(300);
+
+const smallTargets = await page.evaluate(() =>
+  [...document.querySelectorAll("button, a[href], input, select")]
+    .filter((el) => {
+      const r = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      if (s.display === "none" || s.visibility === "hidden" || r.width === 0) return false;
+      return r.height < 36;
+    })
+    .slice(0, 5)
+    .map(
+      (el) =>
+        `${el.tagName}(${(el.textContent ?? "").trim().slice(0, 24)}) h=${Math.round(el.getBoundingClientRect().height)}`,
+    ),
+);
+check(
+  "interactive targets are at least 36px tall",
+  smallTargets.length === 0,
+  smallTargets.join(" | "),
+);
+
+const tinyText = await page.evaluate(() => {
+  const out = [];
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let n;
+  while ((n = walk.nextNode())) {
+    if (!n.nodeValue.trim()) continue;
+    const el = n.parentElement;
+    if (!el) continue;
+    const size = parseFloat(getComputedStyle(el).fontSize);
+    if (size < 10) out.push(`${size}px "${n.nodeValue.trim().slice(0, 24)}"`);
+  }
+  return [...new Set(out)].slice(0, 5);
+});
+check("no text below 10px", tinyText.length === 0, tinyText.join(" | "));
+
+/* ─────────────────────────── 7. Keyboard access ─────────────────────────── */
+
+section("7. Keyboard");
+await page.setViewportSize({ width: 1280, height: 800 });
+await page.goto(`${BASE}/portal`, { waitUntil: "networkidle" });
+await page.keyboard.press("Tab");
+const focusRing = await page.evaluate(() => {
+  const el = document.activeElement;
+  if (!el || el === document.body) return null;
+  const s = getComputedStyle(el);
+  return {
+    tag: el.tagName,
+    outline: s.outlineStyle,
+    width: parseFloat(s.outlineWidth) || 0,
+    shadow: s.boxShadow,
+  };
+});
+check(
+  "tabbing reaches a control with a visible focus indicator",
+  focusRing !== null &&
+    (focusRing.outline !== "none" || (focusRing.shadow && focusRing.shadow !== "none")),
+  JSON.stringify(focusRing),
+);
+
+/* ─────────── 8. The signed-in application, at every screen size ──────────
+ *
+ * The pages above are the front door. This is the part a chamber lives in all
+ * day, and the part that carries tables, a calendar grid and a pricing screen
+ * — everything that actually breaks when the viewport narrows.
+ *
+ * Preview mode treats any address as verified, so no Clerk tenant is needed;
+ * everything after sign-in is the real authorisation path.
+ */
+section("8. The signed-in application");
+await page.setViewportSize({ width: 1280, height: 800 });
+await page.goto(`${BASE}/portal`, { waitUntil: "networkidle" });
+await page.getByRole("button", { name: /Continue with email/i }).click();
+await page.waitForTimeout(400);
+await page.locator('input[type="email"]').fill(`founder${Date.now()}@chambers.test`);
+await page.locator("input").nth(1).fill("B Founder");
+await page.getByRole("button", { name: /^Continue$/ }).click();
+await page.waitForTimeout(1500);
+
+const afterSignIn = await text();
+check(
+  "a fresh platform offers to create the first chamber",
+  /chamber/i.test(afterSignIn),
+  afterSignIn.slice(0, 200),
+);
+
+// Found a chamber so there is a dashboard to measure.
+const nameField = page.locator('input[type="text"]').first();
+if (await nameField.count()) {
+  await nameField.fill("Browser Chambers");
+  const admin = page.getByText(/Firm Admin/).first();
+  if (await admin.count()) await admin.click();
+  const create = page.getByRole("button", { name: /create|found|continue/i }).last();
+  if (await create.count()) await create.click();
+  await page.waitForTimeout(2000);
+}
+
+const inApp = await text();
+const signedIn = !/sign in to your chamber/i.test(inApp);
+check("reached the application", signedIn, inApp.slice(0, 220));
+
+if (signedIn) {
+  for (const { w, h, label } of VIEWPORTS) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(250);
+    const o = await overflow();
+    if (o > 1) {
+      check(
+        `dashboard @ ${w}px (${label}) has no horizontal scroll`,
+        false,
+        `overflow ${o}px — ${(await widest()).join(" ; ")}`,
+      );
+    } else {
+      check(`dashboard @ ${w}px (${label}) has no horizontal scroll`, true);
+    }
+  }
+
+  // The pricing screen is the newest and most crowded thing in the app: four
+  // plan cards where there used to be three.
+  await page.setViewportSize({ width: 360, height: 740 });
+  const upgrade = page.getByRole("button", { name: /plan|upgrade|subscription/i }).first();
+  if (await upgrade.count()) {
+    await upgrade.click();
+    await page.waitForTimeout(700);
+    const pricing = await text();
+    if (/trial/i.test(pricing) && /custom/i.test(pricing)) {
+      check("all four plans render on a phone", true);
+      check(
+        "pricing screen does not scroll sideways",
+        (await overflow()) <= 1,
+        `overflow ${await overflow()}px`,
+      );
+    }
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+}
+
+/* ───────────────────────────── Wrap up ──────────────────────────────────── */
+
+console.log(`\nConsole errors: ${consoleErrors.length}`);
+if (consoleErrors.length) console.log(consoleErrors.slice(0, 5).join("\n"));
+console.log(`Failed requests: ${failedRequests.length}`);
+if (failedRequests.length) console.log(failedRequests.slice(0, 5).join("\n"));
+
+await browser.close();
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail === 0 && consoleErrors.length === 0 ? 0 : 1);

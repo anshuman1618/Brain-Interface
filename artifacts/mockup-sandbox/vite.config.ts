@@ -5,10 +5,10 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { mockupPreviewPlugin } from "./mockupPreviewPlugin";
 
-// PORT and BASE_PATH are injected by the Replit runtime. Static hosts and CI
-// builds often set neither, so fall back to portable defaults instead of
-// failing config load before the build can start.
-const DEFAULT_DEV_PORT = 5173;
+// PORT and BASE_PATH are injected by the Replit runtime only. Requiring them
+// broke `pnpm build` anywhere else — the throw fired at config-load time, before
+// bundling. Same fallbacks as artifacts/practice-portal.
+const DEFAULT_DEV_PORT = 5174;
 
 const rawPort = process.env.PORT;
 const port = rawPort ? Number(rawPort) : DEFAULT_DEV_PORT;
@@ -26,8 +26,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
+    ...(process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined
       ? [
           await import("@replit/vite-plugin-cartographer").then((m) =>
             m.cartographer({

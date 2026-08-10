@@ -11,6 +11,9 @@ export const timelineEventsTable = pgTable("timeline_events", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertTimelineEventSchema = createInsertSchema(timelineEventsTable).omit({ id: true, createdAt: true });
+export const insertTimelineEventSchema = createInsertSchema(timelineEventsTable).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertTimelineEvent = z.infer<typeof insertTimelineEventSchema>;
 export type TimelineEvent = typeof timelineEventsTable.$inferSelect;

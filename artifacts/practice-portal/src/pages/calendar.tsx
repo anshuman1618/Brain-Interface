@@ -1,417 +1,551 @@
-import { useState, useMemo } from "react";
-import { 
-  useListTasks, 
-  useListConsultations, 
-  useListCases,
-  useListUsers,
-  useCreateTask,
-  useCreateConsultation,
+import { useCallback, useMemo, useState } from "react";
+import {
+  useListCalendarEntries,
+  useCreateCalendarEntry,
+  useUpdateCalendarEntry,
+  useDeleteCalendarEntry,
+  useListTasks,
   useUpdateTask,
-  useUpdateConsultation,
+  useListCases,
+  getListCalendarEntriesQueryKey,
   getListTasksQueryKey,
-  getListConsultationsQueryKey
+  getListCasesQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useUserRole } from "@/hooks/use-user-role";
-import { Calendar, dateFnsLocalizer, Event as RBCEvent } from "react-big-calendar";
+import { Calendar, dateFnsLocalizer, type View } from "react-big-calendar";
 import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { enUS } from "date-fns/locale/en-US";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
+import "@/styles/calendar.css";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { CalendarSkeleton } from "@/components/module-skeleton";
 import { useToast } from "@/hooks/use-toast";
-
-const locales = {
-  "en-US": enUS
-};
+import { Plus, Trash2, CalendarDays } from "lucide-react";
 
 const localizer = dateFnsLocalizer({
   format,
   parse,
   startOfWeek,
   getDay,
-  locales,
+  locales: { "en-US": enUS },
 });
 
 const DnDCalendar = withDragAndDrop(Calendar);
 
-type CalendarEventType = "task" | "consultation";
+type Source = "entry" | "task";
 
-interface CalendarEvent extends RBCEvent {
+type CauseEvent = {
   id: string;
-  type: CalendarEventType;
-  resource: any; // The original task or consultation
-  colorClass: string;
+  source: Source;
+  refId: number;
+  title: string;
+  start: Date;
+  end: Date;
+  allDay: boolean;
+  kind: string;
+  audience: string;
+  notes: string | null;
+  caseId: number | null;
+  /** Task deadlines can be dragged only by someone who may reschedule work. */
+  draggable: boolean;
+};
+
+function dateOnly(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function timeOnly(d: Date): string {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+function combine(date: string, time: string | null | undefined): Date {
+  return new Date(`${date}T${time && /^\d{2}:\d{2}/.test(time) ? time : "09:00"}:00`);
 }
 
+const KIND_COLOUR: Record<string, string> = {
+  hearing: "rbc-kind-hearing",
+  filing: "rbc-kind-filing",
+  meeting: "rbc-kind-meeting",
+  note: "rbc-kind-note",
+  task: "rbc-kind-task",
+};
+
+/**
+ * The master calendar — an interactive month/week/day grid.
+ *
+ * Two kinds of thing share it, and they behave differently on purpose:
+ *  • Chamber updates (hearings, filings, meetings, notes) are full CRUD for
+ *    anyone with `calendar.write`.
+ *  • Task deadlines are drawn in for context. Dragging one reschedules the task
+ *    itself, which is why it needs `tasks.write` rather than `calendar.write`.
+ *
+ * Both sources arrive already scoped by the API: updates by audience, tasks by
+ * assignment. Nothing here filters for privacy; it only draws what it was given.
+ */
 export default function CalendarPage() {
-  const { role, isClerk, user } = useUserRole();
+  const { can, activeWorkspace, displayRole } = useSession();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: allTasks = [] } = useListTasks();
-  const { data: allConsultations = [] } = useListConsultations();
-  const { data: cases = [] } = useListCases();
-  const { data: allUsers = [] } = useListUsers();
-  const users = useMemo(
-    () => allUsers.filter(u => u.role !== "client"),
-    [allUsers]
-  ); // any staff member is assignable
+  const {
+    data: entries = [],
+    isLoading: entriesLoading,
+    isError,
+    error,
+  } = useListCalendarEntries({
+    query: { queryKey: getListCalendarEntriesQueryKey() },
+  });
+  const { data: tasks = [], isLoading: tasksLoading } = useListTasks(undefined, {
+    query: { queryKey: getListTasksQueryKey(), enabled: can("tasks.read") },
+  });
+  const { data: cases = [] } = useListCases(undefined, {
+    query: { queryKey: getListCasesQueryKey(), enabled: can("calendar.write") },
+  });
 
+  const createEntry = useCreateCalendarEntry();
+  const updateEntry = useUpdateCalendarEntry();
+  const deleteEntry = useDeleteCalendarEntry();
   const updateTask = useUpdateTask();
-  const updateConsultation = useUpdateConsultation();
-  const createTask = useCreateTask();
-  const createConsultation = useCreateConsultation();
 
-  const tasks = useMemo(() => {
-    if (isClerk && user?.id) {
-      return allTasks.filter(t => t.assigneeId === user.id);
+  const canWrite = can("calendar.write");
+  const canReschedule = can("tasks.write");
+
+  const [view, setView] = useState<View>("month");
+  const [date, setDate] = useState(new Date());
+  const [editing, setEditing] = useState<CauseEvent | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  const [form, setForm] = useState({
+    title: "",
+    notes: "",
+    kind: "hearing",
+    entryDate: dateOnly(new Date()),
+    entryTime: "",
+    audience: "all",
+    caseId: "none",
+  });
+
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: getListCalendarEntriesQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+  };
+
+  const events = useMemo<CauseEvent[]>(() => {
+    const out: CauseEvent[] = [];
+
+    for (const e of entries) {
+      const start = combine(e.entryDate, e.entryTime);
+      out.push({
+        id: `entry-${e.id}`,
+        source: "entry",
+        refId: e.id,
+        title: e.title,
+        start,
+        end: new Date(start.getTime() + 60 * 60 * 1000),
+        allDay: !e.entryTime,
+        kind: e.kind,
+        audience: e.audience,
+        notes: e.notes ?? null,
+        caseId: e.caseId ?? null,
+        draggable: canWrite,
+      });
     }
-    return allTasks;
-  }, [allTasks, isClerk, user?.id]);
 
-  const consultations = useMemo(() => {
-    if (isClerk) return []; // Clerks don't manage consultations
-    return allConsultations;
-  }, [allConsultations, isClerk]);
+    for (const t of tasks) {
+      if (t.status === "completed") continue;
+      const start = combine(String(t.deadline).slice(0, 10), null);
+      out.push({
+        id: `task-${t.id}`,
+        source: "task",
+        refId: t.id,
+        title: `${t.title}${t.assigneeName ? ` · ${t.assigneeName}` : ""}`,
+        start,
+        end: new Date(start.getTime() + 60 * 60 * 1000),
+        allDay: true,
+        kind: "task",
+        audience: "all",
+        notes: null,
+        caseId: t.caseId,
+        draggable: canReschedule,
+      });
+    }
 
-  const events = useMemo<CalendarEvent[]>(() => {
-    const taskEvents: CalendarEvent[] = tasks.map(t => {
-      let colorClass = "bg-slate-400 text-white";
-      if (t.priority === 'urgent') colorClass = "bg-destructive text-destructive-foreground";
-      else if (t.priority === 'high') colorClass = "bg-slate-600 text-white";
-      else if (t.priority === 'medium') colorClass = "bg-slate-500 text-white";
+    return out;
+  }, [entries, tasks, canWrite, canReschedule]);
 
-      if (t.title.toLowerCase().startsWith('hearing:')) {
-        colorClass = "bg-zinc-800 text-white border-l-4 border-l-destructive";
+  /** Drag or resize. Chamber updates move themselves; a task moves its deadline. */
+  const move = useCallback(
+    ({ event, start }: { event: object; start: Date | string }) => {
+      const ev = event as CauseEvent;
+      const when = start instanceof Date ? start : new Date(start);
+
+      if (ev.source === "task") {
+        if (!canReschedule) {
+          toast({
+            title: "Only Admin and Senior Advocate can reschedule work",
+            variant: "destructive",
+          });
+          return;
+        }
+        updateTask.mutate(
+          { id: ev.refId, data: { deadline: dateOnly(when) } },
+          {
+            onSuccess: () => {
+              refresh();
+              toast({ title: "Deadline moved", description: format(when, "d MMM yyyy") });
+            },
+            onError: () => toast({ title: "Couldn't move that deadline", variant: "destructive" }),
+          },
+        );
+        return;
       }
 
-      return {
-        id: `task-${t.id}`,
-        title: t.title,
-        start: new Date(t.deadline),
-        end: new Date(t.deadline),
-        allDay: true,
-        type: "task",
-        resource: t,
-        colorClass
-      };
+      if (!canWrite) {
+        toast({
+          title: "Only Admin and Senior Advocate can edit the calendar",
+          variant: "destructive",
+        });
+        return;
+      }
+      updateEntry.mutate(
+        {
+          id: ev.refId,
+          data: { entryDate: dateOnly(when), entryTime: ev.allDay ? undefined : timeOnly(when) },
+        },
+        {
+          onSuccess: () => {
+            refresh();
+            toast({ title: "Moved", description: format(when, "d MMM yyyy") });
+          },
+          onError: () => toast({ title: "Couldn't move that entry", variant: "destructive" }),
+        },
+      );
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [canReschedule, canWrite, updateTask, updateEntry],
+  );
+
+  const openNew = (slotDate?: Date) => {
+    setEditing(null);
+    setForm({
+      title: "",
+      notes: "",
+      kind: "hearing",
+      entryDate: dateOnly(slotDate ?? new Date()),
+      entryTime: "",
+      audience: "all",
+      caseId: "none",
     });
-
-    const consultEvents: CalendarEvent[] = consultations.map(c => {
-      let colorClass = "bg-muted text-muted-foreground";
-      if (c.category === 'legal_solution') colorClass = 'bg-slate-700 text-white';
-      else if (c.category === 'regulatory_solution') colorClass = 'bg-zinc-600 text-white';
-      else if (c.category === 'business_consultation') colorClass = 'bg-neutral-500 text-white';
-      else if (c.category === 'procedural_compliance') colorClass = 'bg-gray-300 text-gray-900';
-
-      const startDate = c.scheduledAt ? new Date(c.scheduledAt) : new Date();
-      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hour duration
-
-      return {
-        id: `consult-${c.id}`,
-        title: `📞 ${c.title}`,
-        start: startDate,
-        end: endDate,
-        allDay: false,
-        type: "consultation",
-        resource: c,
-        colorClass
-      };
-    });
-
-    return [...taskEvents, ...consultEvents];
-  }, [tasks, consultations]);
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<{ start: Date; end: Date } | null>(null);
-  
-  const [eventType, setEventType] = useState<"task" | "hearing" | "consultation">("task");
-  const [title, setTitle] = useState("");
-  const [caseId, setCaseId] = useState("");
-  const [priority, setPriority] = useState("medium");
-  const [assigneeId, setAssigneeId] = useState("");
-  const [category, setCategory] = useState<any>("");
-  const [consent, setConsent] = useState(false);
-
-  const handleSelectSlot = (slotInfo: { start: Date; end: Date }) => {
-    setSelectedSlot(slotInfo);
-    setEventType("task");
-    setTitle("");
-    setCaseId("");
-    setPriority("medium");
-    setAssigneeId("");
-    setCategory("");
-    setConsent(false);
-    setModalOpen(true);
+    setIsOpen(true);
   };
 
-  const handleEventDrop = async ({ event, start, end }: any) => {
-    const e = event as CalendarEvent;
-    
-    if (e.type === 'task') {
-      updateTask.mutate({ 
-        id: Number(e.resource.id), 
-        data: { deadline: start.toISOString() } 
-      }, {
-        onSuccess: () => {
-          queryClient.setQueryData(getListTasksQueryKey(), (old: any) => 
-            old ? old.map((t: any) => t.id === e.resource.id ? { ...t, deadline: start.toISOString() } : t) : old
-          );
-        },
-        onError: () => toast({ title: "Failed to move task", variant: "destructive" })
-      });
-    } else if (e.type === 'consultation') {
-      updateConsultation.mutate({ 
-        id: Number(e.resource.id), 
-        data: { scheduledAt: start.toISOString() } 
-      }, {
-        onSuccess: () => {
-          queryClient.setQueryData(getListConsultationsQueryKey(), (old: any) => 
-            old ? old.map((c: any) => c.id === e.resource.id ? { ...c, scheduledAt: start.toISOString() } : c) : old
-          );
-        },
-        onError: () => toast({ title: "Failed to move consultation", variant: "destructive" })
-      });
-    }
+  const openExisting = (ev: CauseEvent) => {
+    if (ev.source === "task" || !canWrite) return;
+    setEditing(ev);
+    setForm({
+      title: ev.title,
+      notes: ev.notes ?? "",
+      kind: ev.kind,
+      entryDate: dateOnly(ev.start),
+      entryTime: ev.allDay ? "" : timeOnly(ev.start),
+      audience: ev.audience,
+      caseId: ev.caseId ? String(ev.caseId) : "none",
+    });
+    setIsOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSlot || !title) return;
+    if (!form.title.trim() || !form.entryDate) return;
 
-    if (eventType === "task" || eventType === "hearing") {
-      const finalTitle = eventType === "hearing" ? `Hearing: ${title}` : title;
-      const finalPriority = eventType === "hearing" ? "high" : priority;
-      
-      createTask.mutate({
-        data: {
-          title: finalTitle,
-          description: "",
-          deadline: selectedSlot.start.toISOString(),
-          priority: finalPriority as any,
-          caseId: Number(caseId),
-          assigneeId: assigneeId && assigneeId !== "none" ? assigneeId : undefined
-        }
-      }, {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
-          setModalOpen(false);
-          toast({ title: "Task scheduled" });
-        }
-      });
-    } else if (eventType === "consultation") {
-      if (!category) return;
-      
-      createConsultation.mutate({
-        data: {
-          title,
-          notes: "",
-          scheduledAt: selectedSlot.start.toISOString(),
-          caseId: Number(caseId),
-          category,
-          consentGiven: consent
-        }
-      }, {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListConsultationsQueryKey() });
-          setModalOpen(false);
-          toast({ title: "Consultation scheduled" });
-        }
-      });
-    }
-  };
-
-  const eventPropGetter = (event: CalendarEvent) => {
-    return {
-      className: `rounded-none border-none font-mono text-[10px] uppercase tracking-wider px-1 ${event.colorClass}`
+    const payload = {
+      title: form.title.trim(),
+      notes: form.notes.trim() || undefined,
+      kind: form.kind as never,
+      entryDate: form.entryDate,
+      entryTime: form.entryTime || undefined,
+      audience: form.audience,
+      caseId: form.caseId !== "none" ? Number(form.caseId) : undefined,
     };
+
+    const done = (msg: string) => () => {
+      refresh();
+      toast({ title: msg });
+      setIsOpen(false);
+    };
+    const failed = () => toast({ title: "Couldn't save that entry", variant: "destructive" });
+
+    if (editing)
+      updateEntry.mutate(
+        { id: editing.refId, data: payload },
+        { onSuccess: done("Entry updated"), onError: failed },
+      );
+    else createEntry.mutate({ data: payload }, { onSuccess: done("Entry added"), onError: failed });
   };
+
+  const remove = () => {
+    if (!editing) return;
+    deleteEntry.mutate(
+      { id: editing.refId },
+      {
+        onSuccess: () => {
+          refresh();
+          toast({ title: "Entry removed" });
+          setIsOpen(false);
+        },
+        onError: () => toast({ title: "Couldn't remove that entry", variant: "destructive" }),
+      },
+    );
+  };
+
+  if (entriesLoading || tasksLoading) return <CalendarSkeleton />;
+
+  if (isError) {
+    return (
+      <div className="border border-destructive/40 bg-destructive/5 p-10 text-center">
+        <CalendarDays className="h-8 w-8 text-destructive mx-auto mb-3" />
+        <p className="font-medium mb-1">Couldn't load the calendar</p>
+        <p className="text-sm text-muted-foreground">
+          {error instanceof Error ? error.message : "The request failed."}
+        </p>
+        <Button variant="outline" className="rounded-none mt-5" onClick={refresh}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="h-[calc(100vh-10rem)] flex flex-col space-y-4 animate-in fade-in duration-500">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight mb-1">Master Calendar</h2>
-        <p className="text-muted-foreground font-mono text-sm uppercase tracking-wider">Drag to reschedule &middot; Click to create</p>
+    <div className="space-y-5 animate-in fade-in duration-500">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight mb-1">Master Calendar</h2>
+          <p className="text-muted-foreground">
+            {activeWorkspace?.name} · cause list, filings and deadlines you're party to
+            {displayRole ? ` as ${displayRole}` : ""}.
+            {canWrite ? " Drag an item to reschedule it." : ""}
+          </p>
+        </div>
+        {canWrite && (
+          <Button className="rounded-none shrink-0" onClick={() => openNew()}>
+            <Plus className="mr-2 h-4 w-4" /> Add to cause list
+          </Button>
+        )}
       </div>
 
-      <style dangerouslySetInnerHTML={{__html: `
-        .rbc-calendar {
-          font-family: var(--font-mono);
-          text-transform: uppercase;
-        }
-        .rbc-header {
-          padding: 8px 0;
-          font-weight: bold;
-          border-bottom: 2px solid hsl(var(--border)) !important;
-          background-color: hsl(var(--muted) / 0.3);
-        }
-        .rbc-today {
-          background-color: hsl(var(--muted) / 0.5) !important;
-        }
-        .rbc-event {
-          border-radius: 0 !important;
-        }
-        .rbc-off-range-bg {
-          background-color: hsl(var(--muted) / 0.1);
-        }
-        .rbc-toolbar button {
-          border-radius: 0;
-          text-transform: uppercase;
-          font-weight: bold;
-          letter-spacing: 0.05em;
-        }
-        .rbc-toolbar button.rbc-active {
-          background-color: hsl(var(--foreground));
-          color: hsl(var(--background));
-        }
-      `}} />
-
-      <div className="flex-1 bg-background border border-border p-4">
+      <div className="border border-border bg-background p-4">
         <DnDCalendar
           localizer={localizer}
           events={events}
-          startAccessor={(e: any) => e.start}
-          endAccessor={(e: any) => e.end}
-          selectable
-          onSelectSlot={handleSelectSlot}
-          onEventDrop={handleEventDrop}
-          eventPropGetter={eventPropGetter as any}
-          resizable={false}
-          views={["month", "week", "day"]}
-          defaultView="month"
+          view={view}
+          onView={(v) => setView(v)}
+          date={date}
+          onNavigate={(d) => setDate(d)}
+          views={["month", "week", "day", "agenda"]}
           popup
+          style={{ height: 620 }}
+          selectable={canWrite}
+          onSelectSlot={(slot: { start: Date }) => canWrite && openNew(slot.start)}
+          onSelectEvent={(ev: object) => openExisting(ev as CauseEvent)}
+          onEventDrop={move}
+          onEventResize={move}
+          draggableAccessor={(ev: object) => (ev as CauseEvent).draggable}
+          resizableAccessor={() => false}
+          eventPropGetter={(ev: object) => ({
+            className: KIND_COLOUR[(ev as CauseEvent).kind] ?? KIND_COLOUR.note,
+          })}
+          messages={{ noEventsInRange: "Nothing scheduled in this range." }}
         />
       </div>
 
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-[425px] rounded-none border-border">
-          <DialogHeader>
-            <DialogTitle className="font-mono uppercase tracking-widest">New Calendar Event</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Event Type *</label>
-              <Select value={eventType} onValueChange={(v: any) => setEventType(v)}>
-                <SelectTrigger className="rounded-none bg-background font-mono text-sm">
-                  <SelectValue placeholder="SELECT TYPE" />
-                </SelectTrigger>
-                <SelectContent className="rounded-none">
-                  <SelectItem value="task" className="font-mono text-sm">Task</SelectItem>
-                  <SelectItem value="hearing" className="font-mono text-sm">Hearing</SelectItem>
-                  {!isClerk && <SelectItem value="consultation" className="font-mono text-sm">Consultation</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
+      {events.length === 0 && (
+        <div className="border border-border bg-background p-10 text-center">
+          <CalendarDays className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+          <p className="font-medium mb-1">Nothing on the calendar yet</p>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            {canWrite
+              ? "Add hearings and filings to the cause list. Task deadlines appear here automatically as work is assigned."
+              : "Listings posted by your chamber will appear here, along with anything assigned to you."}
+          </p>
+        </div>
+      )}
 
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-[480px] rounded-none border-border">
+          <DialogHeader>
+            <DialogTitle className="font-mono uppercase tracking-widest">
+              {editing ? "Edit entry" : "Add to cause list"}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-xs uppercase tracking-wider">
+              Appears on the calendar of everyone it is addressed to
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={submit} className="space-y-4 pt-2">
             <div className="space-y-2">
-              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Title *</label>
-              <Input 
-                value={title} 
-                onChange={e => setTitle(e.target.value)} 
-                className="rounded-none font-mono text-sm bg-background" 
-                required 
+              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                What is it? *
+              </label>
+              <Input
+                value={form.title}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+                className="rounded-none font-mono text-sm bg-background"
+                placeholder="e.g. Listing before Bench II"
+                required
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Related Case *</label>
-              <Select value={caseId} onValueChange={setCaseId} required>
-                <SelectTrigger className="rounded-none bg-background font-mono text-sm">
-                  <SelectValue placeholder="SELECT CASE" />
-                </SelectTrigger>
-                <SelectContent className="rounded-none">
-                  {cases.map(c => (
-                    <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">
-                      {c.title}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Type
+                </label>
+                <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })}>
+                  <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="hearing">Hearing</SelectItem>
+                    <SelectItem value="filing">Filing</SelectItem>
+                    <SelectItem value="meeting">Meeting</SelectItem>
+                    <SelectItem value="note">Note</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Date *
+                </label>
+                <Input
+                  type="date"
+                  value={form.entryDate}
+                  onChange={(e) => setForm({ ...form, entryDate: e.target.value })}
+                  className="rounded-none font-mono text-sm bg-background"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Time
+                </label>
+                <Input
+                  type="time"
+                  value={form.entryTime}
+                  onChange={(e) => setForm({ ...form, entryTime: e.target.value })}
+                  className="rounded-none font-mono text-sm bg-background"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Who sees it
+                </label>
+                <Select
+                  value={form.audience}
+                  onValueChange={(v) => setForm({ ...form, audience: v })}
+                >
+                  <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="all">Everyone</SelectItem>
+                    <SelectItem value="staff">Chamber staff only</SelectItem>
+                    <SelectItem value="role:senior_advocate">Senior Advocates</SelectItem>
+                    <SelectItem value="role:junior_advocate">Junior Advocates</SelectItem>
+                    <SelectItem value="role:clerk_intern">Clerks / Interns</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {cases.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Related matter
+                </label>
+                <Select value={form.caseId} onValueChange={(v) => setForm({ ...form, caseId: v })}>
+                  <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                    <SelectValue placeholder="OPTIONAL" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-none">
+                    <SelectItem value="none" className="italic text-muted-foreground">
+                      None
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {eventType === "task" && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Priority</label>
-                  <Select value={priority} onValueChange={setPriority}>
-                    <SelectTrigger className="rounded-none bg-background font-mono text-sm">
-                      <SelectValue placeholder="SELECT PRIORITY" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none">
-                      <SelectItem value="low" className="font-mono text-sm">Low</SelectItem>
-                      <SelectItem value="medium" className="font-mono text-sm">Medium</SelectItem>
-                      <SelectItem value="high" className="font-mono text-sm">High</SelectItem>
-                      <SelectItem value="urgent" className="font-mono text-sm font-bold text-destructive">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Assignee</label>
-                  <Select value={assigneeId} onValueChange={setAssigneeId}>
-                    <SelectTrigger className="rounded-none bg-background font-mono text-sm">
-                      <SelectValue placeholder="UNASSIGNED" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none">
-                      <SelectItem value="none" className="font-mono text-sm italic text-muted-foreground">Unassigned</SelectItem>
-                      {users.map((u: any) => (
-                        <SelectItem key={u.id} value={String(u.id)} className="font-mono text-sm">
-                          {u.displayName || u.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+                    {cases.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">
+                        {c.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
 
-            {eventType === "consultation" && (
-              <>
-                <div className="space-y-2">
-                  <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">Category *</label>
-                  <Select value={category} onValueChange={setCategory} required>
-                    <SelectTrigger className="rounded-none bg-background font-mono text-sm">
-                      <SelectValue placeholder="SELECT CATEGORY" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-none">
-                      <SelectItem value="legal_solution" className="font-mono text-sm">Legal Solution</SelectItem>
-                      <SelectItem value="regulatory_solution" className="font-mono text-sm">Regulatory Solution</SelectItem>
-                      <SelectItem value="business_consultation" className="font-mono text-sm">Business Consultation</SelectItem>
-                      <SelectItem value="procedural_compliance" className="font-mono text-sm">Procedural Compliance</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-start space-x-2 mt-4 pt-2">
-                  <Checkbox id="consent" checked={consent} onCheckedChange={(c) => setConsent(c as boolean)} className="mt-1" required />
-                  <Label htmlFor="consent" className="text-xs text-muted-foreground cursor-pointer leading-tight">
-                    Client has been informed that consultations may be recorded for quality assurance.
-                  </Label>
-                </div>
-              </>
-            )}
-
-            <div className="pt-4 flex justify-end">
-              <Button 
-                type="submit" 
-                className="rounded-none font-mono uppercase tracking-wider w-full"
-                disabled={
-                  (eventType === 'task' || eventType === 'hearing') ? createTask.isPending : 
-                  (createConsultation.isPending || !category || !consent)
-                }
-              >
-                Schedule Event
-              </Button>
+            <div className="space-y-2">
+              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                Notes (optional)
+              </label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                className="rounded-none font-mono text-sm bg-background resize-none h-20"
+                placeholder="Bench, counsel, anything the chamber needs..."
+              />
             </div>
+
+            <DialogFooter className="pt-2 sm:justify-between">
+              {editing ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none text-destructive border-destructive/40"
+                  onClick={remove}
+                  disabled={deleteEntry.isPending}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Remove
+                </Button>
+              ) : (
+                <span />
+              )}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-none"
+                  onClick={() => setIsOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="rounded-none font-mono uppercase tracking-wider"
+                  disabled={createEntry.isPending || updateEntry.isPending || !form.title.trim()}
+                >
+                  {editing ? "Save changes" : "Add entry"}
+                </Button>
+              </div>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

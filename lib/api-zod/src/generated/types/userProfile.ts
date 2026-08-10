@@ -15,5 +15,7 @@ export interface UserProfile {
   roleSelected: boolean;
   displayName: string;
   email: string;
+  /** @nullable */
+  authProvider?: string | null;
   createdAt: Date;
 }

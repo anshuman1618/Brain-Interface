@@ -1,35 +1,41 @@
-import { useEffect, useRef, useState } from "react";
-import { ClerkProvider, SignIn, SignUp, Show, useClerk } from '@clerk/react';
-import { publishableKeyFromHost } from '@clerk/react/internal';
-import { shadcn } from '@clerk/themes';
-import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from 'wouter';
+import { useEffect, useRef } from "react";
+import {
+  ClerkProvider,
+  Show,
+  AuthenticateWithRedirectCallback,
+  useClerk,
+  useAuth as useClerkAuth,
+} from "@clerk/react";
+import { publishableKeyFromHost } from "@clerk/react/internal";
+import { shadcn } from "@clerk/themes";
+import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Button } from "@/components/ui/button";
 import LandingPage from "@/pages/landing";
 import DashboardLayout from "@/components/layout/dashboard-layout";
-import { RoleOptionsGrid } from "@/components/auth/role-options-grid";
-import { getPendingRoleSelection, setPendingRoleSelection, type RoleValue } from "@/lib/role-options";
-import { useApiAuthBridge } from "@/hooks/use-api-auth-bridge";
+import { useClerkApiAuthBridge } from "@/hooks/use-api-auth-bridge";
+import { isPreviewMode } from "@/lib/preview";
+import { ClerkSessionProvider, PreviewSessionProvider, useSession } from "@/lib/session";
+import PortalSignInPage from "@/pages/portal-sign-in";
+import { ThemeProvider } from "@/lib/theme";
 // Registers the API base URL (no-op when frontend and API share an origin).
 import "@/lib/api-config";
 
-const clerkPubKey = publishableKeyFromHost(
-  window.location.hostname,
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-);
+const clerkPubKey = isPreviewMode
+  ? ""
+  : publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 function stripBase(path: string): string {
-  return basePath && path.startsWith(basePath)
-    ? path.slice(basePath.length) || "/"
-    : path;
+  return basePath && path.startsWith(basePath) ? path.slice(basePath.length) || "/" : path;
 }
 
-if (!clerkPubKey) {
-  throw new Error('Missing VITE_CLERK_PUBLISHABLE_KEY in .env file');
+// In preview mode there is intentionally no Clerk key — the app renders with a
+// mocked session instead of failing to boot.
+if (!clerkPubKey && !isPreviewMode) {
+  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env file");
 }
 
 const clerkAppearance = {
@@ -54,7 +60,8 @@ const clerkAppearance = {
   },
   elements: {
     rootBox: "w-full flex justify-center",
-    cardBox: "bg-[hsl(220_15%_95%)] border border-[hsl(220_15%_85%)] rounded-none w-[440px] max-w-full overflow-hidden shadow-none",
+    cardBox:
+      "bg-[hsl(220_15%_95%)] border border-[hsl(220_15%_85%)] rounded-none w-[440px] max-w-full overflow-hidden shadow-none",
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
     headerTitle: "text-foreground font-semibold font-mono tracking-tight",
@@ -70,8 +77,10 @@ const clerkAppearance = {
     logoBox: "h-12 w-auto object-contain",
     logoImage: "h-12 w-auto",
     socialButtonsBlockButton: "border border-input hover:bg-accent bg-background rounded-none",
-    formButtonPrimary: "bg-primary text-primary-foreground hover:bg-primary/90 rounded-none shadow-none",
-    formFieldInput: "border border-input bg-background rounded-none focus:ring-2 focus:ring-ring focus:border-transparent text-foreground",
+    formButtonPrimary:
+      "bg-primary text-primary-foreground hover:bg-primary/90 rounded-none shadow-none",
+    formFieldInput:
+      "border border-input bg-background rounded-none focus:ring-2 focus:ring-ring focus:border-transparent text-foreground",
     footerAction: "mt-6",
     dividerLine: "bg-border",
     alert: "bg-destructive/10 border border-destructive text-destructive",
@@ -81,76 +90,15 @@ const clerkAppearance = {
   },
 };
 
-function SignInPage() {
-  return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4 py-12 relative overflow-y-auto gap-6">
-      <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
-      <div className="relative z-10 w-full max-w-[440px]">
-        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} />
-      </div>
-      <div className="relative z-10 w-full max-w-[440px] bg-slate-100 border border-slate-200 p-4 text-xs font-mono uppercase text-slate-500 tracking-wider text-center">
-        New here? You'll choose your workspace role — Firm Admin, Senior Advocate, Junior Advocate, Clerk / Intern, or Client — before creating your account. An admin can change it later from Team Settings.
-      </div>
-    </div>
-  );
-}
-
-function ChooseWorkspaceStep({ onContinue }: { onContinue: (role: RoleValue) => void }) {
-  const [selected, setSelected] = useState<RoleValue | null>(null);
-
-  return (
-    <div className="relative z-10 w-full max-w-3xl">
-      <div className="mb-8 text-center">
-        <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Step 1 of 2</p>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Choose your workspace role</h1>
-        <p className="text-muted-foreground max-w-lg mx-auto">
-          Pick how you'll use the portal. You'll create your account next. An admin can change your role later from Team Settings.
-        </p>
-      </div>
-
-      <div className="mb-8">
-        <RoleOptionsGrid selected={selected} onSelect={setSelected} />
-      </div>
-
-      <div className="flex items-center justify-end">
-        <Button
-          className="rounded-none px-8"
-          disabled={!selected}
-          onClick={() => selected && onContinue(selected)}
-        >
-          Continue to sign up
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function SignUpPage() {
-  // New visitors pick a workspace role first; it's stored and applied
-  // automatically once their Clerk account is created (see dashboard-layout).
-  // Returning to this page mid-flow (e.g. during email verification) should
-  // not re-show the role step, so we check for an already-pending choice.
-  const [pendingRole, setPendingRole] = useState<RoleValue | null>(() => getPendingRoleSelection());
-
-  const handleRoleChosen = (role: RoleValue) => {
-    setPendingRoleSelection(role);
-    setPendingRole(role);
-  };
-
-  return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12 relative overflow-y-auto">
-      <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
-      {pendingRole ? (
-        <div className="relative z-10 w-full max-w-[440px]">
-          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
-        </div>
-      ) : (
-        <ChooseWorkspaceStep onContinue={handleRoleChosen} />
-      )}
-    </div>
-  );
-}
-
+/**
+ * Passwordless only.
+ *
+ * The Clerk-hosted <SignIn>/<SignUp> components used to live here. They render
+ * whatever strategies the Clerk dashboard has enabled — including a password
+ * field — which is exactly what this app must not offer. Both routes now
+ * redirect to /portal, which drives Clerk's OAuth and email-code strategies
+ * directly and has no password path at all.
+ */
 function HomeRedirect() {
   return (
     <>
@@ -166,11 +114,12 @@ function HomeRedirect() {
 
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
+  const { getToken } = useClerkAuth();
   const queryClient = useQueryClient();
   const prevUserIdRef = useRef<string | null | undefined>(undefined);
 
   // Attach Clerk bearer tokens to API calls when the API is cross-origin.
-  useApiAuthBridge();
+  useClerkApiAuthBridge(getToken);
 
   useEffect(() => {
     const unsubscribe = addListener(({ user }) => {
@@ -188,7 +137,76 @@ function ClerkQueryClientCacheInvalidator() {
 
 const queryClient = new QueryClient();
 
-function App() {
+/**
+ * Preview tree. Renders no ClerkProvider at all — Clerk hooks throw outside one,
+ * so the mocked session has to replace it rather than sit alongside it. An
+ * unauthenticated visitor picks a role first and explores from there.
+ */
+function PreviewRoutes() {
+  const { isSignedIn } = useSession();
+
+  if (!isSignedIn) {
+    // Signed out, preview mode shows the same front door as production: the
+    // landing page and the real sign-in layer. The seeded-identity picker is a
+    // demo shortcut kept on its own route, not a substitute for signing in.
+    return (
+      <Switch>
+        <Route path="/portal" component={PortalSignInPage} />
+        {/* Legacy entry points, same as the Clerk tree: one passwordless door. */}
+        <Route path="/sign-in/*?">
+          <Redirect to="/portal" />
+        </Route>
+        <Route path="/sign-up/*?">
+          <Redirect to="/portal?new=1" />
+        </Route>
+        {/* "/:rest*" does not match the bare root in wouter, so it needs its
+            own route — without it, "/" renders nothing at all. */}
+        <Route path="/" component={LandingPage} />
+        <Route path="/:rest*" component={LandingPage} />
+      </Switch>
+    );
+  }
+
+  return (
+    <Switch>
+      {/* "/:rest*" does not match the bare root, so send it to the dashboard
+          explicitly — otherwise entering the portal renders an empty page. */}
+      <Route path="/">
+        <Redirect to="/dashboard" />
+      </Route>
+      {/* Already signed in — the sign-in screens are a no-op, so land in the
+          portal rather than leaving the URL on a door that has been walked
+          through. */}
+      <Route path="/portal">
+        <Redirect to="/dashboard" />
+      </Route>
+      <Route path="/sign-in/*?">
+        <Redirect to="/dashboard" />
+      </Route>
+      <Route path="/sign-up/*?">
+        <Redirect to="/dashboard" />
+      </Route>
+      <Route path="/:rest*" component={DashboardLayout} />
+    </Switch>
+  );
+}
+
+function PreviewApp() {
+  return (
+    <WouterRouter base={basePath}>
+      <QueryClientProvider client={queryClient}>
+        <PreviewSessionProvider>
+          <TooltipProvider>
+            <PreviewRoutes />
+            <Toaster />
+          </TooltipProvider>
+        </PreviewSessionProvider>
+      </QueryClientProvider>
+    </WouterRouter>
+  );
+}
+
+function ClerkApp() {
   const [, setLocation] = useLocation();
 
   return (
@@ -203,20 +221,43 @@ function App() {
         routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
       >
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <ClerkQueryClientCacheInvalidator />
-            <Switch>
-              <Route path="/" component={HomeRedirect} />
-              <Route path="/sign-in/*?" component={SignInPage} />
-              <Route path="/sign-up/*?" component={SignUpPage} />
-              <Route path="/:rest*" component={DashboardLayout} />
-            </Switch>
-            <Toaster />
-          </TooltipProvider>
+          <ClerkSessionProvider>
+            <TooltipProvider>
+              <ClerkQueryClientCacheInvalidator />
+              <Switch>
+                <Route path="/" component={HomeRedirect} />
+                <Route path="/portal" component={PortalSignInPage} />
+                {/* Where Google and Zoho land after the provider round trip.
+                    Clerk finishes the handshake, then the app decides what this
+                    identity may reach. */}
+                <Route path="/portal/callback">
+                  <AuthenticateWithRedirectCallback
+                    signInFallbackRedirectUrl={`${basePath}/dashboard`}
+                    signUpFallbackRedirectUrl={`${basePath}/dashboard`}
+                  />
+                </Route>
+                {/* Legacy entry points — both are the same passwordless door now. */}
+                <Route path="/sign-in/*?">
+                  <Redirect to="/portal" />
+                </Route>
+                <Route path="/sign-up/*?">
+                  <Redirect to="/portal?new=1" />
+                </Route>
+                <Route path="/:rest*" component={DashboardLayout} />
+              </Switch>
+              <Toaster />
+            </TooltipProvider>
+          </ClerkSessionProvider>
         </QueryClientProvider>
       </ClerkProvider>
     </WouterRouter>
   );
+}
+
+function App() {
+  // One provider around both trees: the theme is a property of the browser, not
+  // of whether Clerk happens to be configured.
+  return <ThemeProvider>{isPreviewMode ? <PreviewApp /> : <ClerkApp />}</ThemeProvider>;
 }
 
 export default App;

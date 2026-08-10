@@ -29,6 +29,8 @@ export interface UserProfile {
   roleSelected: boolean;
   displayName: string;
   email: string;
+  /** @nullable */
+  authProvider?: string | null;
   createdAt: string;
 }
 
@@ -36,13 +38,25 @@ export interface UserProfileUpdate {
   displayName?: string;
 }
 
-/**
- * Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it.
- */
-export type RoleSelectionInputRole = typeof RoleSelectionInputRole[keyof typeof RoleSelectionInputRole];
+export type WorkspaceKind = typeof WorkspaceKind[keyof typeof WorkspaceKind];
 
 
-export const RoleSelectionInputRole = {
+export const WorkspaceKind = {
+  chamber: 'chamber',
+  client_portal: 'client_portal',
+} as const;
+
+export interface Workspace {
+  id: number;
+  slug: string;
+  name: string;
+  kind: WorkspaceKind;
+}
+
+export type WorkspaceMembershipSummaryRole = typeof WorkspaceMembershipSummaryRole[keyof typeof WorkspaceMembershipSummaryRole];
+
+
+export const WorkspaceMembershipSummaryRole = {
   admin: 'admin',
   senior_advocate: 'senior_advocate',
   junior_advocate: 'junior_advocate',
@@ -50,9 +64,346 @@ export const RoleSelectionInputRole = {
   client: 'client',
 } as const;
 
-export interface RoleSelectionInput {
-  /** Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it. */
-  role: RoleSelectionInputRole;
+export type WorkspaceMembershipSummaryStatus = typeof WorkspaceMembershipSummaryStatus[keyof typeof WorkspaceMembershipSummaryStatus];
+
+
+export const WorkspaceMembershipSummaryStatus = {
+  pending: 'pending',
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface WorkspaceMembershipSummary {
+  workspace: Workspace;
+  role: WorkspaceMembershipSummaryRole;
+  status: WorkspaceMembershipSummaryStatus;
+  isOwner?: boolean;
+  /** @nullable */
+  requestedRole?: string | null;
+}
+
+/**
+ * active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.
+ */
+export type SessionClaimsAccessStatus = typeof SessionClaimsAccessStatus[keyof typeof SessionClaimsAccessStatus];
+
+
+export const SessionClaimsAccessStatus = {
+  not_recognised: 'not_recognised',
+  pending_approval: 'pending_approval',
+  active: 'active',
+} as const;
+
+export interface SessionClaims {
+  userId: number;
+  clerkId: string;
+  displayName: string;
+  email: string;
+  /** active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address. */
+  accessStatus: SessionClaimsAccessStatus;
+  /**
+     * How the caller signed in (google | zoho | email). Display only.
+     * @nullable
+     */
+  authProvider?: string | null;
+  memberships: WorkspaceMembershipSummary[];
+  activeWorkspace?: Workspace | null;
+  /**
+     * Role in the active workspace, resolved from the membership row.
+     * @nullable
+     */
+  role?: string | null;
+  /** @nullable */
+  displayRole?: string | null;
+  /** True when the caller founded the active workspace. */
+  isOwner: boolean;
+  /** Server-resolved capability list. The UI renders from this and nothing else. */
+  capabilities: string[];
+  /**
+     * Scoped token for the active workspace, minted after membership was verified.
+     * @nullable
+     */
+  workspaceToken?: string | null;
+}
+
+export interface WorkspaceSwitchInput {
+  workspaceId: number;
+}
+
+export type AccessRequestStatus = typeof AccessRequestStatus[keyof typeof AccessRequestStatus];
+
+
+export const AccessRequestStatus = {
+  pending: 'pending',
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface AccessRequest {
+  id: number;
+  workspaceId: number;
+  /** @nullable */
+  workspaceName?: string | null;
+  userId: number;
+  clerkId: string;
+  /** @nullable */
+  displayName?: string | null;
+  /** @nullable */
+  email?: string | null;
+  role: string;
+  /** @nullable */
+  requestedRole?: string | null;
+  /** @nullable */
+  requestNote?: string | null;
+  status: AccessRequestStatus;
+  /** @nullable */
+  decidedBy?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  createdAt: string;
+}
+
+/**
+ * Intent only. Never granted automatically.
+ */
+export type AccessRequestInputRequestedRole = typeof AccessRequestInputRequestedRole[keyof typeof AccessRequestInputRequestedRole];
+
+
+export const AccessRequestInputRequestedRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface AccessRequestInput {
+  /** The workspace being applied to. */
+  workspaceSlug: string;
+  /** Intent only. Never granted automatically. */
+  requestedRole?: AccessRequestInputRequestedRole;
+  note?: string;
+}
+
+export type AccessDecisionInputDecision = typeof AccessDecisionInputDecision[keyof typeof AccessDecisionInputDecision];
+
+
+export const AccessDecisionInputDecision = {
+  approve: 'approve',
+  deny: 'deny',
+} as const;
+
+/**
+ * The role the admin grants. Required on approve. Deliberately separate from requestedRole — an applicant asking for admin does not get it.
+ */
+export type AccessDecisionInputRole = typeof AccessDecisionInputRole[keyof typeof AccessDecisionInputRole];
+
+
+export const AccessDecisionInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface AccessDecisionInput {
+  decision: AccessDecisionInputDecision;
+  /** The role the admin grants. Required on approve. Deliberately separate from requestedRole — an applicant asking for admin does not get it. */
+  role?: AccessDecisionInputRole;
+}
+
+/**
+ * The founder's own role. Restricted to these two — a chamber must be created by someone who will run it.
+ */
+export type WorkspaceCreateInputRole = typeof WorkspaceCreateInputRole[keyof typeof WorkspaceCreateInputRole];
+
+
+export const WorkspaceCreateInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+} as const;
+
+export interface WorkspaceCreateInput {
+  /**
+     * The chamber's name, e.g. "Raghavan Chambers".
+     * @minLength 2
+     */
+  name: string;
+  /** The founder's own role. Restricted to these two — a chamber must be created by someone who will run it. */
+  role: WorkspaceCreateInputRole;
+}
+
+export type CalendarEntryKind = typeof CalendarEntryKind[keyof typeof CalendarEntryKind];
+
+
+export const CalendarEntryKind = {
+  hearing: 'hearing',
+  filing: 'filing',
+  meeting: 'meeting',
+  note: 'note',
+} as const;
+
+export interface CalendarEntry {
+  id: number;
+  workspaceId: number;
+  title: string;
+  /** @nullable */
+  notes?: string | null;
+  kind: CalendarEntryKind;
+  entryDate: string;
+  /** @nullable */
+  entryTime?: string | null;
+  /** @nullable */
+  caseId?: number | null;
+  /** @nullable */
+  caseTitle?: string | null;
+  audience: string;
+  /** @nullable */
+  audienceLabel?: string | null;
+  /** @nullable */
+  createdBy?: string | null;
+  /** @nullable */
+  createdByRole?: string | null;
+  createdAt: string;
+}
+
+export type CalendarEntryInputKind = typeof CalendarEntryInputKind[keyof typeof CalendarEntryInputKind];
+
+
+export const CalendarEntryInputKind = {
+  hearing: 'hearing',
+  filing: 'filing',
+  meeting: 'meeting',
+  note: 'note',
+} as const;
+
+export interface CalendarEntryInput {
+  /** @minLength 1 */
+  title: string;
+  notes?: string;
+  kind?: CalendarEntryInputKind;
+  /** YYYY-MM-DD */
+  entryDate: string;
+  entryTime?: string;
+  caseId?: number;
+  /** all | staff | role:<role> | user:<clerkId> */
+  audience?: string;
+}
+
+export type CalendarEntryUpdateKind = typeof CalendarEntryUpdateKind[keyof typeof CalendarEntryUpdateKind];
+
+
+export const CalendarEntryUpdateKind = {
+  hearing: 'hearing',
+  filing: 'filing',
+  meeting: 'meeting',
+  note: 'note',
+} as const;
+
+export interface CalendarEntryUpdate {
+  /** @minLength 1 */
+  title?: string;
+  notes?: string;
+  kind?: CalendarEntryUpdateKind;
+  entryDate?: string;
+  entryTime?: string;
+  caseId?: number;
+  audience?: string;
+}
+
+export type AccessListEntryKind = typeof AccessListEntryKind[keyof typeof AccessListEntryKind];
+
+
+export const AccessListEntryKind = {
+  email: 'email',
+  domain: 'domain',
+} as const;
+
+export type AccessListEntryRole = typeof AccessListEntryRole[keyof typeof AccessListEntryRole];
+
+
+export const AccessListEntryRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface AccessListEntry {
+  id: number;
+  workspaceId: number;
+  kind: AccessListEntryKind;
+  value: string;
+  role: AccessListEntryRole;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  addedBy?: string | null;
+  /** @nullable */
+  lastUsedAt?: string | null;
+  /** @nullable */
+  revokedAt?: string | null;
+  createdAt: string;
+}
+
+export type AccessListEntryInputKind = typeof AccessListEntryInputKind[keyof typeof AccessListEntryInputKind];
+
+
+export const AccessListEntryInputKind = {
+  email: 'email',
+  domain: 'domain',
+} as const;
+
+/**
+ * The role granted on first sign-in. Chosen by the admin.
+ */
+export type AccessListEntryInputRole = typeof AccessListEntryInputRole[keyof typeof AccessListEntryInputRole];
+
+
+export const AccessListEntryInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export interface AccessListEntryInput {
+  kind: AccessListEntryInputKind;
+  /**
+     * An exact email address, or a bare domain such as "chambers.in".
+     * @minLength 3
+     */
+  value: string;
+  /** The role granted on first sign-in. Chosen by the admin. */
+  role: AccessListEntryInputRole;
+  note?: string;
+}
+
+export type MembershipUpdateInputRole = typeof MembershipUpdateInputRole[keyof typeof MembershipUpdateInputRole];
+
+
+export const MembershipUpdateInputRole = {
+  admin: 'admin',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
+  client: 'client',
+} as const;
+
+export type MembershipUpdateInputStatus = typeof MembershipUpdateInputStatus[keyof typeof MembershipUpdateInputStatus];
+
+
+export const MembershipUpdateInputStatus = {
+  active: 'active',
+  revoked: 'revoked',
+} as const;
+
+export interface MembershipUpdateInput {
+  role?: MembershipUpdateInputRole;
+  status?: MembershipUpdateInputStatus;
 }
 
 export type UserRoleUpdateInputRole = typeof UserRoleUpdateInputRole[keyof typeof UserRoleUpdateInputRole];
@@ -92,6 +443,8 @@ export const CasePriority = {
 
 export interface Case {
   id: number;
+  /** Tenant the matter belongs to. Always the caller's active workspace. */
+  workspaceId: number;
   title: string;
   /** @nullable */
   description?: string | null;
@@ -102,6 +455,12 @@ export interface Case {
   clientName?: string | null;
   /** @nullable */
   filingRef?: string | null;
+  /** @nullable */
+  opposingParty?: string | null;
+  /** @nullable */
+  conflictAcknowledgedBy?: string | null;
+  /** @nullable */
+  conflictNote?: string | null;
   priority?: CasePriority;
   createdAt: string;
   updatedAt: string;
@@ -130,6 +489,12 @@ export const CaseInputPriority = {
 export interface CaseInput {
   /** @minLength 1 */
   title: string;
+  /** Who the matter is against. Screened for conflicts before the matter opens. */
+  opposingParty?: string;
+  /** Set to proceed despite a reported conflict. Requires conflictNote. */
+  conflictAcknowledged?: boolean;
+  /** Why the advocate judged the conflict not to apply. Recorded in the audit log. */
+  conflictNote?: string;
   description?: string;
   status?: CaseInputStatus;
   clientId?: number;
@@ -177,6 +542,356 @@ export interface TimelineEvent {
   createdAt: string;
 }
 
+export interface AuditEvent {
+  id: number;
+  actorName?: string;
+  actorRole?: string;
+  action: string;
+  entityType?: string;
+  /** @nullable */
+  entityId?: string | null;
+  summary: string;
+  /** @nullable */
+  ip?: string | null;
+  at: string;
+}
+
+export interface UsageCounter {
+  used: number;
+  /**
+     * Null means unlimited on this plan.
+     * @nullable
+     */
+  limit?: number | null;
+}
+
+export type UsagePlan = typeof UsagePlan[keyof typeof UsagePlan];
+
+
+export const UsagePlan = {
+  trial: 'trial',
+  pro: 'pro',
+  firm: 'firm',
+  custom: 'custom',
+} as const;
+
+export interface Usage {
+  plan: UsagePlan;
+  matters: UsageCounter;
+  seats: UsageCounter;
+}
+
+export interface ConflictCheckInput {
+  opposingParty: string;
+}
+
+export interface ErasureRequestInput {
+  reason?: string;
+}
+
+export type ErasureDecisionInputDecision = typeof ErasureDecisionInputDecision[keyof typeof ErasureDecisionInputDecision];
+
+
+export const ErasureDecisionInputDecision = {
+  complete: 'complete',
+  reject: 'reject',
+} as const;
+
+export interface ErasureDecisionInput {
+  decision: ErasureDecisionInputDecision;
+  note?: string;
+}
+
+export type ConflictHitKind = typeof ConflictHitKind[keyof typeof ConflictHitKind];
+
+
+export const ConflictHitKind = {
+  existing_client: 'existing_client',
+  opposing_party: 'opposing_party',
+  matter_title: 'matter_title',
+} as const;
+
+export interface ConflictHit {
+  kind: ConflictHitKind;
+  detail: string;
+  /** @nullable */
+  caseId?: number | null;
+}
+
+export type ErasureRequestStatus = typeof ErasureRequestStatus[keyof typeof ErasureRequestStatus];
+
+
+export const ErasureRequestStatus = {
+  pending: 'pending',
+  completed: 'completed',
+  rejected: 'rejected',
+} as const;
+
+export interface ErasureRequest {
+  id: number;
+  requestedName?: string;
+  requestedEmail?: string;
+  /** @nullable */
+  reason?: string | null;
+  status: ErasureRequestStatus;
+  /** @nullable */
+  decidedBy?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  /** @nullable */
+  decisionNote?: string | null;
+  createdAt: string;
+}
+
+export type DataExportSubject = {
+  name?: string;
+  email?: string;
+  role?: string;
+  /** @nullable */
+  joinedAt?: string | null;
+};
+
+export type DataExportWorkspace = {
+  name?: string;
+};
+
+export type DataExportCasesItem = { [key: string]: unknown };
+
+export type DataExportDocumentsItem = { [key: string]: unknown };
+
+export type DataExportDocumentRequestsItem = { [key: string]: unknown };
+
+export type DataExportFeedbackItem = { [key: string]: unknown };
+
+export type DataExportConsultationsItem = { [key: string]: unknown };
+
+export interface DataExport {
+  generatedAt: string;
+  subject: DataExportSubject;
+  workspace: DataExportWorkspace;
+  cases?: DataExportCasesItem[];
+  documents?: DataExportDocumentsItem[];
+  documentRequests?: DataExportDocumentRequestsItem[];
+  feedback?: DataExportFeedbackItem[];
+  consultations?: DataExportConsultationsItem[];
+}
+
+export type PlanQuotePlan = typeof PlanQuotePlan[keyof typeof PlanQuotePlan];
+
+
+export const PlanQuotePlan = {
+  trial: 'trial',
+  pro: 'pro',
+  firm: 'firm',
+  custom: 'custom',
+} as const;
+
+export type PlanQuoteBillingPeriod = typeof PlanQuoteBillingPeriod[keyof typeof PlanQuoteBillingPeriod];
+
+
+export const PlanQuoteBillingPeriod = {
+  one_time: 'one_time',
+  monthly: 'monthly',
+  half_yearly: 'half_yearly',
+  yearly: 'yearly',
+} as const;
+
+export interface PlanQuote {
+  plan: PlanQuotePlan;
+  billingPeriod: PlanQuoteBillingPeriod;
+  /** Months of service the period covers. */
+  months: number;
+  /** Months actually charged for. */
+  paidMonths: number;
+  /** Months granted free. Two on the yearly plans. */
+  freeMonths: number;
+  /** Total for the period, in paise. */
+  amountMinor: number;
+  /** Amount per month across the term, in paise. */
+  effectiveMonthlyMinor: number;
+  /** What the same months cost billed monthly, in paise. */
+  listMinor: number;
+  savingsMinor: number;
+  currency: string;
+  /** Display name of the plan. */
+  name: string;
+  /** True when the plan has no list price and is scoped by a person. Selecting it records an enquiry; it never becomes an active plan. */
+  quoteOnly: boolean;
+  /** False for the trial pack, which runs its two months and stops. */
+  renews: boolean;
+}
+
+export type SubscriptionPlan = typeof SubscriptionPlan[keyof typeof SubscriptionPlan];
+
+
+export const SubscriptionPlan = {
+  trial: 'trial',
+  pro: 'pro',
+  firm: 'firm',
+  custom: 'custom',
+} as const;
+
+export type SubscriptionBillingPeriod = typeof SubscriptionBillingPeriod[keyof typeof SubscriptionBillingPeriod];
+
+
+export const SubscriptionBillingPeriod = {
+  one_time: 'one_time',
+  monthly: 'monthly',
+  half_yearly: 'half_yearly',
+  yearly: 'yearly',
+} as const;
+
+export type SubscriptionStatus = typeof SubscriptionStatus[keyof typeof SubscriptionStatus];
+
+
+export const SubscriptionStatus = {
+  trialing: 'trialing',
+  active: 'active',
+  past_due: 'past_due',
+  cancelled: 'cancelled',
+} as const;
+
+export interface Subscription {
+  workspaceId: number;
+  plan: SubscriptionPlan;
+  billingPeriod: SubscriptionBillingPeriod;
+  status: SubscriptionStatus;
+  paidMonths?: number;
+  freeMonths?: number;
+  amountMinor?: number;
+  currency: string;
+  /** @nullable */
+  startedAt?: string | null;
+  /** @nullable */
+  currentPeriodEnd?: string | null;
+  /** @nullable */
+  updatedBy?: string | null;
+}
+
+export interface SubscriptionState {
+  subscription: Subscription;
+  catalogue: PlanQuote[];
+  /** Whether the caller holds billing.manage in this workspace. */
+  canManage: boolean;
+}
+
+export interface BillingConfig {
+  /** False when no payment provider is configured. */
+  enabled: boolean;
+  /**
+     * The provider's PUBLIC key, for the browser checkout.
+     * @nullable
+     */
+  keyId?: string | null;
+  /** @nullable */
+  provider?: string | null;
+}
+
+export type CheckoutOrderPlan = typeof CheckoutOrderPlan[keyof typeof CheckoutOrderPlan];
+
+
+export const CheckoutOrderPlan = {
+  trial: 'trial',
+  pro: 'pro',
+  firm: 'firm',
+  custom: 'custom',
+} as const;
+
+export type CheckoutOrderBillingPeriod = typeof CheckoutOrderBillingPeriod[keyof typeof CheckoutOrderBillingPeriod];
+
+
+export const CheckoutOrderBillingPeriod = {
+  one_time: 'one_time',
+  monthly: 'monthly',
+  half_yearly: 'half_yearly',
+  yearly: 'yearly',
+} as const;
+
+export interface CheckoutOrder {
+  orderId: string;
+  /** Total in paise, computed server-side. */
+  amountMinor: number;
+  currency: string;
+  plan: CheckoutOrderPlan;
+  billingPeriod: CheckoutOrderBillingPeriod;
+}
+
+export type SubscriptionInputPlan = typeof SubscriptionInputPlan[keyof typeof SubscriptionInputPlan];
+
+
+export const SubscriptionInputPlan = {
+  trial: 'trial',
+  pro: 'pro',
+  firm: 'firm',
+  custom: 'custom',
+} as const;
+
+export type SubscriptionInputBillingPeriod = typeof SubscriptionInputBillingPeriod[keyof typeof SubscriptionInputBillingPeriod];
+
+
+export const SubscriptionInputBillingPeriod = {
+  one_time: 'one_time',
+  monthly: 'monthly',
+  half_yearly: 'half_yearly',
+  yearly: 'yearly',
+} as const;
+
+export interface SubscriptionInput {
+  plan: SubscriptionInputPlan;
+  billingPeriod: SubscriptionInputBillingPeriod;
+}
+
+export interface Feedback {
+  id: number;
+  workspaceId: number;
+  caseId: number;
+  /** @nullable */
+  caseTitle?: string | null;
+  clientId: number;
+  /** @nullable */
+  clientName?: string | null;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  /** @nullable */
+  comment?: string | null;
+  /** @nullable */
+  response?: string | null;
+  /** @nullable */
+  respondedBy?: string | null;
+  /** @nullable */
+  respondedAt?: string | null;
+  createdAt: string;
+}
+
+export interface FeedbackInput {
+  caseId: number;
+  /**
+     * @minimum 1
+     * @maximum 5
+     */
+  rating: number;
+  comment?: string;
+}
+
+export interface FeedbackResponseInput {
+  /** @minLength 1 */
+  response: string;
+}
+
+/**
+ * 'firm' is internal working material a client never sees. 'shared' is visible to the client on the matter. A client's own upload is always 'shared'.
+ */
+export type DocumentVisibility = typeof DocumentVisibility[keyof typeof DocumentVisibility];
+
+
+export const DocumentVisibility = {
+  firm: 'firm',
+  shared: 'shared',
+} as const;
+
 export interface Document {
   id: number;
   caseId: number;
@@ -188,8 +903,41 @@ export interface Document {
   encrypted: boolean;
   /** @nullable */
   storagePath?: string | null;
+  /**
+     * SHA-256 of the stored bytes.
+     * @nullable
+     */
+  checksum?: string | null;
+  /**
+     * Where the file lives. Object storage in production.
+     * @nullable
+     */
+  url?: string | null;
+  /** 'firm' is internal working material a client never sees. 'shared' is visible to the client on the matter. A client's own upload is always 'shared'. */
+  visibility?: DocumentVisibility;
+  /** @nullable */
+  uploadedBy?: string | null;
+  /** @nullable */
+  uploadedByRole?: string | null;
+  /** @nullable */
+  documentRequestId?: number | null;
+  /** @nullable */
+  note?: string | null;
+  /** @nullable */
+  caseTitle?: string | null;
   uploadedAt: string;
 }
+
+/**
+ * Ignored for clients, whose uploads are always 'shared'.
+ */
+export type DocumentInputVisibility = typeof DocumentInputVisibility[keyof typeof DocumentInputVisibility];
+
+
+export const DocumentInputVisibility = {
+  firm: 'firm',
+  shared: 'shared',
+} as const;
 
 export interface DocumentInput {
   /** @minLength 1 */
@@ -197,6 +945,12 @@ export interface DocumentInput {
   fileType?: string;
   fileSize?: number;
   storagePath?: string;
+  url?: string;
+  note?: string;
+  /** Ignored for clients, whose uploads are always 'shared'. */
+  visibility?: DocumentInputVisibility;
+  /** Set to fulfil a specific document request. */
+  documentRequestId?: number;
 }
 
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
@@ -481,7 +1235,9 @@ export type InviteRole = typeof InviteRole[keyof typeof InviteRole];
 
 export const InviteRole = {
   admin: 'admin',
-  clerk: 'clerk',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
   client: 'client',
 } as const;
 
@@ -498,17 +1254,23 @@ export interface Invite {
   expiresAt: string;
 }
 
+/**
+ * The role the invited person is admitted at. Chosen by the admin.
+ */
 export type InviteInputRole = typeof InviteInputRole[keyof typeof InviteInputRole];
 
 
 export const InviteInputRole = {
   admin: 'admin',
-  clerk: 'clerk',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
   client: 'client',
 } as const;
 
 export interface InviteInput {
   email: string;
+  /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
   caseId?: number;
 }
@@ -552,23 +1314,44 @@ export interface DocumentRequest {
   clientClerkId: string;
   /** @nullable */
   clientName?: string | null;
+  /**
+     * Display name of the person the document is being requested FROM.
+     * @nullable
+     */
+  requestedFromName?: string | null;
+  /** @nullable */
+  requestedFromEmail?: string | null;
+  /** Display name of the staff member who raised the request. */
   requestedBy: string;
+  /** @nullable */
+  requestedByRole?: string | null;
   documentName: string;
   /** @nullable */
   note?: string | null;
   /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
   caseId?: number | null;
+  /** @nullable */
+  caseTitle?: string | null;
   status: DocumentRequestStatus;
+  /** @nullable */
+  fulfilledDocumentId?: number | null;
+  /** @nullable */
+  fulfilledAt?: string | null;
   createdAt: string;
   /** @nullable */
   updatedAt?: string | null;
 }
 
 export interface DocumentRequestInput {
+  /** The recipient — the user the document is requested FROM. */
   clientId: number;
   /** @minLength 1 */
   documentName: string;
   note?: string;
+  /** Date the recipient is asked to respond by (YYYY-MM-DD). */
+  dueDate?: string;
   caseId?: number;
 }
 
@@ -597,6 +1380,18 @@ export interface SearchResults {
   consultations: SearchResultItem[];
   clients: SearchResultItem[];
 }
+
+export type ListAuditEventsParams = {
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+};
+
+export type CheckConflicts200 = {
+  hits: ConflictHit[];
+};
 
 export type ListUsersParams = {
 role?: ListUsersRole;

@@ -1,0 +1,9 @@
+# Revisions to skip when running `git blame`.
+#
+# Enable with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Only wholly mechanical, no-behaviour-change commits belong here.
+
+# Format the repository with Prettier
+2b994ea4e561817b1d854e691d389ce0d0450798

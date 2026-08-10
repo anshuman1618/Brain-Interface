@@ -6,11 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * The role the invited person is admitted at. Chosen by the admin.
+ */
 export type InviteInputRole = typeof InviteInputRole[keyof typeof InviteInputRole];
 
 
 export const InviteInputRole = {
   admin: 'admin',
-  clerk: 'clerk',
+  senior_advocate: 'senior_advocate',
+  junior_advocate: 'junior_advocate',
+  clerk_intern: 'clerk_intern',
   client: 'client',
 } as const;

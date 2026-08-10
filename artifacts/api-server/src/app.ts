@@ -10,7 +10,15 @@ import {
 } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
 import healthRouter from "./routes/health";
+import previewRouter from "./routes/preview";
+import { mountStaticClient } from "./middlewares/staticClient";
+import legalRouter from "./routes/legal";
+import billingRouter, { handleRazorpayWebhook } from "./routes/billing";
+import { reportError } from "./lib/error-reporter";
+import { isPreviewAuth } from "./lib/preview-mode";
 import { logger } from "./lib/logger";
+import { securityHeaders } from "./middlewares/securityHeaders";
+import { rateLimit } from "./middlewares/rateLimit";
 
 const app: Express = express();
 
@@ -33,6 +41,8 @@ app.use(
     },
   }),
 );
+
+app.use(securityHeaders());
 
 app.use(CLERK_PROXY_PATH, clerkProxyMiddleware());
 
@@ -57,6 +67,16 @@ if (allowedOrigins.length > 0) {
 } else {
   app.use(cors({ credentials: true, origin: true }));
 }
+// BEFORE the JSON parser, and with a raw body on purpose: the payment webhook
+// signature covers the exact bytes the provider sent. Parsing and re-serialising
+// changes key order and whitespace, the digest stops matching, and the usual
+// "fix" is to skip verification — which is how these integrations end up
+// authenticating nothing. Mounted here so the ordering is visible rather than
+// buried in a router.
+app.post("/api/billing/webhook", express.raw({ type: "*/*", limit: "1mb" }), (req, res, next) => {
+  void handleRazorpayWebhook(req, res).catch(next);
+});
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -65,16 +85,98 @@ app.use(express.urlencoded({ extended: true }));
 // hosts that gate a release on the health check (Render, Railway, Fly, ECS)
 // would fail the deploy with an error that points at the wrong subsystem.
 app.use("/api", healthRouter);
+app.use("/api", previewRouter);
 
-app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
+// Scoped to /api, not mounted globally. This process also serves the SPA, and
+// clerkMiddleware answers an unauthenticated request lacking Clerk's dev-browser
+// cookie with a handshake redirect to the Clerk domain. Applied globally that
+// redirect hits the HTML document request, so loading the site bounced to Clerk
+// instead of rendering. The SPA must be served unauthenticated — it runs its own
+// Clerk client and decides what to show.
+//
+// Skipped entirely in preview mode: with no CLERK_SECRET_KEY the middleware
+// throws on every request, so identity comes from the preview bearer token
+// instead (see lib/preview-mode.ts, which cannot engage in production).
+if (isPreviewAuth()) {
+  logger.warn(
+    "PREVIEW MODE — authentication is mocked and every caller may choose their own role. Never expose this to real client data.",
+  );
+} else {
+  app.use(
+    "/api",
+    clerkMiddleware((req) => ({
+      publishableKey: publishableKeyFromHost(
+        getClerkProxyHost(req) ?? "",
+        process.env.CLERK_PUBLISHABLE_KEY,
+      ),
+    })),
+  );
+}
+
+/**
+ * Rate limits, strictest first.
+ *
+ * /session is the sign-in path: it is what an attacker hits to enumerate
+ * addresses or spam one-time codes, so it gets the tightest budget. Writes get
+ * a moderate one keyed per user where we know who they are. Reads are left
+ * generous — a busy chamber refreshing a cause list is not an attack.
+ */
+app.use("/api/session", rateLimit({ name: "auth", max: 30, windowMs: 60_000 }));
+app.use("/api/workspaces", rateLimit({ name: "auth", max: 30, windowMs: 60_000 }));
+app.use("/api/access-requests", rateLimit({ name: "auth", max: 20, windowMs: 60_000 }));
+app.use("/api/privacy", rateLimit({ name: "privacy", max: 20, windowMs: 60_000, perUser: true }));
+app.use("/api", (req, res, next) =>
+  req.method === "GET" || req.method === "HEAD"
+    ? next()
+    : rateLimit({ name: "write", max: 120, windowMs: 60_000, perUser: true })(req, res, next),
 );
 
+app.use("/api", billingRouter);
 app.use("/api", router);
+
+// Unmatched API paths must answer in JSON. Without this they fall through to
+// Express's default HTML error page, which an API client parsing JSON cannot
+// read — and once the SPA is mounted below they would otherwise return
+// index.html with a 200, turning a typo'd endpoint into a silent success.
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
+// Terms, privacy and the processing agreement, as plain pages. Before the SPA
+// fallback so they resolve as documents rather than being swallowed by the app
+// shell, and outside /api because someone who has not signed in — and may never
+// sign in — has to be able to read them.
+app.use(legalRouter);
+
+// Mounted last so the SPA fallback can never shadow an /api route.
+mountStaticClient(app);
+
+// Terminal error handler. Without it an unhandled throw reaches Express's
+// default handler, which answers with an HTML page (and a stack trace outside
+// production) — unparseable by the API client and a leak besides. Four
+// parameters are required for Express to treat this as an error handler.
+app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+
+  // Logged AND forwarded. The log is for the investigation; the report is so
+  // somebody knows there is one to do.
+  reportError(err, {
+    at: "express",
+    method: req.method,
+    path: req.path,
+    statusCode: 500,
+  });
+
+  const isApi = req.path === "/api" || req.path.startsWith("/api/");
+  if (isApi) {
+    res.status(500).json({ error: "Internal server error" });
+    return;
+  }
+
+  res.status(500).type("text/plain").send("Internal server error");
+});
 
 export default app;

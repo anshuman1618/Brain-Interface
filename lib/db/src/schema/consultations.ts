@@ -16,6 +16,9 @@ export const consultationsTable = pgTable("consultations", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const insertConsultationSchema = createInsertSchema(consultationsTable).omit({ id: true, createdAt: true });
+export const insertConsultationSchema = createInsertSchema(consultationsTable).omit({
+  id: true,
+  createdAt: true,
+});
 export type InsertConsultation = z.infer<typeof insertConsultationSchema>;
 export type Consultation = typeof consultationsTable.$inferSelect;

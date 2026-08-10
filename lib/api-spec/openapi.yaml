@@ -10,8 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: session
+    description: Verified session context, workspace membership and access requests
   - name: users
-    description: User profile and role management
+    description: User directory
   - name: cases
     description: Case management
   - name: documents
@@ -32,6 +34,12 @@ tags:
     description: KPI engine (admin only)
   - name: invites
     description: Invite link generation
+  - name: calendar
+    description: Master calendar updates
+  - name: feedback
+    description: Client feedback on matters
+  - name: privacy
+    description: Data export and erasure requests
 
 paths:
   /healthz:
@@ -81,28 +89,700 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserProfile"
 
-  /users/me/role:
+  # ── Session & workspaces ───────────────────────────────────────────────────
+  /session:
+    get:
+      operationId: getSession
+      tags: [session]
+      summary: Verified session claims
+      description: >
+        The authoritative description of who the caller is, which workspaces they
+        are an active member of, and what they may do in the active one. The
+        frontend renders exclusively from this payload; it is the only source of
+        UI visibility. Never derived from client state.
+      responses:
+        "200":
+          description: Session claims
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionClaims"
+        "401":
+          description: Unauthorized
+
+  /session/workspace:
     post:
-      operationId: selectRole
-      tags: [users]
-      summary: Self-service one-time role selection at sign-up
+      operationId: switchWorkspace
+      tags: [session]
+      summary: Switch the active workspace
+      description: >
+        Verifies the caller holds an ACTIVE membership of the requested workspace
+        and, only then, mints a scoped workspace token. A workspace the caller is
+        not mapped to answers 403 — there is no client-side way to select one.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RoleSelectionInput"
+              $ref: "#/components/schemas/WorkspaceSwitchInput"
       responses:
         "200":
-          description: Role selected
+          description: Scoped session context
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserProfile"
+                $ref: "#/components/schemas/SessionClaims"
+        "401":
+          description: Unauthorized
+        "403":
+          description: Not an active member of that workspace
+
+  /workspaces:
+    post:
+      operationId: createWorkspace
+      tags: [session]
+      summary: Create a chamber and become its owner
+      description: >
+        Self-serve sign-up. The caller creates a brand-new, empty workspace and
+        becomes its owner at the role they choose (Firm Admin or Senior
+        Advocate). Ownership adds the management capabilities so a founder can
+        invite their own team whatever practice title they hold — and confers
+        nothing in any other workspace. This is the only role a user can choose
+        for themselves, and it only ever applies to a chamber that did not exist
+        a moment ago.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkspaceCreateInput"
+      responses:
+        "201":
+          description: Chamber created; session now scoped to it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionClaims"
         "401":
           description: Unauthorized
         "409":
-          description: Role already selected — contact an admin to change it
+          description: That chamber name is already taken
+    get:
+      operationId: listWorkspaces
+      tags: [session]
+      summary: Workspaces the caller is explicitly mapped to
+      description: >
+        Returns only workspaces backed by a membership row for this user. Pending
+        rows are included but flagged, so the switcher can show "awaiting
+        approval" without ever offering them as selectable.
+      responses:
+        "200":
+          description: Memberships
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkspaceMembershipSummary"
+        "401":
+          description: Unauthorized
+
+  /access-requests:
+    get:
+      operationId: listAccessRequests
+      tags: [session]
+      summary: Pending access requests for the active workspace (admin only)
+      responses:
+        "200":
+          description: Access requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessRequest"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createAccessRequest
+      tags: [session]
+      summary: Request access to a workspace
+      description: >
+        Records intent only. The requested role is stored as `requestedRole` and
+        grants nothing; the membership is created with status `pending`. Approval
+        is an explicit admin action.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessRequestInput"
+      responses:
+        "201":
+          description: Request recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessRequest"
+        "401":
+          description: Unauthorized
+        "409":
+          description: A membership or request already exists
+
+  /access-requests/{id}/decision:
+    post:
+      operationId: decideAccessRequest
+      tags: [session]
+      summary: Approve or deny an access request (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessDecisionInput"
+      responses:
+        "200":
+          description: Decision applied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessRequest"
+        "403":
+          description: Forbidden
+        "404":
+          description: Request not found in this workspace
+
+  /calendar:
+    get:
+      operationId: listCalendarEntries
+      tags: [calendar]
+      summary: Calendar updates visible to the caller
+      description: >
+        Scoped twice: to the caller's workspace, and to entries whose audience
+        includes their role or their user id. A client never receives a
+        staff-only notice.
+      responses:
+        "200":
+          description: Calendar entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CalendarEntry"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createCalendarEntry
+      tags: [calendar]
+      summary: Post a calendar update (Admin and Senior Advocate only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalendarEntryInput"
+      responses:
+        "201":
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarEntry"
+        "403":
+          description: Forbidden
+
+  /calendar/{id}:
+    patch:
+      operationId: updateCalendarEntry
+      tags: [calendar]
+      summary: Move or edit a calendar entry (Admin and Senior Advocate only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CalendarEntryUpdate"
+      responses:
+        "200":
+          description: Entry updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CalendarEntry"
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in this workspace
+    delete:
+      operationId: deleteCalendarEntry
+      tags: [calendar]
+      summary: Remove a calendar update (Admin and Senior Advocate only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Removed
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in this workspace
+
+  /feedback:
+    get:
+      operationId: listFeedback
+      tags: [feedback]
+      summary: Feedback visible to the caller
+      description: >
+        Staff see every rating in the workspace; a client sees only their own.
+      responses:
+        "200":
+          description: Feedback
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Feedback"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createFeedback
+      tags: [feedback]
+      summary: Leave feedback on one of your matters (clients only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackInput"
+      responses:
+        "201":
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feedback"
+        "403":
+          description: Forbidden
+        "409":
+          description: You have already rated this matter
+
+  /feedback/{id}/response:
+    post:
+      operationId: respondToFeedback
+      tags: [feedback]
+      summary: Reply to a client's feedback (Admin and Senior Advocate)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FeedbackResponseInput"
+      responses:
+        "200":
+          description: Response saved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feedback"
+        "403":
+          description: Forbidden
+        "404":
+          description: Not found in this workspace
+
+  /documents:
+    get:
+      operationId: listWorkspaceDocuments
+      tags: [documents]
+      summary: Every document the caller may see, across their matters
+      description: >
+        Scoped by matter visibility and, for clients, by document visibility —
+        firm-internal files are never returned to a client.
+      responses:
+        "200":
+          description: Documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Document"
+        "403":
+          description: Forbidden
+
+  /workspace/audit:
+    get:
+      operationId: listAuditEvents
+      tags: [session]
+      summary: The workspace's audit log, newest first (audit.read only)
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200 }
+      responses:
+        "200":
+          description: Audit events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditEvent"
+        "403":
+          description: Forbidden
+
+  /workspace/usage:
+    get:
+      operationId: getUsage
+      tags: [session]
+      summary: What the workspace is using against its plan allowance
+      responses:
+        "200":
+          description: Usage
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usage"
+        "403":
+          description: Forbidden
+
+  /cases/conflict-check:
+    post:
+      operationId: checkConflicts
+      tags: [cases]
+      summary: Screen a proposed opposing party before opening a matter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConflictCheckInput"
+      responses:
+        "200":
+          description: Possible conflicts, empty when clear
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [hits]
+                properties:
+                  hits:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ConflictHit"
+        "403":
+          description: Forbidden
+
+  /documents/{id}/content:
+    get:
+      operationId: downloadDocument
+      tags: [documents]
+      summary: Download the stored bytes of a document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "403":
+          description: Forbidden
+        "404":
+          description: No such document, or no bytes stored
+
+  /privacy/export:
+    get:
+      operationId: exportMyData
+      tags: [privacy]
+      summary: Everything this workspace holds about the caller
+      responses:
+        "200":
+          description: Personal data export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataExport"
+        "403":
+          description: Forbidden
+
+  /privacy/erasure:
+    get:
+      operationId: listErasureRequests
+      tags: [privacy]
+      summary: Erasure requests - your own, or all of them with privacy.manage
+      responses:
+        "200":
+          description: Erasure requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ErasureRequest"
+        "403":
+          description: Forbidden
+    post:
+      operationId: requestErasure
+      tags: [privacy]
+      summary: Ask the chamber to erase your personal data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ErasureRequestInput"
+      responses:
+        "201":
+          description: Request recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErasureRequest"
+        "403":
+          description: Forbidden
+        "409":
+          description: A request is already pending
+
+  /privacy/erasure/{id}:
+    patch:
+      operationId: decideErasure
+      tags: [privacy]
+      summary: Complete or reject an erasure request (privacy.manage only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ErasureDecisionInput"
+      responses:
+        "200":
+          description: Decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErasureRequest"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such request
+
+  /billing/config:
+    get:
+      operationId: getBillingConfig
+      tags: [session]
+      summary: Whether online payment is available, and the public key for it
+      responses:
+        "200":
+          description: Payment configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BillingConfig"
+
+  /billing/checkout:
+    post:
+      operationId: createCheckout
+      tags: [session]
+      summary: Create a payment order for a plan (billing.manage only)
+      description: >
+        Creates an order with the payment provider for an amount this server
+        computed from the plan catalogue. It does NOT change the subscription:
+        nothing is in force until the provider's signed webhook confirms the
+        money arrived.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionInput"
+      responses:
+        "200":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutOrder"
+        "400":
+          description: Unknown plan, or a plan that is priced by quotation
+        "403":
+          description: Forbidden
+        "503":
+          description: Payments are not configured for this deployment
+
+  /workspace/subscription:
+    get:
+      operationId: getSubscription
+      tags: [session]
+      summary: The workspace's current plan, alongside the full price catalogue
+      responses:
+        "200":
+          description: Subscription and available plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionState"
+        "403":
+          description: Forbidden
+    put:
+      operationId: setSubscription
+      tags: [session]
+      summary: Choose a plan and billing period (billing.manage only)
+      description: >
+        The client sends only a plan and a billing period. Prices are resolved
+        server-side from the catalogue, so no amount is ever accepted from the
+        browser. This records the selection; it does not capture a payment.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionInput"
+      responses:
+        "200":
+          description: Plan selected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionState"
+        "400":
+          description: Unknown plan or billing period
+        "403":
+          description: Forbidden
+
+  /workspace/access-list:
+    get:
+      operationId: listAccessList
+      tags: [session]
+      summary: Email addresses and domains admitted to this workspace (admin only)
+      responses:
+        "200":
+          description: Access list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessListEntry"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createAccessListEntry
+      tags: [session]
+      summary: Admit an address or domain, with the role it is granted (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccessListEntryInput"
+      responses:
+        "201":
+          description: Entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessListEntry"
+        "403":
+          description: Forbidden
+        "409":
+          description: That address or domain is already on the list
+
+  /workspace/access-list/{id}:
+    delete:
+      operationId: revokeAccessListEntry
+      tags: [session]
+      summary: Revoke an access-list entry (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Revoked
+        "403":
+          description: Forbidden
+        "404":
+          description: Entry not found in this workspace
+
+  /workspace/members:
+    get:
+      operationId: listWorkspaceMembers
+      tags: [session]
+      summary: Active members of the current workspace (admin only)
+      responses:
+        "200":
+          description: Members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AccessRequest"
+        "403":
+          description: Forbidden
+
+  /workspace/members/{id}:
+    patch:
+      operationId: updateWorkspaceMember
+      tags: [session]
+      summary: Change a member's role or revoke them (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MembershipUpdateInput"
+      responses:
+        "200":
+          description: Membership updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccessRequest"
+        "403":
+          description: Forbidden
+        "404":
+          description: Member not found in this workspace
 
   /users:
     get:
@@ -124,35 +804,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/UserProfile"
-
-  /users/{id}/role:
-    patch:
-      operationId: updateUserRole
-      tags: [users]
-      summary: Change another user's role (admin only)
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: integer
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UserRoleUpdateInput"
-      responses:
-        "200":
-          description: Role updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UserProfile"
-        "403":
-          description: Forbidden — admin only
-        "404":
-          description: User not found
 
   # ── Cases ──────────────────────────────────────────────────────────────────
   /cases:
@@ -820,6 +1471,8 @@ components:
           type: string
         email:
           type: string
+        authProvider:
+          type: ["string", "null"]
         createdAt:
           type: string
           format: date-time
@@ -830,14 +1483,311 @@ components:
         displayName:
           type: string
 
-    RoleSelectionInput:
+    # ── Session & workspaces ──────────────────────────────────────────────
+    Workspace:
       type: object
-      required: [role]
+      required: [id, slug, name, kind]
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        kind:
+          type: string
+          enum: [chamber, client_portal]
+
+    WorkspaceMembershipSummary:
+      type: object
+      required: [workspace, role, status]
+      properties:
+        workspace:
+          $ref: "#/components/schemas/Workspace"
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+        status:
+          type: string
+          enum: [pending, active, revoked]
+        isOwner:
+          type: boolean
+        requestedRole:
+          type: ["string", "null"]
+
+    SessionClaims:
+      type: object
+      required:
+        [userId, clerkId, displayName, email, accessStatus, memberships, capabilities, isOwner]
+      properties:
+        userId:
+          type: integer
+        clerkId:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+        accessStatus:
+          type: string
+          enum: [not_recognised, pending_approval, active]
+          description: >
+            active   — holds at least one ACTIVE membership.
+            pending_approval — has asked for access and is awaiting a decision.
+            not_recognised — signed in successfully, but the verified email is on
+            no workspace access list and no request is outstanding. Reaches
+            nothing; the sign-in layer shows an error naming the address.
+        authProvider:
+          type: ["string", "null"]
+          description: How the caller signed in (google | zoho | email). Display only.
+        memberships:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkspaceMembershipSummary"
+        activeWorkspace:
+          oneOf:
+            - $ref: "#/components/schemas/Workspace"
+            - type: "null"
+        role:
+          type: ["string", "null"]
+          description: Role in the active workspace, resolved from the membership row.
+        displayRole:
+          type: ["string", "null"]
+        isOwner:
+          type: boolean
+          description: True when the caller founded the active workspace.
+        capabilities:
+          type: array
+          description: Server-resolved capability list. The UI renders from this and nothing else.
+          items:
+            type: string
+        workspaceToken:
+          type: ["string", "null"]
+          description: Scoped token for the active workspace, minted after membership was verified.
+
+    WorkspaceSwitchInput:
+      type: object
+      required: [workspaceId]
+      properties:
+        workspaceId:
+          type: integer
+
+    AccessRequest:
+      type: object
+      required: [id, workspaceId, userId, clerkId, role, status, createdAt]
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: integer
+        workspaceName:
+          type: ["string", "null"]
+        userId:
+          type: integer
+        clerkId:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        role:
+          type: string
+        requestedRole:
+          type: ["string", "null"]
+        requestNote:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, active, revoked]
+        decidedBy:
+          type: ["string", "null"]
+        decidedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    AccessRequestInput:
+      type: object
+      required: [workspaceSlug]
+      properties:
+        workspaceSlug:
+          type: string
+          description: The workspace being applied to.
+        requestedRole:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+          description: Intent only. Never granted automatically.
+        note:
+          type: string
+
+    AccessDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [approve, deny]
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+          description: >
+            The role the admin grants. Required on approve. Deliberately separate
+            from requestedRole — an applicant asking for admin does not get it.
+
+    WorkspaceCreateInput:
+      type: object
+      required: [name, role]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          description: The chamber's name, e.g. "Raghavan Chambers".
+        role:
+          type: string
+          enum: [admin, senior_advocate]
+          description: >
+            The founder's own role. Restricted to these two — a chamber must be
+            created by someone who will run it.
+
+    CalendarEntry:
+      type: object
+      required: [id, workspaceId, title, kind, entryDate, audience, createdAt]
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: integer
+        title:
+          type: string
+        notes:
+          type: ["string", "null"]
+        kind:
+          type: string
+          enum: [hearing, filing, meeting, note]
+        entryDate:
+          type: string
+        entryTime:
+          type: ["string", "null"]
+        caseId:
+          type: ["integer", "null"]
+        caseTitle:
+          type: ["string", "null"]
+        audience:
+          type: string
+        audienceLabel:
+          type: ["string", "null"]
+        createdBy:
+          type: ["string", "null"]
+        createdByRole:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    CalendarEntryInput:
+      type: object
+      required: [title, entryDate]
+      properties:
+        title:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+        kind:
+          type: string
+          enum: [hearing, filing, meeting, note]
+          default: note
+        entryDate:
+          type: string
+          description: YYYY-MM-DD
+        entryTime:
+          type: string
+        caseId:
+          type: integer
+        audience:
+          type: string
+          default: all
+          description: "all | staff | role:<role> | user:<clerkId>"
+
+    CalendarEntryUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        notes:
+          type: string
+        kind:
+          type: string
+          enum: [hearing, filing, meeting, note]
+        entryDate:
+          type: string
+        entryTime:
+          type: string
+        caseId:
+          type: integer
+        audience:
+          type: string
+
+    AccessListEntry:
+      type: object
+      required: [id, workspaceId, kind, value, role, createdAt]
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: integer
+        kind:
+          type: string
+          enum: [email, domain]
+        value:
+          type: string
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+        note:
+          type: ["string", "null"]
+        addedBy:
+          type: ["string", "null"]
+        lastUsedAt:
+          type: ["string", "null"]
+          format: date-time
+        revokedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    AccessListEntryInput:
+      type: object
+      required: [kind, value, role]
+      properties:
+        kind:
+          type: string
+          enum: [email, domain]
+        value:
+          type: string
+          minLength: 3
+          description: An exact email address, or a bare domain such as "chambers.in".
+        role:
+          type: string
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+          description: The role granted on first sign-in. Chosen by the admin.
+        note:
+          type: string
+
+    MembershipUpdateInput:
+      type: object
       properties:
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
-          description: Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it.
+        status:
+          type: string
+          enum: [active, revoked]
 
     UserRoleUpdateInput:
       type: object
@@ -850,10 +1800,13 @@ components:
     # ── Case ──────────────────────────────────────────────────────────────
     Case:
       type: object
-      required: [id, title, status, clientId, createdAt, updatedAt]
+      required: [id, workspaceId, title, status, clientId, createdAt, updatedAt]
       properties:
         id:
           type: integer
+        workspaceId:
+          type: integer
+          description: Tenant the matter belongs to. Always the caller's active workspace.
         title:
           type: string
         description:
@@ -866,6 +1819,12 @@ components:
         clientName:
           type: ["string", "null"]
         filingRef:
+          type: ["string", "null"]
+        opposingParty:
+          type: ["string", "null"]
+        conflictAcknowledgedBy:
+          type: ["string", "null"]
+        conflictNote:
           type: ["string", "null"]
         priority:
           type: string
@@ -884,6 +1843,15 @@ components:
         title:
           type: string
           minLength: 1
+        opposingParty:
+          type: string
+          description: Who the matter is against. Screened for conflicts before the matter opens.
+        conflictAcknowledged:
+          type: boolean
+          description: Set to proceed despite a reported conflict. Requires conflictNote.
+        conflictNote:
+          type: string
+          description: Why the advocate judged the conflict not to apply. Recorded in the audit log.
         description:
           type: string
         status:
@@ -936,7 +1904,303 @@ components:
           type: string
           format: date-time
 
+    # -- Audit, quota, privacy, conflicts -----------------------------------
+    AuditEvent:
+      type: object
+      required: [id, action, summary, at]
+      properties:
+        id: { type: integer }
+        actorName: { type: string }
+        actorRole: { type: string }
+        action: { type: string }
+        entityType: { type: string }
+        entityId: { type: ["string", "null"] }
+        summary: { type: string }
+        ip: { type: ["string", "null"] }
+        at: { type: string, format: date-time }
+
+    UsageCounter:
+      type: object
+      required: [used]
+      properties:
+        used: { type: integer }
+        limit:
+          type: ["integer", "null"]
+          description: Null means unlimited on this plan.
+
+    Usage:
+      type: object
+      required: [plan, matters, seats]
+      properties:
+        plan: { type: string, enum: [trial, pro, firm, custom] }
+        matters: { $ref: "#/components/schemas/UsageCounter" }
+        seats: { $ref: "#/components/schemas/UsageCounter" }
+
+    ConflictCheckInput:
+      type: object
+      required: [opposingParty]
+      properties:
+        opposingParty: { type: string }
+
+    ErasureRequestInput:
+      type: object
+      properties:
+        reason: { type: string }
+
+    ErasureDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [complete, reject] }
+        note: { type: string }
+
+    ConflictHit:
+      type: object
+      required: [kind, detail]
+      properties:
+        kind: { type: string, enum: [existing_client, opposing_party, matter_title] }
+        detail: { type: string }
+        caseId: { type: ["integer", "null"] }
+
+    ErasureRequest:
+      type: object
+      required: [id, status, createdAt]
+      properties:
+        id: { type: integer }
+        requestedName: { type: string }
+        requestedEmail: { type: string }
+        reason: { type: ["string", "null"] }
+        status: { type: string, enum: [pending, completed, rejected] }
+        decidedBy: { type: ["string", "null"] }
+        decidedAt: { type: ["string", "null"], format: date-time }
+        decisionNote: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+
+    DataExport:
+      type: object
+      required: [generatedAt, subject, workspace]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        subject:
+          type: object
+          properties:
+            name: { type: string }
+            email: { type: string }
+            role: { type: string }
+            joinedAt: { type: ["string", "null"], format: date-time }
+        workspace:
+          type: object
+          properties:
+            name: { type: string }
+        cases: { type: array, items: { type: object, additionalProperties: true } }
+        documents: { type: array, items: { type: object, additionalProperties: true } }
+        documentRequests: { type: array, items: { type: object, additionalProperties: true } }
+        feedback: { type: array, items: { type: object, additionalProperties: true } }
+        consultations: { type: array, items: { type: object, additionalProperties: true } }
+
+    # ── Subscription ──────────────────────────────────────────────────────
+    PlanQuote:
+      type: object
+      required:
+        [
+          plan,
+          billingPeriod,
+          months,
+          paidMonths,
+          freeMonths,
+          amountMinor,
+          effectiveMonthlyMinor,
+          listMinor,
+          savingsMinor,
+          currency,
+          name,
+          quoteOnly,
+          renews,
+        ]
+      properties:
+        plan:
+          type: string
+          enum: [trial, pro, firm, custom]
+        billingPeriod:
+          type: string
+          enum: [one_time, monthly, half_yearly, yearly]
+        months:
+          type: integer
+          description: Months of service the period covers.
+        paidMonths:
+          type: integer
+          description: Months actually charged for.
+        freeMonths:
+          type: integer
+          description: Months granted free. Two on the yearly plans.
+        amountMinor:
+          type: integer
+          description: Total for the period, in paise.
+        effectiveMonthlyMinor:
+          type: integer
+          description: Amount per month across the term, in paise.
+        listMinor:
+          type: integer
+          description: What the same months cost billed monthly, in paise.
+        savingsMinor:
+          type: integer
+        currency:
+          type: string
+        name:
+          type: string
+          description: Display name of the plan.
+        quoteOnly:
+          type: boolean
+          description: >-
+            True when the plan has no list price and is scoped by a person.
+            Selecting it records an enquiry; it never becomes an active plan.
+        renews:
+          type: boolean
+          description: False for the trial pack, which runs its two months and stops.
+
+    Subscription:
+      type: object
+      required: [workspaceId, plan, billingPeriod, status, currency]
+      properties:
+        workspaceId:
+          type: integer
+        plan:
+          type: string
+          enum: [trial, pro, firm, custom]
+        billingPeriod:
+          type: string
+          enum: [one_time, monthly, half_yearly, yearly]
+        status:
+          type: string
+          enum: [trialing, active, past_due, cancelled]
+        paidMonths:
+          type: integer
+        freeMonths:
+          type: integer
+        amountMinor:
+          type: integer
+        currency:
+          type: string
+        startedAt:
+          type: ["string", "null"]
+          format: date-time
+        currentPeriodEnd:
+          type: ["string", "null"]
+          format: date-time
+        updatedBy:
+          type: ["string", "null"]
+
+    SubscriptionState:
+      type: object
+      required: [subscription, catalogue, canManage]
+      properties:
+        subscription:
+          $ref: "#/components/schemas/Subscription"
+        catalogue:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlanQuote"
+        canManage:
+          type: boolean
+          description: Whether the caller holds billing.manage in this workspace.
+
+    BillingConfig:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          description: False when no payment provider is configured.
+        keyId:
+          type: ["string", "null"]
+          description: The provider's PUBLIC key, for the browser checkout.
+        provider:
+          type: ["string", "null"]
+
+    CheckoutOrder:
+      type: object
+      required: [orderId, amountMinor, currency, plan, billingPeriod]
+      properties:
+        orderId:
+          type: string
+        amountMinor:
+          type: integer
+          description: Total in paise, computed server-side.
+        currency:
+          type: string
+        plan:
+          type: string
+          enum: [trial, pro, firm, custom]
+        billingPeriod:
+          type: string
+          enum: [one_time, monthly, half_yearly, yearly]
+
+    SubscriptionInput:
+      type: object
+      required: [plan, billingPeriod]
+      properties:
+        plan:
+          type: string
+          enum: [trial, pro, firm, custom]
+        billingPeriod:
+          type: string
+          enum: [one_time, monthly, half_yearly, yearly]
+
     # ── Document ──────────────────────────────────────────────────────────
+    Feedback:
+      type: object
+      required: [id, workspaceId, caseId, clientId, rating, createdAt]
+      properties:
+        id:
+          type: integer
+        workspaceId:
+          type: integer
+        caseId:
+          type: integer
+        caseTitle:
+          type: ["string", "null"]
+        clientId:
+          type: integer
+        clientName:
+          type: ["string", "null"]
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: ["string", "null"]
+        response:
+          type: ["string", "null"]
+        respondedBy:
+          type: ["string", "null"]
+        respondedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    FeedbackInput:
+      type: object
+      required: [caseId, rating]
+      properties:
+        caseId:
+          type: integer
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comment:
+          type: string
+
+    FeedbackResponseInput:
+      type: object
+      required: [response]
+      properties:
+        response:
+          type: string
+          minLength: 1
+
     Document:
       type: object
       required: [id, caseId, name, encrypted, uploadedAt]
@@ -955,6 +2219,29 @@ components:
           type: boolean
         storagePath:
           type: ["string", "null"]
+        checksum:
+          type: ["string", "null"]
+          description: SHA-256 of the stored bytes.
+        url:
+          type: ["string", "null"]
+          description: Where the file lives. Object storage in production.
+        visibility:
+          type: string
+          enum: [firm, shared]
+          description: >
+            'firm' is internal working material a client never sees. 'shared' is
+            visible to the client on the matter. A client's own upload is always
+            'shared'.
+        uploadedBy:
+          type: ["string", "null"]
+        uploadedByRole:
+          type: ["string", "null"]
+        documentRequestId:
+          type: ["integer", "null"]
+        note:
+          type: ["string", "null"]
+        caseTitle:
+          type: ["string", "null"]
         uploadedAt:
           type: string
           format: date-time
@@ -972,6 +2259,17 @@ components:
           type: integer
         storagePath:
           type: string
+        url:
+          type: string
+        note:
+          type: string
+        visibility:
+          type: string
+          enum: [firm, shared]
+          description: Ignored for clients, whose uploads are always 'shared'.
+        documentRequestId:
+          type: integer
+          description: Set to fulfil a specific document request.
 
     # ── Task ──────────────────────────────────────────────────────────────
     Task:
@@ -1121,7 +2419,14 @@ components:
           enum: [scheduled, recording, completed, cancelled]
         category:
           type: ["string", "null"]
-          enum: [legal_solution, regulatory_solution, business_consultation, procedural_compliance, null]
+          enum:
+            [
+              legal_solution,
+              regulatory_solution,
+              business_consultation,
+              procedural_compliance,
+              null,
+            ]
         scheduledAt:
           type: ["string", "null"]
           format: date-time
@@ -1173,7 +2478,17 @@ components:
     # ── KPI ───────────────────────────────────────────────────────────────
     KpiDashboard:
       type: object
-      required: [totalCases, openCases, closedCases, totalTasks, overdueTasks, completedOnTime, slaAdherencePercent, avgTurnaroundDays]
+      required:
+        [
+          totalCases,
+          openCases,
+          closedCases,
+          totalTasks,
+          overdueTasks,
+          completedOnTime,
+          slaAdherencePercent,
+          avgTurnaroundDays,
+        ]
       properties:
         totalCases:
           type: integer
@@ -1261,7 +2576,7 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, clerk, client]
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
         caseId:
           type: ["integer", "null"]
         usedAt:
@@ -1282,7 +2597,8 @@ components:
           type: string
         role:
           type: string
-          enum: [admin, clerk, client]
+          enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+          description: The role the invited person is admitted at. Chosen by the admin.
         caseId:
           type: integer
 
@@ -1328,17 +2644,34 @@ components:
           type: string
         clientName:
           type: ["string", "null"]
+        requestedFromName:
+          type: ["string", "null"]
+          description: Display name of the person the document is being requested FROM.
+        requestedFromEmail:
+          type: ["string", "null"]
         requestedBy:
           type: string
+          description: Display name of the staff member who raised the request.
+        requestedByRole:
+          type: ["string", "null"]
         documentName:
           type: string
         note:
           type: ["string", "null"]
+        dueDate:
+          type: ["string", "null"]
         caseId:
           type: ["integer", "null"]
+        caseTitle:
+          type: ["string", "null"]
         status:
           type: string
           enum: [pending, fulfilled, dismissed]
+        fulfilledDocumentId:
+          type: ["integer", "null"]
+        fulfilledAt:
+          type: ["string", "null"]
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -1352,11 +2685,15 @@ components:
       properties:
         clientId:
           type: integer
+          description: The recipient — the user the document is requested FROM.
         documentName:
           type: string
           minLength: 1
         note:
           type: string
+        dueDate:
+          type: string
+          description: Date the recipient is asked to respond by (YYYY-MM-DD).
         caseId:
           type: integer
 

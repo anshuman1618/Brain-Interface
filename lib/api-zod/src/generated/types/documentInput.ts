@@ -5,6 +5,7 @@
  * Private Practice Management & Client Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { DocumentInputVisibility } from './documentInputVisibility';
 
 export interface DocumentInput {
   /** @minLength 1 */
@@ -12,4 +13,10 @@ export interface DocumentInput {
   fileType?: string;
   fileSize?: number;
   storagePath?: string;
+  url?: string;
+  note?: string;
+  /** Ignored for clients, whose uploads are always 'shared'. */
+  visibility?: DocumentInputVisibility;
+  /** Set to fulfil a specific document request. */
+  documentRequestId?: number;
 }

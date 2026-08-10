@@ -7,12 +7,12 @@
  */
 
 /**
- * Self-selected role, one-time only. Use PATCH /users/{id}/role afterward to change it.
+ * The role granted on first sign-in. Chosen by the admin.
  */
-export type RoleSelectionInputRole = typeof RoleSelectionInputRole[keyof typeof RoleSelectionInputRole];
+export type AccessListEntryInputRole = typeof AccessListEntryInputRole[keyof typeof AccessListEntryInputRole];
 
 
-export const RoleSelectionInputRole = {
+export const AccessListEntryInputRole = {
   admin: 'admin',
   senior_advocate: 'senior_advocate',
   junior_advocate: 'junior_advocate',

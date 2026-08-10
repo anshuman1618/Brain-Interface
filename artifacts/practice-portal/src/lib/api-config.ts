@@ -1,4 +1,8 @@
-import { setBaseUrl } from "@workspace/api-client-react";
+import { setAuthTokenGetter, setBaseUrl } from "@workspace/api-client-react";
+import { getPreviewSession, isPreviewMode, previewToken } from "@/lib/preview";
+// Registers the workspace-header getter at module load. Imported here so it is
+// in place before the first query fires, alongside the auth token getter.
+import "@/lib/workspace-context";
 
 /**
  * Absolute origin of the API server, e.g. `https://api.example.com`.
@@ -19,4 +23,16 @@ export const isCrossOriginApi = apiBaseUrl !== "";
 
 if (isCrossOriginApi) {
   setBaseUrl(apiBaseUrl);
+}
+
+// Registered at module load, not from a React effect: queries fire while the
+// tree is still mounting, so an effect-based registration lets the first request
+// go out unauthenticated and 401. The identity is read from storage on each
+// call, so switching identity in the preview bar takes effect without
+// re-registering.
+if (isPreviewMode) {
+  setAuthTokenGetter(() => {
+    const session = getPreviewSession();
+    return session ? previewToken(session) : null;
+  });
 }

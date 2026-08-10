@@ -1,11 +1,36 @@
 import cron from "node-cron";
-import { eq, and, ne, sql } from "drizzle-orm";
-import { db, tasksTable, consultationsTable, notificationsTable } from "@workspace/db";
+import { eq, and, ne } from "drizzle-orm";
+import {
+  db,
+  tasksTable,
+  consultationsTable,
+  notificationsTable,
+  usersTable,
+  casesTable,
+} from "@workspace/db";
 import { logger } from "./logger";
+import { sendMail, drainOutbox } from "./mailer";
 
-// Runs every 30 minutes; inserts T-24h and T-2h reminders for tasks and consultations.
-// Email trigger is stubbed — logged only (real SMTP integration is future work).
+/**
+ * Reminders reach people, not just the log.
+ *
+ * Each reminder writes an in-app notification AND emails the assignee. The
+ * in-app record is what deduplicates: if a notification with this exact text
+ * already exists for this person, neither is sent again, so a scheduler tick
+ * that overlaps a previous one cannot double-send.
+ */
+async function emailRecipient(clerkId: string, subject: string, body: string): Promise<void> {
+  const [u] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
+  // An empty email means the address was never verified, or was erased on
+  // request. Either way there is nowhere to send it.
+  if (!u?.email) return;
+  await sendMail({ to: u.email, subject, body, kind: "reminder" });
+}
+
+// Runs every 30 minutes; inserts T-24h and T-2h reminders for tasks and consultations,
+// and emails each recipient through the mailer (see lib/mailer.ts).
 let running = false;
+let draining = false;
 
 export function startReminderScheduler(): void {
   cron.schedule("*/30 * * * *", async () => {
@@ -19,11 +44,28 @@ export function startReminderScheduler(): void {
       running = false;
     }
   });
-  logger.info("Reminder scheduler started (every 30 min)");
+  // Separate and more frequent: a retry schedule that starts at one minute is
+  // pointless if nothing looks for due messages until the half hour.
+  cron.schedule("* * * * *", async () => {
+    if (draining) return;
+    draining = true;
+    try {
+      const r = await drainOutbox();
+      if (r.attempted > 0) logger.info(r, "Drained the mail outbox");
+    } catch (err) {
+      logger.error({ err }, "Mail outbox drain failed");
+    } finally {
+      draining = false;
+    }
+  });
+
+  logger.info("Reminder scheduler started (every 30 min), mail retry every minute");
 }
 
 async function alreadyNotified(userId: string, message: string): Promise<boolean> {
-  const rows = await db.select().from(notificationsTable)
+  const rows = await db
+    .select()
+    .from(notificationsTable)
     .where(and(eq(notificationsTable.userId, userId), eq(notificationsTable.message, message)))
     .limit(1);
   return rows.length > 0;
@@ -54,12 +96,20 @@ async function emitReminders(): Promise<void> {
         message,
         link: "/tasks",
       });
-      logger.info({ taskId: task.id, window: w.label }, "EMAIL STUB: deadline reminder would be emailed to assignee");
+      const [matter] = await db.select().from(casesTable).where(eq(casesTable.id, task.caseId));
+      await emailRecipient(
+        task.assigneeId,
+        `Deadline ${w.label === "T-2h" ? "in 2 hours" : "tomorrow"}: ${task.title}`,
+        `${message}\n\nMatter: ${matter?.title ?? "-"}\n\nOpen LEX Practice to complete or reschedule it.`,
+      );
     }
   }
 
   // Upcoming consultations
-  const consults = await db.select().from(consultationsTable).where(eq(consultationsTable.status, "scheduled"));
+  const consults = await db
+    .select()
+    .from(consultationsTable)
+    .where(eq(consultationsTable.status, "scheduled"));
   for (const consult of consults) {
     if (!consult.scheduledAt) continue;
     const scheduled = new Date(consult.scheduledAt);
@@ -69,8 +119,13 @@ async function emitReminders(): Promise<void> {
     ];
     // Broadcast to all staff assignees — we store consultation reminders per-case; notify via a wildcard is not
     // supported, so consultations notify task assignees of the same case when present.
-    const relatedTasks = await db.select().from(tasksTable).where(eq(tasksTable.caseId, consult.caseId));
-    const recipients = Array.from(new Set(relatedTasks.map(t => t.assigneeId).filter((x): x is string => !!x)));
+    const relatedTasks = await db
+      .select()
+      .from(tasksTable)
+      .where(eq(tasksTable.caseId, consult.caseId));
+    const recipients = Array.from(
+      new Set(relatedTasks.map((t) => t.assigneeId).filter((x): x is string => !!x)),
+    );
     for (const recipient of recipients) {
       for (const w of windows) {
         if (!w.inWindow) continue;
@@ -82,7 +137,11 @@ async function emitReminders(): Promise<void> {
           message,
           link: "/consultations",
         });
-        logger.info({ consultId: consult.id, window: w.label }, "EMAIL STUB: consultation reminder would be emailed");
+        await emailRecipient(
+          recipient,
+          `Consultation ${w.label === "T-2h" ? "in 2 hours" : "tomorrow"}: ${consult.title}`,
+          message,
+        );
       }
     }
   }

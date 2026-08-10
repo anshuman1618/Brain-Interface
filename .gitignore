@@ -53,3 +53,10 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+.preview-data/
+# Uploaded case files. Runtime state on a mounted volume in production.
+.file-storage/
+
+# Browser test runs drop screenshots in the working directory. Anchored to the
+# root so attached_assets/ keeps its images.
+/*.png
