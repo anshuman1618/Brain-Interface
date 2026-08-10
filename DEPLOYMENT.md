@@ -671,6 +671,55 @@ A disk also pins you to **one instance**: Render disks cannot be shared, so you
 cannot scale to a second replica while files live on one. That matters as soon
 as you care about a deploy not being an outage.
 
+### Troubleshooting a deploy that built but does not work
+
+Ask the service what is wrong before changing anything:
+
+```bash
+curl -s https://<your-service>.onrender.com/api/readyz | jq
+```
+
+It returns 200 `ready` or 503 `degraded`, and names every subsystem that can be
+misconfigured without stopping the process — including **the deployed commit**,
+which is the fastest way to find out you are running older code than you think.
+
+**`GET /` returns 404 `Cannot GET /`** — the API is running without a frontend.
+The SPA build did not happen or landed somewhere the server does not look.
+Check `frontendBuilt` and `frontendPath` in `/api/readyz`. Usually the build
+command was narrowed to the API only; it must be `pnpm run build`, which builds
+both.
+
+**`GET /` returns 500 `Internal server error`** — the frontend WAS found at
+startup but could not be read when serving. Search the logs for
+
+```
+Could not serve the SPA entry document
+```
+
+which names the resolved path and the errno. This is not the same failure as
+the 404 above and the fix is different.
+
+**`/api/readyz` says `database: unreachable`** — read `databaseError`. It
+carries the real cause rather than the wrapper: `ECONNREFUSED` means nothing is
+listening, `ENOTFOUND` a wrong host, `password authentication failed` a wrong
+credential. If the blueprint created the database, `DATABASE_URL` is wired
+automatically; a hand-configured service usually has it missing or stale.
+
+**Sign-in does nothing, or every session is rejected** —
+`VITE_CLERK_PUBLISHABLE_KEY` was missing at build time, so the bundle shipped in
+preview mode and the server correctly refuses every one of those sessions in
+production. `REQUIRE_CLERK_KEY=true` in the blueprint turns this into a build
+failure instead; if you configured the service by hand, set both.
+
+**The deployment behaves like an older version** — check `commit` in
+`/api/readyz` against what you expect. `render.yaml` deploys `branch: main`, so
+work living on a feature branch is not what Render is building.
+
+**Whatever the symptom, the real error is in the logs.** Every 500 is logged by
+the application with `"msg":"Error at express"` and the full stack, separately
+from the access-log line that only reports the status code. That access-log line
+(`"msg":"request errored"`) is a summary, not the error.
+
 ### What this costs
 
 | Item                  | USD/mo |

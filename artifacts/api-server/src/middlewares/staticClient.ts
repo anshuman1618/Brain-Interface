@@ -72,8 +72,17 @@ function spaFallback(indexHtml: string): RequestHandler {
     // Never cache the entry document: it references fingerprinted bundles, so a
     // cached copy would keep serving a stale build after a deploy.
     res.setHeader("Cache-Control", "no-cache");
-    res.sendFile(indexHtml, (err) => {
-      if (err) next(err);
+    res.sendFile(indexHtml, (err: NodeJS.ErrnoException | undefined) => {
+      if (!err) return;
+      // The generic handler would turn this into a bare "Internal server
+      // error", which says nothing about the one thing that is wrong: the
+      // entry document could not be read. Name the path and the errno, because
+      // on a managed host this log line is all the evidence there is.
+      logger.error(
+        { err, indexHtml, code: err.code },
+        "Could not serve the SPA entry document — the frontend build is missing or unreadable",
+      );
+      next(err);
     });
   };
 }

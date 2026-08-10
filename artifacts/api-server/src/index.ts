@@ -48,7 +48,20 @@ const server: Server = app.listen(port, host, (err) => {
     process.exit(1);
   }
 
-  logger.info({ host, port }, "Server listening");
+  // One line that answers "what is actually deployed and how is it configured"
+  // without a shell. /api/readyz carries the same information for anyone who
+  // only has HTTP.
+  logger.info(
+    {
+      host,
+      port,
+      nodeEnv: process.env["NODE_ENV"] ?? "development",
+      commit: process.env["RENDER_GIT_COMMIT"] ?? process.env["GIT_COMMIT"] ?? null,
+      filesEncrypted: Boolean(process.env["FILE_ENCRYPTION_KEY"]?.trim()),
+      workspaceTokenSecretSet: Boolean(process.env["WORKSPACE_TOKEN_SECRET"]?.trim()),
+    },
+    "Server listening",
+  );
 });
 
 /**
