@@ -81,6 +81,13 @@ services:
       - key: VITE_CLERK_PUBLISHABLE_KEY
         sync: false
 
+      # Makes the build FAIL if the key above is missing, rather than shipping
+      # a bundle in preview mode that nobody can sign in to. Not keyed on
+      # NODE_ENV, because `vite build` sets that itself and CI builds preview
+      # bundles on purpose.
+      - key: REQUIRE_CLERK_KEY
+        value: "true"
+
       # Behind Render's proxy, so X-Forwarded-For is trustworthy and rate
       # limits key on the real client rather than on the proxy.
       - key: TRUST_PROXY
