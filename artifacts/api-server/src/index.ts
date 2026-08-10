@@ -4,14 +4,20 @@ import { initDatabase, isPreviewDatabase, previewDataDir } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminder-scheduler";
 import { assertEncryptionConfigured } from "./lib/blob-store";
+import { assertProductionConfig } from "./lib/preflight";
 import { installProcessHandlers } from "./lib/error-reporter";
 
 // First, so a crash during the rest of startup is still reported.
 installProcessHandlers();
 
-// Before anything can accept an upload. In production a missing key throws and
-// the process never listens, which is the intended outcome: writing privileged
-// client files in the clear is worse than not starting.
+// Everything the deployment needs, checked together and reported together.
+// Reaching this with three missing variables should cost one deploy to find
+// out, not three.
+assertProductionConfig((msg) => logger.warn(msg));
+
+// Kept as its own guard behind the preflight: it is the one that must hold even
+// if the preflight is ever narrowed, because writing privileged client files in
+// the clear is worse than not starting. Outside production it warns instead.
 assertEncryptionConfigured((msg) => logger.warn(msg));
 
 // The db client is a lazy proxy, so the connection must be established before

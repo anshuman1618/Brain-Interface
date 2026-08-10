@@ -63,7 +63,9 @@ console.log("\n== Production refuses to start without encryption configured");
 {
   const { code, out } = await run({ ...base, FILE_ENCRYPTION_KEY: "" });
   check("exits non-zero", code === 1, `exit ${code}`);
-  check("...saying which variable", /FILE_ENCRYPTION_KEY is required/.test(out));
+  // The preflight now reaches this before the encryption guard does, so match
+  // the variable name rather than either message's exact wording.
+  check("...saying which variable", /FILE_ENCRYPTION_KEY/.test(out));
   check("...and why", /privileged|in the clear/.test(out));
 }
 
@@ -72,6 +74,32 @@ console.log("\n== A malformed key is refused, not silently truncated");
   const { code, out } = await run({ ...base, FILE_ENCRYPTION_KEY: "nowhere near 32 bytes" });
   check("exits non-zero", code === 1, `exit ${code}`);
   check("...naming the expected format", /32 bytes|64 hex/.test(out));
+}
+
+console.log("\n== Every missing production setting is reported in one go");
+{
+  // The failure this guards against is procedural: fixing one variable, waiting
+  // for a build, discovering the next. On a managed host that is an afternoon.
+  const { code, out } = await run({ NODE_ENV: "production" });
+  check("exits non-zero", code === 1, `exit ${code}`);
+  check(
+    "counts them",
+    /Refusing to start: 4 required production settings/.test(out),
+    out.slice(0, 200),
+  );
+  for (const key of [
+    "FILE_ENCRYPTION_KEY",
+    "DATABASE_URL",
+    "CLERK_SECRET_KEY",
+    "CLERK_PUBLISHABLE_KEY",
+  ]) {
+    check(`...names ${key}`, out.includes(key));
+  }
+  check(
+    "warns about WORKSPACE_TOKEN_SECRET without making it fatal",
+    /WORKSPACE_TOKEN_SECRET/.test(out) && !/\d\. WORKSPACE_TOKEN_SECRET/.test(out),
+  );
+  check("points at the blueprint", /render\.yaml blueprint/.test(out));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
