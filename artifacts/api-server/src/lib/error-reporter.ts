@@ -141,6 +141,19 @@ export function reportError(err: unknown, context: ErrorContext): void {
  * uncaught exception is reported and then the process exits, because its state
  * is no longer trustworthy and a supervisor restarting it is the safe move.
  * The delay before exiting is only there to give the report a chance to leave.
+ *
+ * THE EXIT CODE IS LOAD-BEARING and easy to lose here. Registering this handler
+ * suppresses Node's default behaviour, which was to exit non-zero. Two things
+ * keep that guarantee:
+ *
+ *   - `process.exitCode` is set immediately, so if the event loop drains before
+ *     the timer below fires — exactly what happens when the exception is thrown
+ *     during startup and nothing else is scheduled — the process still exits 1.
+ *   - The timer is NOT unref'd. It has to hold the process open long enough for
+ *     the report to be delivered.
+ *
+ * Get this wrong and a failed deploy exits 0, which a host reads as a clean
+ * shutdown and a successful release.
  */
 export function installProcessHandlers(): void {
   process.on("unhandledRejection", (reason) => {
@@ -149,6 +162,7 @@ export function installProcessHandlers(): void {
 
   process.on("uncaughtException", (err) => {
     reportError(err, { at: "uncaughtException" });
-    setTimeout(() => process.exit(1), 1_000).unref();
+    process.exitCode = 1;
+    setTimeout(() => process.exit(1), 1_000);
   });
 }

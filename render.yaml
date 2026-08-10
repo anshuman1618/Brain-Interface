@@ -1,0 +1,128 @@
+# Render Blueprint for LEX Practice.
+#
+# Creates the API server (which also serves the built SPA on the same origin)
+# and a managed Postgres, wired together. Render reads this when you point a
+# Blueprint at the repository, so the shape of the deployment lives in version
+# control rather than in twenty dashboard fields somebody typed once.
+#
+#   Render dashboard -> New -> Blueprint -> pick this repo
+#
+# Secrets are deliberately NOT in here. Every `sync: false` below is a value you
+# paste into the dashboard once; a blueprint is a public file in a public repo.
+#
+# Full walkthrough, including what to do before and after: DEPLOYMENT.md §10.
+
+services:
+  - type: web
+    name: lex-practice
+    runtime: node
+    plan:
+      standard # 1 vCPU / 2 GB. Starter's 512 MB is tight once files are
+      # encrypted in memory on upload.
+    region: singapore # Closest Render region to India. Oregon adds ~200ms.
+    branch: main
+    autoDeploy: true
+
+    # corepack activates the pnpm version pinned in package.json, so the build
+    # uses the same package manager the lockfile was written by.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm run build
+    startCommand: pnpm --filter @workspace/api-server run start
+
+    # Runs after the build, before traffic moves to the new version. Schema
+    # changes are additive, so this is safe to run on every deploy.
+    preDeployCommand: pnpm --filter @workspace/db run push
+
+    healthCheckPath: /api/healthz
+
+    # Uploaded case files. See DEPLOYMENT.md §4a — object storage is roughly
+    # 16x cheaper than a disk at any real volume, and this is the simplest
+    # starting point rather than the cheapest one.
+    disk:
+      name: case-files
+      mountPath: /var/data
+      sizeGB: 10
+
+    envVars:
+      # NOT a log level here: outside production the API reflects any Origin
+      # with credentials. Render also reads .nvmrc for the Node version.
+      - key: NODE_ENV
+        value: production
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lex-practice-db
+          property: connectionString
+
+      # Generated once by Render and then held constant. Rotating it signs
+      # everyone out of their workspace; it does not lose data.
+      - key: WORKSPACE_TOKEN_SECRET
+        generateValue: true
+
+      - key: FILE_STORAGE_DIR
+        value: /var/data/files
+
+      # MUST be exactly 32 bytes as 64 hex characters. Generate with
+      #   openssl rand -hex 32
+      # and paste it in the dashboard. Not generateValue: the format is
+      # checked at startup and a value of the wrong length stops the deploy.
+      #
+      # BACK THIS UP somewhere other than this disk. Lose it and every
+      # uploaded document is unrecoverable — there is no recovery path.
+      - key: FILE_ENCRYPTION_KEY
+        sync: false
+
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+
+      # Inlined into the SPA at BUILD time by Vite, so changing it needs a
+      # redeploy rather than a restart.
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false
+
+      # Behind Render's proxy, so X-Forwarded-For is trustworthy and rate
+      # limits key on the real client rather than on the proxy.
+      - key: TRUST_PROXY
+        value: "on"
+
+      # Payments. Leave unset and the plan screen records selections and
+      # charges nothing, which is a fine state to launch a pilot in.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+
+      # Where faults are reported. Unset, you find out from a customer.
+      - key: ERROR_WEBHOOK_URL
+        sync: false
+      - key: SERVICE_NAME
+        value: lex-practice
+
+      # Outbound email. Unset, reminders are recorded in the outbox with
+      # status "suppressed" and never delivered.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+
+databases:
+  - name: lex-practice-db
+    databaseName: lex_practice
+    user: lex_practice
+    plan:
+      basic-1gb # The free tier expires after 30 days and the 256 MB tier
+      # runs out of room quickly once documents carry metadata.
+    region: singapore
+    # Restrict to Render's internal network. With no ipAllowList entries the
+    # database is not reachable from the public internet at all — the service
+    # above still reaches it over the private network.
+    ipAllowList: []

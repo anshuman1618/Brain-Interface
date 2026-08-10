@@ -84,6 +84,11 @@ jobs:
       - name: Build the API
         run: pnpm --filter @workspace/api-server run build
 
+      # Before the server is started for the suites: these assert it REFUSES to
+      # start when misconfigured, and that it exits non-zero when it does.
+      - name: Startup guards
+        run: node scripts/ci/startup-guards.mjs
+
       # A throwaway key: the suites assert that what lands on disk is ciphertext,
       # which needs encryption actually switched on.
       - name: Generate a run-scoped encryption key

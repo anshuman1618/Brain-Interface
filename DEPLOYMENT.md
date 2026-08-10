@@ -532,6 +532,160 @@ Everything here should be true before the first real client signs in.
 
 ---
 
+## 10. Render, start to finish
+
+Sections 1-9 are host-agnostic. This one is the concrete path on Render, using
+the `render.yaml` blueprint in the repository root. Budget an afternoon; most
+of it is waiting for builds and DNS.
+
+The blueprint creates **one web service** (the API, which also serves the built
+SPA on the same origin — topology A) and **one managed Postgres**, on Render's
+Singapore region, which is the closest to India.
+
+### Before you touch Render
+
+Have these ready, because the deploy stops without them:
+
+```bash
+openssl rand -hex 32      # FILE_ENCRYPTION_KEY — save it in a password manager
+```
+
+- A **Clerk application**, configured per §3, with its publishable and secret
+  keys. Use `pk_test_`/`sk_test_` for the first deploy and swap to live keys
+  once it works.
+- The `FILE_ENCRYPTION_KEY` above, **stored somewhere other than Render**. It
+  is the only thing that can read your uploaded documents back.
+
+You do NOT need Razorpay, SMTP or an error webhook to get a working deployment.
+All three are optional and the app tells you what it is doing without them.
+
+### Step 1 — Create the blueprint
+
+1. Push this repository to GitHub if it is not there already.
+2. Render dashboard → **New** → **Blueprint** → connect the repo → pick the
+   branch you deploy from.
+3. Render reads `render.yaml` and shows you the service and the database it is
+   about to create. It will prompt for every `sync: false` variable.
+
+Fill in at minimum:
+
+| Variable                     | Value                               |
+| ---------------------------- | ----------------------------------- |
+| `FILE_ENCRYPTION_KEY`        | the 64 hex characters you generated |
+| `CLERK_SECRET_KEY`           | `sk_test_…` from Clerk              |
+| `CLERK_PUBLISHABLE_KEY`      | `pk_test_…` from Clerk              |
+| `VITE_CLERK_PUBLISHABLE_KEY` | the same `pk_test_…`                |
+
+Leave the Razorpay, SMTP and `ERROR_WEBHOOK_URL` fields blank for now.
+
+4. **Apply.** Render provisions the database first, then builds.
+
+> `VITE_CLERK_PUBLISHABLE_KEY` is inlined into the JavaScript bundle at BUILD
+> time. Changing it later needs a redeploy, not a restart — a restart will
+> appear to do nothing.
+
+### Step 2 — Watch the first build
+
+It runs `pnpm install --frozen-lockfile --prod=false && pnpm run build`, which
+typechecks four packages and builds both the SPA and the server. Expect 3-6
+minutes.
+
+Then `preDeployCommand` runs `drizzle-kit push` to create the schema, and the
+service starts.
+
+**If the deploy fails here, read the message before changing anything:**
+
+- `FILE_ENCRYPTION_KEY must be 32 bytes` — you pasted something other than 64
+  hex characters. This is the startup guard doing its job.
+- A `drizzle-kit push` prompt or refusal — push stops rather than guess when a
+  schema change could destroy data. That failure is deliberate and the old
+  version keeps serving. Open a Render **Shell** on the service and run
+  `pnpm --filter @workspace/db run push` by hand so you can read what it wants
+  to do.
+- `Cannot find module` during build — almost always devDependencies being
+  skipped. The `--prod=false` in the build command exists to prevent that;
+  check it survived any edit.
+
+### Step 3 — Confirm it is actually up
+
+```bash
+curl -s https://<your-service>.onrender.com/api/healthz
+# {"status":"ok",...}
+
+# The legal documents are served outside the app and need no account.
+curl -s -o /dev/null -w '%{http_code}\n' https://<your-service>.onrender.com/legal/terms
+# 200
+
+# An anonymous API call must be refused.
+curl -s -o /dev/null -w '%{http_code}\n' https://<your-service>.onrender.com/api/session
+# 401
+```
+
+Then open the URL, sign in with the address you want as the first Firm Admin,
+and found the chamber. **The first person to sign in on an empty platform is
+offered the chance to create the first chamber — so do this before you tell
+anyone else the URL.**
+
+### Step 4 — Custom domain and Clerk
+
+1. Render → service → **Settings → Custom Domains** → add `app.yourdomain.in`.
+2. Add the CNAME Render gives you at your DNS provider. TLS is issued
+   automatically once it resolves.
+3. Add the same domain to **Clerk → Domains** and to its allowed origins, or
+   sign-in will fail on the custom domain while working on the
+   `.onrender.com` one.
+
+### Step 5 — The security headers Render does not add
+
+Render terminates TLS and adds nothing else. The app already sends `nosniff`,
+`X-Frame-Options`, a referrer policy and HSTS (§6), but **CSP is deliberately
+left to the edge**. Render has no header configuration, so either put
+Cloudflare in front of it — which also gives you the CDN and a WAF — or add the
+policy from §6 to the security-headers middleware and redeploy.
+
+Do not skip this because everything appears to work. It will.
+
+### Step 6 — Backups, and proving they work
+
+Render's `basic-1gb` Postgres includes daily backups with point-in-time
+recovery. **Restore one into a scratch database before you trust it**, per §8.
+An untested backup is a belief, not a backup.
+
+The disk is a separate matter: **Render disks are NOT included in database
+backups**. Uploaded case files live only on that disk. Either move to object
+storage (below) or set up your own copy — and remember the files are encrypted,
+so a copy without the key is worthless.
+
+### Step 7 — Move files to object storage when you have real customers
+
+The blueprint mounts a 10 GB Render disk because it is the simplest thing that
+works on day one. At roughly $0.25/GB/month it is about **16x** the price of
+Cloudflare R2, which also charges nothing for egress. `docs/UNIT-ECONOMICS.md`
+has the arithmetic.
+
+`artifacts/api-server/src/lib/blob-store.ts` is four functions behind an
+interface — `put`, `read`, `exists`, `remove` — precisely so this swap does not
+touch a route. Encryption happens above that boundary and is unaffected.
+
+A disk also pins you to **one instance**: Render disks cannot be shared, so you
+cannot scale to a second replica while files live on one. That matters as soon
+as you care about a deploy not being an outage.
+
+### What this costs
+
+| Item                  | USD/mo |
+| --------------------- | -----: |
+| Web service, Standard |     25 |
+| Postgres, basic-1gb   |     20 |
+| Disk, 10 GB           |      2 |
+| **Total**             | **47** |
+
+Clerk is free to 50,000 users, so authentication adds nothing. A second replica
+for zero-downtime deploys is another $25 and requires moving files off the disk
+first.
+
+---
+
 ## Local development
 
 ```bash
