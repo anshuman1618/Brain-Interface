@@ -33,14 +33,12 @@ while half of it is inert.** This table is the real inventory.
 | Legal documents at `/legal/*`               | `docs/legal/` present (or `LEGAL_DOCS_DIR`)      | 404                                                       |
 | Correct rate limiting behind a proxy        | `TRUST_PROXY=on`                                 | limits key on the proxy, not the client                   |
 | HSTS and full security headers              | `NODE_ENV=production`                            | HSTS missing — and more than HSTS is affected             |
-| **Consultation transcription**              | **a provider — none is wired in the code**       | **returns "Transcription pending"**                       |
+| **Consultation recording**                  | **nothing — the recorder is simulated**          | **claims audio was saved; nothing is captured**           |
 
-**Read the last row carefully.** Everything above it is configuration.
-Transcription is the one feature that no amount of dashboard work will turn on,
-because `artifacts/api-server/src/lib/stt.ts` has no provider implementation —
-it deliberately reports "pending" rather than fabricating a transcript that
-would look like a genuine record of what a client said. Decide about it in
-Phase 0.
+**Read the last row carefully.** Everything above it is configuration — set the
+variable and the feature works. The last row is not: the consultation recorder
+captures no audio at all, and says it did. That is a launch blocker, not a
+missing integration, and it is dealt with first in Phase 0.
 
 ---
 
@@ -49,21 +47,35 @@ Phase 0.
 **Time: ~30 minutes. Nothing is reversible-hard here, but changing your mind
 later costs a redeploy.**
 
-### 0.1 Decide on transcription
+### 0.1 The consultation recorder — DECIDED: no speech-to-text
 
-Three honest options:
+**Decision taken: transcription will not be wired.** That settles the smaller
+half of this. The larger half still needs a decision, because auditing the
+feature turned up something worse than a missing transcript.
 
-| Option                     | Effort      | Consequence                                                                     |
-| -------------------------- | ----------- | ------------------------------------------------------------------------------- |
-| **Launch without it**      | none        | Consultation recordings save; the transcript says "pending". Nothing is broken. |
-| **Wire a provider**        | ~half a day | Real transcripts. Adds a subprocessor to your privacy policy and DPA.           |
-| **Remove the recorder UI** | ~1 hour     | No half-feature on screen. Cleanest if you are not going to do it soon.         |
+> **The recorder does not record.** There is no `MediaRecorder`, no
+> `getUserMedia`, no microphone access anywhere in the codebase. Pressing record
+> shows _"Recording started — Audio capture active."_ and runs a timer; pressing
+> stop fabricates a URL at `secure-vault.example.com` — a domain that does not
+> exist — and shows _"Recording stopped — Audio saved securely."_ Nothing is
+> captured. The landing page advertises _"Built-in digital consent logging and
+> consultation recording. Never lose a detail from a client interaction again."_
 
-My recommendation: **launch without it**, and hide nothing — the "pending"
-message is honest. Revisit once you have chambers using consultations enough to
-care. If you do wire it, note that sending privileged client audio to a
-third-party API is a DPDP disclosure that belongs in the privacy policy _before_
-the first recording, not after.
+An advocate relying on this loses the record of a privileged conversation and is
+told the opposite. **This must not ship as it stands.** Three ways to close it:
+
+| Option                                                      | Effort  | Result                                                                            |
+| ----------------------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
+| **Remove the recorder, keep consultations**                 | ~1 hour | Scheduling, consent logging and notes remain. No claim the product cannot keep.   |
+| **Build real capture** (`MediaRecorder` → encrypted upload) | ~1 day  | The feature as advertised, minus transcription. Storage and consent implications. |
+| **Label it clearly as not yet available**                   | ~30 min | Honest, but a visibly unfinished feature on a paid product.                       |
+
+Recommendation: **remove the recorder** and correct the landing-page claim. The
+rest of the consultations module — scheduling, categories, consent, notes — is
+real and useful on its own. Ship what works.
+
+Whichever you pick, the landing page copy must change: it currently promises a
+capability the software does not have, which is a problem independent of the UI.
 
 ### 0.2 Decide about payments at launch
 
