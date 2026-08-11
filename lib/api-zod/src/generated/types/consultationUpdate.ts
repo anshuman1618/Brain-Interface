@@ -11,8 +11,6 @@ import type { ConsultationUpdateStatus } from './consultationUpdateStatus';
 export interface ConsultationUpdate {
   title?: string;
   notes?: string;
-  audioUrl?: string;
-  transcriptPlaceholder?: string;
   status?: ConsultationUpdateStatus;
   category?: ConsultationUpdateCategory;
   scheduledAt?: Date;

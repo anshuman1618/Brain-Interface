@@ -10,7 +10,7 @@ const CAPABILITY_LABELS: Record<string, string> = {
   "cases.read": "Case files",
   "cases.write": "Case editing",
   "tasks.write": "Task assignment",
-  "consultations.read": "Consultation recorder",
+  "consultations.read": "Consultations",
   "document_requests.create": "Document requests",
 };
 

@@ -14,10 +14,6 @@ export interface Consultation {
   title: string;
   /** @nullable */
   notes?: string | null;
-  /** @nullable */
-  audioUrl?: string | null;
-  /** @nullable */
-  transcriptPlaceholder?: string | null;
   consentGiven: boolean;
   status: ConsultationStatus;
   /** @nullable */

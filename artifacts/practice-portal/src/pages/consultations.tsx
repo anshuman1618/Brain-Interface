@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   useListConsultations,
   useUpdateConsultation,
@@ -18,13 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -36,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Mic, CheckCircle2, AlertCircle, Plus } from "lucide-react";
+import { CheckCircle2, Plus } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
@@ -49,13 +43,6 @@ export default function ConsultationsPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [activeRecordingId, setActiveRecordingId] = useState<number | string | null>(null);
-  const [recordingTime, setRecordingTime] = useState(0);
-
-  const [consentOpen, setConsentOpen] = useState(false);
-  const [consentGiven, setConsentGiven] = useState(false);
-  const [pendingConsultId, setPendingConsultId] = useState<number | string | null>(null);
-
   const [newModalOpen, setNewModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newNotes, setNewNotes] = useState("");
@@ -65,66 +52,16 @@ export default function ConsultationsPage() {
   const [newCategory, setNewCategory] = useState<ConsultationInputCategory | "">("");
   const [newConsent, setNewConsent] = useState(false);
 
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | undefined;
-    if (activeRecordingId) {
-      interval = setInterval(() => setRecordingTime((t) => t + 1), 1000);
-    } else {
-      setRecordingTime(0);
-    }
-    return () => clearInterval(interval);
-  }, [activeRecordingId]);
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60)
-      .toString()
-      .padStart(2, "0");
-    const s = (seconds % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
-  };
-
-  const handleStartRecording = (id: string | number) => {
-    setPendingConsultId(id);
-    setConsentGiven(false);
-    setConsentOpen(true);
-  };
-
-  const confirmRecordingStart = () => {
-    if (!pendingConsultId || !consentGiven) return;
-
+  // Closing a consultation is the one state change this screen makes. It used
+  // to be the end of a recording that never happened; now it is what it always
+  // meant — the meeting took place, mark it done.
+  const handleMarkCompleted = (id: string | number) => {
     updateConsultation.mutate(
-      { id: Number(pendingConsultId), data: { status: "recording" } },
+      { id: Number(id), data: { status: "completed" } },
       {
         onSuccess: () => {
-          setActiveRecordingId(pendingConsultId);
-          setConsentOpen(false);
-          setPendingConsultId(null);
           queryClient.invalidateQueries({ queryKey: getListConsultationsQueryKey() });
-          toast({ title: "Recording started", description: "Audio capture active." });
-        },
-      },
-    );
-  };
-
-  const handleStopRecording = () => {
-    if (!activeRecordingId) return;
-
-    const simulatedAudioUrl = `https://secure-vault.example.com/audio/consult_${activeRecordingId}_${Date.now()}.mp3`;
-
-    updateConsultation.mutate(
-      {
-        id: Number(activeRecordingId),
-        data: {
-          status: "completed",
-          audioUrl: simulatedAudioUrl,
-          transcriptPlaceholder: "Transcript pending processing...",
-        },
-      },
-      {
-        onSuccess: () => {
-          setActiveRecordingId(null);
-          queryClient.invalidateQueries({ queryKey: getListConsultationsQueryKey() });
-          toast({ title: "Recording stopped", description: "Audio saved securely." });
+          toast({ title: "Consultation completed", description: "Marked as held." });
         },
       },
     );
@@ -191,7 +128,8 @@ export default function ConsultationsPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight mb-1">Consultation Records</h2>
           <p className="text-muted-foreground">
-            Manage client calls, digital consent, and audio ledgers.
+            Schedule client consultations against a matter, record consent, and keep the notes with
+            the file.
           </p>
         </div>
         <Button
@@ -201,26 +139,6 @@ export default function ConsultationsPage() {
           <Plus className="mr-2 h-4 w-4" /> New Consultation
         </Button>
       </div>
-
-      {activeRecordingId && (
-        <div className="bg-destructive/10 border border-destructive p-4 flex items-center justify-between animate-in slide-in-from-top-4">
-          <div className="flex items-center gap-3">
-            <div className="h-3 w-3 bg-destructive rounded-full animate-pulse" />
-            <span className="font-mono text-destructive font-bold tracking-wider">
-              RECORDING IN PROGRESS
-            </span>
-            <span className="font-mono text-destructive ml-4">{formatTime(recordingTime)}</span>
-          </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleStopRecording}
-            className="rounded-lg font-mono uppercase tracking-wider"
-          >
-            Stop & Save Ledger
-          </Button>
-        </div>
-      )}
 
       <div className="rounded-lg bg-card shadow-sm">
         <Table>
@@ -302,36 +220,27 @@ export default function ConsultationsPage() {
                           ? "bg-secondary text-secondary-foreground"
                           : c.status === "completed"
                             ? "bg-success text-success-foreground"
-                            : "bg-destructive text-destructive-foreground animate-pulse"
+                            : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {c.status}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    {c.status === "scheduled" && !activeRecordingId && (
+                    {c.status === "scheduled" && (
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-lg border-primary text-primary hover:bg-primary hover:text-primary-foreground font-mono uppercase tracking-wider"
-                        onClick={() => handleStartRecording(c.id)}
+                        className="font-mono uppercase tracking-wider"
+                        onClick={() => handleMarkCompleted(c.id)}
+                        disabled={updateConsultation.isPending}
                       >
-                        <Mic className="mr-2 h-4 w-4" /> Start
+                        <CheckCircle2 className="mr-2 h-4 w-4" /> Mark Held
                       </Button>
                     )}
                     {c.status === "completed" && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="rounded-lg text-muted-foreground font-mono uppercase tracking-wider"
-                        disabled
-                      >
-                        <CheckCircle2 className="mr-2 h-4 w-4" /> Completed
-                      </Button>
-                    )}
-                    {c.status === "recording" && activeRecordingId !== c.id && (
-                      <span className="text-xs text-destructive font-mono font-bold animate-pulse uppercase tracking-wider">
-                        RECORDING ACTIVE
+                      <span className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                        Held
                       </span>
                     )}
                   </TableCell>
@@ -444,7 +353,8 @@ export default function ConsultationsPage() {
                 htmlFor="new-consent"
                 className="text-xs text-muted-foreground cursor-pointer leading-tight"
               >
-                Client has been informed that consultations may be recorded for quality assurance.
+                Client has been informed that a record of this consultation will be kept in the
+                chamber's file.
               </Label>
             </div>
 
@@ -464,54 +374,6 @@ export default function ConsultationsPage() {
               </Button>
             </div>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={consentOpen} onOpenChange={setConsentOpen}>
-        <DialogContent className="rounded-lg border-border">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-destructive font-mono uppercase tracking-widest">
-              <AlertCircle className="h-5 w-5" /> Digital Consent Required
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4 space-y-4">
-            <p className="text-sm font-medium">
-              Before initiating recording, verbal consent must be obtained from all parties on the
-              line. Recording without consent may violate applicable wiretap and privacy statutes.
-            </p>
-
-            <div className="bg-muted p-4 border border-border text-sm font-mono italic">
-              "Please note that this consultation is being recorded for case file accuracy and
-              quality assurance. Do I have your consent to proceed with the recording?"
-            </div>
-
-            <div className="flex items-center space-x-2 mt-4 pt-4 border-t border-border">
-              <Checkbox
-                id="consent"
-                checked={consentGiven}
-                onCheckedChange={(c) => setConsentGiven(c as boolean)}
-              />
-              <Label htmlFor="consent" className="font-semibold cursor-pointer text-sm">
-                I verify that all parties have provided explicit consent to be recorded.
-              </Label>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setConsentOpen(false)}
-              className="rounded-lg font-mono uppercase tracking-wider"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={confirmRecordingStart}
-              disabled={!consentGiven}
-              className="rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono uppercase tracking-wider"
-            >
-              Initialize Recording
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

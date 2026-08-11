@@ -1337,10 +1337,8 @@ export const ListConsultationsResponseItem = zod.object({
   "caseId": zod.number(),
   "title": zod.string(),
   "notes": zod.string().nullish(),
-  "audioUrl": zod.string().nullish(),
-  "transcriptPlaceholder": zod.string().nullish(),
   "consentGiven": zod.boolean(),
-  "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
   "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
@@ -1368,10 +1366,8 @@ export const CreateConsultationResponse = zod.object({
   "caseId": zod.number(),
   "title": zod.string(),
   "notes": zod.string().nullish(),
-  "audioUrl": zod.string().nullish(),
-  "transcriptPlaceholder": zod.string().nullish(),
   "consentGiven": zod.boolean(),
-  "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
   "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
@@ -1390,10 +1386,8 @@ export const GetConsultationResponse = zod.object({
   "caseId": zod.number(),
   "title": zod.string(),
   "notes": zod.string().nullish(),
-  "audioUrl": zod.string().nullish(),
-  "transcriptPlaceholder": zod.string().nullish(),
   "consentGiven": zod.boolean(),
-  "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
   "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
@@ -1410,9 +1404,7 @@ export const UpdateConsultationParams = zod.object({
 export const UpdateConsultationBody = zod.object({
   "title": zod.string().optional(),
   "notes": zod.string().optional(),
-  "audioUrl": zod.string().optional(),
-  "transcriptPlaceholder": zod.string().optional(),
-  "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']).optional(),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']).optional(),
   "category": zod.enum(['legal_solution', 'regulatory_solution', 'business_consultation', 'procedural_compliance']).optional(),
   "scheduledAt": zod.coerce.date().optional()
 })
@@ -1422,10 +1414,8 @@ export const UpdateConsultationResponse = zod.object({
   "caseId": zod.number(),
   "title": zod.string(),
   "notes": zod.string().nullish(),
-  "audioUrl": zod.string().nullish(),
-  "transcriptPlaceholder": zod.string().nullish(),
   "consentGiven": zod.boolean(),
-  "status": zod.enum(['scheduled', 'recording', 'completed', 'cancelled']),
+  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
   "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()

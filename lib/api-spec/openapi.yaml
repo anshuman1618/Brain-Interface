@@ -2408,15 +2408,11 @@ components:
           type: string
         notes:
           type: ["string", "null"]
-        audioUrl:
-          type: ["string", "null"]
-        transcriptPlaceholder:
-          type: ["string", "null"]
         consentGiven:
           type: boolean
         status:
           type: string
-          enum: [scheduled, recording, completed, cancelled]
+          enum: [scheduled, completed, cancelled]
         category:
           type: ["string", "null"]
           enum:
@@ -2461,13 +2457,9 @@ components:
           type: string
         notes:
           type: string
-        audioUrl:
-          type: string
-        transcriptPlaceholder:
-          type: string
         status:
           type: string
-          enum: [scheduled, recording, completed, cancelled]
+          enum: [scheduled, completed, cancelled]
         category:
           type: string
           enum: [legal_solution, regulatory_solution, business_consultation, procedural_compliance]

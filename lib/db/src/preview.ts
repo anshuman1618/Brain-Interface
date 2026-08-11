@@ -210,8 +210,6 @@ CREATE TABLE IF NOT EXISTS consultations (
   case_id INTEGER NOT NULL,
   title TEXT NOT NULL,
   notes TEXT,
-  audio_url TEXT,
-  transcript_placeholder TEXT,
   consent_given BOOLEAN NOT NULL DEFAULT false,
   status TEXT NOT NULL DEFAULT 'scheduled',
   category TEXT NOT NULL DEFAULT 'legal_solution',

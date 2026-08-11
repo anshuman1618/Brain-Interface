@@ -103,8 +103,8 @@ export default function LandingPage() {
               <Globe className="h-8 w-8 text-primary" />
               <h3 className="text-xl font-bold tracking-tight">Digital Consultations</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Built-in digital consent logging and consultation recording. Never lose a detail
-                from a client interaction again.
+                Schedule consultations against a matter, capture consent, and keep the notes where
+                the rest of the file lives.
               </p>
             </div>
           </div>

@@ -11,7 +11,6 @@ export type ConsultationUpdateStatus = typeof ConsultationUpdateStatus[keyof typ
 
 export const ConsultationUpdateStatus = {
   scheduled: 'scheduled',
-  recording: 'recording',
   completed: 'completed',
   cancelled: 'cancelled',
 } as const;

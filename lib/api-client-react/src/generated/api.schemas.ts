@@ -1105,7 +1105,6 @@ export type ConsultationStatus = typeof ConsultationStatus[keyof typeof Consulta
 
 export const ConsultationStatus = {
   scheduled: 'scheduled',
-  recording: 'recording',
   completed: 'completed',
   cancelled: 'cancelled',
 } as const;
@@ -1129,10 +1128,6 @@ export interface Consultation {
   title: string;
   /** @nullable */
   notes?: string | null;
-  /** @nullable */
-  audioUrl?: string | null;
-  /** @nullable */
-  transcriptPlaceholder?: string | null;
   consentGiven: boolean;
   status: ConsultationStatus;
   /** @nullable */
@@ -1167,7 +1162,6 @@ export type ConsultationUpdateStatus = typeof ConsultationUpdateStatus[keyof typ
 
 export const ConsultationUpdateStatus = {
   scheduled: 'scheduled',
-  recording: 'recording',
   completed: 'completed',
   cancelled: 'cancelled',
 } as const;
@@ -1185,8 +1179,6 @@ export const ConsultationUpdateCategory = {
 export interface ConsultationUpdate {
   title?: string;
   notes?: string;
-  audioUrl?: string;
-  transcriptPlaceholder?: string;
   status?: ConsultationUpdateStatus;
   category?: ConsultationUpdateCategory;
   scheduledAt?: string;

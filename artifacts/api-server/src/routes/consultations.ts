@@ -20,7 +20,6 @@ import {
 } from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
-import { transcribeConsultation } from "../lib/stt";
 
 const router: IRouter = Router();
 
@@ -129,8 +128,7 @@ router.get(
   },
 );
 
-// Recording control (start/stop, consent, transcript) is conducted by staff during the
-// live meeting — not something clients toggle remotely.
+// Staff-side only: a client cannot reschedule or close their own consultation.
 router.patch(
   "/consultations/:id",
   requireWorkspace,
@@ -166,26 +164,7 @@ router.patch(
     const updateData: Partial<typeof consultationsTable.$inferSelect> = {};
     if (body.data.title != null) updateData.title = body.data.title;
     if (body.data.notes != null) updateData.notes = body.data.notes;
-    if (body.data.audioUrl != null) updateData.audioUrl = body.data.audioUrl;
-    if (body.data.transcriptPlaceholder != null)
-      updateData.transcriptPlaceholder = body.data.transcriptPlaceholder;
     if (body.data.status != null) updateData.status = body.data.status;
-
-    // Recording just stopped: produce the transcript server-side so the client
-    // never invents an audio URL or transcript of its own. Explicit values in the
-    // request still win, which keeps manual correction possible.
-    const stoppedRecording = existing.status === "recording" && body.data.status === "completed";
-    if (stoppedRecording && body.data.transcriptPlaceholder == null) {
-      const result = await transcribeConsultation({
-        consultationId: existing.id,
-        title: existing.title,
-        category: existing.category ?? "legal_solution",
-      });
-      updateData.transcriptPlaceholder = result.transcript;
-      if (body.data.audioUrl == null && result.audioUrl) {
-        updateData.audioUrl = result.audioUrl;
-      }
-    }
     if (body.data.category != null) updateData.category = body.data.category;
     if (body.data.scheduledAt != null) updateData.scheduledAt = new Date(body.data.scheduledAt);
 
