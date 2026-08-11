@@ -239,7 +239,7 @@ export default function CaseDetailPage() {
             <h1 className="text-3xl font-bold tracking-tight">{caseData.title}</h1>
             <Badge
               variant="outline"
-              className="rounded-none font-mono uppercase tracking-wider bg-muted text-xs"
+              className="rounded-lg font-mono uppercase tracking-wider bg-muted text-xs"
             >
               #{caseData.id}
             </Badge>
@@ -265,7 +265,7 @@ export default function CaseDetailPage() {
             value={caseData.status}
             onValueChange={(v) => handleStatusChange(v as CaseUpdateStatus)}
           >
-            <SelectTrigger className="w-[180px] rounded-none font-mono uppercase tracking-wider text-xs font-semibold">
+            <SelectTrigger className="w-[180px] rounded-lg font-mono uppercase tracking-wider text-xs font-semibold">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -282,7 +282,7 @@ export default function CaseDetailPage() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 text-destructive hover:bg-destructive/10 rounded-none ml-2"
+              className="h-6 w-6 text-destructive hover:bg-destructive/10 rounded-lg ml-2"
               onClick={handleDeleteCase}
               title="Delete Case"
             >
@@ -294,22 +294,22 @@ export default function CaseDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="tasks" className="w-full">
-        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-none h-12 p-0 gap-8">
+        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-lg h-12 p-0 gap-8">
           <TabsTrigger
             value="tasks"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
+            className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
           >
             Task Pipeline
           </TabsTrigger>
           <TabsTrigger
             value="documents"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
+            className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
           >
             Encrypted Vault
           </TabsTrigger>
           <TabsTrigger
             value="timeline"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
+            className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
           >
             Activity Ledger
           </TabsTrigger>
@@ -320,7 +320,7 @@ export default function CaseDetailPage() {
             <h3 className="text-lg font-semibold">Active Pipeline</h3>
             <Dialog open={isTaskOpen} onOpenChange={setIsTaskOpen}>
               <DialogTrigger asChild>
-                <Button className="rounded-none" size="sm">
+                <Button className="rounded-lg" size="sm">
                   Add Task
                 </Button>
               </DialogTrigger>
@@ -368,7 +368,7 @@ export default function CaseDetailPage() {
                   <Button
                     disabled={!newTask.title || !newTask.deadline}
                     onClick={handleCreateTask}
-                    className="rounded-none"
+                    className="rounded-lg"
                   >
                     Create
                   </Button>
@@ -383,7 +383,7 @@ export default function CaseDetailPage() {
               return (
                 <Card
                   key={task.id}
-                  className={`rounded-none border-border shadow-none ${isOverdue ? "border-destructive bg-destructive/5" : ""}`}
+                  className={`${isOverdue ? "border border-destructive bg-destructive/5" : ""}`}
                 >
                   <div className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
@@ -405,7 +405,7 @@ export default function CaseDetailPage() {
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
-                        className="rounded-none"
+                        className="rounded-lg"
                         size="sm"
                         onClick={() => {
                           setCompletingTask(task);
@@ -417,7 +417,7 @@ export default function CaseDetailPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-none"
+                        className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg"
                         onClick={() => handleDeleteTask(task.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -462,7 +462,7 @@ export default function CaseDetailPage() {
             <h3 className="text-lg font-semibold">Case Documents</h3>
             <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
               <DialogTrigger asChild>
-                <Button className="rounded-none" size="sm" variant="outline">
+                <Button className="rounded-lg" size="sm" variant="outline">
                   <Upload className="mr-2 h-4 w-4" /> Upload
                 </Button>
               </DialogTrigger>
@@ -481,7 +481,7 @@ export default function CaseDetailPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button disabled={!newDocName} onClick={handleUploadDoc} className="rounded-none">
+                  <Button disabled={!newDocName} onClick={handleUploadDoc} className="rounded-lg">
                     Add Record
                   </Button>
                 </DialogFooter>
@@ -489,7 +489,7 @@ export default function CaseDetailPage() {
             </Dialog>
           </div>
 
-          <div className="border border-border bg-background">
+          <div className="rounded-lg bg-card shadow-sm">
             {docs?.map((doc, i) => (
               <div
                 key={doc.id}
@@ -508,13 +508,13 @@ export default function CaseDetailPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="icon" variant="ghost" className="h-8 w-8 rounded-none shrink-0">
+                  <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg shrink-0">
                     <Download className="h-4 w-4" />
                   </Button>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 rounded-none shrink-0 text-destructive hover:bg-destructive/10"
+                    className="h-8 w-8 rounded-lg shrink-0 text-destructive hover:bg-destructive/10"
                     onClick={() => handleDeleteDoc(doc.id)}
                   >
                     <Trash2 className="h-4 w-4" />
@@ -574,7 +574,7 @@ export default function CaseDetailPage() {
                     value={delayReason}
                     onValueChange={(v) => setDelayReason(v as TaskCompletionDelayReason)}
                   >
-                    <SelectTrigger className="rounded-none border-destructive/30 focus:ring-destructive">
+                    <SelectTrigger className="rounded-lg border-destructive/30 focus:ring-destructive">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -592,7 +592,7 @@ export default function CaseDetailPage() {
                     value={proofFile}
                     onChange={(e) => setProofFile(e.target.value)}
                     placeholder="e.g. Email_Thread_Client.pdf"
-                    className="rounded-none border-destructive/30 focus:ring-destructive"
+                    className="rounded-lg border-destructive/30 focus:ring-destructive"
                   />
                 </div>
                 <div className="grid gap-2">
@@ -600,7 +600,7 @@ export default function CaseDetailPage() {
                   <Textarea
                     value={delayNotes}
                     onChange={(e) => setDelayNotes(e.target.value)}
-                    className="rounded-none border-destructive/30 focus:ring-destructive resize-none"
+                    className="rounded-lg border-destructive/30 focus:ring-destructive resize-none"
                   />
                 </div>
               </div>
@@ -615,13 +615,13 @@ export default function CaseDetailPage() {
             <Button
               variant="outline"
               onClick={() => setIsCompleteOpen(false)}
-              className="rounded-none"
+              className="rounded-lg"
             >
               Cancel
             </Button>
             <Button
               onClick={handleCompleteTask}
-              className="rounded-none"
+              className="rounded-lg"
               disabled={Boolean(
                 completingTask &&
                 (completingTask.isOverdue || new Date(completingTask.deadline) < new Date()) &&

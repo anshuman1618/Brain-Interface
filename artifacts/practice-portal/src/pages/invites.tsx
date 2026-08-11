@@ -101,7 +101,7 @@ export default function InvitesPage() {
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button className="rounded-none">
+            <Button className="rounded-lg">
               <Plus className="mr-2 h-4 w-4" /> Generate Invite
             </Button>
           </DialogTrigger>
@@ -122,7 +122,7 @@ export default function InvitesPage() {
               <div className="grid gap-2">
                 <Label>Assigned Role</Label>
                 <Select value={role} onValueChange={(v) => setRole(v as InviteInputRole)}>
-                  <SelectTrigger className="rounded-none">
+                  <SelectTrigger className="rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -154,7 +154,7 @@ export default function InvitesPage() {
               <Button
                 disabled={!email || !role || createInvite.isPending}
                 onClick={handleCreate}
-                className="rounded-none"
+                className="rounded-lg"
               >
                 {createInvite.isPending ? "Generating..." : "Generate Link"}
               </Button>
@@ -167,7 +167,7 @@ export default function InvitesPage() {
 
       <AccessRequestQueue />
 
-      <div className="border border-border bg-background">
+      <div className="rounded-lg bg-card shadow-sm">
         <div className="px-6 py-4 border-b border-border bg-muted/30">
           <h3 className="font-mono text-xs uppercase tracking-widest font-bold">Invitations</h3>
         </div>
@@ -234,7 +234,7 @@ export default function InvitesPage() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className="rounded-none text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
+                        className="rounded-lg text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
                       >
                         {inv.role === "admin" && <ShieldCheck className="h-3 w-3" />}
                         {inv.role}
@@ -257,7 +257,7 @@ export default function InvitesPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-none font-mono tracking-widest text-xs"
+                        className="rounded-lg font-mono tracking-widest text-xs"
                         disabled={isUsed || isExpired}
                         onClick={() => copyToClipboard(inv.id, inv.token)}
                       >

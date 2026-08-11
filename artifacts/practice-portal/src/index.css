@@ -41,6 +41,15 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-destructive-border: var(--destructive-border);
 
+  /* Caution and confirmation. The app needed both and had been reaching for
+     Tailwind's amber-500 and green-100 — colours from outside the palette,
+     which is why those notices never followed a theme change and had no dark
+     counterpart worth the name. */
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
   --color-chart-1: hsl(var(--chart-1));
   --color-chart-2: hsl(var(--chart-2));
   --color-chart-3: hsl(var(--chart-3));
@@ -66,6 +75,20 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Neumorphic relief, wired into Tailwind's shadow scale.
+     `inline` matters here: it emits `box-shadow: var(--raise-sm)` into the
+     utility instead of freezing today's value, so the light/dark relief defined
+     below resolves per element. That means every existing `shadow-sm` /
+     `shadow-md` / `shadow-lg` in the app becomes extruded material without
+     editing the components that write them. */
+  --shadow-2xs: var(--raise-sm);
+  --shadow-xs: var(--raise-sm);
+  --shadow-sm: var(--raise-sm);
+  --shadow-md: var(--raise);
+  --shadow-lg: var(--raise-lg);
+  --shadow-xl: var(--raise-lg);
+  --shadow-2xl: var(--raise-lg);
 }
 
 /* LIGHT MODE */
@@ -78,48 +101,69 @@
      look wrong against the light chrome around them. */
   color-scheme: light;
 
-  --button-outline: rgba(0, 0, 0, 0.1);
-  --badge-outline: rgba(0, 0, 0, 0.05);
+  --button-outline: rgba(36, 23, 8, 0.1);
+  --badge-outline: rgba(36, 23, 8, 0.05);
   --opaque-button-border-intensity: -8;
-  --elevate-1: rgba(0, 0, 0, 0.03);
-  --elevate-2: rgba(0, 0, 0, 0.08);
+  --elevate-1: rgba(36, 23, 8, 0.04);
+  --elevate-2: rgba(36, 23, 8, 0.09);
 
-  /* Slate / Ash monochrome palette */
-  --background: 220 15% 95%;
-  --foreground: 220 20% 20%;
-  --border: 220 15% 85%;
-  --card: 220 15% 93%;
-  --card-foreground: 220 20% 20%;
-  --card-border: 220 15% 85%;
-  --sidebar: 220 15% 93%;
-  --sidebar-foreground: 220 20% 20%;
-  --sidebar-border: 220 15% 85%;
-  --sidebar-primary: 220 10% 30%;
-  --sidebar-primary-foreground: 220 15% 95%;
-  --sidebar-accent: 220 10% 85%;
-  --sidebar-accent-foreground: 220 20% 20%;
-  --sidebar-ring: 220 10% 30%;
-  --popover: 220 15% 93%;
-  --popover-foreground: 220 20% 20%;
-  --popover-border: 220 15% 85%;
-  --primary: 220 10% 30%;
-  --primary-foreground: 220 15% 95%;
-  --secondary: 220 10% 85%;
-  --secondary-foreground: 220 20% 20%;
-  --muted: 220 10% 88%;
-  --muted-foreground: 220 15% 45%;
-  --accent: 220 10% 85%;
-  --accent-foreground: 220 20% 20%;
-  --destructive: 220 10% 40%;
-  --destructive-foreground: 220 15% 95%;
-  --input: 220 15% 85%;
-  --ring: 220 10% 30%;
+  /* Dark-wood neumorphic palette.
+     One warm ground (#e6ded2) that everything is either carved out of or
+     extruded from, rather than a set of separately coloured surfaces. Hues stay
+     in the 27-36 band so nothing reads as a different material; separation
+     comes from lightness and from relief, not from hue. */
+  --background: 36 29% 86%; /* ground      #e6ded2 */
+  --foreground: 32 64% 9%; /* ink         #241708 */
+  --border: 35 25% 77%; /* line        #d3c7b6 */
+  --card: 35 31% 89%; /* raised      #ece5db */
+  --card-foreground: 32 64% 9%;
+  --card-border: 35 25% 77%;
 
-  --chart-1: 220 10% 30%;
-  --chart-2: 220 10% 45%;
-  --chart-3: 220 10% 60%;
-  --chart-4: 220 10% 75%;
-  --chart-5: 220 10% 85%;
+  /* The rail sits on the same ground as the page. A neumorphic surface is one
+     continuous sheet, so giving the sidebar its own background would put a seam
+     down the middle of the material. */
+  --sidebar: 36 29% 86%;
+  --sidebar-foreground: 30 29% 28%; /* ink2        #5a4632 */
+  --sidebar-border: 35 25% 77%;
+  --sidebar-primary: 29 53% 23%; /* accent      #5b3a1c */
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 35 30% 78%; /* accent-soft #d8cab6 */
+  --sidebar-accent-foreground: 29 57% 15%; /* accent-ink  #3a2410 */
+  --sidebar-ring: 29 53% 23%;
+
+  --popover: 35 31% 89%;
+  --popover-foreground: 32 64% 9%;
+  --popover-border: 35 25% 77%;
+  --primary: 29 53% 23%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 35 30% 78%;
+  --secondary-foreground: 29 57% 15%;
+  --muted: 35 26% 82%;
+  --muted-foreground: 34 24% 34%; /* ink3        #6b5942 */
+  --accent: 35 30% 78%;
+  --accent-foreground: 29 57% 15%;
+  --destructive: 6 70% 32%; /* crit        #8a2318 */
+  --destructive-foreground: 0 0% 100%;
+  --warning: 35 45% 82%; /* warn-soft   #e6d5bd */
+  --warning-foreground: 28 77% 31%; /* warn        #8a4a12 */
+  --success: 79 20% 81%; /* ok-soft     #d3d9c6 */
+  --success-foreground: 105 25% 28%; /* ok         #3f5a36 */
+  --input: 34 23% 67%; /* line2       #bfae98 */
+  --ring: 29 53% 23%;
+
+  /* Status hues, desaturated enough to sit on wood without vibrating. */
+  --chart-1: 29 53% 23%; /* accent */
+  --chart-2: 36 77% 27%; /* amber       #7a5010 */
+  --chart-3: 105 25% 28%; /* ok          #3f5a36 */
+  --chart-4: 34 24% 34%; /* ink3 */
+  --chart-5: 34 23% 67%; /* line2 */
+
+  /* The two lights the relief is built from: a highlight from the top left and
+     a shadow to the bottom right, both sampled off the ground rather than being
+     white and black — which is what keeps it reading as a material and not as a
+     drop shadow. */
+  --lift: #fdf9f2;
+  --sink: #bcac96;
 
   /* System stacks: nothing is fetched, so no visitor data leaves the browser
      before sign-in and there is no render-blocking font request. The named
@@ -132,16 +176,16 @@
   --app-font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --app-font-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  --radius: 0rem; /* brutalist/square look for precision tool */
+  --radius: 0.875rem; /* 14px — soft enough for the relief to read as extruded */
 
-  --shadow-2xs: 0px 2px 0px 0px rgba(0, 0, 0, 0.05);
-  --shadow-xs: 0px 2px 0px 0px rgba(0, 0, 0, 0.05);
-  --shadow-sm: 0px 2px 0px 0px rgba(0, 0, 0, 0.05), 0px 1px 2px -1px rgba(0, 0, 0, 0.05);
-  --shadow: 0px 2px 0px 0px rgba(0, 0, 0, 0.05), 0px 1px 2px -1px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0px 2px 0px 0px rgba(0, 0, 0, 0.05), 0px 2px 4px -1px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0px 2px 0px 0px rgba(0, 0, 0, 0.05), 0px 4px 6px -1px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0px 2px 0px 0px rgba(0, 0, 0, 0.05), 0px 8px 10px -1px rgba(0, 0, 0, 0.05);
-  --shadow-2xl: 0px 2px 0px 0px rgba(0, 0, 0, 0.05);
+  /* Relief primitives, defined once in terms of --lift and --sink so the dark
+     theme inverts the entire system by redefining just those two colours.
+     Consumed by the Tailwind shadow scale in the @theme block above. */
+  --raise-sm: -2px -2px 5px var(--lift), 3px 3px 7px var(--sink);
+  --raise: -5px -5px 11px var(--lift), 5px 5px 13px var(--sink);
+  --raise-lg: -7px -7px 16px var(--lift), 8px 8px 20px var(--sink);
+  --press-sm: inset 2px 2px 4px var(--sink), inset -2px -2px 4px var(--lift);
+  --press: inset 3px 3px 7px var(--sink), inset -3px -3px 7px var(--lift);
 
   --tracking-normal: 0em;
   --spacing: 0.25rem;
@@ -173,56 +217,58 @@
    later without re-deriving the palette, but it is never the default. */
 .dark {
   color-scheme: dark;
-  --button-outline: rgba(255, 255, 255, 0.1);
-  --badge-outline: rgba(255, 255, 255, 0.05);
+  --button-outline: rgba(240, 230, 216, 0.1);
+  --badge-outline: rgba(240, 230, 216, 0.05);
   --opaque-button-border-intensity: 9;
-  --elevate-1: rgba(255, 255, 255, 0.04);
-  --elevate-2: rgba(255, 255, 255, 0.09);
+  --elevate-1: rgba(240, 230, 216, 0.05);
+  --elevate-2: rgba(240, 230, 216, 0.1);
 
-  --background: 220 10% 12%;
-  --foreground: 220 10% 90%;
-  --border: 220 10% 25%;
-  --card: 220 10% 15%;
-  --card-foreground: 220 10% 90%;
-  --card-border: 220 10% 25%;
-  --sidebar: 220 10% 15%;
-  --sidebar-foreground: 220 10% 90%;
-  --sidebar-border: 220 10% 25%;
-  --sidebar-primary: 220 10% 80%;
-  --sidebar-primary-foreground: 220 10% 15%;
-  --sidebar-accent: 220 10% 20%;
-  --sidebar-accent-foreground: 220 10% 90%;
-  --sidebar-ring: 220 10% 80%;
-  --popover: 220 10% 15%;
-  --popover-foreground: 220 10% 90%;
-  --popover-border: 220 10% 25%;
-  --primary: 220 10% 80%;
-  --primary-foreground: 220 10% 15%;
-  --secondary: 220 10% 20%;
-  --secondary-foreground: 220 10% 90%;
-  --muted: 220 10% 20%;
-  --muted-foreground: 220 10% 60%;
-  --accent: 220 10% 20%;
-  --accent-foreground: 220 10% 90%;
-  --destructive: 220 10% 60%;
-  --destructive-foreground: 220 10% 15%;
-  --input: 220 10% 25%;
-  --ring: 220 10% 80%;
+  /* The same wood at night. The accent inverts from dark walnut to lit brass,
+     because a 23%-lightness brown is invisible on a 10%-lightness ground. */
+  --background: 30 31% 10%; /* ground      #221a12 */
+  --foreground: 35 44% 89%; /* ink         #f0e6d8 */
+  --border: 30 25% 19%; /* line        #3d3125 */
+  --card: 27 27% 13%; /* raised      #2a2018 */
+  --card-foreground: 35 44% 89%;
+  --card-border: 30 25% 19%;
+  --sidebar: 30 31% 10%;
+  --sidebar-foreground: 35 27% 72%; /* ink2        #cbbba4 */
+  --sidebar-border: 30 25% 19%;
+  --sidebar-primary: 35 63% 60%; /* accent      #d9a45a */
+  --sidebar-primary-foreground: 32 64% 9%; /* on-accent   #241708 */
+  --sidebar-accent: 33 41% 17%; /* accent-soft #3c2c19 */
+  --sidebar-accent-foreground: 35 77% 75%; /* accent-ink  #f0c78c */
+  --sidebar-ring: 35 63% 60%;
+  --popover: 27 27% 13%;
+  --popover-foreground: 35 44% 89%;
+  --popover-border: 30 25% 19%;
+  --primary: 35 63% 60%;
+  --primary-foreground: 32 64% 9%;
+  --secondary: 33 41% 17%;
+  --secondary-foreground: 35 77% 75%;
+  --muted: 30 25% 19%;
+  --muted-foreground: 35 17% 53%; /* ink3        #9c8b74 */
+  --accent: 33 41% 17%;
+  --accent-foreground: 35 77% 75%;
+  --destructive: 6 62% 60%;
+  --destructive-foreground: 32 64% 9%;
+  --warning: 30 35% 18%;
+  --warning-foreground: 38 66% 64%;
+  --success: 100 15% 18%;
+  --success-foreground: 105 22% 62%;
+  --input: 34 27% 25%; /* line2       #51422f */
+  --ring: 35 63% 60%;
 
-  --chart-1: 220 10% 80%;
-  --chart-2: 220 10% 65%;
-  --chart-3: 220 10% 50%;
-  --chart-4: 220 10% 35%;
-  --chart-5: 220 10% 25%;
+  --chart-1: 35 63% 60%;
+  --chart-2: 38 66% 64%; /* amber       #e0b467 */
+  --chart-3: 105 22% 55%;
+  --chart-4: 35 17% 53%;
+  --chart-5: 34 27% 25%;
 
-  --shadow-2xs: 0px 2px 0px 0px rgba(0, 0, 0, 0.5);
-  --shadow-xs: 0px 2px 0px 0px rgba(0, 0, 0, 0.5);
-  --shadow-sm: 0px 2px 0px 0px rgba(0, 0, 0, 0.5), 0px 1px 2px -1px rgba(0, 0, 0, 0.5);
-  --shadow: 0px 2px 0px 0px rgba(0, 0, 0, 0.5), 0px 1px 2px -1px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0px 2px 0px 0px rgba(0, 0, 0, 0.5), 0px 2px 4px -1px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0px 2px 0px 0px rgba(0, 0, 0, 0.5), 0px 4px 6px -1px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0px 2px 0px 0px rgba(0, 0, 0, 0.5), 0px 8px 10px -1px rgba(0, 0, 0, 0.5);
-  --shadow-2xl: 0px 2px 0px 0px rgba(0, 0, 0, 0.5);
+  /* Inverting these two inverts every raised and recessed surface in the app:
+     the --raise/--press definitions in :root are written in terms of them. */
+  --lift: #33271b;
+  --sink: #130d07;
 }
 
 @layer base {
@@ -231,6 +277,30 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  /* The rule the whole design runs on: containers are raised, inputs are
+     recessed, data is flat. A field carved into the ground reads as a place to
+     put something; one extruded from it reads as a button, and a form full of
+     buttons is unusable.
+
+     Applied at the element level rather than on the Input primitive so native
+     fields, Clerk's hosted fields, and anything else rendered into the page get
+     the same treatment. The excluded input types are hit areas, not wells. */
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="file"],
+    [type="submit"],
+    [type="button"],
+    [type="reset"],
+    [type="image"],
+    [type="color"]
+  ),
+  textarea,
+  [data-slot="select-trigger"] {
+    box-shadow: var(--press-sm);
   }
 }
 

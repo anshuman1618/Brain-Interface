@@ -36,7 +36,7 @@ export default function LandingPage() {
 
         <div className="flex-1 flex flex-col justify-center max-w-6xl mx-auto w-full px-8 py-20 relative z-10">
           <div className="max-w-3xl animate-in slide-in-from-bottom-8 fade-in duration-700">
-            <div className="inline-flex items-center gap-2 px-3 py-1 border border-border bg-background mb-8 shadow-sm">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-card shadow-sm mb-8 shadow-sm">
               <ShieldCheck className="h-4 w-4 text-primary" />
               <span className="text-xs font-mono font-semibold tracking-wider uppercase text-muted-foreground">
                 Private Legal Extranet

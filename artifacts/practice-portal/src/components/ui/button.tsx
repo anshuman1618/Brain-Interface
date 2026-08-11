@@ -3,8 +3,12 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+// A button is the one control that is unambiguously extruded: it stands proud
+// of the ground at rest and sinks under the finger. That travel is the whole
+// affordance, so the relief lives in the base string, and the two variants that
+// are deliberately not surfaces — ghost and link — opt back out of it.
 const buttonVariants = cva(
-  "inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background shadow-sm active:shadow-[var(--press-sm)] disabled:shadow-none transition-[color,background-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
@@ -14,8 +18,8 @@ const buttonVariants = cva(
         outline:
           "border border-input bg-background hover:bg-accent hover:text-accent-foreground hover-elevate",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80 hover-elevate",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+        ghost: "shadow-none active:shadow-none hover:bg-accent hover:text-accent-foreground",
+        link: "shadow-none active:shadow-none text-primary underline-offset-4 hover:underline",
       },
       size: {
         default: "h-10 px-4 py-2",

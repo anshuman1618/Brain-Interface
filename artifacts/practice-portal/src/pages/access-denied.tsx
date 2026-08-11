@@ -97,7 +97,7 @@ export default function AccessDeniedPage({
                 {displayName ? ` (${displayName})` : ""}. That proves who you are, but a chamber
                 admin has not admitted this address, so there is nothing here for you yet.
               </p>
-              <div className="border border-border bg-background p-4">
+              <div className="rounded-lg bg-card shadow-sm p-4">
                 <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
                   What to do
                 </p>
@@ -118,7 +118,7 @@ export default function AccessDeniedPage({
         </div>
 
         {submitted ? (
-          <div className="border border-border bg-background p-6 mt-4 flex items-start gap-3">
+          <div className="rounded-lg bg-card shadow-sm p-6 mt-4 flex items-start gap-3">
             <Check className="h-5 w-5 text-primary shrink-0 mt-0.5" />
             <div>
               <p className="font-medium">Request sent</p>
@@ -129,7 +129,7 @@ export default function AccessDeniedPage({
             </div>
           </div>
         ) : asking ? (
-          <div className="border border-border bg-background p-6 mt-4">
+          <div className="rounded-lg bg-card shadow-sm p-6 mt-4">
             <h2 className="text-lg font-bold tracking-tight mb-1">Request access</h2>
             <p className="text-sm text-muted-foreground mb-6">
               Tell the admin what you need. They decide the role you're given.
@@ -146,7 +146,7 @@ export default function AccessDeniedPage({
               <Textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="rounded-none resize-none h-20 bg-background"
+                className="rounded-lg resize-none h-20 bg-background"
                 placeholder="e.g. Joining as practice manager from 1 September."
               />
             </div>
@@ -160,7 +160,7 @@ export default function AccessDeniedPage({
                 Cancel
               </button>
               <Button
-                className="rounded-none px-8"
+                className="rounded-lg px-8"
                 disabled={!selected || createRequest.isPending}
                 onClick={submit}
               >
@@ -179,12 +179,12 @@ export default function AccessDeniedPage({
               <LogOut className="h-3.5 w-3.5" /> Sign in with a different address
             </button>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="rounded-none" onClick={() => setAsking(true)}>
+              <Button variant="outline" className="rounded-lg" onClick={() => setAsking(true)}>
                 Request access
               </Button>
               {/* The first person on a fresh platform lands here — there is no
                   chamber to admit them yet, so founding one is the way in. */}
-              <Button className="rounded-none" onClick={() => setFounding(true)}>
+              <Button className="rounded-lg" onClick={() => setFounding(true)}>
                 <Building2 className="h-4 w-4 mr-2" /> Create a chamber
               </Button>
             </div>

@@ -38,6 +38,24 @@ import { useSession } from "@/lib/session";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
+/**
+ * Quick-action tiles.
+ *
+ * These were nine separately hand-picked greys — slate-900, zinc-800,
+ * stone-700, gray-800, neutral-700 and so on — drawn from a palette the rest of
+ * the app does not use. That made the busiest surface on the dashboard the one
+ * place a theme change could not reach, and the nine shades implied a ranking
+ * between the actions that does not exist.
+ *
+ * One tile now: extruded from the ground, sinking when pressed, with the icon
+ * carrying the accent. What distinguishes the tiles is the label, which is the
+ * only thing that actually differs between them.
+ */
+const quickActionTile =
+  "bg-card text-card-foreground rounded-lg shadow-md active:shadow-[var(--press)] " +
+  "p-4 flex flex-col items-center justify-center gap-3 text-center " +
+  "transition-shadow [&>svg]:text-primary";
+
 export default function DashboardPage() {
   const { isStaff } = useUserRole();
 
@@ -91,7 +109,7 @@ function StaffDashboard() {
       {can("billing.manage") && (
         <div
           onClick={() => setPricingModalOpen(true)}
-          className="w-full p-3 bg-gradient-to-r from-gray-300 to-gray-500 text-black font-bold uppercase font-mono tracking-widest text-center cursor-pointer hover:opacity-90 transition-opacity"
+          className="w-full p-3 rounded-lg shadow-sm bg-secondary text-secondary-foreground font-bold uppercase font-mono tracking-widest text-center cursor-pointer hover:bg-secondary/80 transition-colors"
         >
           1-Month Free Trial Active &mdash; Upgrade Now
         </div>
@@ -105,14 +123,14 @@ function StaffDashboard() {
           </p>
         </div>
         {can("tasks.write") && (
-          <Button className="rounded-none shrink-0" onClick={() => setTaskFormOpen(true)}>
+          <Button className="rounded-lg shrink-0" onClick={() => setTaskFormOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> New Task
           </Button>
         )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-background border-border shadow-none rounded-none">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
               <Briefcase className="h-4 w-4" /> Active Cases
@@ -127,7 +145,7 @@ function StaffDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-background border-border shadow-none rounded-none">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
               <CheckSquare className="h-4 w-4" /> Pending Tasks
@@ -144,7 +162,7 @@ function StaffDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-destructive/10 border-destructive/20 shadow-none rounded-none text-destructive">
+        <Card className="bg-destructive/10 text-destructive">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium uppercase font-mono tracking-wider flex items-center gap-2">
               <AlertCircle className="h-4 w-4" /> Overdue Tasks
@@ -159,7 +177,7 @@ function StaffDashboard() {
           </CardContent>
         </Card>
 
-        <Card className="bg-background border-border shadow-none rounded-none">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
               <Calendar className="h-4 w-4" /> Next Hearing
@@ -191,7 +209,7 @@ function StaffDashboard() {
           {can("tasks.write") && (
             <button
               onClick={() => setTaskFormOpen(true)}
-              className="bg-slate-900 border-l-4 border-slate-400 text-white rounded-none p-4 flex flex-col items-center justify-center gap-3 hover:opacity-90 transition-opacity animate-in fade-in slide-in-from-bottom-4 duration-500"
+              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500`}
             >
               <Plus className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
@@ -202,7 +220,7 @@ function StaffDashboard() {
 
           <button
             onClick={() => setLocation("/calendar")}
-            className="bg-slate-800 border-l-4 border-slate-400 text-white rounded-none p-4 flex flex-col items-center justify-center gap-3 hover:opacity-90 transition-opacity animate-in fade-in slide-in-from-bottom-4 duration-500 delay-75"
+            className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-75`}
           >
             <Calendar className="h-8 w-8" />
             <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
@@ -213,7 +231,7 @@ function StaffDashboard() {
           {can("cases.write") && (
             <button
               onClick={() => setLocation("/cases")}
-              className="bg-zinc-800 text-gray-200 rounded-none p-4 flex flex-col items-center justify-center gap-3 hover:opacity-90 transition-opacity animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100"
+              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100`}
             >
               <AlertCircle className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
@@ -225,7 +243,7 @@ function StaffDashboard() {
           {can("cases.write") && (
             <button
               onClick={() => setLocation("/tasks")}
-              className="bg-slate-700 hover:bg-slate-600 text-white rounded-none p-4 flex flex-col items-center justify-center gap-3 transition-colors animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150"
+              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150`}
             >
               <ListTodo className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
@@ -236,7 +254,7 @@ function StaffDashboard() {
 
           <button
             onClick={() => setLocation("/tasks")}
-            className="bg-stone-700 hover:bg-stone-600 text-white rounded-none p-4 flex flex-col items-center justify-center gap-3 transition-colors animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200"
+            className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200`}
           >
             <CheckSquare className="h-8 w-8" />
             <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
@@ -246,7 +264,7 @@ function StaffDashboard() {
 
           <button
             onClick={() => setLocation("/tasks")}
-            className="bg-gray-800 text-gray-400 rounded-none p-4 flex flex-col items-center justify-center gap-3 hover:opacity-90 transition-opacity animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300"
+            className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300`}
           >
             <Archive className="h-8 w-8" />
             <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
@@ -257,7 +275,7 @@ function StaffDashboard() {
           {can("cases.write") && (
             <button
               onClick={() => setLocation("/cases")}
-              className="bg-neutral-700 hover:bg-neutral-600 text-white rounded-none p-4 flex flex-col items-center justify-center gap-3 transition-colors animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500"
+              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500`}
             >
               <FileText className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
@@ -268,7 +286,7 @@ function StaffDashboard() {
 
           <button
             onClick={() => setLocation("/cases")}
-            className="bg-zinc-700 hover:bg-zinc-600 text-white rounded-none p-4 flex flex-col items-center justify-center gap-3 transition-colors animate-in fade-in slide-in-from-bottom-4 duration-500 delay-[600ms]"
+            className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-[600ms]`}
           >
             <Upload className="h-8 w-8" />
             <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
@@ -279,7 +297,7 @@ function StaffDashboard() {
           {can("cases.write") && (
             <button
               onClick={() => setDocRequestOpen(true)}
-              className="bg-slate-600 border border-slate-500 hover:bg-slate-500 text-white rounded-none p-4 flex flex-col items-center justify-center gap-3 transition-colors animate-in fade-in slide-in-from-bottom-4 duration-500 delay-[700ms]"
+              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-[700ms]`}
             >
               <FileText className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
@@ -346,7 +364,7 @@ function StaffDashboard() {
               {pendingTasks.slice(0, 5).map((task) => (
                 <div
                   key={task.id}
-                  className="p-4 border border-border bg-background flex items-center gap-4 hover:border-primary/50 transition-colors group"
+                  className="p-4 rounded-lg bg-card shadow-sm flex items-center gap-4 hover:border-primary/50 transition-colors group"
                 >
                   <Clock className="h-5 w-5 text-primary shrink-0" />
                   <div className="flex flex-col flex-1 min-w-0">
@@ -381,13 +399,13 @@ function StaffDashboard() {
 
       {can("document_requests.create") && (
         <div className="pt-4 border-t border-border">
-          <div className="flex items-center justify-between mb-4 gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
             <h3 className="text-xl font-bold tracking-tight flex items-center gap-2">
               <Send className="h-5 w-5 text-muted-foreground" /> Document requests out
             </h3>
             <Button
               variant="outline"
-              className="rounded-none shrink-0"
+              className="shrink-0 self-start sm:self-auto"
               onClick={() => setDocRequestOpen(true)}
             >
               <Plus className="mr-2 h-4 w-4" /> Request a document
@@ -395,7 +413,7 @@ function StaffDashboard() {
           </div>
 
           {outstandingRequests.length === 0 ? (
-            <div className="p-8 text-center border border-border bg-background text-muted-foreground text-sm font-mono uppercase tracking-wider">
+            <div className="p-8 text-center rounded-lg bg-background shadow-[var(--press-sm)] text-muted-foreground text-sm font-mono uppercase tracking-wider">
               Nothing outstanding
             </div>
           ) : (
@@ -403,7 +421,7 @@ function StaffDashboard() {
               {outstandingRequests.slice(0, 5).map((req) => (
                 <div
                   key={req.id}
-                  className="p-4 border border-border bg-background flex flex-col sm:flex-row sm:items-center gap-3"
+                  className="p-4 rounded-lg bg-card shadow-sm flex flex-col sm:flex-row sm:items-center gap-3"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{req.documentName}</p>
@@ -485,23 +503,23 @@ function ClientDashboard() {
       </div>
 
       {/* Action Required: Pending Document Requests */}
-      <div className="border-l-4 border-slate-400 bg-slate-800 text-white p-6 rounded-none mb-8">
+      <div className="bg-background text-foreground p-6 rounded-lg shadow-[var(--press)] mb-8">
         <h3 className="text-xl font-bold tracking-tight mb-4 flex items-center gap-2 uppercase font-mono">
           <AlertCircle className="h-5 w-5" /> Action Required: Pending Document Requests
         </h3>
 
         {isLoading ? (
-          <Skeleton className="h-20 bg-slate-700 w-full" />
+          <Skeleton className="h-20 w-full" />
         ) : pendingRequests.length > 0 ? (
           <div className="space-y-3">
             {pendingRequests.map((req) => (
               <div
                 key={req.id}
-                className="bg-slate-700/50 p-4 border border-slate-600 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center"
+                className="bg-card p-4 rounded-lg shadow-sm flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center"
               >
                 <div className="min-w-0">
                   <h4 className="font-bold font-mono tracking-tight text-lg">{req.documentName}</h4>
-                  <div className="text-sm text-slate-300 font-mono mt-1 space-y-1">
+                  <div className="text-sm text-muted-foreground font-mono mt-1 space-y-1">
                     {/* Names the requester and their role, so the client knows who is asking. */}
                     <p>
                       Requested by: {req.requestedBy || "Firm"}
@@ -511,7 +529,7 @@ function ClientDashboard() {
                     {req.dueDate && (
                       <p
                         className={
-                          new Date(req.dueDate) < new Date() ? "text-red-300 font-bold" : ""
+                          new Date(req.dueDate) < new Date() ? "text-destructive font-bold" : ""
                         }
                       >
                         Needed by: {new Date(req.dueDate).toLocaleDateString()}
@@ -526,14 +544,14 @@ function ClientDashboard() {
                 <div className="flex gap-2 w-full sm:w-auto">
                   <Button
                     variant="outline"
-                    className="flex-1 sm:flex-none rounded-none bg-transparent border-slate-500 text-white hover:bg-slate-700 hover:text-white font-mono uppercase text-xs"
+                    className="flex-1 sm:flex-none font-mono uppercase text-xs"
                     onClick={() => handleAction(req.id, "dismissed")}
                     disabled={updateRequest.isPending}
                   >
                     Dismiss
                   </Button>
                   <Button
-                    className="flex-1 sm:flex-none rounded-none bg-slate-200 text-slate-900 hover:bg-white font-mono uppercase text-xs font-bold"
+                    className="flex-1 sm:flex-none font-mono uppercase text-xs font-bold"
                     onClick={() => handleAction(req.id, "fulfilled")}
                     disabled={updateRequest.isPending}
                   >
@@ -544,8 +562,8 @@ function ClientDashboard() {
             ))}
           </div>
         ) : (
-          <div className="p-8 text-center bg-slate-900/50 border border-slate-700">
-            <p className="text-slate-400 text-sm font-mono uppercase tracking-wider flex items-center justify-center gap-2">
+          <div className="p-8 text-center rounded-lg bg-background shadow-[var(--press-sm)]">
+            <p className="text-muted-foreground text-sm font-mono uppercase tracking-wider flex items-center justify-center gap-2">
               <Check className="h-4 w-4" /> No pending requests — you're all caught up.
             </p>
           </div>
@@ -554,7 +572,7 @@ function ClientDashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <Card
-          className="bg-background border-border shadow-none rounded-none flex flex-col justify-center items-center py-12 px-6 text-center hover:border-primary transition-colors cursor-pointer"
+          className="flex flex-col justify-center items-center py-12 px-6 text-center hover:border-primary transition-colors cursor-pointer"
           onClick={() => (window.location.href = "/client-portal")}
         >
           <Briefcase className="h-12 w-12 text-muted-foreground mb-4" />
@@ -562,7 +580,7 @@ function ClientDashboard() {
           <CardDescription>View updates and documents for your active cases.</CardDescription>
         </Card>
         <Card
-          className="bg-background border-border shadow-none rounded-none flex flex-col justify-center items-center py-12 px-6 text-center hover:border-primary transition-colors cursor-pointer"
+          className="flex flex-col justify-center items-center py-12 px-6 text-center hover:border-primary transition-colors cursor-pointer"
           onClick={() => (window.location.href = "/client-portal")}
         >
           <Calendar className="h-12 w-12 text-muted-foreground mb-4" />

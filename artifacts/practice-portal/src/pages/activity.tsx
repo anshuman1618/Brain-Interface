@@ -47,14 +47,14 @@ export default function ActivityPage() {
           ))}
         </div>
       ) : !data?.length ? (
-        <div className="border border-border bg-background p-8 sm:p-12 text-center">
+        <div className="rounded-lg bg-card shadow-sm p-8 sm:p-12 text-center">
           <ShieldCheck className="h-8 w-8 mx-auto text-muted-foreground mb-3" />
           <p className="font-mono uppercase tracking-widest text-xs text-muted-foreground">
             Nothing recorded yet
           </p>
         </div>
       ) : (
-        <div className="border border-border bg-background divide-y divide-border">
+        <div className="rounded-lg bg-card shadow-sm overflow-hidden divide-y divide-border">
           {data.map((e) => (
             <div key={e.id} className="p-4 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4">
               <div className="sm:w-44 shrink-0 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">

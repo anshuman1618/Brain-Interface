@@ -10,7 +10,7 @@ export default function NotFound() {
       </p>
       <button
         onClick={() => window.history.back()}
-        className="px-6 py-3 border border-border bg-background hover:bg-accent font-medium transition-colors"
+        className="px-6 py-3 rounded-lg bg-card shadow-sm hover:bg-accent font-medium transition-colors"
       >
         Return to Previous Context
       </button>

@@ -17,14 +17,14 @@ export function RoleOptionsGrid({
             key={opt.value}
             type="button"
             onClick={() => onSelect(opt.value)}
-            className={`text-left border p-5 transition-colors relative ${
+            className={`text-left rounded-lg p-5 transition-[background-color,box-shadow] relative ${
               isSelected
-                ? "border-primary bg-primary/5"
-                : "border-border bg-background hover:border-primary/50"
+                ? "bg-accent shadow-[var(--press-sm)]"
+                : "bg-card shadow-sm hover:bg-accent/50"
             }`}
           >
             {isSelected && (
-              <div className="absolute top-3 right-3 h-5 w-5 bg-primary text-primary-foreground flex items-center justify-center">
+              <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
                 <Check className="h-3.5 w-3.5" />
               </div>
             )}

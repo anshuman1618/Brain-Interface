@@ -89,7 +89,7 @@ export default function TeamPage() {
         </p>
       </div>
 
-      <div className="border border-border bg-background">
+      <div className="rounded-lg bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent bg-muted/30">
@@ -154,7 +154,7 @@ export default function TeamPage() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className="rounded-none text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
+                        className="rounded-lg text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
                       >
                         {m.role === "admin" && <ShieldCheck className="h-3 w-3" />}
                         {roleLabel(m.role) || m.role}
@@ -166,7 +166,7 @@ export default function TeamPage() {
                         onValueChange={(role) => handleRoleChange(m.id, role)}
                         disabled={updateMember.isPending || isSelf}
                       >
-                        <SelectTrigger className="rounded-none w-44 ml-auto">
+                        <SelectTrigger className="rounded-lg w-44 ml-auto">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -184,7 +184,7 @@ export default function TeamPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="rounded-none"
+                        className="rounded-lg"
                         disabled={updateMember.isPending || isSelf}
                         onClick={() => handleRevoke(m.id, m.displayName || "Member")}
                       >

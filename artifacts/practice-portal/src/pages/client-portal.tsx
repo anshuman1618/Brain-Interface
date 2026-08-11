@@ -75,12 +75,12 @@ function CaseOverviewCard({
   };
 
   return (
-    <Card className="rounded-none border-border shadow-none overflow-hidden">
+    <Card className="overflow-hidden">
       <div className="bg-muted/30 p-6 border-b border-border flex justify-between items-start md:items-center flex-col md:flex-row gap-4">
         <div>
           <Badge
             variant="outline"
-            className={`mb-3 rounded-none text-[10px] uppercase font-mono tracking-wider ${getStatusColor(status)}`}
+            className={`mb-3 rounded-lg text-[10px] uppercase font-mono tracking-wider ${getStatusColor(status)}`}
           >
             {status.replace("_", " ")}
           </Badge>
@@ -100,7 +100,7 @@ function CaseOverviewCard({
             {docs?.slice(0, 3).map((doc) => (
               <div
                 key={doc.id}
-                className="flex justify-between items-center p-3 border border-border bg-background hover:bg-muted/50 transition-colors"
+                className="flex justify-between items-center p-3 rounded-lg bg-card shadow-sm hover:bg-muted/50 transition-colors"
               >
                 <div className="truncate pr-4 flex-1">
                   <p className="text-sm font-medium truncate">{doc.name}</p>
@@ -108,7 +108,7 @@ function CaseOverviewCard({
                     {formatDateTime(doc.uploadedAt)}
                   </p>
                 </div>
-                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-none shrink-0">
+                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg shrink-0">
                   <Download className="h-4 w-4" />
                 </Button>
               </div>

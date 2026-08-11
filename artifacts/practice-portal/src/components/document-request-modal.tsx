@@ -103,7 +103,7 @@ export function DocumentRequestModal({ open, onOpenChange }: DocumentRequestModa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[460px] rounded-none border-border">
+      <DialogContent className="sm:max-w-[460px] rounded-lg border-border">
         <DialogHeader>
           <DialogTitle className="font-mono uppercase tracking-widest">
             Request Document
@@ -142,10 +142,10 @@ export function DocumentRequestModal({ open, onOpenChange }: DocumentRequestModa
               Requesting from (client) *
             </label>
             <Select value={clientId} onValueChange={setClientId} required>
-              <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+              <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                 <SelectValue placeholder="SELECT CLIENT" />
               </SelectTrigger>
-              <SelectContent className="rounded-none">
+              <SelectContent className="rounded-lg">
                 {clients.length === 0 ? (
                   <div className="px-2 py-3 text-xs text-muted-foreground font-mono uppercase tracking-wider">
                     No clients in this workspace
@@ -168,7 +168,7 @@ export function DocumentRequestModal({ open, onOpenChange }: DocumentRequestModa
             <Input
               value={documentName}
               onChange={(e) => setDocumentName(e.target.value)}
-              className="rounded-none font-mono text-sm bg-background"
+              className="rounded-lg font-mono text-sm bg-background"
               placeholder="e.g. Notarised affidavit"
               required
             />
@@ -183,7 +183,7 @@ export function DocumentRequestModal({ open, onOpenChange }: DocumentRequestModa
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="rounded-none font-mono text-sm bg-background"
+                className="rounded-lg font-mono text-sm bg-background"
               />
             </div>
             <div className="space-y-2">
@@ -191,10 +191,10 @@ export function DocumentRequestModal({ open, onOpenChange }: DocumentRequestModa
                 Related Matter
               </label>
               <Select value={caseId} onValueChange={setCaseId}>
-                <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                   <SelectValue placeholder="OPTIONAL" />
                 </SelectTrigger>
-                <SelectContent className="rounded-none">
+                <SelectContent className="rounded-lg">
                   <SelectItem
                     value="none"
                     className="font-mono text-sm italic text-muted-foreground"
@@ -218,7 +218,7 @@ export function DocumentRequestModal({ open, onOpenChange }: DocumentRequestModa
             <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="rounded-none font-mono text-sm bg-background resize-none h-20"
+              className="rounded-lg font-mono text-sm bg-background resize-none h-20"
               placeholder="Any specific instructions..."
             />
           </div>
@@ -226,7 +226,7 @@ export function DocumentRequestModal({ open, onOpenChange }: DocumentRequestModa
           <div className="pt-2 flex justify-end">
             <Button
               type="submit"
-              className="rounded-none font-mono uppercase tracking-wider w-full"
+              className="rounded-lg font-mono uppercase tracking-wider w-full"
               disabled={createRequest.isPending || !clientId || !documentName}
             >
               {createRequest.isPending

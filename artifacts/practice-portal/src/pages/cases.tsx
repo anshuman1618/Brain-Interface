@@ -198,7 +198,7 @@ export default function CasesPage() {
           }}
         >
           <DialogTrigger asChild>
-            <Button className="rounded-none">
+            <Button className="rounded-lg">
               <Plus className="mr-2 h-4 w-4" /> New Case File
             </Button>
           </DialogTrigger>
@@ -247,7 +247,7 @@ export default function CasesPage() {
                     value={conflictNote}
                     onChange={(e) => setConflictNote(e.target.value)}
                     rows={2}
-                    className="rounded-none"
+                    className="rounded-lg"
                     placeholder="Why can this matter proceed? (recorded in the audit log)"
                   />
                 </div>
@@ -258,7 +258,7 @@ export default function CasesPage() {
                   <p className="text-sm">{planBlock}</p>
                   <Button
                     size="sm"
-                    className="rounded-none"
+                    className="rounded-lg"
                     onClick={() => {
                       setIsCreateOpen(false);
                       setPricingOpen(true);
@@ -326,7 +326,7 @@ export default function CasesPage() {
                   (hits.length > 0 && !conflictNote.trim())
                 }
                 onClick={handleCreate}
-                className="rounded-none"
+                className="rounded-lg"
               >
                 {createCaseMutation.isPending ? "Creating..." : "Create Case"}
               </Button>
@@ -340,13 +340,13 @@ export default function CasesPage() {
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search cases by name, client, or ref..."
-            className="pl-9 bg-background rounded-none"
+            className="pl-9 bg-background rounded-lg"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] rounded-none bg-background">
+          <SelectTrigger className="w-full sm:w-[180px] rounded-lg bg-background">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -359,7 +359,7 @@ export default function CasesPage() {
         </Select>
       </div>
 
-      <div className="border border-border bg-background">
+      <div className="rounded-lg bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent bg-muted/30">
@@ -436,7 +436,7 @@ export default function CasesPage() {
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className={`rounded-none text-[10px] uppercase font-mono tracking-wider border ${getStatusColor(c.status)}`}
+                      className={`rounded-lg text-[10px] uppercase font-mono tracking-wider border ${getStatusColor(c.status)}`}
                     >
                       {c.status.replace("_", " ")}
                     </Badge>
@@ -444,7 +444,7 @@ export default function CasesPage() {
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className={`rounded-none text-[10px] uppercase font-mono tracking-wider ${getPriorityColor(c.priority || "medium")}`}
+                      className={`rounded-lg text-[10px] uppercase font-mono tracking-wider ${getPriorityColor(c.priority || "medium")}`}
                     >
                       {c.priority}
                     </Badge>
@@ -454,7 +454,7 @@ export default function CasesPage() {
                       variant="ghost"
                       size="icon"
                       asChild
-                      className="rounded-none h-8 w-8 text-muted-foreground group-hover:text-foreground"
+                      className="rounded-lg h-8 w-8 text-muted-foreground group-hover:text-foreground"
                     >
                       <Link href={`/cases/${c.id}`}>
                         <ChevronRight className="h-4 w-4" />

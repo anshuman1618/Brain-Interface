@@ -38,6 +38,24 @@ if (!clerkPubKey && !isPreviewMode) {
   throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY in .env file");
 }
 
+/**
+ * The sign-in widget is rendered by Clerk, outside our stylesheet, so it cannot
+ * read the design tokens through var() — Clerk derives its own hover and focus
+ * shades from these values and needs colours it can actually parse.
+ *
+ * They are therefore duplicated here as literals, and this is the only place in
+ * the app where that is true. Keep them equal to the light-mode palette in
+ * src/index.css; the names below are the names used there.
+ */
+const wood = {
+  ground: "#e6ded2",
+  ink: "#241708",
+  ink3: "#6b5942",
+  line: "#d3c7b6",
+  accent: "#5b3a1c",
+  crit: "#8a2318",
+} as const;
+
 const clerkAppearance = {
   theme: shadcn,
   cssLayerName: "clerk",
@@ -47,23 +65,30 @@ const clerkAppearance = {
     logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
   },
   variables: {
-    colorPrimary: "hsl(220 10% 30%)",
-    colorForeground: "hsl(220 20% 20%)",
-    colorMutedForeground: "hsl(220 15% 45%)",
-    colorDanger: "hsl(220 10% 40%)",
-    colorBackground: "hsl(220 15% 95%)",
+    colorPrimary: wood.accent,
+    colorForeground: wood.ink,
+    colorMutedForeground: wood.ink3,
+    colorDanger: wood.crit,
+    colorBackground: wood.ground,
     colorInput: "transparent",
-    colorInputForeground: "hsl(220 20% 20%)",
-    colorNeutral: "hsl(220 15% 85%)",
-    fontFamily: "'Plus Jakarta Sans', sans-serif",
-    borderRadius: "0px",
+    colorInputForeground: wood.ink,
+    colorNeutral: wood.line,
+    // System stack, matching --app-font-sans. The named webfont that used to be
+    // here went with the Google Fonts import it depended on, and had been
+    // silently resolving to the sans-serif fallback ever since.
+    fontFamily:
+      'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+    borderRadius: "14px",
   },
   elements: {
     rootBox: "w-full flex justify-center",
-    cardBox:
-      "bg-[hsl(220_15%_95%)] border border-[hsl(220_15%_85%)] rounded-none w-[440px] max-w-full overflow-hidden shadow-none",
-    card: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
+    // Raised off the ground like any other container, and with no border: the
+    // relief is what separates it from the page, so a line as well would be
+    // saying the same thing twice. This also drops the last two hardcoded
+    // colours from the old slate palette.
+    cardBox: "bg-background rounded-xl w-[440px] max-w-full overflow-hidden shadow-lg",
+    card: "!shadow-none !border-0 !bg-transparent",
+    footer: "!shadow-none !border-0 !bg-transparent",
     headerTitle: "text-foreground font-semibold font-mono tracking-tight",
     headerSubtitle: "text-muted-foreground",
     socialButtonsBlockButtonText: "text-foreground font-medium",
@@ -76,15 +101,18 @@ const clerkAppearance = {
     alertText: "text-foreground",
     logoBox: "h-12 w-auto object-contain",
     logoImage: "h-12 w-auto",
-    socialButtonsBlockButton: "border border-input hover:bg-accent bg-background rounded-none",
+    // Buttons extrude, fields recede — the same rule the rest of the app runs
+    // on, restated here because Clerk's markup never reaches our base layer.
+    socialButtonsBlockButton:
+      "border-0 bg-background rounded-lg shadow-sm active:shadow-[var(--press-sm)] hover:bg-accent",
     formButtonPrimary:
-      "bg-primary text-primary-foreground hover:bg-primary/90 rounded-none shadow-none",
+      "bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg shadow-sm active:shadow-[var(--press-sm)]",
     formFieldInput:
-      "border border-input bg-background rounded-none focus:ring-2 focus:ring-ring focus:border-transparent text-foreground",
+      "border-0 bg-background rounded-lg shadow-[var(--press-sm)] focus:ring-2 focus:ring-ring focus:border-transparent text-foreground",
     footerAction: "mt-6",
     dividerLine: "bg-border",
     alert: "bg-destructive/10 border border-destructive text-destructive",
-    otpCodeFieldInput: "border border-input bg-background rounded-none",
+    otpCodeFieldInput: "border-0 bg-background rounded-lg shadow-[var(--press-sm)]",
     formFieldRow: "mb-4",
     main: "w-full",
   },

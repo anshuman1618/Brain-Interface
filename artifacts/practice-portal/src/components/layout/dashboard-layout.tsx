@@ -196,7 +196,7 @@ function DashboardLayoutContent() {
                 align="start"
                 sideOffset={8}
                 collisionPadding={8}
-                className="w-[min(15rem,calc(100vw-4.5rem))] rounded-none"
+                className="w-[min(15rem,calc(100vw-4.5rem))] rounded-lg"
               >
                 <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                   Go to
@@ -208,7 +208,7 @@ function DashboardLayoutContent() {
                     <DropdownMenuItem key={item.href} asChild>
                       <Link
                         href={item.href}
-                        className={`flex items-center gap-3 cursor-pointer rounded-none min-h-11 ${
+                        className={`flex items-center gap-3 cursor-pointer rounded-lg min-h-11 ${
                           isActive ? "bg-accent font-semibold text-accent-foreground" : ""
                         }`}
                       >
@@ -224,7 +224,7 @@ function DashboardLayoutContent() {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onSelect={() => setPricingModalOpen(true)}
-                      className="flex items-center gap-3 cursor-pointer rounded-none min-h-11"
+                      className="flex items-center gap-3 cursor-pointer rounded-lg min-h-11"
                     >
                       <CreditCard className="h-4 w-4 shrink-0" />
                       Subscription
@@ -235,7 +235,7 @@ function DashboardLayoutContent() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() => signOut()}
-                  className="flex items-center gap-3 cursor-pointer rounded-none min-h-11 text-destructive focus:text-destructive"
+                  className="flex items-center gap-3 cursor-pointer rounded-lg min-h-11 text-destructive focus:text-destructive"
                 >
                   <LogOut className="h-4 w-4 shrink-0" />
                   Sign out

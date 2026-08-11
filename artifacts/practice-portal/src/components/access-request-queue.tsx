@@ -74,7 +74,7 @@ export function AccessRequestQueue() {
   };
 
   return (
-    <div className="border border-border bg-background">
+    <div className="rounded-lg bg-card shadow-sm">
       <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2">
         <UserPlus className="h-4 w-4 text-muted-foreground" />
         <h3 className="font-mono text-xs uppercase tracking-widest font-bold">
@@ -123,7 +123,7 @@ export function AccessRequestQueue() {
                     value={grantRoles[req.id] ?? "client"}
                     onValueChange={(v) => setGrantRoles((prev) => ({ ...prev, [req.id]: v }))}
                   >
-                    <SelectTrigger className="rounded-none w-48">
+                    <SelectTrigger className="rounded-lg w-48">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -138,14 +138,14 @@ export function AccessRequestQueue() {
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
-                    className="rounded-none"
+                    className="rounded-lg"
                     disabled={decide.isPending}
                     onClick={() => deny(req)}
                   >
                     <X className="h-4 w-4 mr-1.5" /> Deny
                   </Button>
                   <Button
-                    className="rounded-none"
+                    className="rounded-lg"
                     disabled={decide.isPending}
                     onClick={() => approve(req)}
                   >

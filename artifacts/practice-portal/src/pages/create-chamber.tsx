@@ -55,7 +55,7 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
       <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-2xl">
-        <div className="inline-flex items-center gap-2 px-3 py-1 border border-border bg-background mb-6">
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-card shadow-sm mb-6">
           <Building2 className="h-3.5 w-3.5 text-primary" />
           <span className="text-[11px] font-mono font-semibold tracking-wider uppercase text-muted-foreground">
             Set up your chamber
@@ -76,10 +76,7 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
           </div>
         )}
 
-        <form
-          onSubmit={submit}
-          className="border border-border bg-background p-6 flex flex-col gap-6"
-        >
+        <form onSubmit={submit} className="rounded-lg bg-card shadow-sm p-6 flex flex-col gap-6">
           <div className="space-y-2">
             <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
               Chamber name
@@ -87,7 +84,7 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="rounded-none bg-background"
+              className="rounded-lg bg-background"
               placeholder="e.g. Raghavan Chambers"
               autoFocus
               required
@@ -136,7 +133,7 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
             </button>
             <Button
               type="submit"
-              className="rounded-none px-8"
+              className="rounded-lg px-8"
               disabled={isCreatingWorkspace || !name.trim()}
             >
               {isCreatingWorkspace ? "Creating..." : "Create chamber"}

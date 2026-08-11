@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 const Skeleton = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => {
     return (
-      <div ref={ref} className={cn("animate-pulse bg-muted rounded-none", className)} {...props} />
+      <div ref={ref} className={cn("animate-pulse bg-muted rounded-md", className)} {...props} />
     );
   },
 );

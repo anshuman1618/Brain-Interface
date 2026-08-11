@@ -65,7 +65,7 @@ export function GlobalSearch() {
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="SEARCH CASES, TASKS, CLIENTS..."
-          className="pl-9 rounded-none font-mono text-xs uppercase bg-background border-border focus-visible:ring-1 focus-visible:ring-foreground"
+          className="pl-9 rounded-lg font-mono text-xs uppercase bg-background border-border focus-visible:ring-1 focus-visible:ring-foreground"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);

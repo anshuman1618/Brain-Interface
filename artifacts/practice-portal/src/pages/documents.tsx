@@ -190,7 +190,7 @@ export default function DocumentsPage() {
         <p className="text-sm text-muted-foreground">
           {error instanceof Error ? error.message : "The request failed."}
         </p>
-        <Button variant="outline" className="rounded-none mt-5" onClick={refresh}>
+        <Button variant="outline" className="rounded-lg mt-5" onClick={refresh}>
           Retry
         </Button>
       </div>
@@ -212,14 +212,14 @@ export default function DocumentsPage() {
           {can("documents.write") && cases.length > 0 && (
             <Button
               variant="outline"
-              className="rounded-none"
+              className="rounded-lg"
               onClick={() => openUpload({ label: "Upload a document" })}
             >
               <Upload className="mr-2 h-4 w-4" /> Upload
             </Button>
           )}
           {isStaff && (
-            <Button className="rounded-none" onClick={() => setRequestOpen(true)}>
+            <Button className="rounded-lg" onClick={() => setRequestOpen(true)}>
               <Plus className="mr-2 h-4 w-4" /> Request a document
             </Button>
           )}
@@ -227,7 +227,7 @@ export default function DocumentsPage() {
       </div>
 
       {/* ── Requests ─────────────────────────────────────────────────── */}
-      <section className="border border-border bg-background">
+      <section className="rounded-lg bg-card shadow-sm">
         <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2">
           {isStaff ? (
             <Send className="h-4 w-4 text-muted-foreground" />
@@ -260,7 +260,7 @@ export default function DocumentsPage() {
                       <span className="font-medium text-sm">{r.documentName}</span>
                       <Badge
                         variant="outline"
-                        className={`rounded-none text-[9px] uppercase font-mono tracking-wider px-1 py-0 ${
+                        className={`rounded-lg text-[9px] uppercase font-mono tracking-wider px-1 py-0 ${
                           r.status === "fulfilled"
                             ? "text-primary border-primary/40"
                             : overdue
@@ -299,7 +299,7 @@ export default function DocumentsPage() {
                       </span>
                     ) : !isStaff ? (
                       <Button
-                        className="rounded-none"
+                        className="rounded-lg"
                         onClick={() =>
                           openUpload({
                             requestId: r.id,
@@ -324,7 +324,7 @@ export default function DocumentsPage() {
       </section>
 
       {/* ── Vault ────────────────────────────────────────────────────── */}
-      <section className="border border-border bg-background">
+      <section className="rounded-lg bg-card shadow-sm">
         <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2">
           <FileText className="h-4 w-4 text-muted-foreground" />
           <h3 className="font-mono text-xs uppercase tracking-widest font-bold">
@@ -356,7 +356,7 @@ export default function DocumentsPage() {
                     {isStaff && (
                       <Badge
                         variant="outline"
-                        className="rounded-none text-[9px] uppercase font-mono tracking-wider px-1 py-0 flex items-center gap-1"
+                        className="rounded-lg text-[9px] uppercase font-mono tracking-wider px-1 py-0 flex items-center gap-1"
                       >
                         {d.visibility === "shared" ? (
                           <Users className="h-2.5 w-2.5" />
@@ -369,7 +369,7 @@ export default function DocumentsPage() {
                     {d.documentRequestId && (
                       <Badge
                         variant="outline"
-                        className="rounded-none text-[9px] uppercase font-mono tracking-wider px-1 py-0"
+                        className="rounded-lg text-[9px] uppercase font-mono tracking-wider px-1 py-0"
                       >
                         Fulfils a request
                       </Badge>
@@ -391,7 +391,7 @@ export default function DocumentsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-none shrink-0"
+                    className="rounded-lg shrink-0"
                     onClick={() => download(d.id, d.name)}
                     title={`Download ${d.name}`}
                   >
@@ -408,7 +408,7 @@ export default function DocumentsPage() {
       <DocumentRequestModal open={requestOpen} onOpenChange={setRequestOpen} />
 
       <Dialog open={uploadFor !== null} onOpenChange={(o) => !o && setUploadFor(null)}>
-        <DialogContent className="sm:max-w-[460px] rounded-none border-border">
+        <DialogContent className="sm:max-w-[460px] rounded-lg border-border">
           <DialogHeader>
             <DialogTitle className="font-mono uppercase tracking-widest">
               Upload document
@@ -426,7 +426,7 @@ export default function DocumentsPage() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="rounded-none font-mono text-sm bg-background"
+                className="rounded-lg font-mono text-sm bg-background"
                 placeholder="Defaults to the file name"
               />
             </div>
@@ -444,7 +444,7 @@ export default function DocumentsPage() {
                   // Pre-fill the label from the file unless one was typed.
                   if (f && !form.name.trim()) setForm((prev) => ({ ...prev, name: f.name }));
                 }}
-                className="rounded-none font-mono text-xs bg-background file:mr-3 file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-mono file:uppercase"
+                className="rounded-lg font-mono text-xs bg-background file:mr-3 file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-mono file:uppercase"
                 required
               />
               {file && (
@@ -459,10 +459,10 @@ export default function DocumentsPage() {
                 Matter *
               </label>
               <Select value={form.caseId} onValueChange={(v) => setForm({ ...form, caseId: v })}>
-                <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                   <SelectValue placeholder="SELECT MATTER" />
                 </SelectTrigger>
-                <SelectContent className="rounded-none">
+                <SelectContent className="rounded-lg">
                   {cases.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">
                       {c.title}
@@ -481,10 +481,10 @@ export default function DocumentsPage() {
                   value={form.visibility}
                   onValueChange={(v) => setForm({ ...form, visibility: v })}
                 >
-                  <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                  <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-none">
+                  <SelectContent className="rounded-lg">
                     <SelectItem value="firm">Firm only — internal working material</SelectItem>
                     <SelectItem value="shared">Shared — the client can see it</SelectItem>
                   </SelectContent>
@@ -499,7 +499,7 @@ export default function DocumentsPage() {
               <Textarea
                 value={form.note}
                 onChange={(e) => setForm({ ...form, note: e.target.value })}
-                className="rounded-none font-mono text-sm bg-background resize-none h-20"
+                className="rounded-lg font-mono text-sm bg-background resize-none h-20"
                 placeholder="Anything the reader should know..."
               />
             </div>
@@ -508,14 +508,14 @@ export default function DocumentsPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-none"
+                className="rounded-lg"
                 onClick={() => setUploadFor(null)}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="rounded-none font-mono uppercase tracking-wider"
+                className="rounded-lg font-mono uppercase tracking-wider"
                 disabled={uploading || !file || !form.caseId}
               >
                 {uploading ? "Uploading..." : "Upload"}

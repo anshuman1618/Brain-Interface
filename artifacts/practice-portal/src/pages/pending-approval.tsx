@@ -76,7 +76,7 @@ export default function PendingApprovalPage({
       <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-3xl">
-        <div className="border border-border bg-background p-8 mb-6">
+        <div className="rounded-lg bg-card shadow-sm p-8 mb-6">
           <div className="flex items-start gap-4">
             <div className="h-10 w-10 bg-muted flex items-center justify-center shrink-0">
               <Clock className="h-5 w-5 text-muted-foreground" />
@@ -102,7 +102,7 @@ export default function PendingApprovalPage({
         </div>
 
         {hasPending ? (
-          <div className="border border-border bg-background p-8">
+          <div className="rounded-lg bg-card shadow-sm p-8">
             <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-4">
               <ShieldCheck className="h-4 w-4" /> Awaiting decision
             </div>
@@ -130,7 +130,7 @@ export default function PendingApprovalPage({
             </p>
           </div>
         ) : (
-          <div className="border border-border bg-background p-8">
+          <div className="rounded-lg bg-card shadow-sm p-8">
             <h2 className="text-lg font-bold tracking-tight mb-1">Request access</h2>
             <p className="text-sm text-muted-foreground mb-6">
               Tell the admin what you need. They decide the role you're given.
@@ -147,7 +147,7 @@ export default function PendingApprovalPage({
               <Textarea
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="rounded-none resize-none h-20 bg-background"
+                className="rounded-lg resize-none h-20 bg-background"
                 placeholder="e.g. Joining as practice manager from 1 September."
               />
             </div>
@@ -161,7 +161,7 @@ export default function PendingApprovalPage({
                 <LogOut className="h-3.5 w-3.5" /> Sign out
               </button>
               <Button
-                className="rounded-none px-8"
+                className="rounded-lg px-8"
                 disabled={!selected || createRequest.isPending}
                 onClick={submit}
               >

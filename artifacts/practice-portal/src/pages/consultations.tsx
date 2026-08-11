@@ -165,13 +165,13 @@ export default function ConsultationsPage() {
   const getCategoryBadgeClass = (category: string | null) => {
     switch (category) {
       case "legal_solution":
-        return "bg-slate-700 text-white";
+        return "bg-primary text-primary-foreground";
       case "regulatory_solution":
-        return "bg-zinc-600 text-white";
+        return "bg-secondary text-secondary-foreground";
       case "business_consultation":
-        return "bg-neutral-500 text-white";
+        return "bg-warning text-warning-foreground";
       case "procedural_compliance":
-        return "bg-gray-300 text-gray-900";
+        return "bg-muted text-muted-foreground";
       default:
         return "bg-muted text-muted-foreground";
     }
@@ -196,7 +196,7 @@ export default function ConsultationsPage() {
         </div>
         <Button
           onClick={() => setNewModalOpen(true)}
-          className="rounded-none bg-foreground text-background font-mono uppercase tracking-wider"
+          className="rounded-lg bg-foreground text-background font-mono uppercase tracking-wider"
         >
           <Plus className="mr-2 h-4 w-4" /> New Consultation
         </Button>
@@ -215,14 +215,14 @@ export default function ConsultationsPage() {
             variant="destructive"
             size="sm"
             onClick={handleStopRecording}
-            className="rounded-none font-mono uppercase tracking-wider"
+            className="rounded-lg font-mono uppercase tracking-wider"
           >
             Stop & Save Ledger
           </Button>
         </div>
       )}
 
-      <div className="border border-border bg-background">
+      <div className="rounded-lg bg-card shadow-sm">
         <Table>
           <TableHeader className="bg-muted/30">
             <TableRow>
@@ -278,7 +278,7 @@ export default function ConsultationsPage() {
                   <TableCell className="font-medium">{c.title}</TableCell>
                   <TableCell>
                     <span
-                      className={`px-2 py-1 text-[10px] uppercase font-mono tracking-wider whitespace-nowrap rounded-none ${getCategoryBadgeClass(c.category as string)}`}
+                      className={`px-2 py-1 text-[10px] uppercase font-mono tracking-wider whitespace-nowrap rounded-lg ${getCategoryBadgeClass(c.category as string)}`}
                     >
                       {getCategoryLabel(c.category as string)}
                     </span>
@@ -297,11 +297,11 @@ export default function ConsultationsPage() {
                   </TableCell>
                   <TableCell>
                     <span
-                      className={`inline-flex items-center rounded-none px-2 py-0.5 text-xs font-semibold font-mono uppercase tracking-wider ${
+                      className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-semibold font-mono uppercase tracking-wider ${
                         c.status === "scheduled"
-                          ? "bg-blue-100 text-blue-800"
+                          ? "bg-secondary text-secondary-foreground"
                           : c.status === "completed"
-                            ? "bg-green-100 text-green-800"
+                            ? "bg-success text-success-foreground"
                             : "bg-destructive text-destructive-foreground animate-pulse"
                       }`}
                     >
@@ -313,7 +313,7 @@ export default function ConsultationsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-none border-primary text-primary hover:bg-primary hover:text-primary-foreground font-mono uppercase tracking-wider"
+                        className="rounded-lg border-primary text-primary hover:bg-primary hover:text-primary-foreground font-mono uppercase tracking-wider"
                         onClick={() => handleStartRecording(c.id)}
                       >
                         <Mic className="mr-2 h-4 w-4" /> Start
@@ -323,7 +323,7 @@ export default function ConsultationsPage() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="rounded-none text-muted-foreground font-mono uppercase tracking-wider"
+                        className="rounded-lg text-muted-foreground font-mono uppercase tracking-wider"
                         disabled
                       >
                         <CheckCircle2 className="mr-2 h-4 w-4" /> Completed
@@ -343,7 +343,7 @@ export default function ConsultationsPage() {
       </div>
 
       <Dialog open={newModalOpen} onOpenChange={setNewModalOpen}>
-        <DialogContent className="sm:max-w-[425px] rounded-none border-border">
+        <DialogContent className="sm:max-w-[425px] rounded-lg border-border">
           <DialogHeader>
             <DialogTitle className="font-mono uppercase tracking-widest">
               Schedule Consultation
@@ -355,10 +355,10 @@ export default function ConsultationsPage() {
                 Related Case *
               </label>
               <Select value={newCaseId} onValueChange={setNewCaseId} required>
-                <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                   <SelectValue placeholder="SELECT CASE" />
                 </SelectTrigger>
-                <SelectContent className="rounded-none">
+                <SelectContent className="rounded-lg">
                   {cases.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">
                       {c.title}
@@ -375,7 +375,7 @@ export default function ConsultationsPage() {
               <Input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                className="rounded-none font-mono text-sm bg-background"
+                className="rounded-lg font-mono text-sm bg-background"
                 required
               />
             </div>
@@ -389,10 +389,10 @@ export default function ConsultationsPage() {
                 onValueChange={(v) => setNewCategory(v as ConsultationInputCategory)}
                 required
               >
-                <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                   <SelectValue placeholder="SELECT CATEGORY" />
                 </SelectTrigger>
-                <SelectContent className="rounded-none">
+                <SelectContent className="rounded-lg">
                   <SelectItem value="legal_solution" className="font-mono text-sm">
                     Legal Solution
                   </SelectItem>
@@ -417,7 +417,7 @@ export default function ConsultationsPage() {
                 type="datetime-local"
                 value={newScheduledAt}
                 onChange={(e) => setNewScheduledAt(e.target.value)}
-                className="rounded-none font-mono text-sm bg-background"
+                className="rounded-lg font-mono text-sm bg-background"
                 required
               />
             </div>
@@ -429,7 +429,7 @@ export default function ConsultationsPage() {
               <Textarea
                 value={newNotes}
                 onChange={(e) => setNewNotes(e.target.value)}
-                className="rounded-none font-mono text-sm bg-background resize-none h-20"
+                className="rounded-lg font-mono text-sm bg-background resize-none h-20"
               />
             </div>
 
@@ -451,7 +451,7 @@ export default function ConsultationsPage() {
             <div className="pt-4 flex justify-end">
               <Button
                 type="submit"
-                className="rounded-none font-mono uppercase tracking-wider w-full"
+                className="rounded-lg font-mono uppercase tracking-wider w-full"
                 disabled={
                   createConsultation.isPending ||
                   !newTitle ||
@@ -468,7 +468,7 @@ export default function ConsultationsPage() {
       </Dialog>
 
       <Dialog open={consentOpen} onOpenChange={setConsentOpen}>
-        <DialogContent className="rounded-none border-border">
+        <DialogContent className="rounded-lg border-border">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive font-mono uppercase tracking-widest">
               <AlertCircle className="h-5 w-5" /> Digital Consent Required
@@ -500,14 +500,14 @@ export default function ConsultationsPage() {
             <Button
               variant="outline"
               onClick={() => setConsentOpen(false)}
-              className="rounded-none font-mono uppercase tracking-wider"
+              className="rounded-lg font-mono uppercase tracking-wider"
             >
               Cancel
             </Button>
             <Button
               onClick={confirmRecordingStart}
               disabled={!consentGiven}
-              className="rounded-none bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono uppercase tracking-wider"
+              className="rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 font-mono uppercase tracking-wider"
             >
               Initialize Recording
             </Button>

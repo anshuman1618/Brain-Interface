@@ -327,7 +327,7 @@ export default function CalendarPage() {
         <p className="text-sm text-muted-foreground">
           {error instanceof Error ? error.message : "The request failed."}
         </p>
-        <Button variant="outline" className="rounded-none mt-5" onClick={refresh}>
+        <Button variant="outline" className="rounded-lg mt-5" onClick={refresh}>
           Retry
         </Button>
       </div>
@@ -346,13 +346,13 @@ export default function CalendarPage() {
           </p>
         </div>
         {canWrite && (
-          <Button className="rounded-none shrink-0" onClick={() => openNew()}>
+          <Button className="rounded-lg shrink-0" onClick={() => openNew()}>
             <Plus className="mr-2 h-4 w-4" /> Add to cause list
           </Button>
         )}
       </div>
 
-      <div className="border border-border bg-background p-4">
+      <div className="rounded-lg bg-card shadow-sm p-4">
         <DnDCalendar
           localizer={localizer}
           events={events}
@@ -378,7 +378,7 @@ export default function CalendarPage() {
       </div>
 
       {events.length === 0 && (
-        <div className="border border-border bg-background p-10 text-center">
+        <div className="rounded-lg bg-card shadow-sm p-10 text-center">
           <CalendarDays className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
           <p className="font-medium mb-1">Nothing on the calendar yet</p>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
@@ -390,7 +390,7 @@ export default function CalendarPage() {
       )}
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[480px] rounded-none border-border">
+        <DialogContent className="sm:max-w-[480px] rounded-lg border-border">
           <DialogHeader>
             <DialogTitle className="font-mono uppercase tracking-widest">
               {editing ? "Edit entry" : "Add to cause list"}
@@ -408,7 +408,7 @@ export default function CalendarPage() {
               <Input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="rounded-none font-mono text-sm bg-background"
+                className="rounded-lg font-mono text-sm bg-background"
                 placeholder="e.g. Listing before Bench II"
                 required
               />
@@ -420,10 +420,10 @@ export default function CalendarPage() {
                   Type
                 </label>
                 <Select value={form.kind} onValueChange={(v) => setForm({ ...form, kind: v })}>
-                  <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                  <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-none">
+                  <SelectContent className="rounded-lg">
                     <SelectItem value="hearing">Hearing</SelectItem>
                     <SelectItem value="filing">Filing</SelectItem>
                     <SelectItem value="meeting">Meeting</SelectItem>
@@ -439,7 +439,7 @@ export default function CalendarPage() {
                   type="date"
                   value={form.entryDate}
                   onChange={(e) => setForm({ ...form, entryDate: e.target.value })}
-                  className="rounded-none font-mono text-sm bg-background"
+                  className="rounded-lg font-mono text-sm bg-background"
                   required
                 />
               </div>
@@ -454,7 +454,7 @@ export default function CalendarPage() {
                   type="time"
                   value={form.entryTime}
                   onChange={(e) => setForm({ ...form, entryTime: e.target.value })}
-                  className="rounded-none font-mono text-sm bg-background"
+                  className="rounded-lg font-mono text-sm bg-background"
                 />
               </div>
               <div className="space-y-2">
@@ -465,10 +465,10 @@ export default function CalendarPage() {
                   value={form.audience}
                   onValueChange={(v) => setForm({ ...form, audience: v })}
                 >
-                  <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                  <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-none">
+                  <SelectContent className="rounded-lg">
                     <SelectItem value="all">Everyone</SelectItem>
                     <SelectItem value="staff">Chamber staff only</SelectItem>
                     <SelectItem value="role:senior_advocate">Senior Advocates</SelectItem>
@@ -485,10 +485,10 @@ export default function CalendarPage() {
                   Related matter
                 </label>
                 <Select value={form.caseId} onValueChange={(v) => setForm({ ...form, caseId: v })}>
-                  <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                  <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                     <SelectValue placeholder="OPTIONAL" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-none">
+                  <SelectContent className="rounded-lg">
                     <SelectItem value="none" className="italic text-muted-foreground">
                       None
                     </SelectItem>
@@ -509,7 +509,7 @@ export default function CalendarPage() {
               <Textarea
                 value={form.notes}
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                className="rounded-none font-mono text-sm bg-background resize-none h-20"
+                className="rounded-lg font-mono text-sm bg-background resize-none h-20"
                 placeholder="Bench, counsel, anything the chamber needs..."
               />
             </div>
@@ -519,7 +519,7 @@ export default function CalendarPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-none text-destructive border-destructive/40"
+                  className="rounded-lg text-destructive border-destructive/40"
                   onClick={remove}
                   disabled={deleteEntry.isPending}
                 >
@@ -532,14 +532,14 @@ export default function CalendarPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-none"
+                  className="rounded-lg"
                   onClick={() => setIsOpen(false)}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  className="rounded-none font-mono uppercase tracking-wider"
+                  className="rounded-lg font-mono uppercase tracking-wider"
                   disabled={createEntry.isPending || updateEntry.isPending || !form.title.trim()}
                 >
                   {editing ? "Save changes" : "Add entry"}

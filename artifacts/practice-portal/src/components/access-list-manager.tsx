@@ -99,7 +99,7 @@ export function AccessListManager() {
   };
 
   return (
-    <div className="border border-border bg-background">
+    <div className="rounded-lg bg-card shadow-sm">
       <div className="px-6 py-4 border-b border-border bg-muted/30 flex items-center gap-2">
         <ShieldCheck className="h-4 w-4 text-muted-foreground" />
         <h3 className="font-mono text-xs uppercase tracking-widest font-bold">Who may sign in</h3>
@@ -124,7 +124,7 @@ export function AccessListManager() {
               Match
             </label>
             <Select value={kind} onValueChange={(v) => setKind(v as "email" | "domain")}>
-              <SelectTrigger className="rounded-none">
+              <SelectTrigger className="rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -141,7 +141,7 @@ export function AccessListManager() {
             <Input
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              className="rounded-none font-mono text-sm"
+              className="rounded-lg font-mono text-sm"
               placeholder={kind === "email" ? "krishnan@yourchamber.in" : "yourchamber.in"}
               required
             />
@@ -152,7 +152,7 @@ export function AccessListManager() {
               Signs in as
             </label>
             <Select value={role} onValueChange={setRole}>
-              <SelectTrigger className="rounded-none">
+              <SelectTrigger className="rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -167,7 +167,7 @@ export function AccessListManager() {
 
           <Button
             type="submit"
-            className="rounded-none"
+            className="rounded-lg"
             disabled={createEntry.isPending || !value.trim()}
           >
             <Plus className="h-4 w-4 mr-1.5" />
@@ -178,16 +178,16 @@ export function AccessListManager() {
             <Input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="rounded-none text-sm"
+              className="rounded-lg text-sm"
               placeholder="Note (optional) — e.g. Client, succession matter"
             />
           </div>
         </form>
 
         {kind === "domain" && (
-          <div className="mt-4 flex gap-2 border border-amber-500/40 bg-amber-500/10 px-3 py-2">
-            <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-800 dark:text-amber-300">
+          <div className="mt-4 flex gap-2 rounded-lg bg-warning px-3 py-2">
+            <AlertTriangle className="h-4 w-4 text-warning-foreground shrink-0 mt-0.5" />
+            <p className="text-xs text-warning-foreground">
               A domain rule admits <strong>every</strong> address at that domain, now and in future.
               Use it for your own Google Workspace or Zoho Mail tenant, never for a public one like
               gmail.com.
@@ -236,7 +236,7 @@ export function AccessListManager() {
                 <TableCell>
                   <Badge
                     variant="outline"
-                    className="rounded-none text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
+                    className="rounded-lg text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
                   >
                     {entry.role === "admin" && <ShieldCheck className="h-3 w-3" />}
                     {roleLabel(entry.role) || entry.role}
@@ -249,7 +249,7 @@ export function AccessListManager() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-none"
+                    className="rounded-lg"
                     disabled={revokeEntry.isPending}
                     onClick={() => revoke(entry)}
                   >

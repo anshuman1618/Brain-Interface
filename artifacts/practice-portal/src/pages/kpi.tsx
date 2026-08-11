@@ -29,7 +29,14 @@ export default function KpiPage() {
 
   if (!kpi) return null;
 
-  const COLORS = ["hsl(220 10% 30%)", "hsl(220 10% 50%)", "hsl(220 10% 70%)", "hsl(220 10% 85%)"];
+  // Read from the theme rather than restating it: recharts renders into our
+  // own DOM, so var() resolves and these follow a palette change on their own.
+  const COLORS = [
+    "hsl(var(--chart-1))",
+    "hsl(var(--chart-2))",
+    "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))",
+  ];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -41,7 +48,7 @@ export default function KpiPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="rounded-none shadow-none border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider font-mono flex items-center gap-2">
               <CheckCircle className="h-4 w-4" /> SLA Adherence
@@ -53,7 +60,7 @@ export default function KpiPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-none shadow-none border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider font-mono flex items-center gap-2">
               <Clock className="h-4 w-4" /> Avg Turnaround
@@ -68,7 +75,7 @@ export default function KpiPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-none shadow-none border-border">
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider font-mono flex items-center gap-2">
               <TrendingUp className="h-4 w-4" /> Total Cases
@@ -80,7 +87,7 @@ export default function KpiPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-none shadow-none border-destructive/30 bg-destructive/5 text-destructive">
+        <Card className="bg-destructive/10 text-destructive">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium uppercase tracking-wider font-mono flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" /> Overdue Tasks
@@ -94,7 +101,7 @@ export default function KpiPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="rounded-none shadow-none border-border">
+        <Card>
           <CardHeader>
             <CardTitle>Tasks by Status</CardTitle>
             <CardDescription>Distribution of workload across the pipeline</CardDescription>
@@ -108,7 +115,7 @@ export default function KpiPage() {
                 <CartesianGrid
                   strokeDasharray="3 3"
                   vertical={false}
-                  stroke="var(--border)"
+                  stroke="hsl(var(--border))"
                   opacity={0.5}
                 />
                 <XAxis
@@ -124,20 +131,20 @@ export default function KpiPage() {
                   tickLine={false}
                 />
                 <RechartsTooltip
-                  cursor={{ fill: "var(--muted)" }}
+                  cursor={{ fill: "hsl(var(--muted))" }}
                   contentStyle={{
-                    borderRadius: 0,
-                    border: "1px solid var(--border)",
-                    backgroundColor: "var(--background)",
+                    borderRadius: 12,
+                    border: "1px solid hsl(var(--border))",
+                    backgroundColor: "hsl(var(--card))",
                   }}
                 />
-                <Bar dataKey="count" fill="hsl(220 10% 30%)" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="count" fill="hsl(var(--chart-1))" radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="rounded-none shadow-none border-border">
+        <Card>
           <CardHeader>
             <CardTitle>Case Priority Distribution</CardTitle>
             <CardDescription>Current open cases segregated by assigned priority</CardDescription>
@@ -162,9 +169,9 @@ export default function KpiPage() {
                 </Pie>
                 <RechartsTooltip
                   contentStyle={{
-                    borderRadius: 0,
-                    border: "1px solid var(--border)",
-                    backgroundColor: "var(--background)",
+                    borderRadius: 12,
+                    border: "1px solid hsl(var(--border))",
+                    backgroundColor: "hsl(var(--card))",
                   }}
                 />
               </PieChart>

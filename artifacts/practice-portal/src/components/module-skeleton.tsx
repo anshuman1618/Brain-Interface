@@ -19,7 +19,7 @@ export function DocumentsSkeleton({ rows = 5 }: { rows?: number }) {
   return (
     <div className="space-y-3" aria-busy="true" aria-live="polite">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="border border-border bg-background p-4 flex items-center gap-4">
+        <div key={i} className="rounded-lg bg-card shadow-sm p-4 flex items-center gap-4">
           <Skeleton className="h-9 w-9 shrink-0" />
           <div className="flex-1 space-y-2">
             <Skeleton className="h-4 w-1/3" />
@@ -38,7 +38,7 @@ export function FeedbackSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="space-y-3" aria-busy="true" aria-live="polite">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="border border-border bg-background p-5 space-y-3">
+        <div key={i} className="rounded-lg bg-card shadow-sm p-5 space-y-3">
           <div className="flex items-center gap-3">
             <Skeleton className="h-4 w-28" />
             <Skeleton className="h-4 w-20" />

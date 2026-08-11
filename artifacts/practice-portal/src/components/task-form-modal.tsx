@@ -131,7 +131,7 @@ export function TaskFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] rounded-none border-border">
+      <DialogContent className="sm:max-w-[480px] rounded-lg border-border">
         <DialogHeader>
           <DialogTitle className="font-mono uppercase tracking-widest">New Task</DialogTitle>
           <DialogDescription className="font-mono text-xs uppercase tracking-wider">
@@ -145,10 +145,10 @@ export function TaskFormModal({
               Matter *
             </label>
             <Select value={caseId} onValueChange={setCaseId}>
-              <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+              <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                 <SelectValue placeholder="SELECT CASE" />
               </SelectTrigger>
-              <SelectContent className="rounded-none">
+              <SelectContent className="rounded-lg">
                 {cases.map((c) => (
                   <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">
                     {c.title}
@@ -165,7 +165,7 @@ export function TaskFormModal({
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="rounded-none font-mono text-sm bg-background"
+              className="rounded-lg font-mono text-sm bg-background"
               placeholder="e.g. Draft written submissions"
               required
             />
@@ -176,10 +176,10 @@ export function TaskFormModal({
               Assign to
             </label>
             <Select value={assigneeId} onValueChange={setAssigneeId}>
-              <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+              <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                 <SelectValue placeholder="SELECT ASSIGNEE" />
               </SelectTrigger>
-              <SelectContent className="rounded-none">
+              <SelectContent className="rounded-lg">
                 <SelectItem
                   value={UNASSIGNED}
                   className="font-mono text-sm italic text-muted-foreground"
@@ -201,10 +201,10 @@ export function TaskFormModal({
                 Priority
               </label>
               <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-none">
+                <SelectContent className="rounded-lg">
                   <SelectItem value="low">Low</SelectItem>
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="high">High</SelectItem>
@@ -220,7 +220,7 @@ export function TaskFormModal({
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="rounded-none font-mono text-sm bg-background"
+                className="rounded-lg font-mono text-sm bg-background"
                 required
               />
             </div>
@@ -233,7 +233,7 @@ export function TaskFormModal({
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="rounded-none font-mono text-sm bg-background resize-none h-20"
+              className="rounded-lg font-mono text-sm bg-background resize-none h-20"
               placeholder="Anything the assignee needs to know..."
             />
           </div>
@@ -242,14 +242,14 @@ export function TaskFormModal({
             <Button
               type="button"
               variant="outline"
-              className="rounded-none"
+              className="rounded-lg"
               onClick={() => onOpenChange(false)}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              className="rounded-none font-mono uppercase tracking-wider"
+              className="rounded-lg font-mono uppercase tracking-wider"
               disabled={createTask.isPending || !caseId || !title || !deadline}
             >
               {createTask.isPending ? "Creating..." : "Create task"}

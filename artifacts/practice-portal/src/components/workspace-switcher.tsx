@@ -30,7 +30,7 @@ export function WorkspaceSwitcher() {
   // Nothing to switch between — show it as a label rather than a dead control.
   if (active.length === 1 && pending.length === 0) {
     return (
-      <div className="flex items-center gap-2 border border-border bg-background px-3 py-2 min-w-0">
+      <div className="flex items-center gap-2 rounded-lg bg-card shadow-sm px-3 py-2 min-w-0">
         <Building2 className="h-4 w-4 text-muted-foreground shrink-0" />
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-medium truncate leading-tight">
@@ -48,7 +48,7 @@ export function WorkspaceSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-2 border border-border bg-background px-3 py-2 hover:bg-accent transition-colors min-w-0 max-w-[280px]"
+          className="flex items-center gap-2 rounded-lg bg-card shadow-sm px-3 py-2 hover:bg-accent transition-colors min-w-0 max-w-[280px]"
           disabled={isSwitchingWorkspace}
         >
           {isSwitchingWorkspace ? (
@@ -68,14 +68,14 @@ export function WorkspaceSwitcher() {
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" className="w-[280px] rounded-none">
+      <DropdownMenuContent align="start" className="w-[280px] rounded-lg">
         <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
           Your workspaces
         </DropdownMenuLabel>
         {active.map((m) => (
           <DropdownMenuItem
             key={m.workspace.id}
-            className="rounded-none cursor-pointer"
+            className="rounded-lg cursor-pointer"
             onSelect={() => {
               if (m.workspace.id !== activeWorkspace?.id) switchWorkspace(m.workspace.id);
             }}
@@ -101,7 +101,7 @@ export function WorkspaceSwitcher() {
             {pending.map((m) => (
               // Rendered disabled, but that is cosmetic: the backend refuses a
               // switch into a workspace whose membership is not active.
-              <DropdownMenuItem key={m.workspace.id} disabled className="rounded-none opacity-60">
+              <DropdownMenuItem key={m.workspace.id} disabled className="rounded-lg opacity-60">
                 <div className="flex items-center gap-2 w-full min-w-0">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
                   <span className="text-sm truncate flex-1">{m.workspace.name}</span>

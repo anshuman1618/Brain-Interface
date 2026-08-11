@@ -257,7 +257,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     <PricingModalContext.Provider value={{ open, setOpen }}>
       {children}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto rounded-none border-border bg-background p-0">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto rounded-lg border-border bg-background p-0">
           <DialogHeader className="p-8 pb-5 border-b border-border bg-muted/30">
             <DialogTitle className="text-2xl font-mono uppercase tracking-widest text-foreground">
               Subscription
@@ -408,7 +408,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
 
                     <Button
                       variant={featured ? "default" : "outline"}
-                      className="w-full rounded-none font-mono uppercase tracking-wider"
+                      className="w-full rounded-lg font-mono uppercase tracking-wider"
                       disabled={
                         !canManage || isCurrent || setSubscription.isPending || paying !== null
                       }

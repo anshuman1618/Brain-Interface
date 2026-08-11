@@ -58,16 +58,16 @@ export function NotificationBell() {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative rounded-none">
+        <Button variant="ghost" size="icon" className="relative rounded-lg">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 h-4 min-w-4 px-1 rounded-none bg-foreground text-background text-[10px] font-mono flex items-center justify-center">
+            <span className="absolute top-1.5 right-1.5 h-4 min-w-4 px-1 rounded-lg bg-foreground text-background text-[10px] font-mono flex items-center justify-center">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 rounded-none border-border" align="end">
+      <PopoverContent className="w-80 p-0 rounded-lg border-border" align="end">
         <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
           <h4 className="font-mono uppercase tracking-wider text-sm font-semibold">
             Notifications
@@ -76,7 +76,7 @@ export function NotificationBell() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-auto py-1 px-2 text-[10px] uppercase font-mono tracking-widest rounded-none"
+              className="h-auto py-1 px-2 text-[10px] uppercase font-mono tracking-widest rounded-lg"
               onClick={handleMarkAllRead}
               disabled={markAllRead.isPending}
             >

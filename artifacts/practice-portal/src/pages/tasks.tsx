@@ -106,7 +106,7 @@ export default function TasksPage() {
           <p className="text-muted-foreground">Manage and track action items across all cases.</p>
         </div>
         {canAssign && (
-          <Button className="rounded-none shrink-0" onClick={() => setIsCreateOpen(true)}>
+          <Button className="rounded-lg shrink-0" onClick={() => setIsCreateOpen(true)}>
             <Plus className="mr-2 h-4 w-4" /> New Task
           </Button>
         )}
@@ -117,13 +117,13 @@ export default function TasksPage() {
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search tasks or assignees..."
-            className="pl-9 bg-background rounded-none"
+            className="pl-9 bg-background rounded-lg"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[200px] rounded-none bg-background">
+          <SelectTrigger className="w-full sm:w-[200px] rounded-lg bg-background">
             <SelectValue placeholder="Status Filter" />
           </SelectTrigger>
           <SelectContent>
@@ -135,7 +135,7 @@ export default function TasksPage() {
         </Select>
       </div>
 
-      <div className="border border-border bg-background">
+      <div className="rounded-lg bg-card shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent bg-muted/30">
@@ -182,7 +182,7 @@ export default function TasksPage() {
                   {canAssign && (
                     <Button
                       variant="outline"
-                      className="rounded-none mt-4"
+                      className="rounded-lg mt-4"
                       onClick={() => setIsCreateOpen(true)}
                     >
                       <Plus className="mr-2 h-4 w-4" /> Assign the first task
@@ -217,7 +217,7 @@ export default function TasksPage() {
                       <div className="font-medium text-sm">{task.title}</div>
                       <Badge
                         variant="outline"
-                        className="mt-1 rounded-none text-[9px] uppercase font-mono px-1 py-0"
+                        className="mt-1 rounded-lg text-[9px] uppercase font-mono px-1 py-0"
                       >
                         {task.priority} priority
                       </Badge>
@@ -247,7 +247,7 @@ export default function TasksPage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-none"
+                          className="rounded-lg"
                           onClick={() => {
                             setCompletingTask(task);
                             setIsCompleteOpen(true);
@@ -285,7 +285,7 @@ export default function TasksPage() {
                     value={delayReason}
                     onValueChange={(v) => setDelayReason(v as TaskCompletionDelayReason)}
                   >
-                    <SelectTrigger className="rounded-none border-destructive/30 focus:ring-destructive">
+                    <SelectTrigger className="rounded-lg border-destructive/30 focus:ring-destructive">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -303,7 +303,7 @@ export default function TasksPage() {
                     value={proofFile}
                     onChange={(e) => setProofFile(e.target.value)}
                     placeholder="e.g. Email_Thread_Client.pdf"
-                    className="rounded-none border-destructive/30 focus:ring-destructive"
+                    className="rounded-lg border-destructive/30 focus:ring-destructive"
                   />
                 </div>
                 <div className="grid gap-2">
@@ -311,7 +311,7 @@ export default function TasksPage() {
                   <Textarea
                     value={delayNotes}
                     onChange={(e) => setDelayNotes(e.target.value)}
-                    className="rounded-none border-destructive/30 focus:ring-destructive resize-none"
+                    className="rounded-lg border-destructive/30 focus:ring-destructive resize-none"
                   />
                 </div>
               </div>
@@ -325,13 +325,13 @@ export default function TasksPage() {
             <Button
               variant="outline"
               onClick={() => setIsCompleteOpen(false)}
-              className="rounded-none"
+              className="rounded-lg"
             >
               Cancel
             </Button>
             <Button
               onClick={handleCompleteTask}
-              className="rounded-none"
+              className="rounded-lg"
               disabled={Boolean(
                 completingTask &&
                 (completingTask.isOverdue || new Date(completingTask.deadline) < new Date()) &&

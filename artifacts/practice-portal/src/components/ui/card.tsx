@@ -5,7 +5,10 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("bg-card text-card-foreground shadow-sm border", className)}
+      // Raised, and rounded by the radius token rather than square: paired relief
+      // shadows on a hard corner read as a printing error, because no real
+      // extruded material has one. The relief replaces the border.
+      className={cn("bg-card text-card-foreground rounded-lg border-0 shadow-sm", className)}
       {...props}
     />
   ),

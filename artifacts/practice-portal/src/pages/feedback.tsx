@@ -174,7 +174,7 @@ export default function FeedbackPage() {
         <p className="text-sm text-muted-foreground">
           {error instanceof Error ? error.message : "The request failed."}
         </p>
-        <Button variant="outline" className="rounded-none mt-5" onClick={refresh}>
+        <Button variant="outline" className="rounded-lg mt-5" onClick={refresh}>
           Retry
         </Button>
       </div>
@@ -196,7 +196,7 @@ export default function FeedbackPage() {
         </div>
         {canLeave && unrated.length > 0 && (
           <Button
-            className="rounded-none shrink-0"
+            className="rounded-lg shrink-0"
             onClick={() => {
               setCaseId(String(unrated[0].id));
               setIsOpen(true);
@@ -208,7 +208,7 @@ export default function FeedbackPage() {
       </div>
 
       {average && (
-        <div className="border border-border bg-background p-5 flex flex-wrap items-center gap-4">
+        <div className="rounded-lg bg-card shadow-sm p-5 flex flex-wrap items-center gap-4">
           <div>
             <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">
               Average rating
@@ -225,7 +225,7 @@ export default function FeedbackPage() {
       )}
 
       {feedback.length === 0 ? (
-        <div className="border border-border bg-background p-14 text-center">
+        <div className="rounded-lg bg-card shadow-sm p-14 text-center">
           <MessageSquare className="h-9 w-9 text-muted-foreground mx-auto mb-4" />
           <p className="text-lg font-medium mb-1">No feedback yet</p>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
@@ -239,7 +239,7 @@ export default function FeedbackPage() {
       ) : (
         <div className="space-y-3">
           {feedback.map((f) => (
-            <article key={f.id} className="border border-border bg-background p-5">
+            <article key={f.id} className="rounded-lg bg-card shadow-sm p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-3">
@@ -256,7 +256,7 @@ export default function FeedbackPage() {
                 {f.response ? (
                   <Badge
                     variant="outline"
-                    className="rounded-none text-[9px] uppercase font-mono tracking-wider px-1 py-0"
+                    className="rounded-lg text-[9px] uppercase font-mono tracking-wider px-1 py-0"
                   >
                     Replied
                   </Badge>
@@ -264,7 +264,7 @@ export default function FeedbackPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="rounded-none shrink-0"
+                    className="rounded-lg shrink-0"
                     onClick={() => {
                       setReplyTo(f);
                       setReplyText("");
@@ -293,7 +293,7 @@ export default function FeedbackPage() {
 
       {/* Leave feedback */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="sm:max-w-[440px] rounded-none border-border">
+        <DialogContent className="sm:max-w-[440px] rounded-lg border-border">
           <DialogHeader>
             <DialogTitle className="font-mono uppercase tracking-widest">
               Rate this matter
@@ -309,10 +309,10 @@ export default function FeedbackPage() {
                 Matter
               </label>
               <Select value={caseId} onValueChange={setCaseId}>
-                <SelectTrigger className="rounded-none bg-background font-mono text-sm">
+                <SelectTrigger className="rounded-lg bg-background font-mono text-sm">
                   <SelectValue placeholder="SELECT MATTER" />
                 </SelectTrigger>
-                <SelectContent className="rounded-none">
+                <SelectContent className="rounded-lg">
                   {unrated.map((c) => (
                     <SelectItem key={c.id} value={String(c.id)} className="font-mono text-sm">
                       {c.title}
@@ -336,7 +336,7 @@ export default function FeedbackPage() {
               <Textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                className="rounded-none font-mono text-sm bg-background resize-none h-24"
+                className="rounded-lg font-mono text-sm bg-background resize-none h-24"
                 placeholder="How has your matter been handled?"
               />
             </div>
@@ -345,14 +345,14 @@ export default function FeedbackPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-none"
+                className="rounded-lg"
                 onClick={() => setIsOpen(false)}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="rounded-none font-mono uppercase tracking-wider"
+                className="rounded-lg font-mono uppercase tracking-wider"
                 disabled={create.isPending || !caseId || rating < 1}
               >
                 {create.isPending ? "Sending..." : "Send feedback"}
@@ -364,7 +364,7 @@ export default function FeedbackPage() {
 
       {/* Reply */}
       <Dialog open={replyTo !== null} onOpenChange={(o) => !o && setReplyTo(null)}>
-        <DialogContent className="sm:max-w-[440px] rounded-none border-border">
+        <DialogContent className="sm:max-w-[440px] rounded-lg border-border">
           <DialogHeader>
             <DialogTitle className="font-mono uppercase tracking-widest">
               Reply to feedback
@@ -383,7 +383,7 @@ export default function FeedbackPage() {
             <Textarea
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
-              className="rounded-none font-mono text-sm bg-background resize-none h-24"
+              className="rounded-lg font-mono text-sm bg-background resize-none h-24"
               placeholder="Thank them, or address what they raised..."
               autoFocus
             />
@@ -391,14 +391,14 @@ export default function FeedbackPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-none"
+                className="rounded-lg"
                 onClick={() => setReplyTo(null)}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="rounded-none font-mono uppercase tracking-wider"
+                className="rounded-lg font-mono uppercase tracking-wider"
                 disabled={respond.isPending || !replyText.trim()}
               >
                 {respond.isPending ? "Sending..." : "Send reply"}
