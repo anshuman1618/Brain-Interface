@@ -304,7 +304,25 @@ you have **observed each one working**, not merely seen the flag.
 **Do not skip this. It is the difference between "it loads" and "it is safe to
 put privileged client material in".**
 
-Run every command in `DEPLOYMENT.md` §7. The five that matter most:
+**One command does all of this:**
+
+```bash
+node scripts/ci/production-smoke.mjs https://<your-domain>
+```
+
+It checks reachability, every `readyz` flag, that four protected endpoints
+refuse an anonymous caller, that CORS does not reflect an arbitrary origin, that
+an unsigned payment webhook is rejected, that the four security headers are
+present, and that the legal documents are readable **and contain no unfilled
+`[PLACEHOLDER]`**. It exits non-zero if anything fails, so it can gate a
+release. Warnings do not fail it — a feature you deliberately left off is not a
+broken deployment.
+
+Everything it does is a GET, a HEAD, or an unauthenticated POST that is expected
+to be refused, so it is safe to run against production and needs no account.
+
+If you prefer to do it by hand, or want to check something the script does not,
+`DEPLOYMENT.md` §7 has the full list. The five that matter most:
 
 ```bash
 D=https://<your-domain>
@@ -427,15 +445,11 @@ Split honestly into what I can do, what only you can do, and where we hand off.
 
 ### I can do these now, without any credentials
 
-- **Write a production smoke-test script.** One command against your live URL
-  that checks every item in Phase 5 and every `readyz` flag from Phase 4, and
-  prints a pass/fail table. This turns "did I remember to check CORS" into
-  `node scripts/ci/production-smoke.mjs https://your-domain`. **This is the
-  highest-value thing on this list** and I would suggest starting here.
+- ~~Write a production smoke-test script.~~ **Done** —
+  `scripts/ci/production-smoke.mjs`.
+- ~~Remove the consultation recorder.~~ **Done** — removed through the whole
+  stack, and the landing-page claim corrected.
 - **Fix the browser-suite §8 flaw** so it measures the real dashboard.
-- **Wire a transcription provider** once you tell me which one — the interface
-  in `lib/stt.ts` is already shaped for it.
-- **Remove the recorder UI instead**, if that is your Phase 0 decision.
 - **Fill in `docs/legal/*`** with your entity name, addresses, the subprocessors
   you actually chose, and your retention decisions — so what goes to counsel is
   a complete draft rather than a form. _This does not replace counsel review._
@@ -469,15 +483,13 @@ exactly which phase you are stuck in.
 
 ### Suggested order for my part
 
-1. Production smoke-test script — so Phase 5 is one command, not fifteen.
-2. Merge to `main`, get CI green — unblocks Phase 1.
-3. Your Phase 0 transcription decision, then either wire it or remove the UI.
+1. ~~Production smoke-test script.~~ Done.
+2. ~~Remove the consultation recorder.~~ Done.
+3. Merge to `main`, get CI green — unblocks Phase 1.
 4. Legal documents filled in, ready for counsel.
 5. Backup/restore runbook.
 
-Say which of these you want and I will start. If you want the smoke-test script
-first, I need nothing from you except your eventual domain — it takes the URL as
-an argument.
+Say the word on 3, 4 or 5 and I will start.
 
 ---
 
