@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth, useSignIn, useSignUp, useUser } from "@clerk/react";
+import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSession,
@@ -196,6 +197,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
   const { signOut } = useAuth();
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
+  const [, setLocation] = useLocation();
   const backend = useBackendSession(Boolean(isSignedIn), "clerk");
 
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -306,26 +308,46 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       try {
         const trimmed = code.trim();
         // Verified against whichever leg issued it — see `codeLeg`.
-        const leg = codeLeg === "signUp" && signUp ? signUp : signIn;
+        const usingSignUp = codeLeg === "signUp" && Boolean(signUp);
         const { error } =
-          leg === signUp
+          usingSignUp && signUp
             ? await signUp.verifications.verifyEmailCode({ code: trimmed })
             : await signIn.emailCode.verifyCode({ code: trimmed });
         if (error) throw error;
 
         // A verified code leaves the attempt `complete` but NOT signed in —
         // Clerk requires this last step to turn it into the active session.
-        // Skipping it leaves a verified user with no session, who then bounces
-        // straight back to the sign-in page having done everything right.
-        if (leg.status === "complete") {
-          const { error: finalizeError } = await leg.finalize();
-          if (finalizeError) throw finalizeError;
+        // Skipping it leaves a verified user with no session, who is then
+        // bounced back to the landing page having done everything right.
+        const leg = usingSignUp && signUp ? signUp : signIn;
+
+        if (leg.status !== "complete") {
+          // Clerk wants something else before it will issue a session —
+          // typically an attribute still switched on in the dashboard, such as
+          // a phone number or a username. Say which, because the alternative is
+          // redirecting into a bounce that reads as "the code was wrong".
+          const missing =
+            usingSignUp && signUp
+              ? [...signUp.missingFields, ...signUp.unverifiedFields].join(", ")
+              : "";
+          throw new Error(
+            missing
+              ? `Your address is verified, but this Clerk instance still requires: ${missing}. ` +
+                  `Turn those off under User & Authentication in the Clerk dashboard.`
+              : `Verification finished with status "${leg.status}" instead of "complete", ` +
+                  `so no session was created. Check the required fields in the Clerk dashboard.`,
+          );
         }
 
+        const { error: finalizeError } = await leg.finalize();
+        if (finalizeError) throw finalizeError;
+
         setAwaitingCode(false);
-        // Clerk has established the session; the app then asks the backend what
-        // this identity may reach.
-        window.location.href = `${BASE_PATH}/dashboard`;
+        // A client-side navigation, not a reload. `finalize()` has just updated
+        // the live Clerk client; a full page load restarts from whatever has
+        // reached browser storage, and losing that race is what sent a
+        // successfully verified user back to the front page.
+        setLocation("/dashboard");
       } catch (err) {
         const message =
           err && typeof err === "object" && "message" in err
@@ -336,7 +358,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
         setIsSigningIn(false);
       }
     },
-    [signIn, signUp, codeLeg],
+    [signIn, signUp, codeLeg, setLocation],
   );
 
   const cancelCodeEntry = useCallback(() => {
