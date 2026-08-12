@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useAuth, useSignIn, useUser } from "@clerk/react";
+import { useAuth, useSignIn, useSignUp, useUser } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetSession,
@@ -195,11 +195,22 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, user } = useUser();
   const { signOut } = useAuth();
   const { signIn } = useSignIn();
+  const { signUp } = useSignUp();
   const backend = useBackendSession(Boolean(isSignedIn), "clerk");
 
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
   const [awaitingCode, setAwaitingCode] = useState(false);
+
+  /**
+   * Which leg of the passwordless flow the emailed code belongs to.
+   *
+   * Clerk keeps sign-in and sign-up as separate resources, and a code issued by
+   * one is not verifiable by the other. The door in this app is single, so the
+   * flow picks a leg on the way in and this remembers which, rather than
+   * guessing again at verification time.
+   */
+  const [codeLeg, setCodeLeg] = useState<"signIn" | "signUp">("signIn");
 
   /**
    * Hands off to the identity provider.
@@ -223,22 +234,51 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
         if (provider === "email") {
           // Passwordless: a one-time code to the inbox. There is no password
           // field anywhere in this app and no password strategy is attempted.
+          //
+          // Sign-in first, because most callers already have an account. An
+          // address Clerk has never seen cannot be signed in — it has to be
+          // signed up — so that failure falls through to creating the account
+          // and sending the code from the sign-up leg instead. Without this,
+          // the very first person to reach a new deployment could never get in:
+          // sign-in needs a user, and nothing here was creating one.
           const { error } = await signIn.emailCode.sendCode({ emailAddress });
-          if (error) throw error;
+          if (!error) {
+            setCodeLeg("signIn");
+            setAwaitingCode(true);
+            return;
+          }
+
+          if (!signUp) throw error;
+          const created = await signUp.create({ emailAddress });
+          // The address is already taken but sign-in refused it — report the
+          // original refusal, which is the more informative of the two.
+          if (created.error) throw error;
+          const sent = await signUp.verifications.sendEmailCode();
+          if (sent.error) throw sent.error;
+          setCodeLeg("signUp");
           setAwaitingCode(true);
           return;
         }
 
-        const { error } = await signIn.sso({
-          strategy: provider === "google" ? "oauth_google" : "oauth_custom_zoho",
+        const strategy = provider === "google" ? "oauth_google" : "oauth_custom_zoho";
+        const urls = {
           // Where the provider round trip finishes. The dashboard layout takes
           // over from there and decides — from the backend session — whether
           // this identity sees the portal, a pending notice, or the refusal.
           redirectUrl: `${window.location.origin}${BASE_PATH}/dashboard`,
           // Where Clerk sends the handshake when it needs another step first.
           redirectCallbackUrl: `${window.location.origin}${BASE_PATH}/portal/callback`,
-        });
-        if (error) throw error;
+        };
+
+        // Same shape as the email leg. A successful sso() navigates away, so
+        // reaching the next line at all means it refused — which is what a
+        // provider identity with no account looks like. Retry as a sign-up.
+        const { error } = await signIn.sso({ strategy, ...urls });
+        if (error) {
+          if (!signUp) throw error;
+          const { error: signUpError } = await signUp.sso({ strategy, ...urls });
+          if (signUpError) throw error;
+        }
       } catch (err) {
         // A provider that is not enabled in the Clerk dashboard fails here, and
         // saying so beats a silent no-op the user cannot diagnose.
@@ -254,7 +294,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
         setIsSigningIn(false);
       }
     },
-    [signIn],
+    [signIn, signUp],
   );
 
   /** Second leg of the passwordless email flow: verify the emailed code. */
@@ -264,8 +304,24 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       setSignInError(null);
       setIsSigningIn(true);
       try {
-        const { error } = await signIn.emailCode.verifyCode({ code: code.trim() });
+        const trimmed = code.trim();
+        // Verified against whichever leg issued it — see `codeLeg`.
+        const leg = codeLeg === "signUp" && signUp ? signUp : signIn;
+        const { error } =
+          leg === signUp
+            ? await signUp.verifications.verifyEmailCode({ code: trimmed })
+            : await signIn.emailCode.verifyCode({ code: trimmed });
         if (error) throw error;
+
+        // A verified code leaves the attempt `complete` but NOT signed in —
+        // Clerk requires this last step to turn it into the active session.
+        // Skipping it leaves a verified user with no session, who then bounces
+        // straight back to the sign-in page having done everything right.
+        if (leg.status === "complete") {
+          const { error: finalizeError } = await leg.finalize();
+          if (finalizeError) throw finalizeError;
+        }
+
         setAwaitingCode(false);
         // Clerk has established the session; the app then asks the backend what
         // this identity may reach.
@@ -280,7 +336,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
         setIsSigningIn(false);
       }
     },
-    [signIn],
+    [signIn, signUp, codeLeg],
   );
 
   const cancelCodeEntry = useCallback(() => {
