@@ -63,7 +63,15 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
   if (!clerkId) return null;
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
-  if (existing.length > 0) return existing[0];
+  if (existing.length > 0) {
+    // A row with an address is the common case and answers from the database
+    // alone — no Clerk round trip on the hot path.
+    if (existing[0].email) return existing[0];
+    // An empty address means the first sign-in happened before the provider had
+    // a verified one. Nothing re-read it afterwards, so the user stayed on the
+    // access-denied screen for good even once they had verified. Try again now.
+    return (await resyncEmail(req, existing[0])) ?? existing[0];
+  }
 
   if (isPreviewAuth()) {
     const identity = previewIdentityFromRequest(req.headers.authorization);
@@ -72,42 +80,82 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
     // Mirrors a real first-time federated sign-in: the provider vouched for an
     // address, so a user record exists. It still reaches nothing until they
     // create a chamber, or the access list / an admin admits them.
-    const [created] = await db
-      .insert(usersTable)
-      .values({
-        clerkId,
-        role: "client",
-        roleSelected: false,
-        displayName: identity.displayName || identity.email.split("@")[0],
-        email: identity.email,
-        authProvider: identity.provider,
-      })
-      .returning();
-    return created;
+    return insertUser(clerkId, {
+      displayName: identity.displayName || identity.email.split("@")[0],
+      email: identity.email,
+      authProvider: identity.provider,
+    });
   }
 
+  const identity = await identityFromClerk(clerkId);
+  return insertUser(clerkId, { ...identity, authProvider: providerFromClerk(req) });
+}
+
+type Identity = { displayName: string; email: string };
+
+/** The verified address and name Clerk holds for this id, normalised. */
+async function identityFromClerk(clerkId: string): Promise<Identity> {
   const clerkUser = await clerkClient.users.getUser(clerkId);
   const nameFromClerk = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim();
   // Only a *verified* address is trusted. An unverified one is attacker-supplied
   // text, and matching it against the access list would let anyone claim a
   // colleague's address and inherit their role.
   const verified = clerkUser.emailAddresses.find((e) => e.verification?.status === "verified");
-  const emailFromClerk =
-    verified?.emailAddress ?? clerkUser.primaryEmailAddress?.emailAddress ?? "";
 
+  return {
+    displayName: nameFromClerk || "User",
+    email: verified ? normaliseEmail(verified.emailAddress) : "",
+  };
+}
+
+/**
+ * Insert, tolerating a concurrent insert of the same identity.
+ *
+ * `users.clerk_id` is unique, and the dashboard fires several queries at once on
+ * first load. Two of them racing through the select above both missed, both
+ * inserted, and the loser's unique violation surfaced as a 500 on the very first
+ * request a new user ever makes. The conflict is now the expected outcome for
+ * the loser, which re-reads the winner's row.
+ */
+async function insertUser(
+  clerkId: string,
+  fields: Identity & { authProvider: string },
+): Promise<AppUser | null> {
   const [created] = await db
     .insert(usersTable)
-    .values({
-      clerkId,
-      role: "client",
-      roleSelected: false,
-      displayName: nameFromClerk || "User",
-      email: verified ? normaliseEmail(emailFromClerk) : "",
-      authProvider: providerFromClerk(req),
-    })
+    .values({ clerkId, role: "client", roleSelected: false, ...fields })
+    .onConflictDoNothing({ target: usersTable.clerkId })
     .returning();
 
-  return created;
+  if (created) return created;
+
+  const [winner] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
+  return winner ?? null;
+}
+
+/** Fills in an address that was empty at first sign-in. No-op when still empty. */
+async function resyncEmail(req: Request, user: AppUser): Promise<AppUser | null> {
+  if (isPreviewAuth()) {
+    const identity = previewIdentityFromRequest(req.headers.authorization);
+    if (!identity?.email) return null;
+    const [updated] = await db
+      .update(usersTable)
+      .set({ email: identity.email, displayName: user.displayName || identity.displayName })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+    return updated ?? null;
+  }
+
+  const identity = await identityFromClerk(user.clerkId);
+  if (!identity.email) return null;
+
+  const [updated] = await db
+    .update(usersTable)
+    .set({ email: identity.email, displayName: user.displayName || identity.displayName })
+    .where(eq(usersTable.id, user.id))
+    .returning();
+
+  return updated ?? null;
 }
 
 export { resolveClerkId };

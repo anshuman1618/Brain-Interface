@@ -38,7 +38,8 @@ import {
   listActiveMemberships,
   type AuthRequest,
 } from "../middlewares/requireAuth";
-import { getOrCreateUser } from "../lib/jit";
+import { getOrCreateUser, type AppUser } from "../lib/jit";
+import { zodMessage } from "../lib/validation";
 import { displayRole, isWorkspaceRole } from "../lib/permissions";
 import { mintWorkspaceToken, verifyWorkspaceToken } from "../lib/workspace-token";
 import { reconcileAccessList } from "../lib/access-list";
@@ -150,7 +151,7 @@ router.post("/session/workspace", requireAuth, async (req: AuthRequest, res): Pr
 
   const parsed = SwitchWorkspaceBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: "invalid_request", message: zodMessage(parsed.error) });
     return;
   }
 
@@ -167,6 +168,84 @@ router.post("/session/workspace", requireAuth, async (req: AuthRequest, res): Pr
 
   res.json(SwitchWorkspaceResponse.parse(await buildSessionClaims(user.id, target.workspace.id)));
 });
+
+/** Postgres unique violation, however deeply the driver error is wrapped. */
+function isUniqueViolation(err: unknown, depth = 0): boolean {
+  if (!err || typeof err !== "object" || depth > 4) return false;
+  if ((err as { code?: unknown }).code === "23505") return true;
+  return isUniqueViolation((err as { cause?: unknown }).cause, depth + 1);
+}
+
+/**
+ * Creates the workspace, the founder's membership, their access-list entry and
+ * their directory role as one atomic unit, on the first slug that is free.
+ *
+ * This used to be a select-then-insert loop outside any transaction. Two people
+ * founding "Delhi Chambers" at the same moment both saw the slug as free, both
+ * inserted, and the loser got a unique violation surfaced as a bare 500 — after
+ * the workspace row had already been written, leaving a chamber with no member.
+ * The conflict is now an expected outcome that retries on the next suffix, and
+ * a failure anywhere in the sequence rolls the whole thing back.
+ *
+ * Returns null when every candidate slug is taken.
+ */
+async function foundChamber(
+  baseSlug: string,
+  name: string,
+  role: "admin" | "senior_advocate",
+  user: AppUser,
+): Promise<Workspace | null> {
+  for (let attempt = 0; attempt <= 50; attempt += 1) {
+    const slug = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
+
+    try {
+      return await db.transaction(async (tx) => {
+        const [workspace] = await tx
+          .insert(workspacesTable)
+          .values({ slug, name, kind: "chamber" })
+          .returning();
+
+        await tx.insert(workspaceMembershipsTable).values({
+          workspaceId: workspace.id,
+          userId: user.id,
+          clerkId: user.clerkId,
+          role,
+          isOwner: true,
+          status: "active",
+          decidedBy: "founder",
+          decidedAt: new Date(),
+        });
+
+        // Admit the founder's own address so they can sign back in without
+        // needing somebody else to let them in.
+        if (user.email) {
+          await tx.insert(workspaceAccessListTable).values({
+            workspaceId: workspace.id,
+            kind: "email",
+            value: normaliseEmail(user.email),
+            role,
+            note: "Chamber founder",
+            addedBy: user.displayName,
+            lastUsedAt: new Date(),
+          });
+        }
+
+        await tx
+          .update(usersTable)
+          .set({ role, roleSelected: true })
+          .where(eq(usersTable.id, user.id));
+
+        return workspace;
+      });
+    } catch (err) {
+      // Only a slug clash is retryable. Anything else is a real failure and
+      // must not be retried fifty times.
+      if (!isUniqueViolation(err)) throw err;
+    }
+  }
+
+  return null;
+}
 
 /**
  * Create a chamber. This is the self-serve sign-up path.
@@ -189,7 +268,7 @@ router.post("/workspaces", requireAuth, async (req: AuthRequest, res): Promise<v
 
   const parsed = CreateWorkspaceBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: "invalid_request", message: zodMessage(parsed.error) });
     return;
   }
 
@@ -214,51 +293,12 @@ router.post("/workspaces", requireAuth, async (req: AuthRequest, res): Promise<v
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || "chamber";
-  let slug = baseSlug;
-  for (let n = 2; ; n += 1) {
-    const [clash] = await db.select().from(workspacesTable).where(eq(workspacesTable.slug, slug));
-    if (!clash) break;
-    if (n > 50) {
-      res.status(409).json({ error: "That chamber name is already taken." });
-      return;
-    }
-    slug = `${baseSlug}-${n}`;
+
+  const workspace = await foundChamber(baseSlug, name, parsed.data.role, user);
+  if (!workspace) {
+    res.status(409).json({ error: "That chamber name is already taken." });
+    return;
   }
-
-  const [workspace] = await db
-    .insert(workspacesTable)
-    .values({ slug, name, kind: "chamber" })
-    .returning();
-
-  await db.insert(workspaceMembershipsTable).values({
-    workspaceId: workspace.id,
-    userId: user.id,
-    clerkId: user.clerkId,
-    role: parsed.data.role,
-    isOwner: true,
-    status: "active",
-    decidedBy: "founder",
-    decidedAt: new Date(),
-  });
-
-  // Admit the founder's own address so they can sign back in without needing
-  // somebody else to let them in.
-  if (user.email) {
-    await db.insert(workspaceAccessListTable).values({
-      workspaceId: workspace.id,
-      kind: "email",
-      value: normaliseEmail(user.email),
-      role: parsed.data.role,
-      note: "Chamber founder",
-      addedBy: user.displayName,
-      lastUsedAt: new Date(),
-    });
-  }
-
-  await db
-    .update(usersTable)
-    .set({ role: parsed.data.role, roleSelected: true })
-    .where(eq(usersTable.id, user.id));
 
   await recordAudit(
     req,
@@ -322,7 +362,7 @@ router.post("/access-requests", requireAuth, async (req: AuthRequest, res): Prom
 
   const parsed = CreateAccessRequestBody.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: parsed.error.message });
+    res.status(400).json({ error: "invalid_request", message: zodMessage(parsed.error) });
     return;
   }
 
@@ -451,7 +491,7 @@ router.post(
 
     const parsed = DecideAccessRequestBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: "invalid_request", message: zodMessage(parsed.error) });
       return;
     }
 
@@ -569,7 +609,7 @@ router.post(
 
     const parsed = CreateAccessListEntryBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: "invalid_request", message: zodMessage(parsed.error) });
       return;
     }
 
@@ -726,7 +766,7 @@ router.patch(
 
     const parsed = UpdateWorkspaceMemberBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: "invalid_request", message: zodMessage(parsed.error) });
       return;
     }
 
