@@ -453,8 +453,7 @@ export interface Case {
   clientId: number | null;
   /** @nullable */
   clientName?: string | null;
-  /** @nullable */
-  filingRef?: string | null;
+  filingRef: string;
   /** @nullable */
   opposingParty?: string | null;
   /** @nullable */
@@ -498,7 +497,11 @@ export interface CaseInput {
   description?: string;
   status?: CaseInputStatus;
   clientId?: number;
-  filingRef?: string;
+  /**
+     * Court or registry reference for the matter, e.g. CV-2026-118. Required — a matter that cannot be tied back to a filing is not findable in the place that counts.
+     * @minLength 3
+     */
+  filingRef: string;
   priority?: CaseInputPriority;
 }
 
@@ -528,6 +531,10 @@ export interface CaseUpdate {
   description?: string;
   status?: CaseUpdateStatus;
   clientId?: number;
+  /**
+     * Optional on update because this is a partial patch, but it cannot be cleared: omit it to leave it alone.
+     * @minLength 3
+     */
   filingRef?: string;
   priority?: CaseUpdatePriority;
 }

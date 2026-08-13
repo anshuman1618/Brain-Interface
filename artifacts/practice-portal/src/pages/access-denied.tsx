@@ -72,10 +72,12 @@ export default function AccessDeniedPage() {
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-4">
                       <li>
-                        Verify your email address with{provider ? ` ${provider}` : " your provider"},
-                        then sign out and sign in again.
+                        Verify your email address with{provider ? ` ${provider}` : " your provider"}
+                        , then sign out and sign in again.
                       </li>
-                      <li>Or sign in with the email option, which verifies the address directly.</li>
+                      <li>
+                        Or sign in with the email option, which verifies the address directly.
+                      </li>
                     </ul>
                   </div>
                 </>

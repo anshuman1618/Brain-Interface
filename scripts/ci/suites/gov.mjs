@@ -62,7 +62,7 @@ const matter = await call("/cases", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { title: "Persistent matter", clientId: clientS.userId },
+  body: { title: "Persistent matter", filingRef: "CV-2026-010", clientId: clientS.userId },
 });
 check("matter created", matter.status === 201, `got ${matter.status}`);
 const CASE = matter.data.id;
@@ -224,14 +224,14 @@ for (let i = 2; i <= 5; i++) {
     token: as(owner),
     wsToken: ws,
     method: "POST",
-    body: { title: `Matter ${i}` },
+    body: { title: `Matter ${i}`, filingRef: `CV-2026-1${i}` },
   });
 }
 const sixth = await call("/cases", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { title: "Sixth" },
+  body: { title: "Sixth", filingRef: "CV-2026-006" },
 });
 check("the 6th matter is refused (402)", sixth.status === 402, `got ${sixth.status}`);
 check(
@@ -251,7 +251,7 @@ const afterClose = await call("/cases", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { title: "After closing" },
+  body: { title: "After closing", filingRef: "CV-2026-007" },
 });
 check("closing a matter frees the slot", afterClose.status === 201, `got ${afterClose.status}`);
 
@@ -274,7 +274,7 @@ const seventh = await call("/cases", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { title: "Now allowed" },
+  body: { title: "Now allowed", filingRef: "CV-2026-008" },
 });
 check("matters flow again on Firm", seventh.status === 201, `got ${seventh.status}`);
 
@@ -284,13 +284,21 @@ await call("/cases", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { title: "Kulkarni estate", opposingParty: "Mehra and Sons Pvt Ltd" },
+  body: {
+    title: "Kulkarni estate",
+    filingRef: "CV-2026-030",
+    opposingParty: "Mehra and Sons Pvt Ltd",
+  },
 });
 const clash = await call("/cases", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { title: "New file", opposingParty: "M/s Mehra & Sons Private Limited" },
+  body: {
+    title: "New file",
+    filingRef: "CV-2026-031",
+    opposingParty: "M/s Mehra & Sons Private Limited",
+  },
 });
 check("a matching opposing party is refused (409)", clash.status === 409, `got ${clash.status}`);
 check(
@@ -305,6 +313,7 @@ const noNote = await call("/cases", {
   method: "POST",
   body: {
     title: "New file",
+    filingRef: "CV-2026-032",
     opposingParty: "M/s Mehra & Sons Private Limited",
     conflictAcknowledged: true,
   },
@@ -321,6 +330,7 @@ const proceed = await call("/cases", {
   method: "POST",
   body: {
     title: "New file",
+    filingRef: "CV-2026-033",
     opposingParty: "M/s Mehra & Sons Private Limited",
     conflictAcknowledged: true,
     conflictNote: "Different entity; confirmed with the client.",

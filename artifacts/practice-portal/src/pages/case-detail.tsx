@@ -246,7 +246,8 @@ export default function CaseDetailPage() {
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground font-mono">
             <span className="flex items-center gap-1">
-              <FileText className="h-4 w-4" /> REF: {caseData.filingRef || "N/A"}
+              {/* Always present now that the column is NOT NULL. */}
+              <FileText className="h-4 w-4" /> REF: {caseData.filingRef}
             </span>
             <span className="flex items-center gap-1">
               <CheckSquare className="h-4 w-4" /> Priority: {caseData.priority}

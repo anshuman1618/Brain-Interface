@@ -1800,7 +1800,7 @@ components:
     # ── Case ──────────────────────────────────────────────────────────────
     Case:
       type: object
-      required: [id, workspaceId, title, status, clientId, createdAt, updatedAt]
+      required: [id, workspaceId, title, status, clientId, filingRef, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -1819,7 +1819,7 @@ components:
         clientName:
           type: ["string", "null"]
         filingRef:
-          type: ["string", "null"]
+          type: string
         opposingParty:
           type: ["string", "null"]
         conflictAcknowledgedBy:
@@ -1838,7 +1838,7 @@ components:
 
     CaseInput:
       type: object
-      required: [title]
+      required: [title, filingRef]
       properties:
         title:
           type: string
@@ -1862,6 +1862,11 @@ components:
           type: integer
         filingRef:
           type: string
+          minLength: 3
+          description: >-
+            Court or registry reference for the matter, e.g. CV-2026-118.
+            Required — a matter that cannot be tied back to a filing is not
+            findable in the place that counts.
         priority:
           type: string
           enum: [low, medium, high, urgent]
@@ -1882,6 +1887,10 @@ components:
           type: integer
         filingRef:
           type: string
+          minLength: 3
+          description: >-
+            Optional on update because this is a partial patch, but it cannot
+            be cleared: omit it to leave it alone.
         priority:
           type: string
           enum: [low, medium, high, urgent]

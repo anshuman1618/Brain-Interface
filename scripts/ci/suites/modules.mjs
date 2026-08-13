@@ -74,7 +74,7 @@ if (phase === "setup") {
     token: as(founder),
     wsToken: wsTok,
     method: "POST",
-    body: { title: "Persistent matter", clientId: client.userId },
+    body: { title: "Persistent matter", filingRef: "CV-2026-020", clientId: client.userId },
   });
   const entry = await call("/calendar", {
     token: as(founder),

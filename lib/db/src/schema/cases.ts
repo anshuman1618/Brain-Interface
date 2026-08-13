@@ -17,7 +17,16 @@ export const casesTable = pgTable("cases", {
    *  anyway. The reason they gave is the record of that decision. */
   conflictAcknowledgedBy: text("conflict_acknowledged_by"),
   conflictNote: text("conflict_note"),
-  filingRef: text("filing_ref"),
+  /**
+   * The court/registry reference for the matter. Required: a matter that
+   * cannot be tied back to a filing is not findable in the place that counts,
+   * and the field was optional for long enough that nobody filled it in.
+   *
+   * No default. A default would let an insert that forgot the reference
+   * succeed with a placeholder, which is the failure this constraint exists to
+   * prevent.
+   */
+  filingRef: text("filing_ref").notNull(),
   priority: text("priority").notNull().default("medium"), // low | medium | high | urgent
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })

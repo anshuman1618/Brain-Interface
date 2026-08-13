@@ -29,10 +29,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AlertTriangle, CreditCard } from "lucide-react";
+import { AlertCircle, AlertTriangle, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePricingModal } from "@/components/pricing-modal";
 import { userMessage } from "@/lib/errors";
+
+/** Mirrors the API's minimum, so the form and the server cannot disagree. */
+const MIN_FILING_REF = 3;
+
+function filingRefProblem(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return "A filing reference is required — for example CV-2026-118.";
+  if (trimmed.length < MIN_FILING_REF)
+    return `At least ${MIN_FILING_REF} characters — for example CV-2026-118.`;
+  return null;
+}
 
 const EMPTY_CASE: CaseInput = {
   title: "",
@@ -80,13 +91,18 @@ export function CaseFormModal({
   const [hits, setHits] = useState<ConflictHit[]>([]);
   const [conflictNote, setConflictNote] = useState("");
   const [planBlock, setPlanBlock] = useState<string | null>(null);
+  const [refError, setRefError] = useState<string | null>(null);
   const [newCase, setNewCase] = useState<CaseInput>(EMPTY_CASE);
+
+  // Submit stays disabled until both required fields hold something usable.
+  const canSubmit = newCase.title.trim().length > 0 && filingRefProblem(newCase.filingRef) === null;
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
       setHits([]);
       setConflictNote("");
       setPlanBlock(null);
+      setRefError(null);
     }
     onOpenChange(next);
   };
@@ -146,6 +162,7 @@ export function CaseFormModal({
           });
           setHits([]);
           setConflictNote("");
+          setRefError(null);
           setNewCase(EMPTY_CASE);
           onOpenChange(false);
           onOpened?.(created.id);
@@ -227,13 +244,35 @@ export function CaseFormModal({
           )}
 
           <div className="grid gap-2">
-            <Label htmlFor="case-ref">Filing Reference (Optional)</Label>
+            <Label htmlFor="case-ref">Filing Reference *</Label>
             <Input
               id="case-ref"
               value={newCase.filingRef}
-              onChange={(e) => setNewCase({ ...newCase, filingRef: e.target.value })}
-              placeholder="e.g. CV-2023-992"
+              onChange={(e) => {
+                setNewCase({ ...newCase, filingRef: e.target.value });
+                if (refError) setRefError(null);
+              }}
+              onBlur={() =>
+                newCase.filingRef.trim() && setRefError(filingRefProblem(newCase.filingRef))
+              }
+              aria-invalid={refError ? true : undefined}
+              aria-describedby={refError ? "case-ref-error" : undefined}
+              placeholder="e.g. CV-2026-118"
             />
+            {refError ? (
+              <p
+                id="case-ref-error"
+                role="alert"
+                className="text-[11px] text-destructive flex items-center gap-1.5"
+              >
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                {refError}
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground">
+                The court or registry reference this matter is filed under.
+              </p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
@@ -275,7 +314,7 @@ export function CaseFormModal({
         <DialogFooter>
           <Button
             disabled={
-              !newCase.title ||
+              !canSubmit ||
               createCaseMutation.isPending ||
               // A reported conflict needs a reason before it can be passed.
               (hits.length > 0 && !conflictNote.trim())

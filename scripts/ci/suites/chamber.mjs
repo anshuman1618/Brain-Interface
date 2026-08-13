@@ -146,7 +146,7 @@ const caseRes = await call("/cases", {
   token: as("founder@chambers.test"),
   wsToken: founderWs,
   method: "POST",
-  body: { title: "First matter", priority: "high" },
+  body: { title: "First matter", filingRef: "CV-2026-001", priority: "high" },
 });
 check("senior advocate can create a matter", caseRes.status === 201, `got ${caseRes.status}`);
 const CASE = caseRes.data.id;

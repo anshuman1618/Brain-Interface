@@ -898,7 +898,7 @@ export const ListCasesResponseItem = zod.object({
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
-  "filingRef": zod.string().nullish(),
+  "filingRef": zod.string(),
   "opposingParty": zod.string().nullish(),
   "conflictAcknowledgedBy": zod.string().nullish(),
   "conflictNote": zod.string().nullish(),
@@ -914,6 +914,8 @@ export const ListCasesResponse = zod.array(ListCasesResponseItem)
  */
 
 export const createCaseBodyStatusDefault = `open`;
+export const createCaseBodyFilingRefMin = 3;
+
 export const createCaseBodyPriorityDefault = `medium`;
 
 export const CreateCaseBody = zod.object({
@@ -924,7 +926,7 @@ export const CreateCaseBody = zod.object({
   "description": zod.string().optional(),
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']).default(createCaseBodyStatusDefault),
   "clientId": zod.number().optional(),
-  "filingRef": zod.string().optional(),
+  "filingRef": zod.string().min(createCaseBodyFilingRefMin).describe('Court or registry reference for the matter, e.g. CV-2026-118. Required — a matter that cannot be tied back to a filing is not findable in the place that counts.'),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).default(createCaseBodyPriorityDefault)
 })
 
@@ -936,7 +938,7 @@ export const CreateCaseResponse = zod.object({
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
-  "filingRef": zod.string().nullish(),
+  "filingRef": zod.string(),
   "opposingParty": zod.string().nullish(),
   "conflictAcknowledgedBy": zod.string().nullish(),
   "conflictNote": zod.string().nullish(),
@@ -961,7 +963,7 @@ export const GetCaseResponse = zod.object({
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
-  "filingRef": zod.string().nullish(),
+  "filingRef": zod.string(),
   "opposingParty": zod.string().nullish(),
   "conflictAcknowledgedBy": zod.string().nullish(),
   "conflictNote": zod.string().nullish(),
@@ -979,6 +981,8 @@ export const UpdateCaseParams = zod.object({
 })
 
 
+export const updateCaseBodyFilingRefMin = 3;
+
 
 
 export const UpdateCaseBody = zod.object({
@@ -986,7 +990,7 @@ export const UpdateCaseBody = zod.object({
   "description": zod.string().optional(),
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']).optional(),
   "clientId": zod.number().optional(),
-  "filingRef": zod.string().optional(),
+  "filingRef": zod.string().min(updateCaseBodyFilingRefMin).optional().describe('Optional on update because this is a partial patch, but it cannot be cleared: omit it to leave it alone.'),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional()
 })
 
@@ -998,7 +1002,7 @@ export const UpdateCaseResponse = zod.object({
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
-  "filingRef": zod.string().nullish(),
+  "filingRef": zod.string(),
   "opposingParty": zod.string().nullish(),
   "conflictAcknowledgedBy": zod.string().nullish(),
   "conflictNote": zod.string().nullish(),

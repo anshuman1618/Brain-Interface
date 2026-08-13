@@ -20,8 +20,7 @@ export interface Case {
   clientId: number | null;
   /** @nullable */
   clientName?: string | null;
-  /** @nullable */
-  filingRef?: string | null;
+  filingRef: string;
   /** @nullable */
   opposingParty?: string | null;
   /** @nullable */

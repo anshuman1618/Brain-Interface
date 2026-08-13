@@ -14,6 +14,10 @@ export interface CaseUpdate {
   description?: string;
   status?: CaseUpdateStatus;
   clientId?: number;
+  /**
+     * Optional on update because this is a partial patch, but it cannot be cleared: omit it to leave it alone.
+     * @minLength 3
+     */
   filingRef?: string;
   priority?: CaseUpdatePriority;
 }

@@ -176,7 +176,7 @@ CREATE TABLE IF NOT EXISTS cases (
   description TEXT,
   status TEXT NOT NULL DEFAULT 'open',
   client_id INTEGER,
-  filing_ref TEXT,
+  filing_ref TEXT NOT NULL,
   priority TEXT NOT NULL DEFAULT 'medium',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

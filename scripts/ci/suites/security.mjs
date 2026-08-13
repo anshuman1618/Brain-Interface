@@ -84,13 +84,13 @@ const caseA = await call("/cases", {
   token: as(`a.admin+${suffix}@a.test`),
   wsToken: aTok,
   method: "POST",
-  body: { title: `Alpha matter ${suffix}`, clientId: client.userId },
+  body: { title: `Alpha matter ${suffix}`, filingRef: `CV-A-${suffix}`, clientId: client.userId },
 });
 const caseB = await call("/cases", {
   token: as(`b.admin+${suffix}@b.test`),
   wsToken: bTok,
   method: "POST",
-  body: { title: `Beta confidential ${suffix}` },
+  body: { title: `Beta confidential ${suffix}`, filingRef: `CV-B-${suffix}` },
 });
 await call("/tasks", {
   token: as(`a.admin+${suffix}@a.test`),

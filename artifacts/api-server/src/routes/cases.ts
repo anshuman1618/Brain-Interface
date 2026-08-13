@@ -27,6 +27,7 @@ import { checkQuota, quotaMessage, usageFor } from "../lib/quota";
 import { screenForConflicts } from "../lib/conflicts";
 import { recordAudit } from "../lib/audit";
 import { CheckConflictsBody } from "@workspace/api-zod";
+import { zodMessage } from "../lib/validation";
 
 const router: IRouter = Router();
 
@@ -95,6 +96,25 @@ router.get(
   },
 );
 
+/**
+ * A sentence per field, because the generated validator's own wording is
+ * "Too small: expected string to have >=3 characters" against a path of
+ * `filingRef` — accurate, and no help to the advocate who left it blank.
+ *
+ * Falls back to the generic field-prefixed message for anything not named here.
+ */
+const CASE_FIELD_MESSAGES: Record<string, string> = {
+  filingRef:
+    "A filing reference is required — for example CV-2026-118. It must be at least 3 characters.",
+  title: "Give the matter a title.",
+};
+
+function caseFieldMessage(error: { issues?: ReadonlyArray<{ path?: ReadonlyArray<unknown> }> }) {
+  const field = error.issues?.[0]?.path?.[0];
+  if (typeof field === "string" && CASE_FIELD_MESSAGES[field]) return CASE_FIELD_MESSAGES[field];
+  return zodMessage(error);
+}
+
 router.post(
   "/cases",
   requireWorkspace,
@@ -104,7 +124,18 @@ router.post(
 
     const parsed = CreateCaseBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.message });
+      res.status(400).json({ error: "invalid_request", message: caseFieldMessage(parsed.error) });
+      return;
+    }
+
+    /**
+     * `.min(3)` counts characters, so "   " satisfies the generated validator
+     * and then trims to nothing. The stored value is the trimmed one, so the
+     * trimmed one is what has to pass.
+     */
+    const filingRef = parsed.data.filingRef.trim();
+    if (filingRef.length < 3) {
+      res.status(400).json({ error: "invalid_request", message: CASE_FIELD_MESSAGES["filingRef"] });
       return;
     }
 
@@ -163,7 +194,7 @@ router.post(
         description: parsed.data.description ?? null,
         status: parsed.data.status ?? "open",
         clientId: parsed.data.clientId ?? null,
-        filingRef: parsed.data.filingRef ?? null,
+        filingRef,
         opposingParty: opposing || null,
         conflictAcknowledgedBy: acknowledged ? c.user.clerkId : null,
         conflictNote: acknowledged ? (parsed.data.conflictNote?.trim() ?? null) : null,
@@ -234,7 +265,7 @@ router.patch(
 
     const body = UpdateCaseBody.safeParse(req.body);
     if (!body.success) {
-      res.status(400).json({ error: body.error.message });
+      res.status(400).json({ error: "invalid_request", message: caseFieldMessage(body.error) });
       return;
     }
 
@@ -249,7 +280,16 @@ router.patch(
     if (body.data.description != null) updateData.description = body.data.description;
     if (body.data.status != null) updateData.status = body.data.status;
     if (body.data.clientId != null) updateData.clientId = body.data.clientId;
-    if (body.data.filingRef != null) updateData.filingRef = body.data.filingRef;
+    if (body.data.filingRef != null) {
+      const trimmed = body.data.filingRef.trim();
+      if (trimmed.length < 3) {
+        res
+          .status(400)
+          .json({ error: "invalid_request", message: CASE_FIELD_MESSAGES["filingRef"] });
+        return;
+      }
+      updateData.filingRef = trimmed;
+    }
     if (body.data.priority != null) updateData.priority = body.data.priority;
 
     const [updated] = await db
