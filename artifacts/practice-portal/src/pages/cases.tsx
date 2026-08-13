@@ -1,11 +1,5 @@
 import { useState } from "react";
-import {
-  useListCases,
-  useCreateCase,
-  type CaseInput,
-  type CaseInputPriority,
-  type CaseInputStatus,
-} from "@workspace/api-client-react";
+import { useListCases } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import {
   Table,
@@ -20,62 +14,22 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, FileText, ChevronRight, AlertTriangle, CreditCard } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
-import {
-  getListCasesQueryKey,
-  useCheckConflicts,
-  type ConflictHit,
-} from "@workspace/api-client-react";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import { usePricingModal } from "@/components/pricing-modal";
+import { Search, Plus, FileText, ChevronRight, FolderOpen } from "lucide-react";
+import { CaseFormModal } from "@/components/case-form-modal";
 
 export default function CasesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const queryClient = useQueryClient();
 
   const { data: cases, isLoading } = useListCases();
-  const createCaseMutation = useCreateCase();
-  const conflictCheck = useCheckConflicts();
-  const { toast } = useToast();
-  const { setOpen: setPricingOpen } = usePricingModal();
-
-  /**
-   * Conflict state for the create dialog.
-   *
-   * `hits` is what the screening found; `note` is the advocate's reason for
-   * proceeding anyway. Both are cleared whenever the dialog opens, so a note
-   * written for one party can never be silently reused for another.
-   */
-  const [hits, setHits] = useState<ConflictHit[]>([]);
-  const [conflictNote, setConflictNote] = useState("");
-  const [planBlock, setPlanBlock] = useState<string | null>(null);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newCase, setNewCase] = useState<CaseInput>({
-    title: "",
-    description: "",
-    priority: "medium",
-    status: "open",
-    filingRef: "",
-  });
 
   const filteredCases = cases?.filter((c) => {
     const matchesSearch =
@@ -86,65 +40,10 @@ export default function CasesPage() {
     return matchesSearch && matchesStatus;
   });
 
-  /** Screen as soon as the field loses focus, so the warning arrives early. */
-  const screen = () => {
-    const party = newCase.opposingParty?.trim();
-    if (!party) {
-      setHits([]);
-      return;
-    }
-    conflictCheck.mutate({ data: { opposingParty: party } }, { onSuccess: (r) => setHits(r.hits) });
-  };
-
-  const handleCreate = () => {
-    setPlanBlock(null);
-    createCaseMutation.mutate(
-      {
-        data: {
-          ...newCase,
-          // Only sent when the advocate has actually been shown a conflict.
-          conflictAcknowledged: hits.length > 0 ? true : undefined,
-          conflictNote: hits.length > 0 ? conflictNote.trim() : undefined,
-        },
-      },
-      {
-        onError: (err: unknown) => {
-          const body = (err as { data?: Record<string, unknown> })?.data ?? {};
-          if (body["error"] === "conflict_of_interest") {
-            setHits((body["hits"] as ConflictHit[]) ?? []);
-            toast({
-              title: "Possible conflict of interest",
-              description: "Review the matches and record why the matter can proceed.",
-              variant: "destructive",
-            });
-            return;
-          }
-          if (body["error"] === "plan_limit") {
-            setPlanBlock(String(body["message"] ?? "Your plan is full."));
-            return;
-          }
-          toast({
-            title: "Could not open the matter",
-            description: err instanceof Error ? err.message : undefined,
-            variant: "destructive",
-          });
-        },
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: getListCasesQueryKey() });
-          setIsCreateOpen(false);
-          setHits([]);
-          setConflictNote("");
-          setNewCase({
-            title: "",
-            description: "",
-            priority: "medium",
-            status: "open",
-            filingRef: "",
-          });
-        },
-      },
-    );
-  };
+  // A registry with nothing in it and a filter that matched nothing are
+  // different problems, and "No cases found matching your criteria" was the
+  // wrong answer to the first: there were no criteria, there was no work yet.
+  const registryEmpty = !isLoading && (cases?.length ?? 0) === 0;
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -186,153 +85,9 @@ export default function CasesPage() {
           </p>
         </div>
 
-        <Dialog
-          open={isCreateOpen}
-          onOpenChange={(o) => {
-            setIsCreateOpen(o);
-            if (o) {
-              setHits([]);
-              setConflictNote("");
-              setPlanBlock(null);
-            }
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button className="rounded-lg">
-              <Plus className="mr-2 h-4 w-4" /> New Case File
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Open New Case</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="title">Case Title / Name</Label>
-                <Input
-                  id="title"
-                  value={newCase.title}
-                  onChange={(e) => setNewCase({ ...newCase, title: e.target.value })}
-                  placeholder="e.g. Smith v. Megacorp"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="opposing">Opposing party</Label>
-                <Input
-                  id="opposing"
-                  value={newCase.opposingParty ?? ""}
-                  onChange={(e) => setNewCase({ ...newCase, opposingParty: e.target.value })}
-                  onBlur={screen}
-                  placeholder="Who the matter is against"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Checked against your existing clients and matters before the file opens.
-                </p>
-              </div>
-
-              {/* A conflict is surfaced before the matter exists, and cannot be
-                  passed by clicking again — the API requires the reason too. */}
-              {hits.length > 0 && (
-                <div className="border border-destructive bg-destructive/10 p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-destructive font-semibold text-sm">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    Possible conflict of interest
-                  </div>
-                  <ul className="text-xs space-y-1 list-disc pl-5">
-                    {hits.map((h, i) => (
-                      <li key={i}>{h.detail}</li>
-                    ))}
-                  </ul>
-                  <Textarea
-                    value={conflictNote}
-                    onChange={(e) => setConflictNote(e.target.value)}
-                    rows={2}
-                    className="rounded-lg"
-                    placeholder="Why can this matter proceed? (recorded in the audit log)"
-                  />
-                </div>
-              )}
-
-              {planBlock && (
-                <div className="border border-primary bg-primary/10 p-3 space-y-2">
-                  <p className="text-sm">{planBlock}</p>
-                  <Button
-                    size="sm"
-                    className="rounded-lg"
-                    onClick={() => {
-                      setIsCreateOpen(false);
-                      setPricingOpen(true);
-                    }}
-                  >
-                    <CreditCard className="mr-2 h-4 w-4" /> View plans
-                  </Button>
-                </div>
-              )}
-
-              <div className="grid gap-2">
-                <Label htmlFor="ref">Filing Reference (Optional)</Label>
-                <Input
-                  id="ref"
-                  value={newCase.filingRef}
-                  onChange={(e) => setNewCase({ ...newCase, filingRef: e.target.value })}
-                  placeholder="e.g. CV-2023-992"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>Priority</Label>
-                  <Select
-                    value={newCase.priority}
-                    onValueChange={(v) =>
-                      setNewCase({ ...newCase, priority: v as CaseInputPriority })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Initial Status</Label>
-                  <Select
-                    value={newCase.status}
-                    onValueChange={(v) => setNewCase({ ...newCase, status: v as CaseInputStatus })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="open">Open</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="review">Review</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                disabled={
-                  !newCase.title ||
-                  createCaseMutation.isPending ||
-                  // A reported conflict needs a reason before it can be passed.
-                  (hits.length > 0 && !conflictNote.trim())
-                }
-                onClick={handleCreate}
-                className="rounded-lg"
-              >
-                {createCaseMutation.isPending ? "Creating..." : "Create Case"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <Button className="rounded-lg" onClick={() => setIsCreateOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" /> New Case File
+        </Button>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -403,10 +158,40 @@ export default function CasesPage() {
                     </TableCell>
                   </TableRow>
                 ))
+            ) : registryEmpty ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className="h-56">
+                  <div className="flex flex-col items-center justify-center text-center gap-3 px-4">
+                    <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center">
+                      <FolderOpen className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">No matters yet</p>
+                      <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                        The case registry is where every matter in this chamber lives. Open the
+                        first one and it will appear here.
+                      </p>
+                    </div>
+                    <Button className="rounded-lg mt-1" onClick={() => setIsCreateOpen(true)}>
+                      <Plus className="mr-2 h-4 w-4" /> File the first case
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
             ) : filteredCases?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  No cases found matching your criteria.
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className="h-32 text-center">
+                  <p className="text-muted-foreground">No cases match this search or filter.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setStatusFilter("all");
+                    }}
+                    className="text-sm text-primary hover:underline mt-2"
+                  >
+                    Clear filters
+                  </button>
                 </TableCell>
               </TableRow>
             ) : (
@@ -467,6 +252,8 @@ export default function CasesPage() {
           </TableBody>
         </Table>
       </div>
+
+      <CaseFormModal open={isCreateOpen} onOpenChange={setIsCreateOpen} />
     </div>
   );
 }

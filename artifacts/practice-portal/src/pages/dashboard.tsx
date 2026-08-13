@@ -34,6 +34,7 @@ import { Link, useLocation } from "wouter";
 import { usePricingModal } from "@/components/pricing-modal";
 import { DocumentRequestModal } from "@/components/document-request-modal";
 import { TaskFormModal } from "@/components/task-form-modal";
+import { CaseFormModal } from "@/components/case-form-modal";
 import { useSession } from "@/lib/session";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -81,6 +82,7 @@ function StaffDashboard() {
   const [, setLocation] = useLocation();
   const [docRequestOpen, setDocRequestOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [caseFormOpen, setCaseFormOpen] = useState(false);
 
   const { data: docRequests = [] } = useListDocumentRequests({
     query: {
@@ -122,11 +124,31 @@ function StaffDashboard() {
             {activeWorkspace?.name} &middot; Auto-refresh 30s
           </p>
         </div>
-        {can("tasks.write") && (
-          <Button className="rounded-lg shrink-0" onClick={() => setTaskFormOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> New Task
-          </Button>
-        )}
+        {/* Filing a matter is the first thing a chamber does, and it used to
+            require navigating to the registry to find the button. It sits in
+            the header block, which is above the fold at 375px as well as on a
+            desktop. `w-full sm:w-auto` because two buttons side by side on a
+            narrow phone leaves neither of them tappable. */}
+        <div className="flex flex-col-reverse sm:flex-row gap-2 w-full md:w-auto shrink-0">
+          {can("tasks.write") && (
+            <Button
+              variant="outline"
+              className="rounded-lg w-full sm:w-auto"
+              onClick={() => setTaskFormOpen(true)}
+            >
+              <Plus className="mr-2 h-4 w-4" /> New Task
+            </Button>
+          )}
+          {can("cases.write") && (
+            <Button
+              className="rounded-lg w-full sm:w-auto"
+              onClick={() => setCaseFormOpen(true)}
+              data-testid="dashboard-file-case"
+            >
+              <Briefcase className="mr-2 h-4 w-4" /> File New Case
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -139,8 +161,23 @@ function StaffDashboard() {
           <CardContent>
             {summaryLoading ? (
               <Skeleton className="h-10 w-20" />
+            ) : summary?.activeCases ? (
+              <div className="text-4xl font-bold tracking-tighter">{summary.activeCases}</div>
             ) : (
-              <div className="text-4xl font-bold tracking-tighter">{summary?.activeCases || 0}</div>
+              // A bare "0" is a dead end on a chamber's first day. Say what the
+              // next step is, and make it the thing you click.
+              <div className="space-y-2">
+                <div className="text-4xl font-bold tracking-tighter text-muted-foreground">0</div>
+                {can("cases.write") && (
+                  <button
+                    type="button"
+                    onClick={() => setCaseFormOpen(true)}
+                    className="text-xs font-mono uppercase tracking-wider text-primary hover:underline text-left"
+                  >
+                    File your first case →
+                  </button>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>
@@ -467,6 +504,9 @@ function StaffDashboard() {
 
       <DocumentRequestModal open={docRequestOpen} onOpenChange={setDocRequestOpen} />
       <TaskFormModal open={taskFormOpen} onOpenChange={setTaskFormOpen} />
+      {/* Same component the Case Registry uses, so conflict screening and the
+          plan limit behave identically from either entry point. */}
+      <CaseFormModal open={caseFormOpen} onOpenChange={setCaseFormOpen} />
     </div>
   );
 }
