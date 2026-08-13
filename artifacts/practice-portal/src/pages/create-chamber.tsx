@@ -1,8 +1,12 @@
 import { useState } from "react";
 import { Building2, ShieldCheck, Scale, LogOut, ArrowRight, AlertCircle } from "lucide-react";
 import { useSession } from "@/lib/session";
+import { userMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+/** Matches the minimum the API enforces, so the two cannot disagree. */
+const MIN_NAME_LENGTH = 2;
 
 const FOUNDER_ROLES = [
   {
@@ -37,16 +41,26 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
   const [name, setName] = useState("");
   const [role, setRole] = useState<"admin" | "senior_advocate">("admin");
   const [error, setError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  // The server refuses anything shorter than this. The form used to accept a
+  // single character and let the 400 come back as a red banner.
+  const nameProblem = (value: string): string | null =>
+    value.trim().length < MIN_NAME_LENGTH
+      ? `Give the chamber a name of at least ${MIN_NAME_LENGTH} characters.`
+      : null;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const problem = nameProblem(name);
+    setNameError(problem);
+    if (problem) return;
     setError(null);
     try {
       await createWorkspace(name.trim(), role);
       refreshSession();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create the chamber. Try again.");
+      setError(userMessage(err, "Could not create the chamber. Try again."));
     }
   };
 
@@ -78,17 +92,37 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
 
         <form onSubmit={submit} className="rounded-lg bg-card shadow-sm p-6 flex flex-col gap-6">
           <div className="space-y-2">
-            <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+            <label
+              htmlFor="chamber-name"
+              className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider"
+            >
               Chamber name
             </label>
             <Input
+              id="chamber-name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (nameError) setNameError(null);
+              }}
+              onBlur={() => name.trim() && setNameError(nameProblem(name))}
+              aria-invalid={nameError ? true : undefined}
+              aria-describedby={nameError ? "chamber-name-error" : undefined}
               className="rounded-lg bg-background"
               placeholder="e.g. Raghavan Chambers"
               autoFocus
               required
             />
+            {nameError && (
+              <p
+                id="chamber-name-error"
+                role="alert"
+                className="text-xs text-destructive flex items-center gap-1.5"
+              >
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                {nameError}
+              </p>
+            )}
           </div>
 
           <div className="space-y-3">

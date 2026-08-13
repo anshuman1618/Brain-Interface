@@ -1,75 +1,54 @@
 import { useState } from "react";
-import { Clock, ShieldCheck, LogOut, Send } from "lucide-react";
-import {
-  useCreateAccessRequest,
-  useListWorkspaces,
-  type WorkspaceMembershipSummary,
-} from "@workspace/api-client-react";
+import { Clock, ShieldCheck, LogOut, Building2, ChevronRight, Loader2 } from "lucide-react";
+import { useListWorkspaces, type WorkspaceMembershipSummary } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { RoleOptionsGrid } from "@/components/auth/role-options-grid";
-import { useToast } from "@/hooks/use-toast";
-import {
-  clearAccessRequestIntent,
-  getAccessRequestIntent,
-  roleLabel,
-  type RoleValue,
-} from "@/lib/role-options";
+import { roleLabel } from "@/lib/role-options";
+import CreateChamberPage from "@/pages/create-chamber";
 
 /**
- * Where a signed-in user with no active membership lands.
+ * Where a signed-in user with no *selected* workspace lands.
  *
- * This is the whole of what a fresh account gets. There is no data behind it —
- * every protected endpoint answers 403 for a user in this state — so the page
- * cannot be "escaped" by editing the URL or any stored value.
+ * Three distinct situations share this screen, and they need different words:
+ *
+ *   1. Active memberships exist but none is selected — the user belongs to more
+ *      than one chamber and has to pick. This is not "pending" anything, and
+ *      telling them their access was awaiting approval was simply wrong: the
+ *      workspace switcher lives in the dashboard header, which is not rendered
+ *      from here, so there was no way out of the screen at all.
+ *   2. A request is genuinely awaiting an admin's decision.
+ *   3. Neither — signed in, admitted nowhere.
+ *
+ * There is no "request access" form. It posted to a chamber slug hardcoded in
+ * this file which existed on no deployment, so every request 404'd. Joining an
+ * existing chamber is by admin invitation; founding one is the self-serve path.
  */
-export default function PendingApprovalPage({
-  defaultWorkspaceSlug = "raghavan-chambers",
-}: {
-  defaultWorkspaceSlug?: string;
-}) {
-  const { displayName, email, signOut, refreshSession } = useSession();
-  const { data: memberships = [], refetch } = useListWorkspaces();
-  const createRequest = useCreateAccessRequest();
-  const { toast } = useToast();
+export default function PendingApprovalPage() {
+  const { displayName, email, signOut, switchWorkspace, isSwitchingWorkspace } = useSession();
+  const { data: memberships = [] } = useListWorkspaces();
 
-  const [selected, setSelected] = useState<RoleValue | null>(() => getAccessRequestIntent());
-  const [note, setNote] = useState("");
+  const [founding, setFounding] = useState(false);
 
   const pending = memberships.filter((m: WorkspaceMembershipSummary) => m.status === "pending");
+  const active = memberships.filter((m: WorkspaceMembershipSummary) => m.status === "active");
   const hasPending = pending.length > 0;
+  const mustChoose = active.length > 0;
 
-  const submit = () => {
-    if (!selected) return;
-    createRequest.mutate(
-      {
-        data: {
-          workspaceSlug: defaultWorkspaceSlug,
-          requestedRole: selected,
-          note: note || undefined,
-        },
-      },
-      {
-        onSuccess: () => {
-          clearAccessRequestIntent();
-          toast({
-            title: "Request submitted",
-            description: "An admin will review it. Nothing is granted until they approve.",
-          });
-          void refetch();
-          refreshSession();
-        },
-        onError: (err: unknown) => {
-          toast({
-            title: "Couldn't submit the request",
-            description: err instanceof Error ? err.message : undefined,
-            variant: "destructive",
-          });
-        },
-      },
-    );
-  };
+  if (founding) {
+    return <CreateChamberPage onCancel={() => setFounding(false)} />;
+  }
+
+  const heading = mustChoose
+    ? "Choose a chamber"
+    : hasPending
+      ? "Your request is with an admin"
+      : "You're signed in, but not yet in a chamber";
+
+  const subheading = mustChoose
+    ? " You belong to more than one chamber, so pick the one you want to work in."
+    : hasPending
+      ? " No workspace data is available to you until an admin approves it."
+      : " Ask your chamber admin to add this address to the access list, or create your own chamber.";
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col items-center justify-center px-4 py-12 relative overflow-y-auto">
@@ -79,29 +58,58 @@ export default function PendingApprovalPage({
         <div className="rounded-lg bg-card shadow-sm p-8 mb-6">
           <div className="flex items-start gap-4">
             <div className="h-10 w-10 bg-muted flex items-center justify-center shrink-0">
-              <Clock className="h-5 w-5 text-muted-foreground" />
+              {mustChoose ? (
+                <Building2 className="h-5 w-5 text-muted-foreground" />
+              ) : (
+                <Clock className="h-5 w-5 text-muted-foreground" />
+              )}
             </div>
             <div className="flex-1">
               <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground mb-1">
-                Access pending
+                {mustChoose ? "Select a chamber" : "Access pending"}
               </p>
-              <h1 className="text-2xl font-bold tracking-tight mb-2">
-                {hasPending
-                  ? "Your request is with an admin"
-                  : "You're signed in, but not yet in a workspace"}
-              </h1>
+              <h1 className="text-2xl font-bold tracking-tight mb-2">{heading}</h1>
               <p className="text-sm text-muted-foreground">
                 Signed in as{" "}
                 <span className="font-medium text-foreground">{displayName || email}</span>.
-                {hasPending
-                  ? " No workspace data is available to you until an admin approves it."
-                  : " Ask for access below — this records a request; it does not grant anything."}
+                {subheading}
               </p>
             </div>
           </div>
         </div>
 
-        {hasPending ? (
+        {mustChoose && (
+          <div className="rounded-lg bg-card shadow-sm p-8">
+            <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-4">
+              <Building2 className="h-4 w-4" /> Your chambers
+            </div>
+            <div className="space-y-3">
+              {active.map((m: WorkspaceMembershipSummary) => (
+                <button
+                  key={m.workspace.id}
+                  type="button"
+                  disabled={isSwitchingWorkspace}
+                  onClick={() => switchWorkspace(m.workspace.id)}
+                  className="w-full border border-border p-4 flex justify-between items-center gap-4 text-left hover:border-primary/50 hover:bg-accent transition-colors disabled:opacity-60"
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{m.workspace.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider mt-1">
+                      {roleLabel(m.role) || m.role}
+                    </p>
+                  </div>
+                  {isSwitchingWorkspace ? (
+                    <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!mustChoose && hasPending && (
           <div className="rounded-lg bg-card shadow-sm p-8">
             <div className="flex items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground mb-4">
               <ShieldCheck className="h-4 w-4" /> Awaiting decision
@@ -129,60 +137,33 @@ export default function PendingApprovalPage({
               any — is actually granted.
             </p>
           </div>
-        ) : (
+        )}
+
+        {!mustChoose && !hasPending && (
           <div className="rounded-lg bg-card shadow-sm p-8">
-            <h2 className="text-lg font-bold tracking-tight mb-1">Request access</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Tell the admin what you need. They decide the role you're given.
+            <h2 className="text-lg font-bold tracking-tight mb-1">Nothing is waiting on you</h2>
+            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+              Your address{" "}
+              <span className="font-mono text-foreground break-all">{email || "(unknown)"}</span> is
+              not on any chamber's access list. An admin can add it, after which signing in again
+              admits you automatically. If you are setting up your own practice, create a chamber
+              now.
             </p>
-
-            <div className="mb-6">
-              <RoleOptionsGrid selected={selected} onSelect={setSelected} />
-            </div>
-
-            <div className="space-y-2 mb-6">
-              <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
-                Why do you need access? (optional)
-              </label>
-              <Textarea
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                className="rounded-lg resize-none h-20 bg-background"
-                placeholder="e.g. Joining as practice manager from 1 September."
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => signOut()}
-                className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <LogOut className="h-3.5 w-3.5" /> Sign out
-              </button>
-              <Button
-                className="rounded-lg px-8"
-                disabled={!selected || createRequest.isPending}
-                onClick={submit}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                {createRequest.isPending ? "Submitting..." : "Submit request"}
-              </Button>
-            </div>
+            <Button className="rounded-lg" onClick={() => setFounding(true)}>
+              <Building2 className="h-4 w-4 mr-2" /> Create a chamber
+            </Button>
           </div>
         )}
 
-        {hasPending && (
-          <div className="mt-6 flex justify-center">
-            <button
-              type="button"
-              onClick={() => signOut()}
-              className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <LogOut className="h-3.5 w-3.5" /> Sign out
-            </button>
-          </div>
-        )}
+        <div className="mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={() => signOut()}
+            className="flex items-center gap-2 text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <LogOut className="h-3.5 w-3.5" /> Sign out
+          </button>
+        </div>
       </div>
     </div>
   );
