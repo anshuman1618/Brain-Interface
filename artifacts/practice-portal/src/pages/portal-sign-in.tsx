@@ -14,12 +14,25 @@ import { useSession } from "@/lib/session";
  * access list, which is the only thing that admits anyone. Choosing Google over
  * Zoho changes nothing about what you can reach.
  */
+/**
+ * Same shape the API applies to access-list entries, so an address this screen
+ * accepts is one the server can also match. The browser's own `type="email"`
+ * check was the only guard here, and it does not run at all when the form is
+ * submitted programmatically.
+ */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Clerk's emailed one-time codes are six digits. */
+const CODE_LENGTH = 6;
+
 export default function PortalSignInPage() {
   const {
     previewMode,
     signInWithProvider,
     verifyEmailCode,
+    resendCode,
     awaitingCode,
+    pendingEmail,
     cancelCodeEntry,
     signInError,
     isSigningIn,
@@ -32,6 +45,18 @@ export default function PortalSignInPage() {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  // After a refresh the provider knows the address but this component does not,
+  // so the code screen reads from the persisted value first.
+  const codeSentTo = pendingEmail || email;
+
+  const validateEmail = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return "Enter your email address.";
+    if (!EMAIL_PATTERN.test(trimmed)) return "That doesn't look like an email address.";
+    return null;
+  };
 
   const startProvider = (id: ProviderId) => {
     // Outside preview, Google and Zoho hand off to the identity provider
@@ -40,12 +65,19 @@ export default function PortalSignInPage() {
       void signInWithProvider(id, "");
       return;
     }
+    setEmailError(null);
     setChosen(id);
   };
 
   const submitEmail = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chosen || !email.trim()) return;
+    if (!chosen) return;
+    // Checked here rather than left to the browser: the submit button was
+    // enabled by any non-empty string, so "abc" reached Clerk and came back as
+    // a red banner about a failed request instead of a note under the field.
+    const problem = validateEmail(email);
+    setEmailError(problem);
+    if (problem) return;
     void signInWithProvider(chosen, email.trim(), name.trim());
   };
 
@@ -107,7 +139,7 @@ export default function PortalSignInPage() {
               <div className="rounded-lg bg-background shadow-[var(--press-sm)] px-4 py-3">
                 <p className="text-sm">
                   We sent a one-time code to{" "}
-                  <span className="font-mono font-medium break-all">{email}</span>.
+                  <span className="font-mono font-medium break-all">{codeSentTo}</span>.
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   It expires shortly. No password is involved — the code is the whole sign-in.
@@ -120,21 +152,27 @@ export default function PortalSignInPage() {
                 </label>
                 <Input
                   value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  // Digits only: pasting a code with a stray space silently
+                  // failed the length check and disabled the button with no
+                  // explanation of why.
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                   className="rounded-lg bg-background font-mono tracking-[0.4em] text-center text-lg"
                   placeholder="000000"
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  maxLength={8}
+                  maxLength={CODE_LENGTH}
                   autoFocus
                   required
                 />
+                <p className="text-xs text-muted-foreground">
+                  {CODE_LENGTH} digits, from the email just sent.
+                </p>
               </div>
 
               <Button
                 type="submit"
                 className="rounded-lg w-full"
-                disabled={isSigningIn || code.trim().length < 4}
+                disabled={isSigningIn || code.length !== CODE_LENGTH}
               >
                 {isSigningIn ? "Verifying..." : "Verify and continue"}
               </Button>
@@ -152,7 +190,7 @@ export default function PortalSignInPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void signInWithProvider("email", email)}
+                  onClick={() => void resendCode()}
                   disabled={isSigningIn}
                   className="text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                 >
@@ -199,18 +237,40 @@ export default function PortalSignInPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                <label
+                  htmlFor="signin-email"
+                  className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider"
+                >
                   Email address
                 </label>
                 <Input
+                  id="signin-email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    // Clear as soon as they start fixing it; re-checked on blur
+                    // and again on submit.
+                    if (emailError) setEmailError(null);
+                  }}
+                  onBlur={() => email.trim() && setEmailError(validateEmail(email))}
+                  aria-invalid={emailError ? true : undefined}
+                  aria-describedby={emailError ? "signin-email-error" : undefined}
                   className="rounded-lg bg-background"
                   placeholder="you@yourchamber.in"
                   autoFocus
                   required
                 />
+                {emailError && (
+                  <p
+                    id="signin-email-error"
+                    role="alert"
+                    className="text-xs text-destructive flex items-center gap-1.5"
+                  >
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    {emailError}
+                  </p>
+                )}
               </div>
 
               {previewMode && (

@@ -20,6 +20,7 @@ import {
   type Workspace,
 } from "@workspace/api-client-react";
 import { ROLE_OPTIONS, type RoleValue } from "@/lib/role-options";
+import { userMessage } from "@/lib/errors";
 import type { ProviderId } from "@/lib/auth-providers";
 import {
   clearPreviewSession,
@@ -72,8 +73,12 @@ export type Session = {
   signInWithProvider: (provider: ProviderId, email: string, name?: string) => Promise<void>;
   /** Submits the one-time code sent to the address. Passwordless: there is no password path. */
   verifyEmailCode: (code: string) => Promise<void>;
+  /** Sends another code to the same address, on the leg that issued the first. */
+  resendCode: () => Promise<void>;
   /** True once a code has been sent and the UI should ask for it. */
   awaitingCode: boolean;
+  /** The address a code was sent to. Survives a refresh; "" when none is outstanding. */
+  pendingEmail: string;
   cancelCodeEntry: () => void;
   isSigningIn: boolean;
   signInError: string | null;
@@ -192,6 +197,44 @@ function baseSessionFields(claims: SessionClaims | null) {
 
 const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+/**
+ * The one-time code flow, across a page load.
+ *
+ * Which address a code went to — and which Clerk resource issued it — lived in
+ * React state alone. Refreshing the tab while reading the code out of an email
+ * client dropped both, returning the user to the provider list holding a code
+ * with nowhere to type it. sessionStorage rather than localStorage: this is a
+ * half-finished sign-in, and it should not outlive the tab.
+ */
+type PendingCode = { email: string; leg: "signIn" | "signUp" };
+
+const PENDING_CODE_KEY = "lex.signin.pending-code";
+
+function readPendingCode(): PendingCode | null {
+  try {
+    const raw = sessionStorage.getItem(PENDING_CODE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const { email, leg } = parsed as Partial<PendingCode>;
+    if (typeof email !== "string" || (leg !== "signIn" && leg !== "signUp")) return null;
+    return { email, leg };
+  } catch {
+    // Private-mode Safari throws on sessionStorage. Losing the resume is a
+    // worse experience, not a broken one.
+    return null;
+  }
+}
+
+function writePendingCode(value: PendingCode | null): void {
+  try {
+    if (value) sessionStorage.setItem(PENDING_CODE_KEY, JSON.stringify(value));
+    else sessionStorage.removeItem(PENDING_CODE_KEY);
+  } catch {
+    /* see readPendingCode */
+  }
+}
+
 export function ClerkSessionProvider({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, user } = useUser();
   const { signOut } = useAuth();
@@ -202,17 +245,23 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
 
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
-  const [awaitingCode, setAwaitingCode] = useState(false);
 
   /**
-   * Which leg of the passwordless flow the emailed code belongs to.
+   * The outstanding one-time code: which address it went to, and which leg of
+   * the passwordless flow issued it.
    *
    * Clerk keeps sign-in and sign-up as separate resources, and a code issued by
    * one is not verifiable by the other. The door in this app is single, so the
    * flow picks a leg on the way in and this remembers which, rather than
-   * guessing again at verification time.
+   * guessing again at verification time. Persisted so a refresh mid-flow does
+   * not strand the user.
    */
-  const [codeLeg, setCodeLeg] = useState<"signIn" | "signUp">("signIn");
+  const [pendingCode, setPendingCodeState] = useState<PendingCode | null>(() => readPendingCode());
+
+  const setPendingCode = useCallback((value: PendingCode | null) => {
+    writePendingCode(value);
+    setPendingCodeState(value);
+  }, []);
 
   /**
    * Hands off to the identity provider.
@@ -245,8 +294,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
           // sign-in needs a user, and nothing here was creating one.
           const { error } = await signIn.emailCode.sendCode({ emailAddress });
           if (!error) {
-            setCodeLeg("signIn");
-            setAwaitingCode(true);
+            setPendingCode({ email: emailAddress, leg: "signIn" });
             return;
           }
 
@@ -257,8 +305,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
           if (created.error) throw error;
           const sent = await signUp.verifications.sendEmailCode();
           if (sent.error) throw sent.error;
-          setCodeLeg("signUp");
-          setAwaitingCode(true);
+          setPendingCode({ email: emailAddress, leg: "signUp" });
           return;
         }
 
@@ -284,20 +331,48 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       } catch (err) {
         // A provider that is not enabled in the Clerk dashboard fails here, and
         // saying so beats a silent no-op the user cannot diagnose.
-        const message =
-          err && typeof err === "object" && "message" in err
-            ? String((err as { message?: unknown }).message ?? "")
-            : "";
         setSignInError(
-          message ||
+          userMessage(
+            err,
             `Could not start sign-in with ${provider}. It may not be enabled for this deployment — ask your administrator.`,
+          ),
         );
       } finally {
         setIsSigningIn(false);
       }
     },
-    [signIn, signUp],
+    [signIn, signUp, setPendingCode],
   );
+
+  /**
+   * Another code to the same address, on the leg that issued the first one.
+   *
+   * Resending used to restart the whole flow at the sign-in leg. For an address
+   * that had signed *up* a moment earlier, that failed, fell through to
+   * `signUp.create()` — which refuses, the attempt already exists — and showed
+   * the original sign-in error on a screen asking for a code. The user was told
+   * their sign-in failed while holding a perfectly good code.
+   */
+  const resendCode = useCallback(async () => {
+    if (!pendingCode) return;
+    setSignInError(null);
+    setIsSigningIn(true);
+    try {
+      if (pendingCode.leg === "signUp") {
+        if (!signUp) throw new Error("Sign-up is not available. Start again.");
+        const { error } = await signUp.verifications.sendEmailCode();
+        if (error) throw error;
+      } else {
+        if (!signIn) throw new Error("Sign-in is not available. Start again.");
+        const { error } = await signIn.emailCode.sendCode({ emailAddress: pendingCode.email });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setSignInError(userMessage(err, "Could not send another code. Try again in a moment."));
+    } finally {
+      setIsSigningIn(false);
+    }
+  }, [pendingCode, signIn, signUp]);
 
   /** Second leg of the passwordless email flow: verify the emailed code. */
   const verifyEmailCode = useCallback(
@@ -307,8 +382,8 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       setIsSigningIn(true);
       try {
         const trimmed = code.trim();
-        // Verified against whichever leg issued it — see `codeLeg`.
-        const usingSignUp = codeLeg === "signUp" && Boolean(signUp);
+        // Verified against whichever leg issued it — see `pendingCode`.
+        const usingSignUp = pendingCode?.leg === "signUp" && Boolean(signUp);
         const { error } =
           usingSignUp && signUp
             ? await signUp.verifications.verifyEmailCode({ code: trimmed })
@@ -342,29 +417,25 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
         const { error: finalizeError } = await leg.finalize();
         if (finalizeError) throw finalizeError;
 
-        setAwaitingCode(false);
+        setPendingCode(null);
         // A client-side navigation, not a reload. `finalize()` has just updated
         // the live Clerk client; a full page load restarts from whatever has
         // reached browser storage, and losing that race is what sent a
         // successfully verified user back to the front page.
         setLocation("/dashboard");
       } catch (err) {
-        const message =
-          err && typeof err === "object" && "message" in err
-            ? String((err as { message?: unknown }).message ?? "")
-            : "";
-        setSignInError(message || "That code wasn't accepted. Check it and try again.");
+        setSignInError(userMessage(err, "That code wasn't accepted. Check it and try again."));
       } finally {
         setIsSigningIn(false);
       }
     },
-    [signIn, signUp, codeLeg, setLocation],
+    [signIn, signUp, pendingCode, setLocation, setPendingCode],
   );
 
   const cancelCodeEntry = useCallback(() => {
-    setAwaitingCode(false);
+    setPendingCode(null);
     setSignInError(null);
-  }, []);
+  }, [setPendingCode]);
 
   const value = useMemo<Session>(() => {
     const email = user?.emailAddresses?.[0]?.emailAddress ?? "";
@@ -389,7 +460,9 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       isCreatingWorkspace: backend.isCreatingWorkspace,
       signInWithProvider,
       verifyEmailCode,
-      awaitingCode,
+      resendCode,
+      awaitingCode: pendingCode !== null,
+      pendingEmail: pendingCode?.email ?? "",
       cancelCodeEntry,
       isSigningIn,
       signInError,
@@ -403,7 +476,8 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
     backend,
     signInWithProvider,
     verifyEmailCode,
-    awaitingCode,
+    resendCode,
+    pendingCode,
     cancelCodeEntry,
     isSigningIn,
     signInError,
@@ -469,7 +543,9 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
       signInWithProvider,
       // No provider is connected in preview, so there is no code to verify.
       verifyEmailCode: async () => {},
+      resendCode: async () => {},
       awaitingCode: false,
+      pendingEmail: "",
       cancelCodeEntry: () => {},
       isSigningIn: false,
       signInError: null,
