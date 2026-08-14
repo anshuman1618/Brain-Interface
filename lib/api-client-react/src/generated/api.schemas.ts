@@ -421,6 +421,25 @@ export interface UserRoleUpdateInput {
   role: UserRoleUpdateInputRole;
 }
 
+export interface BetaFeedbackInput {
+  /**
+     * What the user wants to tell us.
+     * @minLength 3
+     * @maxLength 4000
+     */
+  message: string;
+  /**
+     * Route they were on when they sent it, e.g. /cases/14.
+     * @maxLength 512
+     */
+  pagePath: string;
+}
+
+export interface BetaFeedbackAck {
+  id: number;
+  createdAt: string;
+}
+
 export type CaseStatus = typeof CaseStatus[keyof typeof CaseStatus];
 
 

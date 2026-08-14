@@ -12,6 +12,7 @@ import documentRequestsRouter from "./document-requests";
 import searchRouter from "./search";
 import calendarRouter from "./calendar";
 import feedbackRouter from "./feedback";
+import betaFeedbackRouter from "./beta-feedback";
 import subscriptionRouter from "./subscription";
 import governanceRouter from "./governance";
 
@@ -33,6 +34,7 @@ router.use(documentRequestsRouter);
 router.use(searchRouter);
 router.use(calendarRouter);
 router.use(feedbackRouter);
+router.use(betaFeedbackRouter);
 router.use(subscriptionRouter);
 router.use(governanceRouter);
 

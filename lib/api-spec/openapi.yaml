@@ -1443,6 +1443,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/Invite"
 
+  /beta-feedback:
+    post:
+      operationId: sendBetaFeedback
+      tags: [feedback]
+      summary: Send product feedback from the beta widget
+      description: >
+        Records a free-text note against the page the user was on. Distinct from
+        /feedback, which is a client rating a matter. Requires sign-in but not a
+        workspace — the people most worth hearing from are often the ones stuck
+        outside one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BetaFeedbackInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BetaFeedbackAck"
+        "400":
+          description: Invalid
+        "401":
+          description: Unauthorized
+
 components:
   schemas:
     HealthStatus:
@@ -1796,6 +1824,29 @@ components:
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+
+    BetaFeedbackInput:
+      type: object
+      required: [message, pagePath]
+      properties:
+        message:
+          type: string
+          minLength: 3
+          maxLength: 4000
+          description: What the user wants to tell us.
+        pagePath:
+          type: string
+          maxLength: 512
+          description: Route they were on when they sent it, e.g. /cases/14.
+    BetaFeedbackAck:
+      type: object
+      required: [id, createdAt]
+      properties:
+        id:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
 
     # ── Case ──────────────────────────────────────────────────────────────
     Case:

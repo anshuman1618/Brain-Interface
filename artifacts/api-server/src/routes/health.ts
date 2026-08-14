@@ -30,6 +30,43 @@ router.get("/healthz", (_req, res) => {
 });
 
 /**
+ * Health, with the database actually touched.
+ *
+ * Distinct from `/healthz` above, which is deliberately trivial so a slow first
+ * connection cannot fail a deploy, and from `/readyz` below, which reports every
+ * subsystem and is verbose enough to be awkward for an uptime monitor to parse.
+ * This is the one to point a monitor at: one query, one small body, and a status
+ * code that means what it says.
+ *
+ * 503 rather than 200 when the query fails. A health check that answers 200 with
+ * `{"database":"unreachable"}` is a health check nobody is watching — the point
+ * of the endpoint is that something pages when it stops being true.
+ */
+router.get("/health", async (_req, res) => {
+  const startedAt = Date.now();
+  let database: "ok" | "unreachable" = "unreachable";
+  let error: string | null = null;
+
+  try {
+    await db.execute(sql`select 1`);
+    database = "ok";
+  } catch (err) {
+    error = describeCause(err);
+    logger.error({ err }, "Health check could not reach the database");
+  }
+
+  const healthy = database === "ok";
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? "ok" : "unhealthy",
+    database,
+    databaseError: error,
+    latencyMs: Date.now() - startedAt,
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
  * Readiness, and the answer to "why is my deployment broken".
  *
  * Every subsystem that can be misconfigured without stopping the process

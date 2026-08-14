@@ -20,6 +20,8 @@ export * from './accessRequestInput';
 export * from './accessRequestInputRequestedRole';
 export * from './accessRequestStatus';
 export * from './auditEvent';
+export * from './betaFeedbackAck';
+export * from './betaFeedbackInput';
 export * from './billingConfig';
 export * from './calendarEntry';
 export * from './calendarEntryInput';

@@ -19,6 +19,8 @@ import { isPreviewMode } from "@/lib/preview";
 import { ClerkSessionProvider, PreviewSessionProvider, useSession } from "@/lib/session";
 import PortalSignInPage from "@/pages/portal-sign-in";
 import { ThemeProvider } from "@/lib/theme";
+import { RootErrorBoundary } from "@/components/error-boundary";
+import { BetaFeedbackWidget } from "@/components/beta-feedback-widget";
 // Registers the API base URL (no-op when frontend and API share an origin).
 import "@/lib/api-config";
 
@@ -227,6 +229,10 @@ function PreviewApp() {
           <TooltipProvider>
             <PreviewRoutes />
             <Toaster />
+            {/* Mounted here rather than in the dashboard shell: the two screens
+                that most need a way to report a problem — access denied and
+                pending approval — render outside that shell. */}
+            <BetaFeedbackWidget />
           </TooltipProvider>
         </PreviewSessionProvider>
       </QueryClientProvider>
@@ -274,6 +280,7 @@ function ClerkApp() {
                 <Route path="/:rest*" component={DashboardLayout} />
               </Switch>
               <Toaster />
+              <BetaFeedbackWidget />
             </TooltipProvider>
           </ClerkSessionProvider>
         </QueryClientProvider>
@@ -285,7 +292,15 @@ function ClerkApp() {
 function App() {
   // One provider around both trees: the theme is a property of the browser, not
   // of whether Clerk happens to be configured.
-  return <ThemeProvider>{isPreviewMode ? <PreviewApp /> : <ClerkApp />}</ThemeProvider>;
+  //
+  // The boundary sits outside the theme provider deliberately — a crash inside
+  // ThemeProvider, ClerkProvider or the router is exactly the case that used to
+  // leave a white page, so the thing catching it cannot depend on any of them.
+  return (
+    <RootErrorBoundary>
+      <ThemeProvider>{isPreviewMode ? <PreviewApp /> : <ClerkApp />}</ThemeProvider>
+    </RootErrorBoundary>
+  );
 }
 
 export default App;

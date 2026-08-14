@@ -26,6 +26,8 @@ import type {
   AccessRequest,
   AccessRequestInput,
   AuditEvent,
+  BetaFeedbackAck,
+  BetaFeedbackInput,
   BillingConfig,
   CalendarEntry,
   CalendarEntryInput,
@@ -5288,5 +5290,77 @@ export const useCreateInvite = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateInviteMutationOptions(options));
+    }
+
+export const getSendBetaFeedbackUrl = () => {
+
+
+
+
+  return `/api/beta-feedback`
+}
+
+/**
+ * Records a free-text note against the page the user was on. Distinct from /feedback, which is a client rating a matter. Requires sign-in but not a workspace — the people most worth hearing from are often the ones stuck outside one.
+ * @summary Send product feedback from the beta widget
+ */
+export const sendBetaFeedback = async (betaFeedbackInput: BetaFeedbackInput, options?: RequestInit): Promise<BetaFeedbackAck> => {
+
+  return customFetch<BetaFeedbackAck>(getSendBetaFeedbackUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(betaFeedbackInput)
+  }
+);}
+
+
+
+
+
+export const getSendBetaFeedbackMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBetaFeedback>>, TError,{data: BodyType<BetaFeedbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof sendBetaFeedback>>, TError,{data: BodyType<BetaFeedbackInput>}, TContext> => {
+
+const mutationKey = ['sendBetaFeedback'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendBetaFeedback>>, {data: BodyType<BetaFeedbackInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  sendBetaFeedback(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendBetaFeedbackMutationResult = NonNullable<Awaited<ReturnType<typeof sendBetaFeedback>>>
+    export type SendBetaFeedbackMutationBody = BodyType<BetaFeedbackInput>
+    export type SendBetaFeedbackMutationError = ErrorType<void>
+
+    /**
+ * @summary Send product feedback from the beta widget
+ */
+export const useSendBetaFeedback = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendBetaFeedback>>, TError,{data: BodyType<BetaFeedbackInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof sendBetaFeedback>>,
+        TError,
+        {data: BodyType<BetaFeedbackInput>},
+        TContext
+      > => {
+      return useMutation(getSendBetaFeedbackMutationOptions(options));
     }
 

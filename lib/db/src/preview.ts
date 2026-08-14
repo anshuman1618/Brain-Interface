@@ -182,6 +182,19 @@ CREATE TABLE IF NOT EXISTS cases (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS beta_feedback (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  clerk_id TEXT NOT NULL,
+  email TEXT NOT NULL DEFAULT '',
+  display_name TEXT NOT NULL DEFAULT '',
+  workspace_id INTEGER,
+  message TEXT NOT NULL,
+  page_path TEXT NOT NULL,
+  user_agent TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id SERIAL PRIMARY KEY,
   case_id INTEGER NOT NULL,

@@ -176,7 +176,51 @@ app.use((err: unknown, req: express.Request, res: express.Response, next: expres
     return;
   }
 
-  res.status(500).type("text/plain").send("Internal server error");
+  // A document request that got this far means the SPA never loaded, so there is
+  // no client-side boundary to catch it — this is the page a person actually
+  // sees. It was `text/plain` "Internal server error", which reads like the
+  // server is broken beyond repair rather than like something to retry.
+  //
+  // Deliberately self-contained: no stylesheet, no script, no bundle. Whatever
+  // just failed might be what serves those.
+  res.status(500).type("text/html").send(FIVE_HUNDRED_PAGE);
 });
+
+/**
+ * The 500 page, as a constant so the error handler cannot itself throw while
+ * building it. Carries no error detail of any kind: this is served to whoever
+ * asked, including strangers and crawlers, and a stack trace in an HTML comment
+ * is still a stack trace.
+ */
+const FIVE_HUNDRED_PAGE = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Something went wrong &middot; LEX Practice</title>
+<style>
+  body { margin:0; min-height:100dvh; display:flex; align-items:center; justify-content:center;
+         padding:2rem 1rem; background:#e6ded2; color:#241708;
+         font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; }
+  main { max-width:32rem; text-align:center; }
+  .eyebrow { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.6875rem;
+             text-transform:uppercase; letter-spacing:.15em; color:#6b5942; margin-bottom:.75rem; }
+  h1 { font-size:1.5rem; letter-spacing:-.02em; margin:0 0 .75rem; }
+  p { line-height:1.6; color:#6b5942; margin:0 0 1.75rem; }
+  a { display:inline-block; background:#5b3a1c; color:#fff; text-decoration:none;
+      border-radius:.875rem; padding:.625rem 1.25rem; font-size:.875rem; font-weight:500; }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Something went wrong</div>
+  <h1>We could not load the portal</h1>
+  <p>The fault is ours, not yours. Nothing you had open has been lost. Try again in a moment &mdash;
+     if it keeps happening, tell us what you were doing and we will fix it.</p>
+  <a href="/">Try again</a>
+</main>
+</body>
+</html>`;
 
 export default app;

@@ -1,0 +1,14 @@
+-- Make the filing reference mandatory on databases that predate migrations.
+--
+-- 0000 declares `filing_ref text NOT NULL`, but it is guarded with IF NOT
+-- EXISTS, so against the already-deployed database it creates nothing and the
+-- constraint never lands. This file is what actually applies it there. On a
+-- brand-new database 0000 has already created the column NOT NULL and this is a
+-- no-op — Postgres accepts SET NOT NULL on a column that already has it.
+--
+-- Safe to run: `cases` was verified empty in production before this was written,
+-- so there is nothing to backfill. If it fails on some other database, that
+-- database has rows with a null filing_ref and needs a backfill decision made by
+-- a person — which is exactly why this is allowed to fail loudly rather than
+-- coercing the data.
+ALTER TABLE "cases" ALTER COLUMN "filing_ref" SET NOT NULL;

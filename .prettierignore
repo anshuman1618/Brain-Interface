@@ -16,3 +16,8 @@ artifacts/mockup-sandbox/src/.generated
 
 # Verbatim prompt/spec dumps — not code.
 attached_assets
+
+# Drizzle's migration state. Generated and rewritten by drizzle-kit, which does
+# not format to our rules — reformatting them makes format:check fail after the
+# next `generate`, and the snapshot chain is validated by the tool, not by us.
+lib/db/drizzle/

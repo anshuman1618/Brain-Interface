@@ -1690,3 +1690,25 @@ export const CreateInviteResponse = zod.object({
 })
 
 
+/**
+ * Records a free-text note against the page the user was on. Distinct from /feedback, which is a client rating a matter. Requires sign-in but not a workspace — the people most worth hearing from are often the ones stuck outside one.
+ * @summary Send product feedback from the beta widget
+ */
+export const sendBetaFeedbackBodyMessageMin = 3;
+export const sendBetaFeedbackBodyMessageMax = 4000;
+
+export const sendBetaFeedbackBodyPagePathMax = 512;
+
+
+
+export const SendBetaFeedbackBody = zod.object({
+  "message": zod.string().min(sendBetaFeedbackBodyMessageMin).max(sendBetaFeedbackBodyMessageMax).describe('What the user wants to tell us.'),
+  "pagePath": zod.string().max(sendBetaFeedbackBodyPagePathMax).describe('Route they were on when they sent it, e.g. \/cases\/14.')
+})
+
+export const SendBetaFeedbackResponse = zod.object({
+  "id": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+
+

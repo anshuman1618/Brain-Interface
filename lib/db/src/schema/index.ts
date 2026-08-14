@@ -8,6 +8,7 @@ export * from "./payment_events";
 export * from "./mail_outbox";
 export * from "./calendar_entries";
 export * from "./feedback";
+export * from "./beta_feedback";
 export * from "./users";
 export * from "./cases";
 export * from "./documents";

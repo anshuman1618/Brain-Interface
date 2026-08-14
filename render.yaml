@@ -35,12 +35,18 @@ services:
     # esbuild.
     buildCommand: corepack enable && pnpm install --frozen-lockfile --prod=false && pnpm run build
 
-    # Schema first, then serve. This runs on every start rather than in a
+    # Migrations first, then serve. This runs on every start rather than in a
     # preDeployCommand for two reasons: preDeployCommand requires a paid
     # instance type, and Render only shifts traffic once the new instance passes
     # its health check — so a failed migration means the deploy does not go live
     # while the previous instance keeps serving. Same safety, no plan dependency.
-    startCommand: pnpm --filter @workspace/db run push && pnpm run start
+    #
+    # `migrate`, not `push`. push diffs the schema against the live database and
+    # asks for confirmation when the answer is ambiguous; there is no terminal
+    # here to answer it, so it died with "Interactive prompts require a TTY" on
+    # every boot and the schema silently stopped tracking the code. migrate
+    # applies the reviewed files in lib/db/drizzle and records what it ran.
+    startCommand: pnpm --filter @workspace/db run migrate && pnpm run start
 
     healthCheckPath: /api/healthz
 
