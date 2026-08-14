@@ -260,7 +260,7 @@ export default function DocumentsPage() {
                       <span className="font-medium text-sm">{r.documentName}</span>
                       <Badge
                         variant="outline"
-                        className={`rounded-lg text-[9px] uppercase font-mono tracking-wider px-1 py-0 ${
+                        className={`rounded-lg text-3xs uppercase font-mono tracking-wider px-1 py-0 ${
                           r.status === "fulfilled"
                             ? "text-primary border-primary/40"
                             : overdue
@@ -356,7 +356,7 @@ export default function DocumentsPage() {
                     {isStaff && (
                       <Badge
                         variant="outline"
-                        className="rounded-lg text-[9px] uppercase font-mono tracking-wider px-1 py-0 flex items-center gap-1"
+                        className="rounded-lg text-3xs uppercase font-mono tracking-wider px-1 py-0 flex items-center gap-1"
                       >
                         {d.visibility === "shared" ? (
                           <Users className="h-2.5 w-2.5" />
@@ -369,7 +369,7 @@ export default function DocumentsPage() {
                     {d.documentRequestId && (
                       <Badge
                         variant="outline"
-                        className="rounded-lg text-[9px] uppercase font-mono tracking-wider px-1 py-0"
+                        className="rounded-lg text-3xs uppercase font-mono tracking-wider px-1 py-0"
                       >
                         Fulfils a request
                       </Badge>
@@ -448,7 +448,7 @@ export default function DocumentsPage() {
                 required
               />
               {file && (
-                <p className="text-[11px] font-mono text-muted-foreground">
+                <p className="text-2xs font-mono text-muted-foreground">
                   {(file.size / 1024).toFixed(0)} KB · {file.type || "unknown type"}
                 </p>
               )}

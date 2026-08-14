@@ -116,7 +116,7 @@ export function AccessRequestQueue() {
 
               <div className="flex flex-col sm:flex-row gap-3 sm:items-end shrink-0">
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                  <label className="block text-3xs font-mono uppercase tracking-wider text-muted-foreground">
                     Grant role
                   </label>
                   <Select

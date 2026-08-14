@@ -57,13 +57,13 @@ export default function ActivityPage() {
         <div className="rounded-lg bg-card shadow-sm overflow-hidden divide-y divide-border">
           {data.map((e) => (
             <div key={e.id} className="p-4 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4">
-              <div className="sm:w-44 shrink-0 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+              <div className="sm:w-44 shrink-0 font-mono text-2xs uppercase tracking-wider text-muted-foreground">
                 {formatDateTime(e.at)}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`font-mono text-[10px] uppercase tracking-widest font-semibold ${
+                    className={`font-mono text-3xs uppercase tracking-widest font-semibold ${
                       TONE[e.action] ?? "text-foreground"
                     }`}
                   >
@@ -79,7 +79,7 @@ export default function ActivityPage() {
                 <p className="text-sm mt-0.5 break-words">{e.summary}</p>
               </div>
               {e.ip && (
-                <div className="font-mono text-[10px] text-muted-foreground shrink-0">{e.ip}</div>
+                <div className="font-mono text-3xs text-muted-foreground shrink-0">{e.ip}</div>
               )}
             </div>
           ))}

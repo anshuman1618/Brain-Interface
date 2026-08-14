@@ -117,19 +117,19 @@ export function DocumentRequestModal({ open, onOpenChange }: DocumentRequestModa
             who the document was being requested from, and on whose behalf. */}
         <div className="flex items-center gap-3 border border-border bg-muted/30 px-4 py-3 text-xs font-mono uppercase tracking-wider">
           <div className="min-w-0">
-            <p className="text-[10px] text-muted-foreground">From</p>
+            <p className="text-3xs text-muted-foreground">From</p>
             <p className="truncate text-foreground">{displayName}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{displayRole}</p>
+            <p className="text-3xs text-muted-foreground truncate">{displayRole}</p>
           </div>
           <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] text-muted-foreground">Requesting from</p>
+            <p className="text-3xs text-muted-foreground">Requesting from</p>
             <p className="truncate text-foreground flex items-center gap-1.5">
               <UserRound className="h-3 w-3 shrink-0" />
               {recipient?.displayName || "— select a client —"}
             </p>
             {recipient?.email && (
-              <p className="text-[10px] text-muted-foreground truncate normal-case">
+              <p className="text-3xs text-muted-foreground truncate normal-case">
                 {recipient.email}
               </p>
             )}

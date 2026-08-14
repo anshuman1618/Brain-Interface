@@ -120,7 +120,7 @@ export function AccessListManager() {
           className="grid gap-3 sm:grid-cols-[140px_1fr_180px_auto] sm:items-end"
         >
           <div className="space-y-1.5">
-            <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            <label className="block text-3xs font-mono uppercase tracking-wider text-muted-foreground">
               Match
             </label>
             <Select value={kind} onValueChange={(v) => setKind(v as "email" | "domain")}>
@@ -135,7 +135,7 @@ export function AccessListManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            <label className="block text-3xs font-mono uppercase tracking-wider text-muted-foreground">
               {kind === "email" ? "Email address" : "Domain"}
             </label>
             <Input
@@ -148,7 +148,7 @@ export function AccessListManager() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+            <label className="block text-3xs font-mono uppercase tracking-wider text-muted-foreground">
               Signs in as
             </label>
             <Select value={role} onValueChange={setRole}>
@@ -236,7 +236,7 @@ export function AccessListManager() {
                 <TableCell>
                   <Badge
                     variant="outline"
-                    className="rounded-lg text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
+                    className="rounded-lg text-3xs uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
                   >
                     {entry.role === "admin" && <ShieldCheck className="h-3 w-3" />}
                     {roleLabel(entry.role) || entry.role}

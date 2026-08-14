@@ -256,7 +256,7 @@ export default function FeedbackPage() {
                 {f.response ? (
                   <Badge
                     variant="outline"
-                    className="rounded-lg text-[9px] uppercase font-mono tracking-wider px-1 py-0"
+                    className="rounded-lg text-3xs uppercase font-mono tracking-wider px-1 py-0"
                   >
                     Replied
                   </Badge>

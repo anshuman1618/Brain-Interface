@@ -36,7 +36,7 @@ export function WorkspaceSwitcher() {
           <span className="text-sm font-medium truncate leading-tight">
             {activeWorkspace?.name ?? active[0].workspace.name}
           </span>
-          <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground truncate">
+          <span className="text-3xs font-mono uppercase tracking-wider text-muted-foreground truncate">
             {roleLabel(role) || role}
           </span>
         </div>
@@ -60,7 +60,7 @@ export function WorkspaceSwitcher() {
             <span className="text-sm font-medium truncate leading-tight">
               {activeWorkspace?.name ?? "Select a workspace"}
             </span>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground truncate">
+            <span className="text-3xs font-mono uppercase tracking-wider text-muted-foreground truncate">
               {roleLabel(role) || "No role"}
             </span>
           </div>
@@ -69,7 +69,7 @@ export function WorkspaceSwitcher() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="start" className="w-[280px] rounded-lg">
-        <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+        <DropdownMenuLabel className="font-mono text-3xs uppercase tracking-widest text-muted-foreground">
           Your workspaces
         </DropdownMenuLabel>
         {active.map((m) => (
@@ -83,7 +83,7 @@ export function WorkspaceSwitcher() {
             <div className="flex items-center gap-2 w-full min-w-0">
               <div className="flex flex-col min-w-0 flex-1">
                 <span className="text-sm truncate">{m.workspace.name}</span>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
+                <span className="text-3xs font-mono uppercase tracking-wider text-muted-foreground">
                   {roleLabel(m.role) || m.role}
                 </span>
               </div>
@@ -95,7 +95,7 @@ export function WorkspaceSwitcher() {
         {pending.length > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            <DropdownMenuLabel className="font-mono text-3xs uppercase tracking-widest text-muted-foreground">
               Awaiting approval
             </DropdownMenuLabel>
             {pending.map((m) => (
@@ -105,7 +105,7 @@ export function WorkspaceSwitcher() {
                 <div className="flex items-center gap-2 w-full min-w-0">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
                   <span className="text-sm truncate flex-1">{m.workspace.name}</span>
-                  <span className="text-[10px] font-mono uppercase tracking-wider">Pending</span>
+                  <span className="text-3xs font-mono uppercase tracking-wider">Pending</span>
                 </div>
               </DropdownMenuItem>
             ))}

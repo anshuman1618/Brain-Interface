@@ -199,7 +199,7 @@ export function CaseFormModal({
               onBlur={screen}
               placeholder="Who the matter is against"
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               Checked against your existing clients and matters before the file opens.
             </p>
           </div>
@@ -263,13 +263,13 @@ export function CaseFormModal({
               <p
                 id="case-ref-error"
                 role="alert"
-                className="text-[11px] text-destructive flex items-center gap-1.5"
+                className="text-2xs text-destructive flex items-center gap-1.5"
               >
                 <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                 {refError}
               </p>
             ) : (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 The court or registry reference this matter is filed under.
               </p>
             )}

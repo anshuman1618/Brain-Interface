@@ -51,10 +51,12 @@ export default function CasesPage() {
         return "bg-destructive text-destructive-foreground";
       case "high":
         return "bg-primary text-primary-foreground";
+      // muted-foreground on muted is 3.86:1 in dark — the badge is 10px text,
+      // so it needs 4.5:1. The card foreground clears it on both grounds.
       case "medium":
-        return "bg-muted text-muted-foreground border-border border";
+        return "bg-muted text-foreground border-border border";
       case "low":
-        return "bg-background text-muted-foreground border-border border";
+        return "bg-background text-foreground border-border border";
       default:
         return "bg-muted text-foreground";
     }
@@ -118,13 +120,15 @@ export default function CasesPage() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent bg-muted/30">
-              <TableHead className="w-[100px] font-mono text-xs uppercase tracking-wider">
+              <TableHead className="hidden sm:table-cell w-[100px] font-mono text-xs uppercase tracking-wider">
                 ID
               </TableHead>
               <TableHead className="font-mono text-xs uppercase tracking-wider">
                 Case Matter
               </TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Client</TableHead>
+              <TableHead className="hidden md:table-cell font-mono text-xs uppercase tracking-wider">
+                Client
+              </TableHead>
               <TableHead className="font-mono text-xs uppercase tracking-wider">Status</TableHead>
               <TableHead className="font-mono text-xs uppercase tracking-wider">Priority</TableHead>
               <TableHead className="font-mono text-xs uppercase tracking-wider text-right">
@@ -138,13 +142,13 @@ export default function CasesPage() {
                 .fill(0)
                 .map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Skeleton className="h-4 w-12" />
                     </TableCell>
                     <TableCell>
                       <Skeleton className="h-4 w-48" />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <Skeleton className="h-4 w-24" />
                     </TableCell>
                     <TableCell>
@@ -201,7 +205,9 @@ export default function CasesPage() {
                   className="group cursor-pointer"
                   onClick={() => (window.location.href = `/cases/${c.id}`)}
                 >
-                  <TableCell className="font-mono text-xs text-muted-foreground">#{c.id}</TableCell>
+                  <TableCell className="hidden sm:table-cell font-mono text-xs text-muted-foreground">
+                    #{c.id}
+                  </TableCell>
                   <TableCell>
                     <div className="font-medium text-sm group-hover:text-primary transition-colors flex items-center gap-2">
                       <FileText className="h-4 w-4 text-muted-foreground" />
@@ -213,7 +219,7 @@ export default function CasesPage() {
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="hidden md:table-cell text-sm">
                     {c.clientName || (
                       <span className="text-muted-foreground italic">Unassigned</span>
                     )}
@@ -221,7 +227,7 @@ export default function CasesPage() {
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className={`rounded-lg text-[10px] uppercase font-mono tracking-wider border ${getStatusColor(c.status)}`}
+                      className={`rounded-lg text-3xs uppercase font-mono tracking-wider border ${getStatusColor(c.status)}`}
                     >
                       {c.status.replace("_", " ")}
                     </Badge>
@@ -229,7 +235,7 @@ export default function CasesPage() {
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className={`rounded-lg text-[10px] uppercase font-mono tracking-wider ${getPriorityColor(c.priority || "medium")}`}
+                      className={`rounded-lg text-3xs uppercase font-mono tracking-wider ${getPriorityColor(c.priority || "medium")}`}
                     >
                       {c.priority}
                     </Badge>

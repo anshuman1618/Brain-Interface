@@ -71,7 +71,7 @@ export default function CreateChamberPage({ onCancel }: { onCancel?: () => void 
       <div className="relative z-10 w-full max-w-2xl">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-card shadow-sm mb-6">
           <Building2 className="h-3.5 w-3.5 text-primary" />
-          <span className="text-[11px] font-mono font-semibold tracking-wider uppercase text-muted-foreground">
+          <span className="text-2xs font-mono font-semibold tracking-wider uppercase text-muted-foreground">
             Set up your chamber
           </span>
         </div>

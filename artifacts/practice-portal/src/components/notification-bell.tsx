@@ -61,7 +61,7 @@ export function NotificationBell() {
         <Button variant="ghost" size="icon" className="relative rounded-lg">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute top-1.5 right-1.5 h-4 min-w-4 px-1 rounded-lg bg-foreground text-background text-[10px] font-mono flex items-center justify-center">
+            <span className="absolute top-1.5 right-1.5 h-4 min-w-4 px-1 rounded-lg bg-foreground text-background text-3xs font-mono flex items-center justify-center">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
@@ -76,7 +76,7 @@ export function NotificationBell() {
             <Button
               variant="ghost"
               size="sm"
-              className="h-auto py-1 px-2 text-[10px] uppercase font-mono tracking-widest rounded-lg"
+              className="h-auto py-1 px-2 text-3xs uppercase font-mono tracking-widest rounded-lg"
               onClick={handleMarkAllRead}
               disabled={markAllRead.isPending}
             >
@@ -114,7 +114,7 @@ export function NotificationBell() {
                     </div>
                     <div className="flex-1 space-y-1 overflow-hidden">
                       <p className="text-sm font-medium leading-tight">{notification.message}</p>
-                      <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">
+                      <p className="text-3xs font-mono text-muted-foreground uppercase tracking-widest">
                         {new Date(notification.createdAt).toLocaleString(undefined, {
                           month: "short",
                           day: "numeric",

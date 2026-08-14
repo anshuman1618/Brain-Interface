@@ -96,7 +96,7 @@ export function GlobalSearch() {
             <div className="py-2">
               {data?.cases && data.cases.length > 0 && (
                 <div className="mb-2">
-                  <div className="px-3 py-1 text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
+                  <div className="px-3 py-1 text-3xs font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
                     Cases
                   </div>
                   {data.cases.map((c) => (
@@ -116,7 +116,7 @@ export function GlobalSearch() {
 
               {data?.tasks && data.tasks.length > 0 && (
                 <div className="mb-2">
-                  <div className="px-3 py-1 text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
+                  <div className="px-3 py-1 text-3xs font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
                     Tasks
                   </div>
                   {data.tasks.map((t) => (
@@ -136,7 +136,7 @@ export function GlobalSearch() {
 
               {data?.consultations && data.consultations.length > 0 && (
                 <div className="mb-2">
-                  <div className="px-3 py-1 text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
+                  <div className="px-3 py-1 text-3xs font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
                     Consultations
                   </div>
                   {data.consultations.map((c) => (
@@ -156,7 +156,7 @@ export function GlobalSearch() {
 
               {data?.clients && data.clients.length > 0 && (
                 <div className="mb-2">
-                  <div className="px-3 py-1 text-[10px] font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
+                  <div className="px-3 py-1 text-3xs font-mono font-bold tracking-widest text-muted-foreground uppercase bg-muted/30">
                     Clients
                   </div>
                   {data.clients.map((c) => (

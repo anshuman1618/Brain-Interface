@@ -94,8 +94,10 @@ export default function TeamPage() {
           <TableHeader>
             <TableRow className="hover:bg-transparent bg-muted/30">
               <TableHead className="font-mono text-xs uppercase tracking-wider">Name</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Email</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">
+              <TableHead className="hidden sm:table-cell font-mono text-xs uppercase tracking-wider">
+                Email
+              </TableHead>
+              <TableHead className="hidden md:table-cell font-mono text-xs uppercase tracking-wider">
                 Role here
               </TableHead>
               <TableHead className="font-mono text-xs uppercase tracking-wider text-right">
@@ -115,10 +117,10 @@ export default function TeamPage() {
                     <TableCell>
                       <Skeleton className="h-4 w-32" />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Skeleton className="h-4 w-48" />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <Skeleton className="h-4 w-24" />
                     </TableCell>
                     <TableCell>
@@ -131,8 +133,12 @@ export default function TeamPage() {
                 ))
             ) : members?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
-                  No members yet.
+                <TableCell colSpan={5} className="h-32 text-center">
+                  <p className="font-medium text-sm">Just you so far</p>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
+                    Add colleagues to the access list under Access Control, and they appear here
+                    once they sign in.
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
@@ -148,13 +154,13 @@ export default function TeamPage() {
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                       {m.email || "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <Badge
                         variant="outline"
-                        className="rounded-lg text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
+                        className="rounded-lg text-3xs uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
                       >
                         {m.role === "admin" && <ShieldCheck className="h-3 w-3" />}
                         {roleLabel(m.role) || m.role}

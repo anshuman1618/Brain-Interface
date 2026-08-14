@@ -80,7 +80,7 @@ function CaseOverviewCard({
         <div>
           <Badge
             variant="outline"
-            className={`mb-3 rounded-lg text-[10px] uppercase font-mono tracking-wider ${getStatusColor(status)}`}
+            className={`mb-3 rounded-lg text-3xs uppercase font-mono tracking-wider ${getStatusColor(status)}`}
           >
             {status.replace("_", " ")}
           </Badge>
@@ -104,7 +104,7 @@ function CaseOverviewCard({
               >
                 <div className="truncate pr-4 flex-1">
                   <p className="text-sm font-medium truncate">{doc.name}</p>
-                  <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider mt-1">
+                  <p className="text-3xs text-muted-foreground font-mono uppercase tracking-wider mt-1">
                     {formatDateTime(doc.uploadedAt)}
                   </p>
                 </div>
@@ -114,7 +114,10 @@ function CaseOverviewCard({
               </div>
             ))}
             {(!docs || docs.length === 0) && (
-              <p className="text-sm text-muted-foreground italic">No documents available.</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Nothing has been shared with you yet. Documents your advocate releases to you will
+                appear here.
+              </p>
             )}
           </div>
         </div>
@@ -128,13 +131,15 @@ function CaseOverviewCard({
               <div key={event.id} className="relative pl-4 border-l border-border">
                 <div className="absolute -left-1 top-1.5 h-2 w-2 rounded-full bg-primary" />
                 <p className="text-sm font-medium leading-snug">{event.description}</p>
-                <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider mt-1">
+                <p className="text-3xs text-muted-foreground font-mono uppercase tracking-wider mt-1">
                   {formatDateTime(event.createdAt)}
                 </p>
               </div>
             ))}
             {(!timeline || timeline.length === 0) && (
-              <p className="text-sm text-muted-foreground italic">No recent updates.</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                No activity on your matter yet. Progress will show up here as it happens.
+              </p>
             )}
           </div>
         </div>

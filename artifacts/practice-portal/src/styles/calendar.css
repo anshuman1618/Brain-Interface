@@ -78,8 +78,12 @@
 .rbc-off-range-bg {
   background: hsl(var(--muted) / 0.4);
 }
+/* Days belonging to the adjacent month. Recessed, but still dates you can read
+   and click, so they have to clear AA: the 0.6 alpha that used to be here took
+   them to 2.38:1 in light and 2.72:1 in dark. The muted token on its own is
+   already well below the foreground, which is all the de-emphasis this needs. */
 .rbc-off-range {
-  color: hsl(var(--muted-foreground) / 0.6);
+  color: hsl(var(--muted-foreground));
 }
 .rbc-today {
   background: hsl(var(--primary) / 0.09);

@@ -178,7 +178,10 @@ export default function TasksPage() {
             ) : filteredTasks?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  <p>No tasks found in pipeline.</p>
+                  <p className="font-medium text-sm text-foreground">Nothing in the pipeline</p>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
+                    Tasks assigned to this chamber appear here, newest deadline first.
+                  </p>
                   {canAssign && (
                     <Button
                       variant="outline"
@@ -217,7 +220,7 @@ export default function TasksPage() {
                       <div className="font-medium text-sm">{task.title}</div>
                       <Badge
                         variant="outline"
-                        className="mt-1 rounded-lg text-[9px] uppercase font-mono px-1 py-0"
+                        className="mt-1 rounded-lg text-3xs uppercase font-mono px-1 py-0"
                       >
                         {task.priority} priority
                       </Badge>

@@ -180,11 +180,11 @@ export default function ConsultationsPage() {
               ))
             ) : consultations.length === 0 ? (
               <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="h-32 text-center text-muted-foreground font-mono uppercase tracking-wider text-sm"
-                >
-                  No consultations recorded
+                <TableCell colSpan={6} className="h-32 text-center">
+                  <p className="font-medium text-sm">No consultations recorded</p>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
+                    Log a consultation to keep a record of what was advised, when, and to whom.
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
@@ -196,7 +196,7 @@ export default function ConsultationsPage() {
                   <TableCell className="font-medium">{c.title}</TableCell>
                   <TableCell>
                     <span
-                      className={`px-2 py-1 text-[10px] uppercase font-mono tracking-wider whitespace-nowrap rounded-lg ${getCategoryBadgeClass(c.category as string)}`}
+                      className={`px-2 py-1 text-3xs uppercase font-mono tracking-wider whitespace-nowrap rounded-lg ${getCategoryBadgeClass(c.category as string)}`}
                     >
                       {getCategoryLabel(c.category as string)}
                     </span>

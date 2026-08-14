@@ -292,7 +292,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                     type="button"
                     aria-pressed={active}
                     onClick={() => setPeriod(p.value)}
-                    className={`px-4 py-2.5 font-mono uppercase text-[11px] tracking-widest border-r border-border last:border-r-0 transition-colors ${
+                    className={`px-4 py-2.5 font-mono uppercase text-2xs tracking-widest border-r border-border last:border-r-0 transition-colors ${
                       active
                         ? "bg-foreground text-background"
                         : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -301,7 +301,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                     {p.label}
                     {p.note && (
                       <span
-                        className={`block text-[9px] tracking-wider mt-0.5 ${
+                        className={`block text-3xs tracking-wider mt-0.5 ${
                           active ? "text-background/70" : "text-primary"
                         }`}
                       >
@@ -312,7 +312,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                 );
               })}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2">
+            <p className="text-2xs text-muted-foreground mt-2">
               The billing period applies to Pro and Firm. Trial is a one-off two-month pack; Custom
               is quoted.
             </p>
@@ -353,7 +353,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                     }`}
                   >
                     {isCurrent && (
-                      <div className="absolute top-0 right-0 bg-foreground text-background text-[10px] font-bold font-mono uppercase tracking-widest px-3 py-1">
+                      <div className="absolute top-0 right-0 bg-foreground text-background text-3xs font-bold font-mono uppercase tracking-widest px-3 py-1">
                         {quoteOnly ? "Enquiry sent" : "Current plan"}
                       </div>
                     )}
@@ -377,7 +377,7 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                     </div>
 
                     {/* The real commitment, stated plainly under the headline rate. */}
-                    <p className="text-[11px] font-mono text-muted-foreground uppercase tracking-wider min-h-[2.5rem]">
+                    <p className="text-2xs font-mono text-muted-foreground uppercase tracking-wider min-h-[2.5rem]">
                       {quoteOnly ? (
                         "Priced against what you actually need"
                       ) : q && !q.renews ? (

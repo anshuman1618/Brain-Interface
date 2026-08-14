@@ -550,7 +550,12 @@ export default function CaseDetailPage() {
               </div>
             ))}
             {(!timeline || timeline.length === 0) && (
-              <div className="text-muted-foreground font-mono text-sm">No activity recorded</div>
+              <div className="py-6 text-center">
+                <p className="font-medium text-sm">Nothing recorded yet</p>
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
+                  Status changes, tasks and uploads on this matter are logged here as they happen.
+                </p>
+              </div>
             )}
           </div>
         </TabsContent>

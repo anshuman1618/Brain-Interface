@@ -100,7 +100,7 @@ export default function PortalSignInPage() {
         <div className="relative z-10 w-full max-w-[440px]">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-lg bg-card shadow-sm mb-6">
             <ShieldCheck className="h-3.5 w-3.5 text-primary" />
-            <span className="text-[11px] font-mono font-semibold tracking-wider uppercase text-muted-foreground">
+            <span className="text-2xs font-mono font-semibold tracking-wider uppercase text-muted-foreground">
               Chamber Portal
             </span>
           </div>
@@ -310,7 +310,7 @@ export default function PortalSignInPage() {
         </div>
       </main>
       {/* Readable before anyone signs in, which is the point of them. */}
-      <footer className="border-t border-border px-6 py-5 flex flex-wrap justify-center gap-x-6 gap-y-2 text-[11px] font-mono uppercase tracking-widest text-muted-foreground">
+      <footer className="border-t border-border px-6 py-5 flex flex-wrap justify-center gap-x-6 gap-y-2 text-2xs font-mono uppercase tracking-widest text-muted-foreground">
         <a href="/legal/terms" className="hover:text-foreground py-2.5 px-1">
           Terms of Service
         </a>

@@ -143,7 +143,7 @@ export default function InvitesPage() {
                     onChange={(e) => setCaseId(e.target.value)}
                     placeholder="e.g. 42"
                   />
-                  <p className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider">
+                  <p className="text-3xs text-muted-foreground font-mono uppercase tracking-wider">
                     Clients without an assigned Case ID can only see global portal elements until
                     assigned.
                   </p>
@@ -177,7 +177,7 @@ export default function InvitesPage() {
               <TableHead className="font-mono text-xs uppercase tracking-wider">
                 Recipient
               </TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">
+              <TableHead className="hidden sm:table-cell font-mono text-xs uppercase tracking-wider">
                 Provisioned Role
               </TableHead>
               <TableHead className="font-mono text-xs uppercase tracking-wider">
@@ -197,7 +197,7 @@ export default function InvitesPage() {
                     <TableCell>
                       <Skeleton className="h-4 w-48" />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Skeleton className="h-4 w-16" />
                     </TableCell>
                     <TableCell>
@@ -210,8 +210,12 @@ export default function InvitesPage() {
                 ))
             ) : invites?.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center text-muted-foreground">
-                  No active invitations.
+                <TableCell colSpan={4} className="h-32 text-center">
+                  <p className="font-medium text-sm">No invitations out</p>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
+                    Generate a link above to bring a client or colleague into this chamber. Links
+                    expire, and each one can only be used once.
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
@@ -231,10 +235,10 @@ export default function InvitesPage() {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       <Badge
                         variant="outline"
-                        className="rounded-lg text-[10px] uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
+                        className="rounded-lg text-3xs uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
                       >
                         {inv.role === "admin" && <ShieldCheck className="h-3 w-3" />}
                         {inv.role}

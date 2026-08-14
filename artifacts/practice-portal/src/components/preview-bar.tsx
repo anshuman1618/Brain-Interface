@@ -34,7 +34,7 @@ export function PreviewBar() {
           <button
             type="button"
             onClick={() => signOut()}
-            className="text-[11px] font-mono uppercase tracking-wider rounded-lg bg-card shadow-sm px-2.5 py-1 hover:bg-accent transition-colors"
+            className="text-2xs font-mono uppercase tracking-wider rounded-lg bg-card shadow-sm px-2.5 py-1 hover:bg-accent transition-colors"
           >
             Switch account
           </button>

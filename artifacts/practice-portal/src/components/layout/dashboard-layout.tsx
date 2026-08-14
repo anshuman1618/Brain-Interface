@@ -175,7 +175,7 @@ function DashboardLayoutContent() {
         <aside className="w-12 sm:w-16 border-r border-border bg-sidebar shrink-0 flex flex-col items-center sticky top-0 h-dvh z-20">
           <div className="h-14 sm:h-16 flex items-center justify-center border-b border-sidebar-border w-full">
             <Link href="/dashboard" title="LEX Practice">
-              <div className="h-8 w-8 sm:h-9 sm:w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-[10px] sm:text-xs">
+              <div className="h-8 w-8 sm:h-9 sm:w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-3xs sm:text-xs">
                 LEX
               </div>
             </Link>
@@ -198,7 +198,7 @@ function DashboardLayoutContent() {
                 collisionPadding={8}
                 className="w-[min(15rem,calc(100vw-4.5rem))] rounded-lg"
               >
-                <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                <DropdownMenuLabel className="font-mono text-3xs uppercase tracking-widest text-muted-foreground">
                   Go to
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -380,7 +380,7 @@ function DashboardLayoutContent() {
  */
 function LegalFooter() {
   return (
-    <footer className="border-t border-border px-4 sm:px-6 py-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] font-mono uppercase tracking-widest text-muted-foreground">
+    <footer className="border-t border-border px-4 sm:px-6 py-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-2xs font-mono uppercase tracking-widest text-muted-foreground">
       <a href="/legal/terms" className="hover:text-foreground py-2.5 px-1">
         Terms
       </a>
