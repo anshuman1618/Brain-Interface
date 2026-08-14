@@ -307,60 +307,110 @@ else needs touching.
 
 ## 5. What changed in this session
 
-Two commits, both on `claude/bci-chamber-management-saas-j5cr4y`, **neither yet
-on `main`** — so neither is deployed.
+Six branches, each stacked on the last, **none merged to `main`** — so none of
+it is deployed. `beta/phase-8-beta-readiness` is the tip and contains all nine
+commits.
 
-### `e58e3fe` — one preflight instead of four failed deploys
+```
+main (282959e)
+ └─ beta/phase-1-signup            3 commits   sign-up flow defects
+     └─ beta/phase-2-dashboard-filing  +1      file a case from the dashboard
+         └─ beta/phase-3-filing-reference +1   filing reference made mandatory
+             └─ beta/phase-4-notes-labels  +1  "(optional)" removed from Notes
+                 └─ beta/phase-5-design    +2  design pass, all pages
+                     └─ beta/phase-8-beta-readiness +1  migrations, health, feedback
+```
 
-| File                                        | Change                                                                                                                                                                                                                                        |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `artifacts/api-server/src/lib/preflight.ts` | **New.** `inspectProductionConfig()` and `assertProductionConfig()`. Checks four required settings together, throws once listing all of them with what each is for and where to get it. `WORKSPACE_TOKEN_SECRET` is a warning, not a failure. |
-| `artifacts/api-server/src/index.ts`         | Calls it at step 2 of startup, before every other guard.                                                                                                                                                                                      |
-| `scripts/ci/startup-guards.mjs`             | Asserts on the **exit code**, not on log text.                                                                                                                                                                                                |
+### Phase 1 — sign-up (`91cec6d`, `ff1e2fb`, `8711fc3`)
 
-**Why:** each guard used to throw on its own, so a deployment missing four
-variables cost four builds to diagnose.
+| File                                                                  | Change                                                                                                                                                                                                                                            |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api-server/src/lib/jit.ts`                                           | `getOrCreateUser` now absorbs a concurrent insert (`onConflictDoNothing` → re-select) and re-reads Clerk when the stored email is empty. Two 500s on a new user's first request.                                                                  |
+| `api-server/src/routes/session.ts`                                    | Chamber founding moved into `foundChamber()`: one transaction, retries the next slug on a unique violation. Zod failures return a sentence.                                                                                                       |
+| `api-server/src/lib/validation.ts`                                    | **New.** `zodMessage()` — first issue, field-prefixed.                                                                                                                                                                                            |
+| `practice-portal/src/lib/errors.ts`                                   | **New.** `userMessage()` — prefers the server's `message`, falls back per status.                                                                                                                                                                 |
+| `practice-portal/src/lib/session.tsx`                                 | One-time code state (`pendingCode`) persists in `sessionStorage`; `resendCode()` re-sends on the leg that issued the code.                                                                                                                        |
+| `practice-portal/src/pages/portal-sign-in.tsx`                        | Inline field errors, email pattern matched to the API, 6-digit code gate.                                                                                                                                                                         |
+| `practice-portal/src/pages/access-denied.tsx`, `pending-approval.tsx` | Request-access form removed (it posted to a hardcoded slug that 404'd). Pending Approval now offers a chamber picker when the user has several active memberships — that state used to claim their access was awaiting approval, with no way out. |
 
-### `c7cfe41` — the neumorphic design port (44 files)
+### Phase 2 — dashboard filing (`002a1f6`)
 
-The standalone demo artifact had been redesigned; the React portal had not. They
-are separate codebases, so the redesign had never reached the thing that
-deploys.
+| File                                                 | Change                                                                                                             |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `practice-portal/src/components/case-form-modal.tsx` | **New.** The filing dialog, lifted whole out of `cases.tsx` — conflict screening and plan-limit handling included. |
+| `practice-portal/src/pages/dashboard.tsx`            | "File New Case" in the header block; zero-case state offers it; mounts the modal.                                  |
+| `practice-portal/src/pages/cases.tsx`                | 472 → 259 lines, now consumes the shared modal. Two distinct empty states.                                         |
 
-**The three files that carry the change:**
+### Phase 3 — mandatory filing reference (`7bcc7ed`)
 
-| File                      | Change                                                                                                                                                                                                                                     |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `src/index.css`           | The whole port. New palette (both themes), `--lift`/`--sink`, the `--raise*`/`--press*` primitives, `--radius` 0 → 14px, the `@theme` shadow scale, the inputs-recessed base rule, and new `--warning`/`--success` tokens.                 |
-| `src/pages/dashboard.tsx` | Nine quick-action tiles, each a different hardcoded grey, collapsed into one `quickActionTile` class. Document-request tray recessed. Fixed a layout bug where at 390px the "Document requests out" button was clipped off the right edge. |
-| `src/App.tsx`             | The Clerk sign-in appearance, which had the old slate palette hardcoded as literals and named a webfont removed months earlier.                                                                                                            |
+Four layers, in order. `lib/db/src/schema/cases.ts` (`NOT NULL`, no default) →
+`lib/api-spec/openapi.yaml` (required, `minLength: 3`; regenerated into
+`lib/api-zod` and `lib/api-client-react`) → `api-server/src/routes/cases.ts`
+(readable 400, trims and re-checks) → `case-form-modal.tsx` (`*` marker, submit
+gated, inline error). Twelve fixtures across four CI suites updated.
 
-**Mechanical across the other 41 files:** `rounded-none` → `rounded-lg` (210
-occurrences), and `border border-border bg-background` → `rounded-lg bg-card
-shadow-sm` (37 panels). Nine primitives in `components/ui/` were adjusted
-individually.
+### Phase 4 — Notes labels (`136a840`)
 
-**Bugs found while porting** (each was a colour a theme change could not reach):
+Seven one-line changes: `task-form-modal`, `tasks`, `case-detail`, `calendar`,
+`documents`, `document-request-modal`, `access-list-manager`. Label text only —
+no validator moved. There is no i18n layer; every label is inline.
 
-- `pages/kpi.tsx` passed `var(--border)` and `var(--background)` as CSS colours.
-  Those tokens are bare HSL triples, so the values were never valid — the chart
-  tooltips had no background at all. Now `hsl(var(--…))`.
-- Amber and green notices came from Tailwind's palette because the app had no
-  warning or success token.
+### Phase 5 — design (`43e9ae8`, `bfa6a04`)
 
-**Verification run:** `scripts/ci/browser/portal.mjs` — 46/46 assertions across
-seven viewports (360/390/414/768/1024/1280/1440), zero console errors, zero
-failed requests. Separately, all 295 rendered text nodes were measured against
-the background actually painted behind them: no contrast failure at any size.
+| File                                         | Change                                                                                                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `practice-portal/src/index.css`              | `--text-3xs` / `--text-2xs` added. Two comments claiming `.dark` was dormant corrected — `lib/theme.tsx` mounts next-themes with `attribute="class"`, so dark mode ships. |
+| 21 files                                     | 55 one-off `text-[9/10/11px]` → the two tokens.                                                                                                                           |
+| `styles/calendar.css`                        | Off-range day numbers lost their `/0.6` alpha: 2.38:1 light, 2.72:1 dark, against a 4.5 requirement.                                                                      |
+| `pages/cases.tsx`                            | "medium"/"low" priority badges were 3.86:1 in dark at 10px.                                                                                                               |
+| `pages/dashboard.tsx`                        | Stat cards and tiles go two-column at 375px (2713px → 2349px). Tiles take a focus ring. Empty states rewritten.                                                           |
+| `pages/team.tsx`, `invites.tsx`, `cases.tsx` | Secondary table columns hidden below `sm`/`md` — headers, cells and skeleton cells together. `/team` 867px → 499px.                                                       |
+| six pages                                    | Empty states that named an absence now say what the space is for.                                                                                                         |
 
-### One thing found and not fixed
+### Phase 8 — beta readiness (`b932278`)
 
-`scripts/ci/browser/portal.mjs` §8 claims to measure "the signed-in
-application", but its chamber-founding step looks for `input[type="text"]`,
-which does not exist on the Access Denied page. It silently skips, so all seven
-`dashboard @ Npx` assertions actually measure the **Access Denied screen**. They
-pass — but not on what they claim. Outside the scope of the port, so it was left
-alone; worth fixing.
+| File                                                                                                                                      | Change                                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/drizzle/`                                                                                                                         | **New.** `0000_baseline.sql` (guarded with `IF NOT EXISTS`), `0001_filing_ref_not_null.sql`, `0002_beta_feedback.sql`, plus drizzle's `meta/`.                               |
+| `lib/db/package.json`, `render.yaml`                                                                                                      | `drizzle-kit push` → `drizzle-kit migrate` in the start command. `push` had been dying on every boot with a TTY error, so the deployed schema had stopped tracking the code. |
+| `api-server/src/routes/health.ts`                                                                                                         | **`/api/health`** — one query, 503 when the database is unreachable.                                                                                                         |
+| `api-server/src/app.ts`                                                                                                                   | The non-API 500 is now a self-contained HTML page: no stylesheet, no script, no detail.                                                                                      |
+| `practice-portal/src/components/error-boundary.tsx`                                                                                       | `RootErrorBoundary` added, wrapping the whole app outside the theme and Clerk providers.                                                                                     |
+| `lib/db/src/schema/beta_feedback.ts`, `api-server/src/routes/beta-feedback.ts`, `practice-portal/src/components/beta-feedback-widget.tsx` | **New.** Feedback widget: message + page path + user id, behind `requireAuth` only, so it works on the access-denied screen.                                                 |
+| `practice-portal/public/robots.txt`                                                                                                       | `Allow: /` → `Disallow: /`.                                                                                                                                                  |
+
+### Where the new code sits in the request path
+
+Two additions to §3's picture:
+
+- `GET /api/health` is mounted with the other health routes **before**
+  `clerkMiddleware`, for the same reason: a monitor must not need a session.
+- `POST /api/beta-feedback` runs `requireAuth` and then stops. It is the only
+  write endpoint that does **not** run `requireWorkspace`, deliberately — see
+  DECISIONS.md.
+
+### Verification
+
+Each phase was driven in a real browser (Playwright, Chromium) against the app
+in preview mode: PGlite for the database, no Clerk tenant, no external service.
+Phase 2 — 13 assertions; Phase 3 — 18; Phase 5 — twelve pages × two themes for
+contrast and overflow; Phase 8 — 19.
+
+**These checks are not in the repository.** They were written per phase and kept
+in the session scratchpad. The repo still has **no test files**; `pnpm run check`
+(format, lint, typecheck) and `pnpm run build` are the only gates CI enforces.
+
+### Known, unfixed
+
+- **The Clerk tenant is a development instance.** Production logs
+  `Clerk collects telemetry data … development instances` on every boot. ~100
+  user cap, Clerk's shared Google OAuth credentials. Nothing in code fixes this.
+- **Nine Quick Action tiles on the dashboard mostly navigate nowhere useful** —
+  four promise filtered views that do not exist. Information architecture, left
+  alone deliberately.
+- **`scripts/ci/browser/portal.mjs` §8** still measures the Access Denied screen
+  while claiming to measure the signed-in app (carried over from last session).
+- **`/invites` still renders a 529px table at 375px.** It scrolls in place.
 
 ---
 

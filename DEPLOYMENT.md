@@ -140,7 +140,7 @@ Environment:
 Apply the schema once the database is reachable:
 
 ```bash
-pnpm --filter @workspace/db run push
+pnpm --filter @workspace/db run migrate
 ```
 
 Run this on every deploy that changes `lib/db/src/schema/`. It is additive; it
@@ -513,7 +513,8 @@ Everything here should be true before the first real client signs in.
 - [ ] Security headers verified on a live response (section 7, check 2)
 - [ ] CSP rolled out at the edge, report-only first
 - [ ] Fonts self-hosted, or the third-party transfer consciously accepted
-- [ ] `pnpm --filter @workspace/db run push` applied against production
+- [ ] `pnpm --filter @workspace/db run migrate` applied against production
+      (runs automatically in `startCommand`; this is the box for confirming it succeeded)
 - [ ] `FILE_STORAGE_DIR` points at a mounted volume, is outside the web root,
       and is included in backups
 - [ ] SMTP configured, and `mail_outbox` shows `sent` rather than `suppressed`
@@ -590,7 +591,7 @@ It runs `pnpm install --frozen-lockfile --prod=false && pnpm run build`, which
 typechecks four packages and builds both the SPA and the server. Expect 3-6
 minutes.
 
-Then `preDeployCommand` runs `drizzle-kit push` to create the schema, and the
+Then `preDeployCommand` runs `drizzle-kit migrate` to apply the schema, and the
 service starts.
 
 **If the deploy fails here, read the message before changing anything:**
@@ -600,7 +601,7 @@ service starts.
 - A `drizzle-kit push` prompt or refusal — push stops rather than guess when a
   schema change could destroy data. That failure is deliberate and the old
   version keeps serving. Open a Render **Shell** on the service and run
-  `pnpm --filter @workspace/db run push` by hand so you can read what it wants
+  `pnpm --filter @workspace/db run migrate` by hand so you can read what it wants
   to do.
 - `Cannot find module` during build — almost always devDependencies being
   skipped. The `--prod=false` in the build command exists to prevent that;

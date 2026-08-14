@@ -55,7 +55,7 @@ EXISTS` statements that run on every boot, so a persisted database survives a
 column being added instead of having to be thrown away.
 
 For a real deployment, set `DATABASE_URL` and run
-`pnpm --filter @workspace/db run push`.
+`pnpm --filter @workspace/db run migrate`.
 
 > **Preview mode cannot be enabled in production.** The server refuses to mock
 > auth or fall back to the in-memory database when `NODE_ENV=production`, and the
@@ -67,7 +67,7 @@ For a real deployment, set `DATABASE_URL` and run
 ```bash
 pnpm install
 cp .env.example .env        # fill in DATABASE_URL and Clerk keys
-pnpm --filter @workspace/db run push          # apply the schema
+pnpm --filter @workspace/db run migrate       # apply the schema
 VITE_CLERK_PUBLISHABLE_KEY=pk_... pnpm --filter @workspace/practice-portal run build
 pnpm --filter @workspace/api-server run build
 pnpm --filter @workspace/api-server run start
@@ -320,19 +320,21 @@ page, because every endpoint behind it re-checks independently.
 
 ## Commands
 
-| Command                                            | Does                                                             |
-| -------------------------------------------------- | ---------------------------------------------------------------- |
-| `pnpm run preview`                                 | Build everything and serve the full app in preview mode on :5000 |
-| `pnpm run typecheck`                               | Typecheck every package                                          |
-| `pnpm run build`                                   | Typecheck, then build every package                              |
-| `pnpm run lint`                                    | ESLint over the whole workspace                                  |
-| `pnpm run lint:fix`                                | ESLint with `--fix`                                              |
-| `pnpm run format`                                  | Rewrite every file with Prettier                                 |
-| `pnpm run format:check`                            | Fail if anything is unformatted (use in CI)                      |
-| `pnpm run check`                                   | `format:check` + `lint` + `typecheck` — the full gate            |
-| `pnpm --filter @workspace/api-server run dev`      | Build and run the API                                            |
-| `pnpm --filter @workspace/practice-portal run dev` | Vite dev server on :5173                                         |
-| `pnpm --filter @workspace/db run push`             | Push schema changes (real database only)                         |
+| Command                                            | Does                                                              |
+| -------------------------------------------------- | ----------------------------------------------------------------- |
+| `pnpm run preview`                                 | Build everything and serve the full app in preview mode on :5000  |
+| `pnpm run typecheck`                               | Typecheck every package                                           |
+| `pnpm run build`                                   | Typecheck, then build every package                               |
+| `pnpm run lint`                                    | ESLint over the whole workspace                                   |
+| `pnpm run lint:fix`                                | ESLint with `--fix`                                               |
+| `pnpm run format`                                  | Rewrite every file with Prettier                                  |
+| `pnpm run format:check`                            | Fail if anything is unformatted (use in CI)                       |
+| `pnpm run check`                                   | `format:check` + `lint` + `typecheck` — the full gate             |
+| `pnpm --filter @workspace/api-server run dev`      | Build and run the API                                             |
+| `pnpm --filter @workspace/practice-portal run dev` | Vite dev server on :5173                                          |
+| `pnpm --filter @workspace/db run migrate`          | Apply committed migrations (this is what production runs)         |
+| `pnpm --filter @workspace/db run generate`         | Write a new migration after changing the schema                   |
+| `pnpm --filter @workspace/db run push`             | Diff the schema straight onto a database — local development only |
 
 ### Formatting and linting
 

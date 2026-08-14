@@ -10,6 +10,345 @@ were, and what would make it worth revisiting.
 
 ---
 
+## The beta hardening pass (2026-08-14)
+
+Phases 1–5 and 8 of a brief to prepare the app for an external feedback beta.
+One branch per phase, each stacked on the last, none merged to `main` at the
+time of writing.
+
+### Investigate before changing, and report before building
+
+**Decided:** every phase that touched behaviour started with a read-only pass —
+tracing the real code path, querying the production database, or auditing the
+rendered app — and reported findings before any edit.
+
+**Why:** the brief described a Next.js app with a password signup flow. It is a
+Vite SPA with an Express API and a passwordless Clerk flow, so four of the ten
+things Phase 1 asked about did not exist. Building to the brief's assumptions
+would have produced confident, wrong work. The same pass found that Phase 3's
+`NOT NULL` needed no backfill (the table was empty) and that Phase 5's design
+system was already sound, which turned a large speculative job into a small
+evidenced one.
+
+### Verify in a real browser, not by reading the diff
+
+**Decided:** each phase was checked with Playwright against the app running in
+preview mode — real Postgres via PGlite, no Clerk tenant, no external service.
+
+**Why:** typecheck and lint prove the code compiles, not that the product works.
+This caught things review would not: the Phase 5 audit initially reported every
+table as broken until it was corrected to measure the document's `scrollWidth`
+rather than element rectangles, and the Phase 8 migration re-run failed on an
+unguarded `CREATE INDEX` that would have aborted the production deploy.
+
+**Cost:** the checks live in the session scratchpad, not the repository. They
+were written per phase and thrown away. Adding them to `scripts/ci/browser/`
+would make them regressions rather than one-shot evidence; the repository still
+has **no test files at all**.
+
+---
+
+### Phase 1 — the sign-up flow
+
+#### Joining an existing chamber is by invitation only
+
+**Decided:** the "Request access" form is gone from both gate screens. Founding
+a chamber is the only self-serve path; joining one requires an admin to add the
+address.
+
+**Why:** both screens posted to a workspace slug hardcoded in their own default
+props — `"raghavan-chambers"` — which exists in no seed, no migration and no
+deployment, so every request returned 404. The fix had two shapes: show the
+signed-in stranger a list of chambers to request access to, or remove the
+option. A picker discloses the existence and names of every chamber to anyone
+who can authenticate, which is a confidentiality decision rather than a styling
+one. The product owner chose removal.
+
+**Kept:** `POST /api/access-requests` and the admin approval queue still exist.
+Nothing in the UI creates a row, but re-enabling it is one import. Deleting the
+endpoint would have been an API change for no gain.
+
+#### `userMessage()` is a client-side helper, not a change to `ApiError`
+
+**Decided:** `ApiError.message` still leads with `HTTP 404 Not Found:`. A
+separate `lib/errors.ts` produces the sentence shown to a person.
+
+**Why:** the status-prefixed form is the right thing in a console and in a bug
+report. Rewriting it at source would have improved toasts and degraded
+debugging. Two consumers, two strings.
+
+#### The email re-sync only fires when the stored address is empty
+
+**Decided:** `getOrCreateUser` re-reads Clerk only for a user whose stored email
+is `""`.
+
+**Why:** the bug was real — a provider that had not verified an address stored an
+empty string, nothing ever re-read it, and the access list matches on address, so
+the user was stranded permanently. But the obvious fix, re-syncing on every call,
+puts a Clerk API round trip on the hot path of every authenticated request.
+Gating on the empty value makes it self-healing and free in the common case.
+
+#### Races are absorbed, not locked out
+
+**Decided:** `onConflictDoNothing` then re-select for user creation; a
+transaction with a bounded retry loop for chamber founding.
+
+**Why:** both were select-then-insert against a unique column, and both are hit
+by exactly the traffic a new user generates — the dashboard fires several
+queries at once on first load. Advisory locks would serialise every sign-in to
+protect against a collision that is rare and cheap to retry. Treating the unique
+violation as the expected outcome for the loser is simpler and has no steady-state
+cost.
+
+#### The half-finished sign-in lives in `sessionStorage`
+
+**Decided:** the outstanding one-time code — which address, which Clerk leg —
+persists per tab, not per browser.
+
+**Why:** refreshing while reading the code out of an email client used to strand
+the user. But a half-finished sign-in is not a preference; it should not outlive
+the tab, and `localStorage` would leave it for the next person on a shared
+machine.
+
+---
+
+### Phase 2 — filing a case from the dashboard
+
+#### The filing dialog was extracted, not copied
+
+**Decided:** `components/case-form-modal.tsx`, used by both the dashboard and
+the Case Registry.
+
+**Why:** filing a case screens for conflicts of interest and can be refused by
+the plan limit. A second copy of that logic is a second copy that drifts, and
+the copy that drifts is the one that stops checking for conflicts. Extraction
+also meant Phase 3's required-field work was one edit instead of two.
+
+#### Modal, because the codebase already says modal
+
+**Decided:** a Radix `Dialog`, matching `task-form-modal`, `document-request-modal`
+and `pricing-modal`.
+
+**Why:** the brief asked for the existing convention rather than a new one. There
+was no ambiguity to resolve — three modals, no drawers, no inline forms.
+
+#### "Refresh the dashboard's case list" was read as the counters
+
+**Decided:** on success, invalidate both `listCases` and `getDashboardSummary`.
+No new list section was added to the dashboard.
+
+**Why:** the dashboard landing page has stat cards, not a case list. Inventing a
+"Recent matters" section to have something to refresh would have changed the
+information architecture the brief said to leave alone. Flagged to the owner
+rather than assumed.
+
+---
+
+### Phase 3 — the mandatory filing reference
+
+#### The production database was queried before the constraint was written
+
+**Decided:** `SELECT count(*) FILTER (WHERE filing_ref IS NULL) …` against the
+live Render Postgres, first.
+
+**Why:** the brief required it, and the answer changed the plan: `cases` holds
+zero rows, so `SET NOT NULL` needs no backfill and cannot fail. Had there been
+rows, the constraint would have been left unwritten pending a backfill decision.
+
+#### No database default on `filing_ref`
+
+**Decided:** `text("filing_ref").notNull()` with no `.default()`.
+
+**Why:** a default would let an insert that forgot the reference succeed with a
+placeholder, which is the exact failure the constraint exists to prevent. A
+failing insert is the point.
+
+#### The server re-checks the trimmed value
+
+**Decided:** the route trims and re-tests length even though the generated
+validator already enforces `min(3)`.
+
+**Why:** `.min(3)` counts characters, so `"   "` satisfies it and then trims to
+nothing. The stored value is the trimmed one, so the trimmed one has to pass.
+
+#### `CaseUpdate` keeps the field optional
+
+**Decided:** required on create, optional on update — but it cannot be set to
+something empty.
+
+**Why:** a partial patch that omits a field must leave it alone. Making it
+required on update would break every request that only changes status.
+
+#### The minimum length is 3, and that is a guess
+
+**Decided:** three characters, stated in one constant per layer.
+
+**Why:** the brief said "a minimum length" without naming one. Three admits every
+real registry format (`CV-2026-118`, `WP(C) 1234/2026`) and rejects `"A"`. It is
+the least defensible number in this document and the easiest to change.
+
+---
+
+### Phase 4 — the "(optional)" labels
+
+#### Only Notes fields, and three were deliberately left
+
+**Decided:** seven changes. `Comment (optional)` on client feedback,
+`Display name (optional)` in the preview sign-in, and `Restrict to Case ID
+(Optional but recommended)` on invites were not touched.
+
+**Why:** the brief said "(optional)" _attached to Notes fields_. The first two
+are not Notes fields. The third carries a recommendation, not just an optionality
+marker, so trimming it would delete advice rather than noise.
+
+#### One of the seven is a placeholder, not a label
+
+**Decided:** the access-list note field was changed too, and flagged.
+
+**Why:** it has no label at all — the placeholder is the only thing naming it, so
+that is where the suffix lived. Consistent, but strictly outside "label change".
+
+---
+
+### Phase 5 — the design pass
+
+#### The audit measured the rendered page, then measured itself
+
+**Decided:** contrast and overflow were computed in a browser across twelve
+pages and both themes. The first version of that audit was wrong and was fixed
+before any code was.
+
+**Why:** element rectangles wider than the viewport reported every table on six
+pages as broken. They are not: the shadcn `Table` already wraps in
+`overflow-auto` and scrolls in place, which is the intended pattern. Measuring
+`document.documentElement.scrollWidth` gives the real answer — no page overflows
+anywhere — and the two genuine contrast failures only became visible once the
+false positives stopped drowning them.
+
+#### A preview-only failure did not get a global fix
+
+**Decided:** the single AA failure was fixed by pairing the text with the surface
+it sits on, not by lightening `--muted-foreground`.
+
+**Why:** the failing element is in the preview banner, which never renders in
+production. Changing the token would have shifted every muted label in the app
+to correct a development-only artefact.
+
+#### Two type tokens, and 9px folded into 10px
+
+**Decided:** `--text-3xs` (10px) and `--text-2xs` (11px) replace 55 one-off
+`text-[9px]` / `text-[10px]` / `text-[11px]` declarations.
+
+**Why:** three sizes chosen ad hoc, none carrying a line-height, all below
+Tailwind's `text-xs` floor and therefore outside the scale entirely. The 9px
+step was not a deliberate third size and nothing depended on the difference.
+
+#### Wide tables lose columns on phones rather than becoming cards
+
+**Decided:** secondary columns are `hidden sm:table-cell`; the scroll container
+stays as the fallback.
+
+**Why:** `/team` asked for 867px of sideways scrolling in a 375px viewport.
+Restructuring tables into card lists is a larger change than a design pass, and
+the tables were already functional. Dropping columns took `/team` to 499px and
+`/cases` inside the viewport. `/invites` is unchanged at 529px — its width comes
+from its header labels, not its data.
+
+#### The nine Quick Action tiles were left alone
+
+**Decided:** styled, not removed.
+
+**Why:** four of them ("Priority / Urgent Cases", "Pending Cases / Cause List",
+"Case Briefs & Drafting", "Upload Digital Copy") navigate to plain `/cases` or
+`/tasks` with no filter applied, and three more duplicate the nav menu. It is the
+largest problem on the dashboard and it is an information-architecture decision,
+which the brief placed out of scope. Raised twice, still open.
+
+---
+
+### Phase 8 — beta readiness
+
+#### The baseline migration is guarded, so there is no baselining step
+
+**Decided:** every `CREATE TABLE` and the one `CREATE INDEX` in
+`0000_baseline.sql` carry `IF NOT EXISTS`.
+
+**Why:** production already has all twenty tables, so an unguarded baseline
+aborts on its first statement. The orthodox alternative — insert the migration
+hash into drizzle's bookkeeping table by hand so it is skipped — is a manual step
+against production that has to be done exactly once and correctly. Guarded, the
+same file initialises a new database and no-ops against the old one, and there is
+nothing to remember.
+
+**Cost:** a guarded baseline cannot `ALTER` anything, so a change to a table that
+predates migrations needs its own numbered file. `0001` is the first.
+
+**Found by testing:** the unguarded `CREATE INDEX` was invisible on a fresh
+database and only appeared on the idempotency re-run. It would have failed the
+production deploy.
+
+#### `/api/health` answers 503 when the database is unreachable
+
+**Decided:** 200 with a body when healthy, 503 when the query fails.
+
+**Why:** the brief said "returning 200 with a real database connectivity check".
+A health check that answers 200 while reporting `"database":"unreachable"` is one
+that nothing pages on, which defeats the point of adding it. Three endpoints now
+exist deliberately: `/healthz` is liveness and never touches the database,
+`/health` is for a monitor, `/readyz` is for a human diagnosing a deploy.
+
+#### The root error boundary tells the user nothing about the error
+
+**Decided:** the per-module boundary still prints `error.message`; the new root
+one does not.
+
+**Why:** the module boundary is scoped to a panel a developer is probably looking
+at. The root boundary fires on the paths nobody anticipated, in front of external
+beta users, where "Cannot read properties of undefined (reading 'map')" tells
+them nothing actionable while telling a stranger something about our internals.
+It is also written with inline styles and `window.location` because it wraps the
+theme provider, the router and Clerk — it cannot assume any of them mounted.
+
+#### `beta_feedback` is a new table, not the existing `feedback`
+
+**Decided:** a second table rather than relaxing the first.
+
+**Why:** `feedback` is a client rating a matter out of five — it requires a case,
+requires a rating, and only the client who owns the matter may write it. Those
+constraints are what make it trustworthy as a review. Product feedback has a
+different author, a different lifetime and a different audience; folding them
+together would mean loosening constraints that exist for a reason.
+
+#### `beta_feedback.workspace_id` is nullable
+
+**Decided:** nullable, and the route sits behind `requireAuth` rather than
+`requireWorkspace`.
+
+**Why:** the people most worth hearing from during a beta are the ones stuck on
+the access-denied and pending-approval screens. They belong to no workspace, so
+`requireWorkspace` would refuse them and a `NOT NULL` would silence exactly the
+group that has no other way to tell you anything.
+
+#### The widget is mounted in `App.tsx`, bottom-left
+
+**Decided:** alongside `<Toaster />` in both app trees, not inside the dashboard
+shell; positioned bottom-left.
+
+**Why:** the two screens that most need a way to report a problem render
+_outside_ that shell. Bottom-left because toasts land bottom-right, and a button
+covered by its own confirmation is one people stop trusting.
+
+#### `lib/db/drizzle/` is in `.prettierignore`
+
+**Decided:** prettier does not format drizzle's migration state.
+
+**Why:** drizzle-kit rewrites those files and does not format to our rules, so
+`format:check` fails after the next `generate`. The snapshot chain is also
+validated by the tool — it rejected a hand-copied snapshot whose `prevId` did not
+link — so it is tool-owned, not ours.
+
+---
+
 ## Architecture
 
 ### Single origin: the API server also serves the frontend
@@ -438,6 +777,14 @@ into the dashboard once. A blueprint is a file in a repository.
 ---
 
 ### `drizzle-kit push` runs in `startCommand`, not `preDeployCommand`
+
+> **SUPERSEDED 2026-08-14** by the migrations decision above. The placement in
+> `startCommand` was right and is unchanged; the command is now `migrate`, not
+> `push`. `push` had been failing on every production boot with "Interactive
+> prompts require a TTY terminal" — it asks for confirmation on an ambiguous
+> diff and there is no terminal in a deploy container — so the deployed schema
+> had silently stopped tracking the code. Kept here because the reasoning about
+> `preDeployCommand` still applies.
 
 **Decided:** `startCommand: pnpm --filter @workspace/db run push && pnpm run start`.
 
