@@ -71,6 +71,18 @@
   --font-serif: var(--app-font-serif);
   --font-mono: var(--app-font-mono);
 
+  /* The bottom of the type scale.
+     The app carried 55 one-off `text-[9px]`, `text-[10px]` and `text-[11px]`
+     declarations for its uppercase mono labels: three sizes picked ad hoc,
+     none of them carrying a line-height, all of them below Tailwind's `text-xs`
+     floor and therefore outside the scale entirely. Two named steps replace all
+     three. 9px folds into 10px — at this letter-spacing nothing below that is
+     worth reading, and the difference was never deliberate. */
+  --text-3xs: 0.625rem; /* 10px — uppercase mono micro-labels */
+  --text-3xs--line-height: 1rem;
+  --text-2xs: 0.6875rem; /* 11px — secondary captions */
+  --text-2xs--line-height: 1.125rem;
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -93,12 +105,13 @@
 
 /* LIGHT MODE */
 :root {
-  /* The portal is a light-themed product. Dark tokens exist under `.dark` but
-     nothing applies that class, so light is the only theme in play.
-     Declaring color-scheme makes that true for the parts of the page the
-     browser paints rather than our CSS — scrollbars, date pickers, native
-     select popups — which would otherwise render dark on a dark-OS machine and
-     look wrong against the light chrome around them. */
+  /* Light is the default theme, not the only one: lib/theme.tsx mounts
+     next-themes with attribute="class", so the toggle in the header puts
+     `.dark` on <html> and the block below takes over. The OS preference is
+     ignored (enableSystem={false}) — dark is opt-in and remembered per browser.
+     Declaring color-scheme keeps the parts of the page the browser paints
+     rather than our CSS — scrollbars, date pickers, native select popups — in
+     step with whichever theme is active. */
   color-scheme: light;
 
   --button-outline: rgba(36, 23, 8, 0.1);
@@ -213,8 +226,9 @@
   );
 }
 
-/* Dormant: no code applies `.dark`. Kept so a dark theme can be switched on
-   later without re-deriving the palette, but it is never the default. */
+/* Applied to <html> by the theme toggle (see lib/theme.tsx). Light remains the
+   default, but this is a live surface, not a dormant one — it needs checking
+   whenever a colour changes. */
 .dark {
   color-scheme: dark;
   --button-outline: rgba(240, 230, 216, 0.1);

@@ -54,8 +54,11 @@ import { useToast } from "@/hooks/use-toast";
  */
 const quickActionTile =
   "bg-card text-card-foreground rounded-lg shadow-md active:shadow-[var(--press)] " +
-  "p-4 flex flex-col items-center justify-center gap-3 text-center " +
-  "transition-shadow [&>svg]:text-primary";
+  "p-3 sm:p-4 min-h-24 flex flex-col items-center justify-center gap-2 sm:gap-3 text-center " +
+  "transition-shadow [&>svg]:text-primary [&>svg]:h-6 [&>svg]:w-6 sm:[&>svg]:h-7 sm:[&>svg]:w-7 " +
+  // Keyboard users got nothing here: these are <button>s with no focus style.
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 " +
+  "focus-visible:ring-offset-background";
 
 export default function DashboardPage() {
   const { isStaff } = useUserRole();
@@ -151,7 +154,7 @@ function StaffDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
@@ -242,7 +245,7 @@ function StaffDashboard() {
 
       <div className="pt-4 border-t border-border">
         <h3 className="text-xl font-bold tracking-tight mb-4 uppercase font-mono">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {can("tasks.write") && (
             <button
               onClick={() => setTaskFormOpen(true)}
@@ -379,8 +382,12 @@ function StaffDashboard() {
                 </div>
               ))}
               {overdueTasks.length === 0 && (
-                <div className="p-8 text-center text-muted-foreground text-sm font-mono uppercase tracking-wider">
-                  No overdue items
+                <div className="p-8 text-center">
+                  <p className="font-medium text-sm">Nothing overdue</p>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-xs mx-auto">
+                    Every task with a deadline is still inside it. Anything that slips past its date
+                    appears here.
+                  </p>
                 </div>
               )}
             </div>
@@ -425,8 +432,22 @@ function StaffDashboard() {
                 </div>
               ))}
               {pendingTasks.length === 0 && (
-                <div className="p-8 text-center text-muted-foreground text-sm font-mono uppercase tracking-wider">
-                  No pending tasks
+                <div className="p-8 text-center">
+                  <p className="font-medium text-sm">No open tasks</p>
+                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-xs mx-auto">
+                    Nothing is waiting on the chamber right now.
+                    {can("tasks.write") ? " Create one to put work in the pipeline." : ""}
+                  </p>
+                  {can("tasks.write") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg mt-3"
+                      onClick={() => setTaskFormOpen(true)}
+                    >
+                      <Plus className="mr-2 h-4 w-4" /> New task
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -450,8 +471,11 @@ function StaffDashboard() {
           </div>
 
           {outstandingRequests.length === 0 ? (
-            <div className="p-8 text-center rounded-lg bg-background shadow-[var(--press-sm)] text-muted-foreground text-sm font-mono uppercase tracking-wider">
-              Nothing outstanding
+            <div className="p-8 text-center rounded-lg bg-background shadow-[var(--press-sm)]">
+              <p className="font-medium text-sm">No documents requested</p>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
+                When you ask a client for a document, it is tracked here until they upload it.
+              </p>
             </div>
           ) : (
             <div className="space-y-2">

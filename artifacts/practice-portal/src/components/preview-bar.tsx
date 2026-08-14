@@ -24,7 +24,10 @@ export function PreviewBar() {
 
       {email && (
         <div className="flex items-center gap-2 sm:gap-3 sm:ml-auto min-w-0 max-w-full">
-          <span className="text-xs font-mono text-muted-foreground truncate min-w-0 max-w-[160px] sm:max-w-[280px]">
+          {/* The paired foreground for this surface. `text-muted-foreground` is
+              keyed to the page ground, not to the warning band, and on the dark
+              warning band it measured 3.94:1 — the app's only AA failure. */}
+          <span className="text-xs font-mono text-warning-foreground/90 truncate min-w-0 max-w-[160px] sm:max-w-[280px]">
             {email}
             {authProvider ? ` · ${providerLabel(authProvider)}` : ""}
           </span>
