@@ -597,7 +597,7 @@ export default function CaseDetailPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Notes (Optional)</Label>
+                  <Label>Notes</Label>
                   <Textarea
                     value={delayNotes}
                     onChange={(e) => setDelayNotes(e.target.value)}

@@ -494,7 +494,7 @@ export default function DocumentsPage() {
 
             <div className="space-y-2">
               <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
-                Note (optional)
+                Note
               </label>
               <Textarea
                 value={form.note}

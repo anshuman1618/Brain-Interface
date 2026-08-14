@@ -179,7 +179,7 @@ export function AccessListManager() {
               value={note}
               onChange={(e) => setNote(e.target.value)}
               className="rounded-lg text-sm"
-              placeholder="Note (optional) — e.g. Client, succession matter"
+              placeholder="Note — e.g. Client, succession matter"
             />
           </div>
         </form>
