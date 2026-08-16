@@ -48,6 +48,11 @@ export const CAPABILITIES = [
   "document_requests.respond",
   "calendar.read",
   "calendar.write",
+  // Logging your own effort against a matter, and reading what has been logged
+  // on one. Deliberately separate from kpi.read: recording your hours is part of
+  // doing the work, while seeing the chamber's performance figures is not.
+  "time.write",
+  "time.read",
   "feedback.read",
   "feedback.write",
   "feedback.respond",
@@ -95,6 +100,8 @@ const ADVOCATE_CAPABILITIES = [
   "document_requests.read",
   "document_requests.create",
   "calendar.read",
+  "time.write",
+  "time.read",
 ] as const satisfies readonly Capability[];
 
 /**
@@ -152,6 +159,8 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
       "document_requests.create",
       "documents.write",
       "calendar.read",
+      "time.write",
+      "time.read",
     ],
     // Blocked from unassigned matters: a clerk sees only what they hold a task on.
     caseScope: "assigned",

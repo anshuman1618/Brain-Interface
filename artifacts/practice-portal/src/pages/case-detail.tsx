@@ -60,6 +60,7 @@ import {
   Download,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { TimeLogPanel } from "@/components/time-log-panel";
 
 export default function CaseDetailPage() {
   const { id } = useParams();
@@ -309,6 +310,12 @@ export default function CaseDetailPage() {
             Encrypted Vault
           </TabsTrigger>
           <TabsTrigger
+            value="time"
+            className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
+          >
+            Time
+          </TabsTrigger>
+          <TabsTrigger
             value="timeline"
             className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
           >
@@ -529,6 +536,10 @@ export default function CaseDetailPage() {
               </div>
             )}
           </div>
+        </TabsContent>
+
+        <TabsContent value="time" className="pt-6">
+          <TimeLogPanel caseId={caseId} />
         </TabsContent>
 
         <TabsContent value="timeline" className="pt-6">

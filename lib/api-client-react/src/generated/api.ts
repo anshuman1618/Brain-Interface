@@ -35,6 +35,7 @@ import type {
   Case,
   CaseInput,
   CaseUpdate,
+  ChamberPerformance,
   CheckConflicts200,
   CheckoutOrder,
   ConflictCheckInput,
@@ -56,6 +57,7 @@ import type {
   Feedback,
   FeedbackInput,
   FeedbackResponseInput,
+  GetChamberPerformanceParams,
   GetSlaReportParams,
   GlobalSearchParams,
   HealthStatus,
@@ -66,10 +68,12 @@ import type {
   ListCasesParams,
   ListConsultationsParams,
   ListTasksParams,
+  ListTimeEntriesParams,
   ListUsersParams,
   MarkAllReadResult,
   MembershipUpdateInput,
   Notification,
+  RunningTimer,
   SearchResults,
   SessionClaims,
   SlaReportEntry,
@@ -79,7 +83,10 @@ import type {
   TaskCompletion,
   TaskInput,
   TaskUpdate,
+  TimeEntry,
+  TimeEntryInput,
   TimelineEvent,
+  TimerStartInput,
   Usage,
   UserProfile,
   UserProfileUpdate,
@@ -5363,4 +5370,535 @@ export const useSendBetaFeedback = <TError = ErrorType<void>,
       > => {
       return useMutation(getSendBetaFeedbackMutationOptions(options));
     }
+
+export const getListTimeEntriesUrl = (params?: ListTimeEntriesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/time-entries?${stringifiedParams}` : `/api/time-entries`
+}
+
+/**
+ * @summary Time logged, optionally for one matter
+ */
+export const listTimeEntries = async (params?: ListTimeEntriesParams, options?: RequestInit): Promise<TimeEntry[]> => {
+
+  return customFetch<TimeEntry[]>(getListTimeEntriesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTimeEntriesQueryKey = (params?: ListTimeEntriesParams,) => {
+    return [
+    `/api/time-entries`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListTimeEntriesQueryOptions = <TData = Awaited<ReturnType<typeof listTimeEntries>>, TError = ErrorType<void>>(params?: ListTimeEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTimeEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTimeEntriesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTimeEntries>>> = ({ signal }) => listTimeEntries(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTimeEntries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTimeEntriesQueryResult = NonNullable<Awaited<ReturnType<typeof listTimeEntries>>>
+export type ListTimeEntriesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Time logged, optionally for one matter
+ */
+
+export function useListTimeEntries<TData = Awaited<ReturnType<typeof listTimeEntries>>, TError = ErrorType<void>>(
+ params?: ListTimeEntriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTimeEntries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTimeEntriesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateTimeEntryUrl = () => {
+
+
+
+
+  return `/api/time-entries`
+}
+
+/**
+ * @summary Log time against a matter
+ */
+export const createTimeEntry = async (timeEntryInput: TimeEntryInput, options?: RequestInit): Promise<TimeEntry> => {
+
+  return customFetch<TimeEntry>(getCreateTimeEntryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(timeEntryInput)
+  }
+);}
+
+
+
+
+
+export const getCreateTimeEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTimeEntry>>, TError,{data: BodyType<TimeEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTimeEntry>>, TError,{data: BodyType<TimeEntryInput>}, TContext> => {
+
+const mutationKey = ['createTimeEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTimeEntry>>, {data: BodyType<TimeEntryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTimeEntry(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTimeEntryMutationResult = NonNullable<Awaited<ReturnType<typeof createTimeEntry>>>
+    export type CreateTimeEntryMutationBody = BodyType<TimeEntryInput>
+    export type CreateTimeEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Log time against a matter
+ */
+export const useCreateTimeEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTimeEntry>>, TError,{data: BodyType<TimeEntryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTimeEntry>>,
+        TError,
+        {data: BodyType<TimeEntryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTimeEntryMutationOptions(options));
+    }
+
+export const getDeleteTimeEntryUrl = (id: number,) => {
+
+
+
+
+  return `/api/time-entries/${id}`
+}
+
+/**
+ * @summary Delete an entry you logged
+ */
+export const deleteTimeEntry = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteTimeEntryUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteTimeEntryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTimeEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTimeEntry>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteTimeEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTimeEntry>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteTimeEntry(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTimeEntryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTimeEntry>>>
+
+    export type DeleteTimeEntryMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete an entry you logged
+ */
+export const useDeleteTimeEntry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTimeEntry>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTimeEntry>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteTimeEntryMutationOptions(options));
+    }
+
+export const getGetRunningTimerUrl = () => {
+
+
+
+
+  return `/api/time-entries/timer`
+}
+
+/**
+ * @summary The caller's running timer, if any
+ */
+export const getRunningTimer = async ( options?: RequestInit): Promise<RunningTimer | null> => {
+
+  return customFetch<RunningTimer | null>(getGetRunningTimerUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetRunningTimerQueryKey = () => {
+    return [
+    `/api/time-entries/timer`
+    ] as const;
+    }
+
+
+export const getGetRunningTimerQueryOptions = <TData = Awaited<ReturnType<typeof getRunningTimer>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRunningTimer>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetRunningTimerQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getRunningTimer>>> = ({ signal }) => getRunningTimer({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getRunningTimer>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetRunningTimerQueryResult = NonNullable<Awaited<ReturnType<typeof getRunningTimer>>>
+export type GetRunningTimerQueryError = ErrorType<void>
+
+
+/**
+ * @summary The caller's running timer, if any
+ */
+
+export function useGetRunningTimer<TData = Awaited<ReturnType<typeof getRunningTimer>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getRunningTimer>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetRunningTimerQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartTimerUrl = () => {
+
+
+
+
+  return `/api/time-entries/timer`
+}
+
+/**
+ * One timer per person. Starting a second stops the first and banks its minutes, because the alternative is silently double-counting.
+ * @summary Start a timer on a matter
+ */
+export const startTimer = async (timerStartInput: TimerStartInput, options?: RequestInit): Promise<RunningTimer | null> => {
+
+  return customFetch<RunningTimer | null>(getStartTimerUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(timerStartInput)
+  }
+);}
+
+
+
+
+
+export const getStartTimerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startTimer>>, TError,{data: BodyType<TimerStartInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startTimer>>, TError,{data: BodyType<TimerStartInput>}, TContext> => {
+
+const mutationKey = ['startTimer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startTimer>>, {data: BodyType<TimerStartInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  startTimer(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartTimerMutationResult = NonNullable<Awaited<ReturnType<typeof startTimer>>>
+    export type StartTimerMutationBody = BodyType<TimerStartInput>
+    export type StartTimerMutationError = ErrorType<void>
+
+    /**
+ * @summary Start a timer on a matter
+ */
+export const useStartTimer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startTimer>>, TError,{data: BodyType<TimerStartInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof startTimer>>,
+        TError,
+        {data: BodyType<TimerStartInput>},
+        TContext
+      > => {
+      return useMutation(getStartTimerMutationOptions(options));
+    }
+
+export const getStopTimerUrl = () => {
+
+
+
+
+  return `/api/time-entries/timer`
+}
+
+/**
+ * @summary Stop the running timer and bank the minutes
+ */
+export const stopTimer = async ( options?: RequestInit): Promise<TimeEntry> => {
+
+  return customFetch<TimeEntry>(getStopTimerUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getStopTimerMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof stopTimer>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof stopTimer>>, TError,void, TContext> => {
+
+const mutationKey = ['stopTimer'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof stopTimer>>, void> = () => {
+
+
+          return  stopTimer(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StopTimerMutationResult = NonNullable<Awaited<ReturnType<typeof stopTimer>>>
+
+    export type StopTimerMutationError = ErrorType<void>
+
+    /**
+ * @summary Stop the running timer and bank the minutes
+ */
+export const useStopTimer = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof stopTimer>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof stopTimer>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getStopTimerMutationOptions(options));
+    }
+
+export const getGetChamberPerformanceUrl = (params: GetChamberPerformanceParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/kpi/performance?${stringifiedParams}` : `/api/kpi/performance`
+}
+
+/**
+ * Every figure is aggregated in SQL over the requested window, with the immediately preceding window of equal length as the comparison. Metrics below their sample threshold report the count and a null value rather than a number drawn through too few points.
+ * @summary Chamber performance on time and effort (admin only)
+ */
+export const getChamberPerformance = async (params: GetChamberPerformanceParams, options?: RequestInit): Promise<ChamberPerformance> => {
+
+  return customFetch<ChamberPerformance>(getGetChamberPerformanceUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetChamberPerformanceQueryKey = (params?: GetChamberPerformanceParams,) => {
+    return [
+    `/api/kpi/performance`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetChamberPerformanceQueryOptions = <TData = Awaited<ReturnType<typeof getChamberPerformance>>, TError = ErrorType<void>>(params: GetChamberPerformanceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getChamberPerformance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetChamberPerformanceQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getChamberPerformance>>> = ({ signal }) => getChamberPerformance(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getChamberPerformance>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetChamberPerformanceQueryResult = NonNullable<Awaited<ReturnType<typeof getChamberPerformance>>>
+export type GetChamberPerformanceQueryError = ErrorType<void>
+
+
+/**
+ * @summary Chamber performance on time and effort (admin only)
+ */
+
+export function useGetChamberPerformance<TData = Awaited<ReturnType<typeof getChamberPerformance>>, TError = ErrorType<void>>(
+ params: GetChamberPerformanceParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getChamberPerformance>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetChamberPerformanceQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

@@ -1712,3 +1712,196 @@ export const SendBetaFeedbackResponse = zod.object({
 })
 
 
+/**
+ * @summary Time logged, optionally for one matter
+ */
+export const ListTimeEntriesQueryParams = zod.object({
+  "caseId": zod.coerce.number().optional()
+})
+
+export const listTimeEntriesResponseWorkDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const ListTimeEntriesResponseItem = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "workDate": zod.string().regex(listTimeEntriesResponseWorkDateRegExp).describe('Calendar date, YYYY-MM-DD.'),
+  "minutes": zod.number().describe('Exact minutes. Never a fractional hour.'),
+  "description": zod.string().nullish(),
+  "billable": zod.boolean(),
+  "startedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListTimeEntriesResponse = zod.array(ListTimeEntriesResponseItem)
+
+
+/**
+ * @summary Log time against a matter
+ */
+export const createTimeEntryBodyWorkDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createTimeEntryBodyMinutesMax = 1440;
+
+export const createTimeEntryBodyDescriptionMax = 2000;
+
+export const createTimeEntryBodyBillableDefault = true;
+
+export const CreateTimeEntryBody = zod.object({
+  "caseId": zod.number(),
+  "workDate": zod.string().regex(createTimeEntryBodyWorkDateRegExp).describe('Calendar date, YYYY-MM-DD.'),
+  "minutes": zod.number().min(1).max(createTimeEntryBodyMinutesMax),
+  "description": zod.string().max(createTimeEntryBodyDescriptionMax).optional(),
+  "billable": zod.boolean().default(createTimeEntryBodyBillableDefault)
+})
+
+export const createTimeEntryResponseWorkDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const CreateTimeEntryResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "workDate": zod.string().regex(createTimeEntryResponseWorkDateRegExp).describe('Calendar date, YYYY-MM-DD.'),
+  "minutes": zod.number().describe('Exact minutes. Never a fractional hour.'),
+  "description": zod.string().nullish(),
+  "billable": zod.boolean(),
+  "startedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete an entry you logged
+ */
+export const DeleteTimeEntryParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteTimeEntryResponse = zod.void()
+
+
+/**
+ * @summary The caller's running timer, if any
+ */
+export const GetRunningTimerResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "startedAt": zod.coerce.date(),
+  "elapsedMinutes": zod.number()
+}).nullable()
+
+
+/**
+ * One timer per person. Starting a second stops the first and banks its minutes, because the alternative is silently double-counting.
+ * @summary Start a timer on a matter
+ */
+export const StartTimerBody = zod.object({
+  "caseId": zod.number()
+})
+
+export const StartTimerResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "startedAt": zod.coerce.date(),
+  "elapsedMinutes": zod.number()
+}).nullable()
+
+
+/**
+ * @summary Stop the running timer and bank the minutes
+ */
+export const stopTimerResponseWorkDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const StopTimerResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "workDate": zod.string().regex(stopTimerResponseWorkDateRegExp).describe('Calendar date, YYYY-MM-DD.'),
+  "minutes": zod.number().describe('Exact minutes. Never a fractional hour.'),
+  "description": zod.string().nullish(),
+  "billable": zod.boolean(),
+  "startedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Every figure is aggregated in SQL over the requested window, with the immediately preceding window of equal length as the comparison. Metrics below their sample threshold report the count and a null value rather than a number drawn through too few points.
+ * @summary Chamber performance on time and effort (admin only)
+ */
+export const getChamberPerformanceQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getChamberPerformanceQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetChamberPerformanceQueryParams = zod.object({
+  "from": zod.coerce.string().regex(getChamberPerformanceQueryFromRegExp),
+  "to": zod.coerce.string().regex(getChamberPerformanceQueryToRegExp)
+})
+
+export const getChamberPerformanceResponseFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getChamberPerformanceResponseToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getChamberPerformanceResponseComparisonFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getChamberPerformanceResponseComparisonToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetChamberPerformanceResponse = zod.object({
+  "from": zod.string().regex(getChamberPerformanceResponseFromRegExp).describe('Calendar date, YYYY-MM-DD.'),
+  "to": zod.string().regex(getChamberPerformanceResponseToRegExp).describe('Calendar date, YYYY-MM-DD.'),
+  "comparisonFrom": zod.string().regex(getChamberPerformanceResponseComparisonFromRegExp).describe('Calendar date, YYYY-MM-DD.'),
+  "comparisonTo": zod.string().regex(getChamberPerformanceResponseComparisonToRegExp).describe('Calendar date, YYYY-MM-DD.'),
+  "minimumSample": zod.number().describe('Below this many data points a metric reports enoughData false.'),
+  "medianCycleTimeDays": zod.object({
+  "value": zod.number().nullable(),
+  "previous": zod.number().nullish(),
+  "sampleSize": zod.number(),
+  "enoughData": zod.boolean().describe('False when sampleSize is below the threshold; render a notice, not a chart.')
+}).describe('A number with the evidence behind it, or null when there is too little.'),
+  "medianTimeToFirstActionHours": zod.object({
+  "value": zod.number().nullable(),
+  "previous": zod.number().nullish(),
+  "sampleSize": zod.number(),
+  "enoughData": zod.boolean().describe('False when sampleSize is below the threshold; render a notice, not a chart.')
+}).describe('A number with the evidence behind it, or null when there is too little.'),
+  "ageingBuckets": zod.array(zod.object({
+  "bucket": zod.enum(['0-30', '31-60', '61-90', '90+']),
+  "count": zod.number()
+})),
+  "overdueHearings": zod.number().describe('Open matters whose hearing or deadline date is now in the past.'),
+  "totalMinutes": zod.object({
+  "value": zod.number().nullable(),
+  "previous": zod.number().nullish(),
+  "sampleSize": zod.number(),
+  "enoughData": zod.boolean().describe('False when sampleSize is below the threshold; render a notice, not a chart.')
+}).describe('A number with the evidence behind it, or null when there is too little.'),
+  "billableMinutes": zod.number(),
+  "nonBillableMinutes": zod.number(),
+  "minutesPerOpenCase": zod.object({
+  "value": zod.number().nullable(),
+  "previous": zod.number().nullish(),
+  "sampleSize": zod.number(),
+  "enoughData": zod.boolean().describe('False when sampleSize is below the threshold; render a notice, not a chart.')
+}).describe('A number with the evidence behind it, or null when there is too little.'),
+  "byCategory": zod.array(zod.object({
+  "category": zod.string(),
+  "minutes": zod.number()
+})),
+  "byMember": zod.array(zod.object({
+  "userId": zod.number(),
+  "userName": zod.string(),
+  "minutes": zod.number(),
+  "billableMinutes": zod.number()
+}).describe('Per-individual effort. Admin-only, by deliberate decision.')),
+  "openCases": zod.number(),
+  "hasAnyTimeLogged": zod.boolean().describe('False when the chamber has never logged time; the UI says so plainly.')
+})
+
+

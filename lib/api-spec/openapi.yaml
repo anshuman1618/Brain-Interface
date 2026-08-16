@@ -32,6 +32,8 @@ tags:
     description: Consultation recorder
   - name: kpi
     description: KPI engine (admin only)
+  - name: time
+    description: Time logged against matters
   - name: invites
     description: Invite link generation
   - name: calendar
@@ -1471,6 +1473,139 @@ paths:
         "401":
           description: Unauthorized
 
+  /time-entries:
+    get:
+      operationId: listTimeEntries
+      tags: [time]
+      summary: Time logged, optionally for one matter
+      parameters:
+        - in: query
+          name: caseId
+          schema: { type: integer }
+      responses:
+        "200":
+          description: Entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/TimeEntry" }
+        "403": { description: Forbidden }
+    post:
+      operationId: createTimeEntry
+      tags: [time]
+      summary: Log time against a matter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TimeEntryInput" }
+      responses:
+        "201":
+          description: Logged
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimeEntry" }
+        "400": { description: Invalid }
+        "403": { description: Forbidden }
+
+  /time-entries/{id}:
+    delete:
+      operationId: deleteTimeEntry
+      tags: [time]
+      summary: Delete an entry you logged
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "204": { description: Deleted }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+
+  /time-entries/timer:
+    get:
+      operationId: getRunningTimer
+      tags: [time]
+      summary: The caller's running timer, if any
+      responses:
+        "200":
+          description: Running timer or null
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunningTimer" }
+        "403": { description: Forbidden }
+    post:
+      operationId: startTimer
+      tags: [time]
+      summary: Start a timer on a matter
+      description: >
+        One timer per person. Starting a second stops the first and banks its
+        minutes, because the alternative is silently double-counting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TimerStartInput" }
+      responses:
+        "201":
+          description: Started
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RunningTimer" }
+        "400": { description: Invalid }
+        "403": { description: Forbidden }
+    delete:
+      operationId: stopTimer
+      tags: [time]
+      summary: Stop the running timer and bank the minutes
+      responses:
+        "200":
+          description: The finished entry
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TimeEntry" }
+        "404": { description: No timer running }
+
+  /kpi/performance:
+    get:
+      operationId: getChamberPerformance
+      tags: [kpi]
+      summary: Chamber performance on time and effort (admin only)
+      description: >
+        Every figure is aggregated in SQL over the requested window, with the
+        immediately preceding window of equal length as the comparison. Metrics
+        below their sample threshold report the count and a null value rather
+        than a number drawn through too few points.
+      parameters:
+        - in: query
+          name: from
+          required: true
+          schema:
+            {
+              type: string,
+              pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+              description: "Calendar date, YYYY-MM-DD.",
+            }
+        - in: query
+          name: to
+          required: true
+          schema:
+            {
+              type: string,
+              pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+              description: "Calendar date, YYYY-MM-DD.",
+            }
+      responses:
+        "200":
+          description: Performance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ChamberPerformance" }
+        "400": { description: Invalid range }
+        "403": { description: Forbidden }
+
 components:
   schemas:
     HealthStatus:
@@ -1847,6 +1982,167 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    TimeEntry:
+      type: object
+      required: [id, caseId, caseTitle, userId, userName, workDate, minutes, billable, createdAt]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        caseTitle: { type: string }
+        userId: { type: integer }
+        userName: { type: string }
+        workDate:
+          {
+            type: string,
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+            description: "Calendar date, YYYY-MM-DD.",
+          }
+        minutes: { type: integer, description: Exact minutes. Never a fractional hour. }
+        description: { type: ["string", "null"] }
+        billable: { type: boolean }
+        startedAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    TimeEntryInput:
+      type: object
+      required: [caseId, workDate, minutes]
+      properties:
+        caseId: { type: integer }
+        workDate:
+          {
+            type: string,
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+            description: "Calendar date, YYYY-MM-DD.",
+          }
+        minutes: { type: integer, minimum: 1, maximum: 1440 }
+        description: { type: string, maxLength: 2000 }
+        billable: { type: boolean, default: true }
+
+    TimerStartInput:
+      type: object
+      required: [caseId]
+      properties:
+        caseId: { type: integer }
+
+    RunningTimer:
+      type: ["object", "null"]
+      required: [id, caseId, caseTitle, startedAt, elapsedMinutes]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        caseTitle: { type: string }
+        startedAt: { type: string, format: date-time }
+        elapsedMinutes: { type: integer }
+
+    MetricValue:
+      type: object
+      description: A number with the evidence behind it, or null when there is too little.
+      required: [value, sampleSize, enoughData]
+      properties:
+        value: { type: ["number", "null"] }
+        previous: { type: ["number", "null"] }
+        sampleSize: { type: integer }
+        enoughData:
+          type: boolean
+          description: False when sampleSize is below the threshold; render a notice, not a chart.
+
+    AgeingBucket:
+      type: object
+      required: [bucket, count]
+      properties:
+        bucket: { type: string, enum: ["0-30", "31-60", "61-90", "90+"] }
+        count: { type: integer }
+
+    CategoryMinutes:
+      type: object
+      required: [category, minutes]
+      properties:
+        category: { type: string }
+        minutes: { type: integer }
+
+    MemberMinutes:
+      type: object
+      description: Per-individual effort. Admin-only, by deliberate decision.
+      required: [userId, userName, minutes, billableMinutes]
+      properties:
+        userId: { type: integer }
+        userName: { type: string }
+        minutes: { type: integer }
+        billableMinutes: { type: integer }
+
+    ChamberPerformance:
+      type: object
+      required:
+        [
+          from,
+          to,
+          comparisonFrom,
+          comparisonTo,
+          minimumSample,
+          medianCycleTimeDays,
+          medianTimeToFirstActionHours,
+          ageingBuckets,
+          overdueHearings,
+          totalMinutes,
+          billableMinutes,
+          nonBillableMinutes,
+          minutesPerOpenCase,
+          byCategory,
+          byMember,
+          openCases,
+          hasAnyTimeLogged,
+        ]
+      properties:
+        from:
+          {
+            type: string,
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+            description: "Calendar date, YYYY-MM-DD.",
+          }
+        to:
+          {
+            type: string,
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+            description: "Calendar date, YYYY-MM-DD.",
+          }
+        comparisonFrom:
+          {
+            type: string,
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+            description: "Calendar date, YYYY-MM-DD.",
+          }
+        comparisonTo:
+          {
+            type: string,
+            pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+            description: "Calendar date, YYYY-MM-DD.",
+          }
+        minimumSample:
+          type: integer
+          description: Below this many data points a metric reports enoughData false.
+        medianCycleTimeDays: { $ref: "#/components/schemas/MetricValue" }
+        medianTimeToFirstActionHours: { $ref: "#/components/schemas/MetricValue" }
+        ageingBuckets:
+          type: array
+          items: { $ref: "#/components/schemas/AgeingBucket" }
+        overdueHearings:
+          type: integer
+          description: Open matters whose hearing or deadline date is now in the past.
+        totalMinutes: { $ref: "#/components/schemas/MetricValue" }
+        billableMinutes: { type: integer }
+        nonBillableMinutes: { type: integer }
+        minutesPerOpenCase: { $ref: "#/components/schemas/MetricValue" }
+        byCategory:
+          type: array
+          items: { $ref: "#/components/schemas/CategoryMinutes" }
+        byMember:
+          type: array
+          items: { $ref: "#/components/schemas/MemberMinutes" }
+        openCases: { type: integer }
+        hasAnyTimeLogged:
+          type: boolean
+          description: False when the chamber has never logged time; the UI says so plainly.
 
     # ── Case ──────────────────────────────────────────────────────────────
     Case:

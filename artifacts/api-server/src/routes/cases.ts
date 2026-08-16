@@ -278,7 +278,17 @@ router.patch(
     const updateData: Partial<typeof casesTable.$inferSelect> = {};
     if (body.data.title != null) updateData.title = body.data.title;
     if (body.data.description != null) updateData.description = body.data.description;
-    if (body.data.status != null) updateData.status = body.data.status;
+    if (body.data.status != null) {
+      updateData.status = body.data.status;
+      // Cycle time is measured to this column, so it has to move with the
+      // status rather than being written once and forgotten. Reopening a closed
+      // matter clears it — a matter that is open again has not finished a cycle.
+      if (body.data.status === "closed" && existing.status !== "closed") {
+        updateData.closedAt = new Date();
+      } else if (body.data.status !== "closed") {
+        updateData.closedAt = null;
+      }
+    }
     if (body.data.clientId != null) updateData.clientId = body.data.clientId;
     if (body.data.filingRef != null) {
       const trimmed = body.data.filingRef.trim();

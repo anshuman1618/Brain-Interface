@@ -440,6 +440,141 @@ export interface BetaFeedbackAck {
   createdAt: string;
 }
 
+export interface TimeEntry {
+  id: number;
+  caseId: number;
+  caseTitle: string;
+  userId: number;
+  userName: string;
+  /**
+     * Calendar date, YYYY-MM-DD.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  workDate: string;
+  /** Exact minutes. Never a fractional hour. */
+  minutes: number;
+  /** @nullable */
+  description?: string | null;
+  billable: boolean;
+  /** @nullable */
+  startedAt?: string | null;
+  createdAt: string;
+}
+
+export interface TimeEntryInput {
+  caseId: number;
+  /**
+     * Calendar date, YYYY-MM-DD.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  workDate: string;
+  /**
+     * @minimum 1
+     * @maximum 1440
+     */
+  minutes: number;
+  /** @maxLength 2000 */
+  description?: string;
+  billable?: boolean;
+}
+
+export interface TimerStartInput {
+  caseId: number;
+}
+
+/**
+ * @nullable
+ */
+export type RunningTimer = {
+  id: number;
+  caseId: number;
+  caseTitle: string;
+  startedAt: string;
+  elapsedMinutes: number;
+} | null;
+
+/**
+ * A number with the evidence behind it, or null when there is too little.
+ */
+export interface MetricValue {
+  /** @nullable */
+  value: number | null;
+  /** @nullable */
+  previous?: number | null;
+  sampleSize: number;
+  /** False when sampleSize is below the threshold; render a notice, not a chart. */
+  enoughData: boolean;
+}
+
+export type AgeingBucketBucket = typeof AgeingBucketBucket[keyof typeof AgeingBucketBucket];
+
+
+export const AgeingBucketBucket = {
+  '0-30': '0-30',
+  '31-60': '31-60',
+  '61-90': '61-90',
+  '90+': '90+',
+} as const;
+
+export interface AgeingBucket {
+  bucket: AgeingBucketBucket;
+  count: number;
+}
+
+export interface CategoryMinutes {
+  category: string;
+  minutes: number;
+}
+
+/**
+ * Per-individual effort. Admin-only, by deliberate decision.
+ */
+export interface MemberMinutes {
+  userId: number;
+  userName: string;
+  minutes: number;
+  billableMinutes: number;
+}
+
+export interface ChamberPerformance {
+  /**
+     * Calendar date, YYYY-MM-DD.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  from: string;
+  /**
+     * Calendar date, YYYY-MM-DD.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  to: string;
+  /**
+     * Calendar date, YYYY-MM-DD.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  comparisonFrom: string;
+  /**
+     * Calendar date, YYYY-MM-DD.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  comparisonTo: string;
+  /** Below this many data points a metric reports enoughData false. */
+  minimumSample: number;
+  medianCycleTimeDays: MetricValue;
+  medianTimeToFirstActionHours: MetricValue;
+  ageingBuckets: AgeingBucket[];
+  /** Open matters whose hearing or deadline date is now in the past. */
+  overdueHearings: number;
+  totalMinutes: MetricValue;
+  billableMinutes: number;
+  nonBillableMinutes: number;
+  minutesPerOpenCase: MetricValue;
+  byCategory: CategoryMinutes[];
+  byMember: MemberMinutes[];
+  openCases: number;
+  /** False when the chamber has never logged time; the UI says so plainly. */
+  hasAnyTimeLogged: boolean;
+}
+
 export type CaseStatus = typeof CaseStatus[keyof typeof CaseStatus];
 
 
@@ -1477,5 +1612,22 @@ export const GetSlaReportPeriod = {
 
 export type GlobalSearchParams = {
 q: string;
+};
+
+export type ListTimeEntriesParams = {
+caseId?: number;
+};
+
+export type GetChamberPerformanceParams = {
+/**
+ * Calendar date, YYYY-MM-DD.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from: string;
+/**
+ * Calendar date, YYYY-MM-DD.
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to: string;
 };
 

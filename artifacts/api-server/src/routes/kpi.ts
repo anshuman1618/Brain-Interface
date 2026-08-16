@@ -6,7 +6,10 @@ import {
   GetSlaReportQueryParams,
   GetSlaReportResponse,
   GetDashboardSummaryResponse,
+  GetChamberPerformanceQueryParams,
 } from "@workspace/api-zod";
+import { chamberPerformance } from "../lib/performance";
+import { zodMessage } from "../lib/validation";
 import {
   requireWorkspace,
   requireCapability,
@@ -207,6 +210,40 @@ router.get(
         recentActivity: recentEvents,
       }),
     );
+  },
+);
+
+/**
+ * Chamber performance on time and effort. Admin only.
+ *
+ * `kpi.read` is held by admin alone — senior_advocate is explicitly excluded by
+ * the capability matrix — so this endpoint carries per-individual effort in its
+ * payload without a second gate. That was a deliberate decision: chamber-wide
+ * aggregates and one member's hours are different things, and the product owner
+ * chose to keep BOTH behind admin rather than expose either to the wider firm.
+ * If `kpi.read` is ever widened, `byMember` must be split out before it is.
+ */
+router.get(
+  "/kpi/performance",
+  requireWorkspace,
+  requireCapability("kpi.read"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+
+    const params = GetChamberPerformanceQueryParams.safeParse(req.query);
+    if (!params.success) {
+      res.status(400).json({ error: "invalid_request", message: zodMessage(params.error) });
+      return;
+    }
+    if (params.data.from > params.data.to) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "The start of the range must not be after its end.",
+      });
+      return;
+    }
+
+    res.json(await chamberPerformance(c.workspaceId, params.data.from, params.data.to));
   },
 );
 

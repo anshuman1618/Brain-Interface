@@ -14,6 +14,7 @@ import {
   Cell,
 } from "recharts";
 import { AlertTriangle, TrendingUp, CheckCircle, Clock } from "lucide-react";
+import { ChamberPerformance } from "@/components/chamber-performance";
 
 export default function KpiPage() {
   const { data: kpi, isLoading } = useGetKpiDashboard();
@@ -40,6 +41,8 @@ export default function KpiPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      <ChamberPerformance />
+
       <div>
         <h2 className="text-3xl font-bold tracking-tight mb-1">KPI Engine</h2>
         <p className="text-muted-foreground">

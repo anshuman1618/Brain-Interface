@@ -182,6 +182,25 @@ CREATE TABLE IF NOT EXISTS cases (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS time_entries (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  clerk_id TEXT NOT NULL,
+  user_name TEXT NOT NULL DEFAULT '',
+  work_date DATE NOT NULL,
+  minutes INTEGER NOT NULL DEFAULT 0,
+  description TEXT,
+  billable BOOLEAN NOT NULL DEFAULT true,
+  started_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS time_entries_workspace_date_idx ON time_entries (workspace_id, work_date);
+CREATE INDEX IF NOT EXISTS time_entries_case_idx ON time_entries (case_id);
+CREATE INDEX IF NOT EXISTS time_entries_user_date_idx ON time_entries (user_id, work_date);
+
 CREATE TABLE IF NOT EXISTS beta_feedback (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL,
@@ -352,6 +371,7 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider_payment_id TEXT;
 ALTER TABLE workspace_memberships ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS url TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS checksum TEXT;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS opposing_party TEXT;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS conflict_acknowledged_by TEXT;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS conflict_note TEXT;

@@ -28,6 +28,16 @@ export const casesTable = pgTable("cases", {
    */
   filingRef: text("filing_ref").notNull(),
   priority: text("priority").notNull().default("medium"), // low | medium | high | urgent
+  /**
+   * When the matter was closed. Null while it is open.
+   *
+   * Cycle time needs an end point, and the only record of one was a
+   * `status_changed` timeline row with the new status inside a free-text
+   * sentence. Parsing prose to compute a median is a metric that breaks the day
+   * somebody rewords the message. Set by the update route whenever status
+   * becomes "closed", and cleared if a closed matter is reopened.
+   */
+  closedAt: timestamp("closed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

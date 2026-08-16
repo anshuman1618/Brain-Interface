@@ -11,6 +11,7 @@ export * from "./feedback";
 export * from "./beta_feedback";
 export * from "./users";
 export * from "./cases";
+export * from "./time_entries";
 export * from "./documents";
 export * from "./tasks";
 export * from "./delay_logs";
