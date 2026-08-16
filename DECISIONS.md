@@ -645,6 +645,55 @@ from outside the chamber returns 400 and says why.
 
 ---
 
+### Migrations run from `pnpm run start`, not from the Start Command
+
+**Decided:** the root `start` script runs `lib/db/migrate-on-boot.mjs` before
+handing off to the API server. A migration failure is fatal and the server does
+not start.
+
+**Why:** the deployed service was created by hand in the Render dashboard before
+`render.yaml` existed, so Render never reads that file — the blueprint has said
+`migrate` for a while and the live service still said `push`. That is not a
+harmless difference. `drizzle-kit push` diffs the schema against the live
+database and applies what it infers, and it exits **0** either way, so the
+service came up healthy while the schema quietly stopped tracking the code.
+Production was missing `time_entries`, `beta_feedback`, all three invoicing
+tables and `cases.closed_at`, with `filing_ref` still nullable — everything
+added after phase 3.
+
+Putting the migration inside `pnpm run start` makes the stale dashboard field
+harmless: whatever runs before it, the server cannot start against a schema it
+does not match. The dashboard field is still worth correcting, but the
+deployment no longer depends on anyone remembering to.
+
+Fatal-on-failure is the safe direction here specifically because Render only
+shifts traffic once the new instance passes its health check. A failed migration
+means the deploy does not go live and the previous instance keeps serving, which
+is strictly better than a server running in front of a schema it disagrees with.
+
+No `DATABASE_URL` means PGlite, which builds its schema from `preview.ts` on
+boot, so the script skips rather than failing — otherwise every local `pnpm
+start` would die on `drizzle.config.ts` throwing.
+
+**Verified against a real Postgres 16**, which is the first time this stack has
+been exercised outside PGlite:
+
+- A **fresh** database migrates to 25 tables, `filing_ref` NOT NULL, ledger at 6.
+- A **production-shaped** database — baseline tables present, no
+  `__drizzle_migrations` ledger, which is exactly what `push` leaves behind —
+  replays 0000 harmlessly and applies 0001 through 0005. Re-running adds nothing.
+- The **real deploy sequence**, stale command included: `push` (which does write
+  — it reported "Changes applied") followed by `migrate`. It survives only
+  because every migration from 0000 onward is guarded with `IF NOT EXISTS`;
+  without those guards `push` creating a table first would make the next
+  migration fail and abort the deploy.
+- `pg_dump` of the two paths is **byte-identical**, so push-then-migrate and a
+  clean migrate converge on the same schema.
+- The full `pnpm run start` chain then boots the API server against that
+  Postgres and serves `/api/invoices` and `/api/billing-settings`.
+
+---
+
 ## Architecture
 
 ### Single origin: the API server also serves the frontend

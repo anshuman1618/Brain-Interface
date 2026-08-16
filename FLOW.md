@@ -431,6 +431,25 @@ Built after the numbering above was reviewed.
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
 
+### Migrations, and where they now run
+
+| File                         | Change                                                                                                                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/migrate-on-boot.mjs` | **New.** Applies pending migrations, then exits so `start` can hand off. Skips when `DATABASE_URL` is unset (PGlite builds its own schema). A failure is fatal — see below. |
+| `package.json`               | Root `start` is now `node ./lib/db/migrate-on-boot.mjs && pnpm --filter @workspace/api-server run start`.                                                                   |
+| `lib/db/drizzle.config.ts`   | `out` is explicit and absolute. It defaulted to `./drizzle` relative to the working directory, which was right only while the command happened to be run from `lib/db`.     |
+
+The deployed service was created by hand in the dashboard, so Render never reads
+`render.yaml` and the live Start Command still says `push`. `push` exits 0
+whether or not it applied anything, which is how production came up healthy for
+weeks while missing every table added after phase 3. Running the migration from
+`start` makes the stale field harmless — the server cannot boot against a schema
+it does not match.
+
+Boot order is therefore: **migrate → the §2a startup sequence → listen.** The
+migration finishes before `initDatabase()` is even called, in a separate
+process, so nothing queries a half-migrated schema.
+
 ### Where the new code sits in the request path
 
 Two additions to §3's picture:
@@ -506,10 +525,13 @@ It reads `render.yaml` and creates the web service _and_ the Postgres instance,
 wired together, with `DATABASE_URL` and `WORKSPACE_TOKEN_SECRET` filled in for
 you.
 
-> **If you already have a hand-made `brain-interface-lex` service, delete it and
-> re-apply the Blueprint.** That service predates the blueprint, so it has none
-> of this — which is exactly what caused the earlier deploy failures. Fixing it
-> field by field is slower and you will miss one.
+> **Both existing services predate the blueprint.** `lex-practice` is the live
+> one; `brain-interface-lex` is an older duplicate also auto-deploying from
+> `main`. Neither reads `render.yaml`, so neither picked up the `migrate` fix —
+> `lex-practice` still has `push` in its Start Command. Migrations now run from
+> `pnpm run start` regardless, so nothing is broken by leaving it, but the
+> field is still wrong and the duplicate service should be deleted. Fixing them
+> field by field is slower than re-applying the Blueprint and you will miss one.
 
 Then paste the `sync: false` values from Step 1 into the dashboard. There are
 three required: `FILE_ENCRYPTION_KEY`, `CLERK_SECRET_KEY`,
