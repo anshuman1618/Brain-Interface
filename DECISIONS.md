@@ -349,6 +349,158 @@ link — so it is tool-owned, not ours.
 
 ---
 
+### Phase 6 — time capture and chamber performance
+
+#### Effort could not be reported, because effort was not recorded
+
+**Decided:** build `time_entries` first. Manual entry AND a start/stop timer.
+
+**Why:** the investigation found no time capture anywhere — no hours,
+duration, billable flag or rate in any of twenty tables. The brief was explicit
+that a proxy must not be presented as effort, and it is right: a task count is
+not hours, because a task is five minutes or five days. Both entry paths exist
+because both are how people work — nobody starts a timer before a corridor
+conversation, and nobody reconstructs a three-hour drafting session accurately
+from memory a week later.
+
+**Minutes, as integers.** A timer that runs twenty minutes is 20, not 0.3333
+hours. Hours are produced only at display.
+
+#### A second timer banks the first rather than refusing
+
+**Decided:** starting a timer stops any timer the same person already has
+running, records its minutes, and opens the new one.
+
+**Why:** the alternatives are worse. Refusing blocks somebody who forgot to stop
+yesterday's, and allowing two silently double-counts their day.
+
+#### `cases.closed_at` is a real column, not a parsed sentence
+
+**Decided:** new nullable column, maintained by the update route both ways —
+set when a matter closes, cleared if it reopens. Backfilled in migration 0003.
+
+**Why:** the only previous record of a closure was a `status_changed` timeline
+row with the status inside free text. A median computed by pattern-matching
+prose breaks the day somebody rewords the message, and cycle time is the
+headline metric of the phase.
+
+#### Aggregation is SQL, and the old KPI route is the counter-example
+
+**Decided:** `lib/performance.ts` computes every figure with SQL aggregates —
+`percentile_cont` for the medians, `FILTER` clauses for the windows — plus three
+indexes on `time_entries`.
+
+**Why:** the brief asked for it, and the existing `/kpi/summary` route shows
+what the alternative looks like: `SELECT *` on cases and tasks, then
+`.filter().length` in JavaScript. Fine at demo volume, a full table scan per
+page load at real volume. Median rather than mean is the brief's call and the
+right one — one matter that sat three years drags an average somewhere no real
+matter lives.
+
+#### A metric below five data points refuses to draw itself
+
+**Decided:** `MINIMUM_SAMPLE = 5`. Below it the payload reports the sample size
+and a null value, and the page says "not enough data yet".
+
+**Why:** a trend through four points is decoration. Five is a judgement call
+rather than a statistical result, which is why the threshold is in the payload
+and stated on screen rather than hidden in the client.
+
+#### Permissions: everything KPI stays admin-only
+
+**Decided:** confirmed with the product owner before building. `kpi.read` is
+held by admin alone — the matrix already excludes `senior_advocate` explicitly —
+so chamber aggregates AND per-member hours both sit behind it. Per-individual
+effort therefore travels in the same payload with no second gate, and a comment
+at the endpoint records that `byMember` must be split out first if `kpi.read` is
+ever widened.
+
+**Why:** putting one advocate's hours in front of their colleagues is a
+workplace-surveillance decision, not a UI one. It was put to the owner as such,
+with the surveillance implication named, and they chose the strictest option.
+
+**Separately:** `time.write` and `time.read` are new capabilities granted to all
+staff roles, because recording your own hours is part of doing the work.
+Clients get neither.
+
+---
+
+### Phase 7 — invoicing (data model and numbering only)
+
+#### A counter row, not a Postgres sequence
+
+**Decided:** `invoice_series`, one row per chamber per financial year, locked
+with `SELECT … FOR UPDATE` inside the same transaction that writes the invoice.
+
+**Why:** the requirement is _gapless_, and Postgres sequences are explicitly
+documented as not being that — a transaction that rolls back has already
+consumed its value and does not return it. That is the correct trade for a
+surrogate key and the wrong one for a legal document series a tax authority may
+inspect. With a locked row, a failed invoice write rolls the increment back with
+it and the number goes to the next caller instead of being burned.
+
+**Verified:** eleven checks against real Postgres, including that a transaction
+which fails after reserving leaves no gap. **Not verified:** the concurrent case
+itself — PGlite is single-connection and physically cannot hold twenty
+simultaneous transactions. The guarantee rests on ordinary `FOR UPDATE` row
+locking and needs a multi-connection Postgres to demonstrate.
+
+#### Numbers are assigned at issue, never at draft
+
+**Decided:** `invoice_number` and `financial_year` are null until an invoice is
+issued. The unique constraint spans all three columns.
+
+**Why:** this is what actually keeps the series gapless in practice. Somebody
+will create three drafts and delete two; if drafts held numbers, that would tear
+two holes in the run. Postgres does not treat nulls as equal, so any number of
+numberless drafts coexist under the same constraint that forbids two issued
+invoices sharing a number.
+
+#### "Overdue" is derived, never stored
+
+**Decided:** the stored statuses are draft, issued, sent, paid, void. Overdue is
+computed as issued-or-sent with a due date in the past.
+
+**Why:** the brief lists overdue among the statuses, but it is a question about
+today's date. Storing it would require a scheduled job whose only purpose is to
+stop a derived value going stale, and would produce invoices that are overdue
+only because the job ran.
+
+#### Money in paise, quantities in thousandths
+
+**Decided:** every amount column ends `_minor` and holds integer paise;
+`quantity_milli` holds thousandths, so 1.5 hours is 1500. `amount_minor` is
+stored per line rather than recomputed on read.
+
+**Why:** the first is the brief's non-negotiable and already the house rule —
+`lib/plans.ts` says "money never touches a float" for subscription pricing. The
+second follows for the same reason: 7.7 hours at ₹4,500 must reach the same
+total twice. Storing the line amount means the printed document, the stored row
+and the total cannot drift apart if a rounding rule is ever adjusted.
+
+#### Client and firm details are snapshots, deliberately duplicated
+
+**Decided:** name, address, email and GSTIN for both parties are columns on the
+invoice, not joins to the client record.
+
+**Why:** the brief requires it and the reason is sound. A client who moves
+office after being invoiced must not retrospectively change the address on a
+document already in their hands.
+
+#### No tax rate is assumed anywhere
+
+**Decided:** `tax_treatment` is free text defaulting to `"unspecified"`, and
+`cgst_rate_bp` / `sgst_rate_bp` / `igst_rate_bp` default to zero. Rates are basis
+points as integers — 9% is 900.
+
+**Why:** the brief was explicit that the tax logic is the accountant's decision,
+not this code's, and legal services in India carry specific rules including
+reverse charge in some cases. Nothing defaults to 9/9 or 18. An unconfigured
+invoice produces zero tax and says so, rather than guessing and being quietly
+wrong on a document that goes to a tax authority.
+
+---
+
 ## Architecture
 
 ### Single origin: the API server also serves the frontend

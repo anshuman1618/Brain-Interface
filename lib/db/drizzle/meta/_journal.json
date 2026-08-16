@@ -29,6 +29,13 @@
       "when": 1786757715145,
       "tag": "0003_time_entries_and_closed_at",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786884178069,
+      "tag": "0004_invoicing",
+      "breakpoints": true
     }
   ]
 }

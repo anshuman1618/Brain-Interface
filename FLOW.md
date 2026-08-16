@@ -379,6 +379,32 @@ no validator moved. There is no i18n layer; every label is inline.
 | `lib/db/src/schema/beta_feedback.ts`, `api-server/src/routes/beta-feedback.ts`, `practice-portal/src/components/beta-feedback-widget.tsx` | **New.** Feedback widget: message + page path + user id, behind `requireAuth` only, so it works on the access-denied screen.                                                 |
 | `practice-portal/public/robots.txt`                                                                                                       | `Allow: /` → `Disallow: /`.                                                                                                                                                  |
 
+### Phase 6 — time capture and performance (`5b1ffcb`)
+
+| File                                                     | Change                                                                                                                                                                      |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/time_entries.ts`                      | **New.** The first time capture in the product. Minutes as integers, three indexes, a nullable `started_at` that marks a running timer.                                     |
+| `lib/db/src/schema/cases.ts`                             | `closed_at` added — the end of the cycle-time clock.                                                                                                                        |
+| `lib/db/drizzle/0003_*.sql`                              | Both, plus a backfill of `closed_at` from existing `status_changed` timeline rows.                                                                                          |
+| `api-server/src/routes/time-entries.ts`                  | **New.** List, create, delete, and timer start/stop. Timer routes are declared **before** `/:id` — Express matches in order, and `/timer` would otherwise be read as an id. |
+| `api-server/src/lib/performance.ts`                      | **New.** Every KPI figure as a SQL aggregate. `percentile_cont` medians, `FILTER` windows, previous-period comparison in the same query.                                    |
+| `api-server/src/routes/kpi.ts`                           | `GET /kpi/performance`, admin-only via the existing `kpi.read`.                                                                                                             |
+| `api-server/src/routes/cases.ts`                         | Status change now maintains `closed_at` both ways.                                                                                                                          |
+| `api-server/src/lib/permissions.ts`                      | `time.write` / `time.read` added to all staff roles. Not to clients.                                                                                                        |
+| `practice-portal/src/components/time-log-panel.tsx`      | **New.** Timer plus a four-field form, mounted as a Time tab on the case page.                                                                                              |
+| `practice-portal/src/components/chamber-performance.tsx` | **New.** Range selector, period comparison, per-metric definitions, low-data states, per-member table.                                                                      |
+
+### Phase 7 — invoicing foundation (`ba7ff33`)
+
+**Data model and numbering only. No routes, no UI** — the brief required both to
+be reviewed before anything was built on top.
+
+| File                                   | Change                                                                                                                                                                                                          |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/invoices.ts`        | **New.** `invoice_series` (the gapless counter), `invoices` (with client and firm snapshots, configurable tax fields, integer-paise totals), `invoice_line_items`.                                              |
+| `api-server/src/lib/invoice-number.ts` | **New.** Financial-year derivation, `reserveInvoiceNumber` (takes a transaction — that parameter is the correctness condition, not a convenience), status transitions, derived overdue, and the rounding rules. |
+| `lib/db/drizzle/0004_invoicing.sql`    | All three tables.                                                                                                                                                                                               |
+
 ### Where the new code sits in the request path
 
 Two additions to §3's picture:
@@ -388,6 +414,11 @@ Two additions to §3's picture:
 - `POST /api/beta-feedback` runs `requireAuth` and then stops. It is the only
   write endpoint that does **not** run `requireWorkspace`, deliberately — see
   DECISIONS.md.
+- `/api/time-entries*` runs `requireWorkspace` then `requireCapability("time.*")`,
+  held by every staff role and no client.
+- `GET /api/kpi/performance` runs `requireCapability("kpi.read")`, held by admin
+  alone. Per-member hours ride in that payload; if `kpi.read` is ever widened,
+  `byMember` needs its own gate first.
 
 ### Verification
 
