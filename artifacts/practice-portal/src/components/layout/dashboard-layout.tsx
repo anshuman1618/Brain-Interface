@@ -18,6 +18,7 @@ const CaseDetailPage = lazy(() => import("@/pages/case-detail"));
 const TasksPage = lazy(() => import("@/pages/tasks"));
 const ConsultationsPage = lazy(() => import("@/pages/consultations"));
 const KpiPage = lazy(() => import("@/pages/kpi"));
+const InvoicesPage = lazy(() => import("@/pages/invoices"));
 const InvitesPage = lazy(() => import("@/pages/invites"));
 const ClientPortalPage = lazy(() => import("@/pages/client-portal"));
 const CalendarPage = lazy(() => import("@/pages/calendar"));
@@ -46,6 +47,7 @@ import {
   Star,
   MoreVertical,
   History,
+  Receipt,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -145,6 +147,7 @@ function DashboardLayoutContent() {
       show: can("consultations.write"),
     },
     { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: can("kpi.read") },
+    { href: "/invoices", label: "Invoices", icon: Receipt, show: can("billing.manage") },
     { href: "/invites", label: "Access Control", icon: Users, show: can("access_control.manage") },
     { href: "/team", label: "Team Roles", icon: ShieldCheck, show: can("team.manage") },
     { href: "/activity", label: "Activity", icon: History, show: can("audit.read") },
@@ -340,6 +343,11 @@ function DashboardLayoutContent() {
                   <Route path="/kpi">
                     <RequireCapability capability="kpi.read">
                       <KpiPage />
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/invoices">
+                    <RequireCapability capability="billing.manage">
+                      <InvoicesPage />
                     </RequireCapability>
                   </Route>
                   <Route path="/invites">

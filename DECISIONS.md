@@ -349,6 +349,351 @@ link — so it is tool-owned, not ours.
 
 ---
 
+### Phase 6 — time capture and chamber performance
+
+#### Effort could not be reported, because effort was not recorded
+
+**Decided:** build `time_entries` first. Manual entry AND a start/stop timer.
+
+**Why:** the investigation found no time capture anywhere — no hours,
+duration, billable flag or rate in any of twenty tables. The brief was explicit
+that a proxy must not be presented as effort, and it is right: a task count is
+not hours, because a task is five minutes or five days. Both entry paths exist
+because both are how people work — nobody starts a timer before a corridor
+conversation, and nobody reconstructs a three-hour drafting session accurately
+from memory a week later.
+
+**Minutes, as integers.** A timer that runs twenty minutes is 20, not 0.3333
+hours. Hours are produced only at display.
+
+#### A second timer banks the first rather than refusing
+
+**Decided:** starting a timer stops any timer the same person already has
+running, records its minutes, and opens the new one.
+
+**Why:** the alternatives are worse. Refusing blocks somebody who forgot to stop
+yesterday's, and allowing two silently double-counts their day.
+
+#### `cases.closed_at` is a real column, not a parsed sentence
+
+**Decided:** new nullable column, maintained by the update route both ways —
+set when a matter closes, cleared if it reopens. Backfilled in migration 0003.
+
+**Why:** the only previous record of a closure was a `status_changed` timeline
+row with the status inside free text. A median computed by pattern-matching
+prose breaks the day somebody rewords the message, and cycle time is the
+headline metric of the phase.
+
+#### Aggregation is SQL, and the old KPI route is the counter-example
+
+**Decided:** `lib/performance.ts` computes every figure with SQL aggregates —
+`percentile_cont` for the medians, `FILTER` clauses for the windows — plus three
+indexes on `time_entries`.
+
+**Why:** the brief asked for it, and the existing `/kpi/summary` route shows
+what the alternative looks like: `SELECT *` on cases and tasks, then
+`.filter().length` in JavaScript. Fine at demo volume, a full table scan per
+page load at real volume. Median rather than mean is the brief's call and the
+right one — one matter that sat three years drags an average somewhere no real
+matter lives.
+
+#### A metric below five data points refuses to draw itself
+
+**Decided:** `MINIMUM_SAMPLE = 5`. Below it the payload reports the sample size
+and a null value, and the page says "not enough data yet".
+
+**Why:** a trend through four points is decoration. Five is a judgement call
+rather than a statistical result, which is why the threshold is in the payload
+and stated on screen rather than hidden in the client.
+
+#### Permissions: everything KPI stays admin-only
+
+**Decided:** confirmed with the product owner before building. `kpi.read` is
+held by admin alone — the matrix already excludes `senior_advocate` explicitly —
+so chamber aggregates AND per-member hours both sit behind it. Per-individual
+effort therefore travels in the same payload with no second gate, and a comment
+at the endpoint records that `byMember` must be split out first if `kpi.read` is
+ever widened.
+
+**Why:** putting one advocate's hours in front of their colleagues is a
+workplace-surveillance decision, not a UI one. It was put to the owner as such,
+with the surveillance implication named, and they chose the strictest option.
+
+**Separately:** `time.write` and `time.read` are new capabilities granted to all
+staff roles, because recording your own hours is part of doing the work.
+Clients get neither.
+
+---
+
+### Phase 7 — invoicing (data model and numbering only)
+
+#### A counter row, not a Postgres sequence
+
+**Decided:** `invoice_series`, one row per chamber per financial year, locked
+with `SELECT … FOR UPDATE` inside the same transaction that writes the invoice.
+
+**Why:** the requirement is _gapless_, and Postgres sequences are explicitly
+documented as not being that — a transaction that rolls back has already
+consumed its value and does not return it. That is the correct trade for a
+surrogate key and the wrong one for a legal document series a tax authority may
+inspect. With a locked row, a failed invoice write rolls the increment back with
+it and the number goes to the next caller instead of being burned.
+
+**Verified:** eleven checks against real Postgres, including that a transaction
+which fails after reserving leaves no gap. **Not verified:** the concurrent case
+itself — PGlite is single-connection and physically cannot hold twenty
+simultaneous transactions. The guarantee rests on ordinary `FOR UPDATE` row
+locking and needs a multi-connection Postgres to demonstrate.
+
+#### Numbers are assigned at issue, never at draft
+
+**Decided:** `invoice_number` and `financial_year` are null until an invoice is
+issued. The unique constraint spans all three columns.
+
+**Why:** this is what actually keeps the series gapless in practice. Somebody
+will create three drafts and delete two; if drafts held numbers, that would tear
+two holes in the run. Postgres does not treat nulls as equal, so any number of
+numberless drafts coexist under the same constraint that forbids two issued
+invoices sharing a number.
+
+#### "Overdue" is derived, never stored
+
+**Decided:** the stored statuses are draft, issued, sent, paid, void. Overdue is
+computed as issued-or-sent with a due date in the past.
+
+**Why:** the brief lists overdue among the statuses, but it is a question about
+today's date. Storing it would require a scheduled job whose only purpose is to
+stop a derived value going stale, and would produce invoices that are overdue
+only because the job ran.
+
+#### Money in paise, quantities in thousandths
+
+**Decided:** every amount column ends `_minor` and holds integer paise;
+`quantity_milli` holds thousandths, so 1.5 hours is 1500. `amount_minor` is
+stored per line rather than recomputed on read.
+
+**Why:** the first is the brief's non-negotiable and already the house rule —
+`lib/plans.ts` says "money never touches a float" for subscription pricing. The
+second follows for the same reason: 7.7 hours at ₹4,500 must reach the same
+total twice. Storing the line amount means the printed document, the stored row
+and the total cannot drift apart if a rounding rule is ever adjusted.
+
+#### Client and firm details are snapshots, deliberately duplicated
+
+**Decided:** name, address, email and GSTIN for both parties are columns on the
+invoice, not joins to the client record.
+
+**Why:** the brief requires it and the reason is sound. A client who moves
+office after being invoiced must not retrospectively change the address on a
+document already in their hands.
+
+#### No tax rate is assumed anywhere
+
+**Decided:** `tax_treatment` is free text defaulting to `"unspecified"`, and
+`cgst_rate_bp` / `sgst_rate_bp` / `igst_rate_bp` default to zero. Rates are basis
+points as integers — 9% is 900.
+
+**Why:** the brief was explicit that the tax logic is the accountant's decision,
+not this code's, and legal services in India carry specific rules including
+reverse charge in some cases. Nothing defaults to 9/9 or 18. An unconfigured
+invoice produces zero tax and says so, rather than guessing and being quietly
+wrong on a document that goes to a tax authority.
+
+---
+
+### Phase 7 — invoicing (routes, PDF, billing details)
+
+The numbering above was reviewed first, as the brief required. What follows is
+what was built on top of it.
+
+#### Billing details live on the chamber and the client, not on a settings blob
+
+**Decided:** the firm's address, GSTIN, place of supply, SAC code, default tax
+rates, hourly rate and payment terms are columns on `workspaces`. The client's
+address, GSTIN and place of supply are columns on `users`.
+
+**Why:** every one of these is a real attribute of a real party, and the invoice
+snapshots them at issue. A JSON settings column would have been quicker to add
+and would have made the snapshot code guess at shapes that no type checks. They
+are also the fields a chamber will want to filter and report on later.
+
+Every column is nullable or defaults to empty/zero, so `0005_billing_details.sql`
+adds them to a populated table without a table rewrite and without inventing a
+tax position for an existing chamber. Nothing existing is dropped or retyped.
+
+#### Issuing an invoice is one transaction, and it does four things
+
+**Decided:** `POST /invoices/:id/issue` reserves the number, snapshots the
+client, snapshots the firm, and flips the status — all inside a single
+`db.transaction`.
+
+**Why:** any one of those failing after another succeeded leaves a document that
+is wrong in a way nobody would notice until a client queried it. A number
+reserved but not written is the gap the whole counter design exists to prevent;
+a status flipped without a snapshot is an invoice whose address silently follows
+the client's next office move.
+
+#### The PDF recomputes nothing
+
+**Decided:** `lib/invoice-pdf.ts` prints `line.amountMinor` and
+`invoice.totalMinor` straight from the stored row. It never multiplies quantity
+by rate.
+
+**Why:** the paper is the copy the client is holding. If the PDF derived its own
+figures, changing a rounding rule later would make the document and the database
+disagree, and the disagreement would surface as a client dispute rather than as
+a failing test. Rendering server-side rather than in the browser is the same
+argument: the bytes must not depend on who downloaded it.
+
+#### Immutability is enforced by the route, not by convention
+
+**Decided:** `PATCH` and `DELETE` on anything past draft return **409**, not 403.
+`paid → sent` returns 409. Voiding is the only way to retract an issued invoice,
+and it records who and why while keeping the number.
+
+**Why:** 403 would say "you lack permission", which is false and would send an
+admin looking for a role to grant. 409 says the document's state forbids it,
+which is the actual reason. Voiding rather than deleting is what keeps the series
+gapless after a mistake — the number stays spent and the record says why.
+
+#### pdfkit 0.19, and two things it needs that are not obvious
+
+**Decided:** pdfkit `^0.19.1`, with `@swc/helpers` declared as a direct
+dependency of `api-server`, and `build.mjs` copying pdfkit's `.afm` font metrics
+into `dist/data`.
+
+**Why:** pdfkit 0.15 pulls fontkit 1.9, which calls
+`@swc/helpers`'s `applyDecoratedDescriptor` — removed in the 0.5 line that
+everything else in the tree resolves to, so the server would not boot at all.
+0.19 pulls fontkit 2, which works, but still `require`s `@swc/helpers` without
+declaring it; under pnpm's strict layout that resolves only if `api-server`
+declares it. Removing that dependency was tried and the server failed to start.
+
+The font metrics are a separate trap: esbuild bundles JavaScript and nothing
+else, so the built server threw `ENOENT: Helvetica.afm` on the first PDF
+request while every test against the source tree passed.
+
+#### Verified
+
+41 checks end to end against the built server: rounding applied once (7.7h ×
+₹4,500 = 3,465,000 paise exactly), tax taken from chamber settings, no number on
+a draft, `RC/2026-27/0001` at issue, both parties snapshotted, edit and delete
+refused with 409 once issued, `paid → sent` refused, **a deleted draft leaves no
+gap** (the next issue took number 2), a void keeping its number and recording
+who and why, list totals excluding voided invoices, a real PDF with correct magic
+bytes, stored totals unchanged since issue, and a non-member refused on both the
+list and the PDF.
+
+---
+
+### Phase 7 — the invoicing screen, and a hole it exposed
+
+#### Only a member of the chamber can be billed
+
+**Decided:** `billableClient()` in `routes/invoices.ts` resolves the client by
+joining `workspace_memberships`, and both creating and editing a draft refuse a
+user who holds no active membership of the caller's workspace.
+
+**Why:** wiring the client picker to `listWorkspaceMembers` is what surfaced
+this. Until then the route accepted **any** user id in the table — every
+chamber's users share one — so an admin could name an id belonging to a
+different firm and the invoice would snapshot that person's name, email and
+billing address onto a document their own chamber then reads and prints. It is
+exactly the cross-tenant leak the capability matrix exists to prevent, arriving
+through a field nobody thought of as an access decision.
+
+Membership is checked at draft time only. An invoice already issued keeps the
+snapshot it was issued with even if the person later leaves the chamber — they
+were a client when the work was billed, and rewriting that is the thing the
+snapshot exists to stop.
+
+#### A draft shows a live name; an issued invoice shows its snapshot
+
+**Decided:** the list and the detail view print `clientName` when the invoice
+has one, and otherwise look the client up in the current member list.
+
+**Why:** the snapshot is written at issue, so a draft has none and every draft
+row read "—" — including one raised seconds earlier for a named client. The
+fallback is deliberately one-directional: an issued invoice always shows its own
+stored name, never the member record, because that is the name actually printed
+on the paper the client is holding.
+
+#### One rounding rule, restated in the form
+
+**Decided:** `lineAmountMinor` is duplicated in `invoice-form-modal.tsx` with a
+comment saying why, rather than the form deriving totals its own way.
+
+**Why:** the preview must not be able to disagree with what the server stores.
+The alternative — a round trip per keystroke — is worse, and a form that quietly
+computes 7.7 × ₹4,500 differently from the document is the specific failure this
+whole phase is built to avoid. The figures shown after saving are re-read from
+the server regardless, so the duplicate is a preview and never the authority.
+
+#### Verified
+
+24 checks in a real browser (Chromium, preview mode) on top of the 44 against
+the API: the nav item appears for admin only, the preview rounds 7.7h × ₹4,500
+to ₹34,650 exactly, tax defaults arrive from chamber settings, the dialog names
+the number issuing would assign, a draft shows no number, issuing shows one and
+moves the outstanding figure, an issued invoice offers no Edit or Delete, the
+PDF downloads named `RC-2026-27-0001.pdf`, voiding refuses to proceed without a
+reason and then keeps the number while dropping out of the outstanding total,
+and a client signed in to the same chamber cannot reach the page at all.
+
+The API suite also now proves the cross-tenant refusal directly: billing a user
+from outside the chamber returns 400 and says why.
+
+---
+
+### Migrations run from `pnpm run start`, not from the Start Command
+
+**Decided:** the root `start` script runs `lib/db/migrate-on-boot.mjs` before
+handing off to the API server. A migration failure is fatal and the server does
+not start.
+
+**Why:** the deployed service was created by hand in the Render dashboard before
+`render.yaml` existed, so Render never reads that file — the blueprint has said
+`migrate` for a while and the live service still said `push`. That is not a
+harmless difference. `drizzle-kit push` diffs the schema against the live
+database and applies what it infers, and it exits **0** either way, so the
+service came up healthy while the schema quietly stopped tracking the code.
+Production was missing `time_entries`, `beta_feedback`, all three invoicing
+tables and `cases.closed_at`, with `filing_ref` still nullable — everything
+added after phase 3.
+
+Putting the migration inside `pnpm run start` makes the stale dashboard field
+harmless: whatever runs before it, the server cannot start against a schema it
+does not match. The dashboard field is still worth correcting, but the
+deployment no longer depends on anyone remembering to.
+
+Fatal-on-failure is the safe direction here specifically because Render only
+shifts traffic once the new instance passes its health check. A failed migration
+means the deploy does not go live and the previous instance keeps serving, which
+is strictly better than a server running in front of a schema it disagrees with.
+
+No `DATABASE_URL` means PGlite, which builds its schema from `preview.ts` on
+boot, so the script skips rather than failing — otherwise every local `pnpm
+start` would die on `drizzle.config.ts` throwing.
+
+**Verified against a real Postgres 16**, which is the first time this stack has
+been exercised outside PGlite:
+
+- A **fresh** database migrates to 25 tables, `filing_ref` NOT NULL, ledger at 6.
+- A **production-shaped** database — baseline tables present, no
+  `__drizzle_migrations` ledger, which is exactly what `push` leaves behind —
+  replays 0000 harmlessly and applies 0001 through 0005. Re-running adds nothing.
+- The **real deploy sequence**, stale command included: `push` (which does write
+  — it reported "Changes applied") followed by `migrate`. It survives only
+  because every migration from 0000 onward is guarded with `IF NOT EXISTS`;
+  without those guards `push` creating a table first would make the next
+  migration fail and abort the deploy.
+- `pg_dump` of the two paths is **byte-identical**, so push-then-migrate and a
+  clean migrate converge on the same schema.
+- The full `pnpm run start` chain then boots the API server against that
+  Postgres and serves `/api/invoices` and `/api/billing-settings`.
+
+---
+
 ## Architecture
 
 ### Single origin: the API server also serves the frontend

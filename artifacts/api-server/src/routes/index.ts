@@ -14,6 +14,7 @@ import calendarRouter from "./calendar";
 import feedbackRouter from "./feedback";
 import betaFeedbackRouter from "./beta-feedback";
 import timeEntriesRouter from "./time-entries";
+import invoicesRouter from "./invoices";
 import subscriptionRouter from "./subscription";
 import governanceRouter from "./governance";
 
@@ -37,6 +38,7 @@ router.use(calendarRouter);
 router.use(feedbackRouter);
 router.use(betaFeedbackRouter);
 router.use(timeEntriesRouter);
+router.use(invoicesRouter);
 router.use(subscriptionRouter);
 router.use(governanceRouter);
 

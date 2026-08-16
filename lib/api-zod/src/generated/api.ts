@@ -1905,3 +1905,675 @@ export const GetChamberPerformanceResponse = zod.object({
 })
 
 
+/**
+ * @summary Invoices, with filters and period totals (admin only)
+ */
+export const listInvoicesQueryFromRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listInvoicesQueryToRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const ListInvoicesQueryParams = zod.object({
+  "status": zod.coerce.string().optional(),
+  "clientId": zod.coerce.number().optional(),
+  "from": zod.coerce.string().regex(listInvoicesQueryFromRegExp).optional(),
+  "to": zod.coerce.string().regex(listInvoicesQueryToRegExp).optional()
+})
+
+export const ListInvoicesResponse = zod.object({
+  "invoices": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.number().nullish(),
+  "financialYear": zod.string().nullish(),
+  "invoiceRef": zod.string().nullish(),
+  "status": zod.string(),
+  "isOverdue": zod.boolean().describe('Derived from the due date'),
+  "isEditable": zod.boolean(),
+  "issueDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "clientId": zod.number().nullish(),
+  "clientName": zod.string().optional(),
+  "clientAddress": zod.string().optional(),
+  "clientEmail": zod.string().optional(),
+  "clientGstin": zod.string().nullish(),
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().optional(),
+  "firmGstin": zod.string().nullish(),
+  "taxTreatment": zod.string().optional(),
+  "placeOfSupply": zod.string().nullish(),
+  "sacCode": zod.string().nullish(),
+  "cgstRateBp": zod.number().optional(),
+  "sgstRateBp": zod.number().optional(),
+  "igstRateBp": zod.number().optional(),
+  "subtotalMinor": zod.number(),
+  "cgstMinor": zod.number().optional(),
+  "sgstMinor": zod.number().optional(),
+  "igstMinor": zod.number().optional(),
+  "totalMinor": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "issuedBy": zod.string().nullish(),
+  "issuedAt": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "paidAt": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish(),
+  "voidReason": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "position": zod.number().optional(),
+  "description": zod.string(),
+  "quantityMilli": zod.number().describe('Thousandths. 1.5 hours is 1500.'),
+  "unit": zod.string(),
+  "unitRateMinor": zod.number().describe('Paise per whole unit.'),
+  "amountMinor": zod.number().describe('Paise. Stored'),
+  "sacCode": zod.string().nullish(),
+  "timeEntryId": zod.number().nullish()
+}))
+})),
+  "outstandingMinor": zod.number().describe('Issued or sent'),
+  "overdueMinor": zod.number().describe('Of the outstanding'),
+  "paidMinor": zod.number(),
+  "currency": zod.string()
+})
+
+
+/**
+ * Always a DRAFT. No number is assigned here — numbers are handed out at issue, which is what keeps the series gapless when drafts are deleted.
+ * @summary Create a draft invoice
+ */
+export const createInvoiceBodyIssueDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createInvoiceBodyDueDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createInvoiceBodyNotesMax = 2000;
+
+export const createInvoiceBodyPaymentTermsMax = 500;
+
+export const createInvoiceBodyPlaceOfSupplyMax = 100;
+
+export const createInvoiceBodySacCodeMax = 20;
+
+export const createInvoiceBodyCgstRateBpMin = 0;
+export const createInvoiceBodyCgstRateBpMax = 10000;
+
+export const createInvoiceBodySgstRateBpMin = 0;
+export const createInvoiceBodySgstRateBpMax = 10000;
+
+export const createInvoiceBodyIgstRateBpMin = 0;
+export const createInvoiceBodyIgstRateBpMax = 10000;
+
+export const createInvoiceBodyLinesItemDescriptionMax = 500;
+
+
+export const createInvoiceBodyLinesItemUnitMax = 20;
+
+export const createInvoiceBodyLinesItemUnitRateMinorMin = 0;
+
+export const createInvoiceBodyLinesItemSacCodeMax = 20;
+
+
+
+export const CreateInvoiceBody = zod.object({
+  "clientId": zod.number(),
+  "issueDate": zod.string().regex(createInvoiceBodyIssueDateRegExp).optional(),
+  "dueDate": zod.string().regex(createInvoiceBodyDueDateRegExp).optional(),
+  "notes": zod.string().max(createInvoiceBodyNotesMax).optional(),
+  "paymentTerms": zod.string().max(createInvoiceBodyPaymentTermsMax).optional(),
+  "taxTreatment": zod.string().optional().describe('intra | inter | exempt | reverse_charge | unspecified. Not decided by this application — the firm\'s accountant settles which applies.\n'),
+  "placeOfSupply": zod.string().max(createInvoiceBodyPlaceOfSupplyMax).optional(),
+  "sacCode": zod.string().max(createInvoiceBodySacCodeMax).optional(),
+  "cgstRateBp": zod.number().min(createInvoiceBodyCgstRateBpMin).max(createInvoiceBodyCgstRateBpMax).optional(),
+  "sgstRateBp": zod.number().min(createInvoiceBodySgstRateBpMin).max(createInvoiceBodySgstRateBpMax).optional(),
+  "igstRateBp": zod.number().min(createInvoiceBodyIgstRateBpMin).max(createInvoiceBodyIgstRateBpMax).optional(),
+  "lines": zod.array(zod.object({
+  "description": zod.string().min(1).max(createInvoiceBodyLinesItemDescriptionMax),
+  "quantityMilli": zod.number().min(1),
+  "unit": zod.string().max(createInvoiceBodyLinesItemUnitMax).optional(),
+  "unitRateMinor": zod.number().min(createInvoiceBodyLinesItemUnitRateMinorMin),
+  "sacCode": zod.string().max(createInvoiceBodyLinesItemSacCodeMax).optional(),
+  "timeEntryId": zod.number().optional()
+}))
+})
+
+export const CreateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.number().nullish(),
+  "financialYear": zod.string().nullish(),
+  "invoiceRef": zod.string().nullish(),
+  "status": zod.string(),
+  "isOverdue": zod.boolean().describe('Derived from the due date'),
+  "isEditable": zod.boolean(),
+  "issueDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "clientId": zod.number().nullish(),
+  "clientName": zod.string().optional(),
+  "clientAddress": zod.string().optional(),
+  "clientEmail": zod.string().optional(),
+  "clientGstin": zod.string().nullish(),
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().optional(),
+  "firmGstin": zod.string().nullish(),
+  "taxTreatment": zod.string().optional(),
+  "placeOfSupply": zod.string().nullish(),
+  "sacCode": zod.string().nullish(),
+  "cgstRateBp": zod.number().optional(),
+  "sgstRateBp": zod.number().optional(),
+  "igstRateBp": zod.number().optional(),
+  "subtotalMinor": zod.number(),
+  "cgstMinor": zod.number().optional(),
+  "sgstMinor": zod.number().optional(),
+  "igstMinor": zod.number().optional(),
+  "totalMinor": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "issuedBy": zod.string().nullish(),
+  "issuedAt": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "paidAt": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish(),
+  "voidReason": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "position": zod.number().optional(),
+  "description": zod.string(),
+  "quantityMilli": zod.number().describe('Thousandths. 1.5 hours is 1500.'),
+  "unit": zod.string(),
+  "unitRateMinor": zod.number().describe('Paise per whole unit.'),
+  "amountMinor": zod.number().describe('Paise. Stored'),
+  "sacCode": zod.string().nullish(),
+  "timeEntryId": zod.number().nullish()
+}))
+})
+
+
+/**
+ * @summary One invoice with its lines
+ */
+export const GetInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.number().nullish(),
+  "financialYear": zod.string().nullish(),
+  "invoiceRef": zod.string().nullish(),
+  "status": zod.string(),
+  "isOverdue": zod.boolean().describe('Derived from the due date'),
+  "isEditable": zod.boolean(),
+  "issueDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "clientId": zod.number().nullish(),
+  "clientName": zod.string().optional(),
+  "clientAddress": zod.string().optional(),
+  "clientEmail": zod.string().optional(),
+  "clientGstin": zod.string().nullish(),
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().optional(),
+  "firmGstin": zod.string().nullish(),
+  "taxTreatment": zod.string().optional(),
+  "placeOfSupply": zod.string().nullish(),
+  "sacCode": zod.string().nullish(),
+  "cgstRateBp": zod.number().optional(),
+  "sgstRateBp": zod.number().optional(),
+  "igstRateBp": zod.number().optional(),
+  "subtotalMinor": zod.number(),
+  "cgstMinor": zod.number().optional(),
+  "sgstMinor": zod.number().optional(),
+  "igstMinor": zod.number().optional(),
+  "totalMinor": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "issuedBy": zod.string().nullish(),
+  "issuedAt": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "paidAt": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish(),
+  "voidReason": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "position": zod.number().optional(),
+  "description": zod.string(),
+  "quantityMilli": zod.number().describe('Thousandths. 1.5 hours is 1500.'),
+  "unit": zod.string(),
+  "unitRateMinor": zod.number().describe('Paise per whole unit.'),
+  "amountMinor": zod.number().describe('Paise. Stored'),
+  "sacCode": zod.string().nullish(),
+  "timeEntryId": zod.number().nullish()
+}))
+})
+
+
+/**
+ * Drafts only. An issued invoice is refused with 409.
+ * @summary Edit a draft
+ */
+export const UpdateInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateInvoiceBodyIssueDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateInvoiceBodyDueDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateInvoiceBodyNotesMax = 2000;
+
+export const updateInvoiceBodyPaymentTermsMax = 500;
+
+export const updateInvoiceBodyPlaceOfSupplyMax = 100;
+
+export const updateInvoiceBodySacCodeMax = 20;
+
+export const updateInvoiceBodyCgstRateBpMin = 0;
+export const updateInvoiceBodyCgstRateBpMax = 10000;
+
+export const updateInvoiceBodySgstRateBpMin = 0;
+export const updateInvoiceBodySgstRateBpMax = 10000;
+
+export const updateInvoiceBodyIgstRateBpMin = 0;
+export const updateInvoiceBodyIgstRateBpMax = 10000;
+
+export const updateInvoiceBodyLinesItemDescriptionMax = 500;
+
+
+export const updateInvoiceBodyLinesItemUnitMax = 20;
+
+export const updateInvoiceBodyLinesItemUnitRateMinorMin = 0;
+
+export const updateInvoiceBodyLinesItemSacCodeMax = 20;
+
+
+
+export const UpdateInvoiceBody = zod.object({
+  "clientId": zod.number(),
+  "issueDate": zod.string().regex(updateInvoiceBodyIssueDateRegExp).optional(),
+  "dueDate": zod.string().regex(updateInvoiceBodyDueDateRegExp).optional(),
+  "notes": zod.string().max(updateInvoiceBodyNotesMax).optional(),
+  "paymentTerms": zod.string().max(updateInvoiceBodyPaymentTermsMax).optional(),
+  "taxTreatment": zod.string().optional().describe('intra | inter | exempt | reverse_charge | unspecified. Not decided by this application — the firm\'s accountant settles which applies.\n'),
+  "placeOfSupply": zod.string().max(updateInvoiceBodyPlaceOfSupplyMax).optional(),
+  "sacCode": zod.string().max(updateInvoiceBodySacCodeMax).optional(),
+  "cgstRateBp": zod.number().min(updateInvoiceBodyCgstRateBpMin).max(updateInvoiceBodyCgstRateBpMax).optional(),
+  "sgstRateBp": zod.number().min(updateInvoiceBodySgstRateBpMin).max(updateInvoiceBodySgstRateBpMax).optional(),
+  "igstRateBp": zod.number().min(updateInvoiceBodyIgstRateBpMin).max(updateInvoiceBodyIgstRateBpMax).optional(),
+  "lines": zod.array(zod.object({
+  "description": zod.string().min(1).max(updateInvoiceBodyLinesItemDescriptionMax),
+  "quantityMilli": zod.number().min(1),
+  "unit": zod.string().max(updateInvoiceBodyLinesItemUnitMax).optional(),
+  "unitRateMinor": zod.number().min(updateInvoiceBodyLinesItemUnitRateMinorMin),
+  "sacCode": zod.string().max(updateInvoiceBodyLinesItemSacCodeMax).optional(),
+  "timeEntryId": zod.number().optional()
+}))
+})
+
+export const UpdateInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.number().nullish(),
+  "financialYear": zod.string().nullish(),
+  "invoiceRef": zod.string().nullish(),
+  "status": zod.string(),
+  "isOverdue": zod.boolean().describe('Derived from the due date'),
+  "isEditable": zod.boolean(),
+  "issueDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "clientId": zod.number().nullish(),
+  "clientName": zod.string().optional(),
+  "clientAddress": zod.string().optional(),
+  "clientEmail": zod.string().optional(),
+  "clientGstin": zod.string().nullish(),
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().optional(),
+  "firmGstin": zod.string().nullish(),
+  "taxTreatment": zod.string().optional(),
+  "placeOfSupply": zod.string().nullish(),
+  "sacCode": zod.string().nullish(),
+  "cgstRateBp": zod.number().optional(),
+  "sgstRateBp": zod.number().optional(),
+  "igstRateBp": zod.number().optional(),
+  "subtotalMinor": zod.number(),
+  "cgstMinor": zod.number().optional(),
+  "sgstMinor": zod.number().optional(),
+  "igstMinor": zod.number().optional(),
+  "totalMinor": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "issuedBy": zod.string().nullish(),
+  "issuedAt": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "paidAt": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish(),
+  "voidReason": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "position": zod.number().optional(),
+  "description": zod.string(),
+  "quantityMilli": zod.number().describe('Thousandths. 1.5 hours is 1500.'),
+  "unit": zod.string(),
+  "unitRateMinor": zod.number().describe('Paise per whole unit.'),
+  "amountMinor": zod.number().describe('Paise. Stored'),
+  "sacCode": zod.string().nullish(),
+  "timeEntryId": zod.number().nullish()
+}))
+})
+
+
+/**
+ * @summary Delete a draft
+ */
+export const DeleteInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteInvoiceResponse = zod.void()
+
+
+/**
+ * @summary Issue a draft — assigns the number, snapshots both parties
+ */
+export const IssueInvoiceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const IssueInvoiceResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.number().nullish(),
+  "financialYear": zod.string().nullish(),
+  "invoiceRef": zod.string().nullish(),
+  "status": zod.string(),
+  "isOverdue": zod.boolean().describe('Derived from the due date'),
+  "isEditable": zod.boolean(),
+  "issueDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "clientId": zod.number().nullish(),
+  "clientName": zod.string().optional(),
+  "clientAddress": zod.string().optional(),
+  "clientEmail": zod.string().optional(),
+  "clientGstin": zod.string().nullish(),
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().optional(),
+  "firmGstin": zod.string().nullish(),
+  "taxTreatment": zod.string().optional(),
+  "placeOfSupply": zod.string().nullish(),
+  "sacCode": zod.string().nullish(),
+  "cgstRateBp": zod.number().optional(),
+  "sgstRateBp": zod.number().optional(),
+  "igstRateBp": zod.number().optional(),
+  "subtotalMinor": zod.number(),
+  "cgstMinor": zod.number().optional(),
+  "sgstMinor": zod.number().optional(),
+  "igstMinor": zod.number().optional(),
+  "totalMinor": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "issuedBy": zod.string().nullish(),
+  "issuedAt": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "paidAt": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish(),
+  "voidReason": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "position": zod.number().optional(),
+  "description": zod.string(),
+  "quantityMilli": zod.number().describe('Thousandths. 1.5 hours is 1500.'),
+  "unit": zod.string(),
+  "unitRateMinor": zod.number().describe('Paise per whole unit.'),
+  "amountMinor": zod.number().describe('Paise. Stored'),
+  "sacCode": zod.string().nullish(),
+  "timeEntryId": zod.number().nullish()
+}))
+})
+
+
+/**
+ * @summary Move an issued invoice to sent, paid or void
+ */
+export const SetInvoiceStatusParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const setInvoiceStatusBodyReasonMax = 500;
+
+
+
+export const SetInvoiceStatusBody = zod.object({
+  "status": zod.enum(['sent', 'paid', 'void']),
+  "reason": zod.string().max(setInvoiceStatusBodyReasonMax).optional()
+})
+
+export const SetInvoiceStatusResponse = zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.number().nullish(),
+  "financialYear": zod.string().nullish(),
+  "invoiceRef": zod.string().nullish(),
+  "status": zod.string(),
+  "isOverdue": zod.boolean().describe('Derived from the due date'),
+  "isEditable": zod.boolean(),
+  "issueDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "clientId": zod.number().nullish(),
+  "clientName": zod.string().optional(),
+  "clientAddress": zod.string().optional(),
+  "clientEmail": zod.string().optional(),
+  "clientGstin": zod.string().nullish(),
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().optional(),
+  "firmGstin": zod.string().nullish(),
+  "taxTreatment": zod.string().optional(),
+  "placeOfSupply": zod.string().nullish(),
+  "sacCode": zod.string().nullish(),
+  "cgstRateBp": zod.number().optional(),
+  "sgstRateBp": zod.number().optional(),
+  "igstRateBp": zod.number().optional(),
+  "subtotalMinor": zod.number(),
+  "cgstMinor": zod.number().optional(),
+  "sgstMinor": zod.number().optional(),
+  "igstMinor": zod.number().optional(),
+  "totalMinor": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "issuedBy": zod.string().nullish(),
+  "issuedAt": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "paidAt": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish(),
+  "voidReason": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "position": zod.number().optional(),
+  "description": zod.string(),
+  "quantityMilli": zod.number().describe('Thousandths. 1.5 hours is 1500.'),
+  "unit": zod.string(),
+  "unitRateMinor": zod.number().describe('Paise per whole unit.'),
+  "amountMinor": zod.number().describe('Paise. Stored'),
+  "sacCode": zod.string().nullish(),
+  "timeEntryId": zod.number().nullish()
+}))
+})
+
+
+/**
+ * @summary The invoice as a PDF, rendered server-side
+ */
+export const GetInvoicePdfParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetInvoicePdfResponse = zod.unknown()
+
+
+/**
+ * @summary Billable time not yet on any invoice
+ */
+export const ListUnbilledTimeQueryParams = zod.object({
+  "clientId": zod.coerce.number().optional(),
+  "caseId": zod.coerce.number().optional()
+})
+
+export const listUnbilledTimeResponseWorkDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const ListUnbilledTimeResponseItem = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "clientId": zod.number().nullish(),
+  "userName": zod.string(),
+  "workDate": zod.string().regex(listUnbilledTimeResponseWorkDateRegExp),
+  "minutes": zod.number(),
+  "description": zod.string().nullish(),
+  "billable": zod.boolean()
+})
+export const ListUnbilledTimeResponse = zod.array(ListUnbilledTimeResponseItem)
+
+
+/**
+ * @summary The chamber's billing identity and tax defaults
+ */
+export const getBillingSettingsResponseFirmAddressMax = 1000;
+
+export const getBillingSettingsResponseFirmGstinMax = 20;
+
+export const getBillingSettingsResponseFirmPlaceOfSupplyMax = 100;
+
+export const getBillingSettingsResponseDefaultSacCodeMax = 20;
+
+export const getBillingSettingsResponseDefaultCgstRateBpMin = 0;
+export const getBillingSettingsResponseDefaultCgstRateBpMax = 10000;
+
+export const getBillingSettingsResponseDefaultSgstRateBpMin = 0;
+export const getBillingSettingsResponseDefaultSgstRateBpMax = 10000;
+
+export const getBillingSettingsResponseDefaultIgstRateBpMin = 0;
+export const getBillingSettingsResponseDefaultIgstRateBpMax = 10000;
+
+export const getBillingSettingsResponseDefaultHourlyRateMinorMin = 0;
+
+export const getBillingSettingsResponseDefaultPaymentTermsMax = 500;
+
+export const getBillingSettingsResponseDefaultPaymentDaysMin = 0;
+export const getBillingSettingsResponseDefaultPaymentDaysMax = 365;
+
+
+
+export const GetBillingSettingsResponse = zod.object({
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().max(getBillingSettingsResponseFirmAddressMax).optional(),
+  "firmGstin": zod.string().max(getBillingSettingsResponseFirmGstinMax).optional(),
+  "firmPlaceOfSupply": zod.string().max(getBillingSettingsResponseFirmPlaceOfSupplyMax).optional(),
+  "defaultSacCode": zod.string().max(getBillingSettingsResponseDefaultSacCodeMax).optional(),
+  "defaultCgstRateBp": zod.number().min(getBillingSettingsResponseDefaultCgstRateBpMin).max(getBillingSettingsResponseDefaultCgstRateBpMax).optional(),
+  "defaultSgstRateBp": zod.number().min(getBillingSettingsResponseDefaultSgstRateBpMin).max(getBillingSettingsResponseDefaultSgstRateBpMax).optional(),
+  "defaultIgstRateBp": zod.number().min(getBillingSettingsResponseDefaultIgstRateBpMin).max(getBillingSettingsResponseDefaultIgstRateBpMax).optional(),
+  "defaultHourlyRateMinor": zod.number().min(getBillingSettingsResponseDefaultHourlyRateMinorMin).optional(),
+  "defaultPaymentTerms": zod.string().max(getBillingSettingsResponseDefaultPaymentTermsMax).optional(),
+  "defaultPaymentDays": zod.number().min(getBillingSettingsResponseDefaultPaymentDaysMin).max(getBillingSettingsResponseDefaultPaymentDaysMax).optional(),
+  "nextInvoiceRef": zod.string().optional().describe('What the next issued invoice would be numbered.')
+})
+
+
+/**
+ * @summary Set the chamber's billing identity and tax defaults
+ */
+export const updateBillingSettingsBodyFirmAddressMax = 1000;
+
+export const updateBillingSettingsBodyFirmGstinMax = 20;
+
+export const updateBillingSettingsBodyFirmPlaceOfSupplyMax = 100;
+
+export const updateBillingSettingsBodyDefaultSacCodeMax = 20;
+
+export const updateBillingSettingsBodyDefaultCgstRateBpMin = 0;
+export const updateBillingSettingsBodyDefaultCgstRateBpMax = 10000;
+
+export const updateBillingSettingsBodyDefaultSgstRateBpMin = 0;
+export const updateBillingSettingsBodyDefaultSgstRateBpMax = 10000;
+
+export const updateBillingSettingsBodyDefaultIgstRateBpMin = 0;
+export const updateBillingSettingsBodyDefaultIgstRateBpMax = 10000;
+
+export const updateBillingSettingsBodyDefaultHourlyRateMinorMin = 0;
+
+export const updateBillingSettingsBodyDefaultPaymentTermsMax = 500;
+
+export const updateBillingSettingsBodyDefaultPaymentDaysMin = 0;
+export const updateBillingSettingsBodyDefaultPaymentDaysMax = 365;
+
+
+
+export const UpdateBillingSettingsBody = zod.object({
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().max(updateBillingSettingsBodyFirmAddressMax).optional(),
+  "firmGstin": zod.string().max(updateBillingSettingsBodyFirmGstinMax).optional(),
+  "firmPlaceOfSupply": zod.string().max(updateBillingSettingsBodyFirmPlaceOfSupplyMax).optional(),
+  "defaultSacCode": zod.string().max(updateBillingSettingsBodyDefaultSacCodeMax).optional(),
+  "defaultCgstRateBp": zod.number().min(updateBillingSettingsBodyDefaultCgstRateBpMin).max(updateBillingSettingsBodyDefaultCgstRateBpMax).optional(),
+  "defaultSgstRateBp": zod.number().min(updateBillingSettingsBodyDefaultSgstRateBpMin).max(updateBillingSettingsBodyDefaultSgstRateBpMax).optional(),
+  "defaultIgstRateBp": zod.number().min(updateBillingSettingsBodyDefaultIgstRateBpMin).max(updateBillingSettingsBodyDefaultIgstRateBpMax).optional(),
+  "defaultHourlyRateMinor": zod.number().min(updateBillingSettingsBodyDefaultHourlyRateMinorMin).optional(),
+  "defaultPaymentTerms": zod.string().max(updateBillingSettingsBodyDefaultPaymentTermsMax).optional(),
+  "defaultPaymentDays": zod.number().min(updateBillingSettingsBodyDefaultPaymentDaysMin).max(updateBillingSettingsBodyDefaultPaymentDaysMax).optional(),
+  "nextInvoiceRef": zod.string().optional().describe('What the next issued invoice would be numbered.')
+})
+
+export const updateBillingSettingsResponseFirmAddressMax = 1000;
+
+export const updateBillingSettingsResponseFirmGstinMax = 20;
+
+export const updateBillingSettingsResponseFirmPlaceOfSupplyMax = 100;
+
+export const updateBillingSettingsResponseDefaultSacCodeMax = 20;
+
+export const updateBillingSettingsResponseDefaultCgstRateBpMin = 0;
+export const updateBillingSettingsResponseDefaultCgstRateBpMax = 10000;
+
+export const updateBillingSettingsResponseDefaultSgstRateBpMin = 0;
+export const updateBillingSettingsResponseDefaultSgstRateBpMax = 10000;
+
+export const updateBillingSettingsResponseDefaultIgstRateBpMin = 0;
+export const updateBillingSettingsResponseDefaultIgstRateBpMax = 10000;
+
+export const updateBillingSettingsResponseDefaultHourlyRateMinorMin = 0;
+
+export const updateBillingSettingsResponseDefaultPaymentTermsMax = 500;
+
+export const updateBillingSettingsResponseDefaultPaymentDaysMin = 0;
+export const updateBillingSettingsResponseDefaultPaymentDaysMax = 365;
+
+
+
+export const UpdateBillingSettingsResponse = zod.object({
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().max(updateBillingSettingsResponseFirmAddressMax).optional(),
+  "firmGstin": zod.string().max(updateBillingSettingsResponseFirmGstinMax).optional(),
+  "firmPlaceOfSupply": zod.string().max(updateBillingSettingsResponseFirmPlaceOfSupplyMax).optional(),
+  "defaultSacCode": zod.string().max(updateBillingSettingsResponseDefaultSacCodeMax).optional(),
+  "defaultCgstRateBp": zod.number().min(updateBillingSettingsResponseDefaultCgstRateBpMin).max(updateBillingSettingsResponseDefaultCgstRateBpMax).optional(),
+  "defaultSgstRateBp": zod.number().min(updateBillingSettingsResponseDefaultSgstRateBpMin).max(updateBillingSettingsResponseDefaultSgstRateBpMax).optional(),
+  "defaultIgstRateBp": zod.number().min(updateBillingSettingsResponseDefaultIgstRateBpMin).max(updateBillingSettingsResponseDefaultIgstRateBpMax).optional(),
+  "defaultHourlyRateMinor": zod.number().min(updateBillingSettingsResponseDefaultHourlyRateMinorMin).optional(),
+  "defaultPaymentTerms": zod.string().max(updateBillingSettingsResponseDefaultPaymentTermsMax).optional(),
+  "defaultPaymentDays": zod.number().min(updateBillingSettingsResponseDefaultPaymentDaysMin).max(updateBillingSettingsResponseDefaultPaymentDaysMax).optional(),
+  "nextInvoiceRef": zod.string().optional().describe('What the next issued invoice would be numbered.')
+})
+
+

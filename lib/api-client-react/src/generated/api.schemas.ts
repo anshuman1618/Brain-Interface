@@ -575,6 +575,216 @@ export interface ChamberPerformance {
   hasAnyTimeLogged: boolean;
 }
 
+export interface InvoiceLine {
+  id: number;
+  position?: number;
+  description: string;
+  /** Thousandths. 1.5 hours is 1500. */
+  quantityMilli: number;
+  unit: string;
+  /** Paise per whole unit. */
+  unitRateMinor: number;
+  /** Paise. Stored */
+  amountMinor: number;
+  /** @nullable */
+  sacCode?: string | null;
+  /** @nullable */
+  timeEntryId?: number | null;
+}
+
+export interface InvoiceLineInput {
+  /**
+     * @minLength 1
+     * @maxLength 500
+     */
+  description: string;
+  /** @minimum 1 */
+  quantityMilli: number;
+  /** @maxLength 20 */
+  unit?: string;
+  /** @minimum 0 */
+  unitRateMinor: number;
+  /** @maxLength 20 */
+  sacCode?: string;
+  timeEntryId?: number;
+}
+
+export interface Invoice {
+  id: number;
+  /** @nullable */
+  invoiceNumber?: number | null;
+  /** @nullable */
+  financialYear?: string | null;
+  /** @nullable */
+  invoiceRef?: string | null;
+  status: string;
+  /** Derived from the due date */
+  isOverdue: boolean;
+  isEditable: boolean;
+  /** @nullable */
+  issueDate?: string | null;
+  /** @nullable */
+  dueDate?: string | null;
+  /** @nullable */
+  clientId?: number | null;
+  clientName?: string;
+  clientAddress?: string;
+  clientEmail?: string;
+  /** @nullable */
+  clientGstin?: string | null;
+  firmName?: string;
+  firmAddress?: string;
+  /** @nullable */
+  firmGstin?: string | null;
+  taxTreatment?: string;
+  /** @nullable */
+  placeOfSupply?: string | null;
+  /** @nullable */
+  sacCode?: string | null;
+  cgstRateBp?: number;
+  sgstRateBp?: number;
+  igstRateBp?: number;
+  subtotalMinor: number;
+  cgstMinor?: number;
+  sgstMinor?: number;
+  igstMinor?: number;
+  totalMinor: number;
+  currency: string;
+  /** @nullable */
+  notes?: string | null;
+  /** @nullable */
+  paymentTerms?: string | null;
+  createdBy?: string;
+  /** @nullable */
+  issuedBy?: string | null;
+  /** @nullable */
+  issuedAt?: string | null;
+  /** @nullable */
+  sentAt?: string | null;
+  /** @nullable */
+  paidAt?: string | null;
+  /** @nullable */
+  voidedBy?: string | null;
+  /** @nullable */
+  voidedAt?: string | null;
+  /** @nullable */
+  voidReason?: string | null;
+  createdAt?: string;
+  lines: InvoiceLine[];
+}
+
+export interface InvoiceDraftInput {
+  clientId: number;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  issueDate?: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  dueDate?: string;
+  /** @maxLength 2000 */
+  notes?: string;
+  /** @maxLength 500 */
+  paymentTerms?: string;
+  /** intra | inter | exempt | reverse_charge | unspecified. Not decided by this application — the firm's accountant settles which applies. */
+  taxTreatment?: string;
+  /** @maxLength 100 */
+  placeOfSupply?: string;
+  /** @maxLength 20 */
+  sacCode?: string;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  cgstRateBp?: number;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  sgstRateBp?: number;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  igstRateBp?: number;
+  lines: InvoiceLineInput[];
+}
+
+export type InvoiceStatusInputStatus = typeof InvoiceStatusInputStatus[keyof typeof InvoiceStatusInputStatus];
+
+
+export const InvoiceStatusInputStatus = {
+  sent: 'sent',
+  paid: 'paid',
+  void: 'void',
+} as const;
+
+export interface InvoiceStatusInput {
+  status: InvoiceStatusInputStatus;
+  /** @maxLength 500 */
+  reason?: string;
+}
+
+export interface InvoiceList {
+  invoices: Invoice[];
+  /** Issued or sent */
+  outstandingMinor: number;
+  /** Of the outstanding */
+  overdueMinor: number;
+  paidMinor: number;
+  currency: string;
+}
+
+export interface UnbilledEntry {
+  id: number;
+  caseId: number;
+  caseTitle: string;
+  /** @nullable */
+  clientId?: number | null;
+  userName: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  workDate: string;
+  minutes: number;
+  /** @nullable */
+  description?: string | null;
+  billable: boolean;
+}
+
+export interface BillingSettings {
+  firmName?: string;
+  /** @maxLength 1000 */
+  firmAddress?: string;
+  /** @maxLength 20 */
+  firmGstin?: string;
+  /** @maxLength 100 */
+  firmPlaceOfSupply?: string;
+  /** @maxLength 20 */
+  defaultSacCode?: string;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  defaultCgstRateBp?: number;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  defaultSgstRateBp?: number;
+  /**
+     * @minimum 0
+     * @maximum 10000
+     */
+  defaultIgstRateBp?: number;
+  /** @minimum 0 */
+  defaultHourlyRateMinor?: number;
+  /** @maxLength 500 */
+  defaultPaymentTerms?: string;
+  /**
+     * @minimum 0
+     * @maximum 365
+     */
+  defaultPaymentDays?: number;
+  /** What the next issued invoice would be numbered. */
+  nextInvoiceRef?: string;
+}
+
 export type CaseStatus = typeof CaseStatus[keyof typeof CaseStatus];
 
 
@@ -1629,5 +1839,23 @@ from: string;
  * @pattern ^\d{4}-\d{2}-\d{2}$
  */
 to: string;
+};
+
+export type ListInvoicesParams = {
+status?: string;
+clientId?: number;
+/**
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+from?: string;
+/**
+ * @pattern ^\d{4}-\d{2}-\d{2}$
+ */
+to?: string;
+};
+
+export type ListUnbilledTimeParams = {
+clientId?: number;
+caseId?: number;
 };
 

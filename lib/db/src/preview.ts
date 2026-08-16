@@ -201,6 +201,80 @@ CREATE INDEX IF NOT EXISTS time_entries_workspace_date_idx ON time_entries (work
 CREATE INDEX IF NOT EXISTS time_entries_case_idx ON time_entries (case_id);
 CREATE INDEX IF NOT EXISTS time_entries_user_date_idx ON time_entries (user_id, work_date);
 
+CREATE TABLE IF NOT EXISTS invoice_series (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  financial_year TEXT NOT NULL,
+  next_number INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT invoice_series_workspace_year_key UNIQUE (workspace_id, financial_year)
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  invoice_number INTEGER,
+  financial_year TEXT,
+  invoice_ref TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_by TEXT NOT NULL DEFAULT '',
+  created_by_clerk_id TEXT NOT NULL DEFAULT '',
+  issued_by TEXT,
+  issued_at TIMESTAMPTZ,
+  sent_at TIMESTAMPTZ,
+  paid_at TIMESTAMPTZ,
+  voided_by TEXT,
+  voided_at TIMESTAMPTZ,
+  void_reason TEXT,
+  supersedes_invoice_id INTEGER,
+  issue_date DATE,
+  due_date DATE,
+  client_id INTEGER,
+  client_name TEXT NOT NULL DEFAULT '',
+  client_address TEXT NOT NULL DEFAULT '',
+  client_email TEXT NOT NULL DEFAULT '',
+  client_gstin TEXT,
+  firm_name TEXT NOT NULL DEFAULT '',
+  firm_address TEXT NOT NULL DEFAULT '',
+  firm_gstin TEXT,
+  tax_treatment TEXT NOT NULL DEFAULT 'unspecified',
+  place_of_supply TEXT,
+  sac_code TEXT,
+  cgst_rate_bp INTEGER NOT NULL DEFAULT 0,
+  sgst_rate_bp INTEGER NOT NULL DEFAULT 0,
+  igst_rate_bp INTEGER NOT NULL DEFAULT 0,
+  subtotal_minor INTEGER NOT NULL DEFAULT 0,
+  cgst_minor INTEGER NOT NULL DEFAULT 0,
+  sgst_minor INTEGER NOT NULL DEFAULT 0,
+  igst_minor INTEGER NOT NULL DEFAULT 0,
+  total_minor INTEGER NOT NULL DEFAULT 0,
+  currency TEXT NOT NULL DEFAULT 'INR',
+  notes TEXT,
+  payment_terms TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT invoices_workspace_year_number_key UNIQUE (workspace_id, financial_year, invoice_number)
+);
+CREATE INDEX IF NOT EXISTS invoices_workspace_status_idx ON invoices (workspace_id, status);
+CREATE INDEX IF NOT EXISTS invoices_client_idx ON invoices (client_id);
+
+CREATE TABLE IF NOT EXISTS invoice_line_items (
+  id SERIAL PRIMARY KEY,
+  invoice_id INTEGER NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  description TEXT NOT NULL,
+  quantity_milli INTEGER NOT NULL DEFAULT 1000,
+  unit TEXT NOT NULL DEFAULT 'hour',
+  unit_rate_minor INTEGER NOT NULL DEFAULT 0,
+  amount_minor INTEGER NOT NULL DEFAULT 0,
+  sac_code TEXT,
+  time_entry_id INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT invoice_line_items_time_entry_key UNIQUE (time_entry_id)
+);
+CREATE INDEX IF NOT EXISTS invoice_line_items_invoice_idx ON invoice_line_items (invoice_id);
+
 CREATE TABLE IF NOT EXISTS beta_feedback (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL,
@@ -371,6 +445,19 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider_payment_id TEXT;
 ALTER TABLE workspace_memberships ADD COLUMN IF NOT EXISTS is_owner BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS url TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS checksum TEXT;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS firm_address TEXT NOT NULL DEFAULT '';
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS firm_gstin TEXT;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS firm_place_of_supply TEXT;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS default_sac_code TEXT;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS default_cgst_rate_bp INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS default_sgst_rate_bp INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS default_igst_rate_bp INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS default_hourly_rate_minor INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS default_payment_terms TEXT NOT NULL DEFAULT '';
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS default_payment_days INTEGER NOT NULL DEFAULT 30;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_address TEXT NOT NULL DEFAULT '';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_gstin TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_place_of_supply TEXT;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS closed_at TIMESTAMPTZ;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS opposing_party TEXT;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS conflict_acknowledged_by TEXT;

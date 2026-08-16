@@ -379,6 +379,77 @@ no validator moved. There is no i18n layer; every label is inline.
 | `lib/db/src/schema/beta_feedback.ts`, `api-server/src/routes/beta-feedback.ts`, `practice-portal/src/components/beta-feedback-widget.tsx` | **New.** Feedback widget: message + page path + user id, behind `requireAuth` only, so it works on the access-denied screen.                                                 |
 | `practice-portal/public/robots.txt`                                                                                                       | `Allow: /` → `Disallow: /`.                                                                                                                                                  |
 
+### Phase 6 — time capture and performance (`5b1ffcb`)
+
+| File                                                     | Change                                                                                                                                                                      |
+| -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/time_entries.ts`                      | **New.** The first time capture in the product. Minutes as integers, three indexes, a nullable `started_at` that marks a running timer.                                     |
+| `lib/db/src/schema/cases.ts`                             | `closed_at` added — the end of the cycle-time clock.                                                                                                                        |
+| `lib/db/drizzle/0003_*.sql`                              | Both, plus a backfill of `closed_at` from existing `status_changed` timeline rows.                                                                                          |
+| `api-server/src/routes/time-entries.ts`                  | **New.** List, create, delete, and timer start/stop. Timer routes are declared **before** `/:id` — Express matches in order, and `/timer` would otherwise be read as an id. |
+| `api-server/src/lib/performance.ts`                      | **New.** Every KPI figure as a SQL aggregate. `percentile_cont` medians, `FILTER` windows, previous-period comparison in the same query.                                    |
+| `api-server/src/routes/kpi.ts`                           | `GET /kpi/performance`, admin-only via the existing `kpi.read`.                                                                                                             |
+| `api-server/src/routes/cases.ts`                         | Status change now maintains `closed_at` both ways.                                                                                                                          |
+| `api-server/src/lib/permissions.ts`                      | `time.write` / `time.read` added to all staff roles. Not to clients.                                                                                                        |
+| `practice-portal/src/components/time-log-panel.tsx`      | **New.** Timer plus a four-field form, mounted as a Time tab on the case page.                                                                                              |
+| `practice-portal/src/components/chamber-performance.tsx` | **New.** Range selector, period comparison, per-metric definitions, low-data states, per-member table.                                                                      |
+
+### Phase 7 — invoicing foundation (`ba7ff33`)
+
+**Data model and numbering only. No routes, no UI** — the brief required both to
+be reviewed before anything was built on top.
+
+| File                                   | Change                                                                                                                                                                                                          |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/invoices.ts`        | **New.** `invoice_series` (the gapless counter), `invoices` (with client and firm snapshots, configurable tax fields, integer-paise totals), `invoice_line_items`.                                              |
+| `api-server/src/lib/invoice-number.ts` | **New.** Financial-year derivation, `reserveInvoiceNumber` (takes a transaction — that parameter is the correctness condition, not a convenience), status transitions, derived overdue, and the rounding rules. |
+| `lib/db/drizzle/0004_invoicing.sql`    | All three tables.                                                                                                                                                                                               |
+
+### Phase 7 — invoicing routes, PDF and billing details
+
+Built after the numbering above was reviewed.
+
+| File                                      | Change                                                                                                                                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/workspaces.ts`         | Firm billing identity and tax defaults — address, GSTIN, place of supply, SAC, three rate columns in basis points, hourly rate in paise, payment terms and days.                                  |
+| `lib/db/src/schema/users.ts`              | Client billing address, GSTIN and place of supply. Current values; an invoice snapshots them.                                                                                                     |
+| `lib/db/src/schema/audit_events.ts`       | Seven new actions: `invoice.created`, `draft_deleted`, `issued`, `sent`, `paid`, `void`, and `billing.settings_updated`.                                                                          |
+| `lib/db/drizzle/0005_billing_details.sql` | Additive only — every column nullable or defaulted, so no rewrite of a populated table.                                                                                                           |
+| `api-server/src/routes/invoices.ts`       | **New.** Eight endpoints, all behind `requireBilling` = `requireWorkspace` + `requireCapability("billing.manage")`. Issue is one transaction: reserve number, snapshot both parties, flip status. |
+| `api-server/src/lib/invoice-pdf.ts`       | **New.** Server-side render. Prints stored amounts only — it never multiplies quantity by rate.                                                                                                   |
+| `api-server/build.mjs`                    | Copies pdfkit's `.afm` font metrics into `dist/data`. esbuild bundles JS and nothing else, so without this the built server throws `ENOENT: Helvetica.afm` on the first PDF.                      |
+| `lib/api-spec/openapi.yaml`               | 8 paths, 9 schemas. `lib/api-zod` and `lib/api-client-react` regenerated from it — never hand-edited.                                                                                             |
+
+### Phase 7 — the invoicing screen
+
+| File                                                        | Change                                                                                                                                                                                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `practice-portal/src/pages/invoices.tsx`                    | **New.** Period totals, status filter, the table, the read-only record, and voiding. The row menu offers only what the invoice's state permits, so a 409 is never the way a user learns the rule. |
+| `practice-portal/src/components/invoice-form-modal.tsx`     | **New.** Draft composer: client picker, line editor with a live per-line amount, tax fields prefilled from chamber settings, and unbilled time pulled in at the chamber's hourly rate.            |
+| `practice-portal/src/components/billing-settings-modal.tsx` | **New.** The chamber's own details and its defaults.                                                                                                                                              |
+| `practice-portal/src/lib/format.ts`                         | `formatMinor` / `parseRupeesToMinor` / `formatMilli` / `parseQuantityToMilli` — the only place paise and thousandths are turned into text, and the only place text is turned back.                |
+| `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
+| `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
+
+### Migrations, and where they now run
+
+| File                         | Change                                                                                                                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/migrate-on-boot.mjs` | **New.** Applies pending migrations, then exits so `start` can hand off. Skips when `DATABASE_URL` is unset (PGlite builds its own schema). A failure is fatal — see below. |
+| `package.json`               | Root `start` is now `node ./lib/db/migrate-on-boot.mjs && pnpm --filter @workspace/api-server run start`.                                                                   |
+| `lib/db/drizzle.config.ts`   | `out` is explicit and absolute. It defaulted to `./drizzle` relative to the working directory, which was right only while the command happened to be run from `lib/db`.     |
+
+The deployed service was created by hand in the dashboard, so Render never reads
+`render.yaml` and the live Start Command still says `push`. `push` exits 0
+whether or not it applied anything, which is how production came up healthy for
+weeks while missing every table added after phase 3. Running the migration from
+`start` makes the stale field harmless — the server cannot boot against a schema
+it does not match.
+
+Boot order is therefore: **migrate → the §2a startup sequence → listen.** The
+migration finishes before `initDatabase()` is even called, in a separate
+process, so nothing queries a half-migrated schema.
+
 ### Where the new code sits in the request path
 
 Two additions to §3's picture:
@@ -388,6 +459,14 @@ Two additions to §3's picture:
 - `POST /api/beta-feedback` runs `requireAuth` and then stops. It is the only
   write endpoint that does **not** run `requireWorkspace`, deliberately — see
   DECISIONS.md.
+- `/api/time-entries*` runs `requireWorkspace` then `requireCapability("time.*")`,
+  held by every staff role and no client.
+- `GET /api/kpi/performance` runs `requireCapability("kpi.read")`, held by admin
+  alone. Per-member hours ride in that payload; if `kpi.read` is ever widened,
+  `byMember` needs its own gate first.
+- `/api/invoices*` and `/api/billing-settings` run `requireWorkspace` then
+  `requireCapability("billing.manage")` — admin alone. The PDF route is on the
+  same gate, so a link to it leaks nothing to a non-member.
 
 ### Verification
 
@@ -446,10 +525,13 @@ It reads `render.yaml` and creates the web service _and_ the Postgres instance,
 wired together, with `DATABASE_URL` and `WORKSPACE_TOKEN_SECRET` filled in for
 you.
 
-> **If you already have a hand-made `brain-interface-lex` service, delete it and
-> re-apply the Blueprint.** That service predates the blueprint, so it has none
-> of this — which is exactly what caused the earlier deploy failures. Fixing it
-> field by field is slower and you will miss one.
+> **Both existing services predate the blueprint.** `lex-practice` is the live
+> one; `brain-interface-lex` is an older duplicate also auto-deploying from
+> `main`. Neither reads `render.yaml`, so neither picked up the `migrate` fix —
+> `lex-practice` still has `push` in its Start Command. Migrations now run from
+> `pnpm run start` regardless, so nothing is broken by leaving it, but the
+> field is still wrong and the duplicate service should be deleted. Fixing them
+> field by field is slower than re-applying the Blueprint and you will miss one.
 
 Then paste the `sync: false` values from Step 1 into the dashboard. There are
 three required: `FILE_ENCRYPTION_KEY`, `CLERK_SECRET_KEY`,
