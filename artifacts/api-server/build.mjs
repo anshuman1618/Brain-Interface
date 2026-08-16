@@ -124,7 +124,33 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
 }
 
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+/**
+ * pdfkit reads its standard-font metrics (.afm) off the filesystem at runtime,
+ * relative to the bundle. esbuild inlines the JavaScript and knows nothing about
+ * those data files, so an invoice PDF fails with ENOENT on Helvetica.afm — at
+ * request time, in production, not at build time. Copy them next to the bundle.
+ */
+async function copyPdfkitFontData() {
+  const { cpSync, existsSync, mkdirSync } = await import("node:fs");
+  const { createRequire } = await import("node:module");
+  const path = await import("node:path");
+
+  const require = createRequire(import.meta.url);
+  const pdfkitEntry = require.resolve("pdfkit");
+  // .../pdfkit/js/pdfkit.js -> .../pdfkit/js/data
+  const from = path.join(path.dirname(pdfkitEntry), "data");
+  if (!existsSync(from)) {
+    throw new Error(`pdfkit font data not found at ${from} — the invoice PDF would fail at runtime`);
+  }
+  const to = path.join(process.cwd(), "dist", "data");
+  mkdirSync(to, { recursive: true });
+  cpSync(from, to, { recursive: true });
+  console.log(`copied pdfkit font data -> ${to}`);
+}
+
+buildAll()
+  .then(copyPdfkitFontData)
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

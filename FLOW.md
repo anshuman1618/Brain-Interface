@@ -405,6 +405,23 @@ be reviewed before anything was built on top.
 | `api-server/src/lib/invoice-number.ts` | **New.** Financial-year derivation, `reserveInvoiceNumber` (takes a transaction — that parameter is the correctness condition, not a convenience), status transitions, derived overdue, and the rounding rules. |
 | `lib/db/drizzle/0004_invoicing.sql`    | All three tables.                                                                                                                                                                                               |
 
+### Phase 7 — invoicing routes, PDF and billing details
+
+Built after the numbering above was reviewed.
+
+| File                                    | Change                                                                                                                                                                             |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/workspaces.ts`       | Firm billing identity and tax defaults — address, GSTIN, place of supply, SAC, three rate columns in basis points, hourly rate in paise, payment terms and days.                   |
+| `lib/db/src/schema/users.ts`            | Client billing address, GSTIN and place of supply. Current values; an invoice snapshots them.                                                                                      |
+| `lib/db/src/schema/audit_events.ts`     | Seven new actions: `invoice.created`, `draft_deleted`, `issued`, `sent`, `paid`, `void`, and `billing.settings_updated`.                                                            |
+| `lib/db/drizzle/0005_billing_details.sql` | Additive only — every column nullable or defaulted, so no rewrite of a populated table.                                                                                          |
+| `api-server/src/routes/invoices.ts`     | **New.** Eight endpoints, all behind `requireBilling` = `requireWorkspace` + `requireCapability("billing.manage")`. Issue is one transaction: reserve number, snapshot both parties, flip status. |
+| `api-server/src/lib/invoice-pdf.ts`     | **New.** Server-side render. Prints stored amounts only — it never multiplies quantity by rate.                                                                                    |
+| `api-server/build.mjs`                  | Copies pdfkit's `.afm` font metrics into `dist/data`. esbuild bundles JS and nothing else, so without this the built server throws `ENOENT: Helvetica.afm` on the first PDF.       |
+| `lib/api-spec/openapi.yaml`             | 8 paths, 9 schemas. `lib/api-zod` and `lib/api-client-react` regenerated from it — never hand-edited.                                                                              |
+
+**Not built:** the admin UI. There is no invoices screen yet.
+
 ### Where the new code sits in the request path
 
 Two additions to §3's picture:
@@ -419,6 +436,9 @@ Two additions to §3's picture:
 - `GET /api/kpi/performance` runs `requireCapability("kpi.read")`, held by admin
   alone. Per-member hours ride in that payload; if `kpi.read` is ever widened,
   `byMember` needs its own gate first.
+- `/api/invoices*` and `/api/billing-settings` run `requireWorkspace` then
+  `requireCapability("billing.manage")` — admin alone. The PDF route is on the
+  same gate, so a link to it leaks nothing to a non-member.
 
 ### Verification
 

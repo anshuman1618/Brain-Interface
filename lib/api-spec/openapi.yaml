@@ -42,6 +42,8 @@ tags:
     description: Client feedback on matters
   - name: privacy
     description: Data export and erasure requests
+  - name: invoices
+    description: Invoice generation (firm admin only)
 
 paths:
   /healthz:
@@ -1606,6 +1608,184 @@ paths:
         "400": { description: Invalid range }
         "403": { description: Forbidden }
 
+  /invoices:
+    get:
+      operationId: listInvoices
+      tags: [invoices]
+      summary: Invoices, with filters and period totals (admin only)
+      parameters:
+        - { in: query, name: status, schema: { type: string } }
+        - { in: query, name: clientId, schema: { type: integer } }
+        - { in: query, name: from, schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" } }
+        - { in: query, name: to, schema: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" } }
+      responses:
+        "200":
+          description: Invoices and totals
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceList" }
+        "403": { description: Forbidden }
+    post:
+      operationId: createInvoice
+      tags: [invoices]
+      summary: Create a draft invoice
+      description: >
+        Always a DRAFT. No number is assigned here — numbers are handed out at
+        issue, which is what keeps the series gapless when drafts are deleted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvoiceDraftInput" }
+      responses:
+        "201":
+          description: Draft created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "400": { description: Invalid }
+        "403": { description: Forbidden }
+
+  /invoices/{id}:
+    get:
+      operationId: getInvoice
+      tags: [invoices]
+      summary: One invoice with its lines
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: Invoice
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "404": { description: Not found }
+    patch:
+      operationId: updateInvoice
+      tags: [invoices]
+      summary: Edit a draft
+      description: Drafts only. An issued invoice is refused with 409.
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvoiceDraftInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "409": { description: Not a draft }
+    delete:
+      operationId: deleteInvoice
+      tags: [invoices]
+      summary: Delete a draft
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted }
+        "409": { description: Not a draft }
+
+  /invoices/{id}/issue:
+    post:
+      operationId: issueInvoice
+      tags: [invoices]
+      summary: Issue a draft — assigns the number, snapshots both parties
+      responses:
+        "200":
+          description: Issued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "409": { description: Not a draft }
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+
+  /invoices/{id}/status:
+    post:
+      operationId: setInvoiceStatus
+      tags: [invoices]
+      summary: Move an issued invoice to sent, paid or void
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InvoiceStatusInput" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Invoice" }
+        "409": { description: Transition not allowed }
+
+  /invoices/{id}/pdf:
+    get:
+      operationId: getInvoicePdf
+      tags: [invoices]
+      summary: The invoice as a PDF, rendered server-side
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404": { description: Not found }
+
+  /invoices/unbilled:
+    get:
+      operationId: listUnbilledTime
+      tags: [invoices]
+      summary: Billable time not yet on any invoice
+      parameters:
+        - { in: query, name: clientId, schema: { type: integer } }
+        - { in: query, name: caseId, schema: { type: integer } }
+      responses:
+        "200":
+          description: Unbilled entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/UnbilledEntry" }
+        "403": { description: Forbidden }
+
+  /billing-settings:
+    get:
+      operationId: getBillingSettings
+      tags: [invoices]
+      summary: The chamber's billing identity and tax defaults
+      responses:
+        "200":
+          description: Settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingSettings" }
+        "403": { description: Forbidden }
+    patch:
+      operationId: updateBillingSettings
+      tags: [invoices]
+      summary: Set the chamber's billing identity and tax defaults
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BillingSettings" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/BillingSettings" }
+        "403": { description: Forbidden }
+
 components:
   schemas:
     HealthStatus:
@@ -2143,6 +2323,152 @@ components:
         hasAnyTimeLogged:
           type: boolean
           description: False when the chamber has never logged time; the UI says so plainly.
+
+    InvoiceLine:
+      type: object
+      required: [id, description, quantityMilli, unit, unitRateMinor, amountMinor]
+      properties:
+        id: { type: integer }
+        position: { type: integer }
+        description: { type: string }
+        quantityMilli: { type: integer, description: Thousandths. 1.5 hours is 1500. }
+        unit: { type: string }
+        unitRateMinor: { type: integer, description: Paise per whole unit. }
+        amountMinor: { type: integer, description: Paise. Stored, not recomputed on read. }
+        sacCode: { type: ["string", "null"] }
+        timeEntryId: { type: ["integer", "null"] }
+
+    InvoiceLineInput:
+      type: object
+      required: [description, quantityMilli, unitRateMinor]
+      properties:
+        description: { type: string, minLength: 1, maxLength: 500 }
+        quantityMilli: { type: integer, minimum: 1 }
+        unit: { type: string, maxLength: 20 }
+        unitRateMinor: { type: integer, minimum: 0 }
+        sacCode: { type: string, maxLength: 20 }
+        timeEntryId: { type: integer }
+
+    Invoice:
+      type: object
+      required: [id, status, lines, subtotalMinor, totalMinor, currency, isOverdue, isEditable]
+      properties:
+        id: { type: integer }
+        invoiceNumber: { type: ["integer", "null"] }
+        financialYear: { type: ["string", "null"] }
+        invoiceRef: { type: ["string", "null"] }
+        status: { type: string }
+        isOverdue: { type: boolean, description: Derived from the due date, never stored. }
+        isEditable: { type: boolean }
+        issueDate: { type: ["string", "null"] }
+        dueDate: { type: ["string", "null"] }
+        clientId: { type: ["integer", "null"] }
+        clientName: { type: string }
+        clientAddress: { type: string }
+        clientEmail: { type: string }
+        clientGstin: { type: ["string", "null"] }
+        firmName: { type: string }
+        firmAddress: { type: string }
+        firmGstin: { type: ["string", "null"] }
+        taxTreatment: { type: string }
+        placeOfSupply: { type: ["string", "null"] }
+        sacCode: { type: ["string", "null"] }
+        cgstRateBp: { type: integer }
+        sgstRateBp: { type: integer }
+        igstRateBp: { type: integer }
+        subtotalMinor: { type: integer }
+        cgstMinor: { type: integer }
+        sgstMinor: { type: integer }
+        igstMinor: { type: integer }
+        totalMinor: { type: integer }
+        currency: { type: string }
+        notes: { type: ["string", "null"] }
+        paymentTerms: { type: ["string", "null"] }
+        createdBy: { type: string }
+        issuedBy: { type: ["string", "null"] }
+        issuedAt: { type: ["string", "null"] }
+        sentAt: { type: ["string", "null"] }
+        paidAt: { type: ["string", "null"] }
+        voidedBy: { type: ["string", "null"] }
+        voidedAt: { type: ["string", "null"] }
+        voidReason: { type: ["string", "null"] }
+        createdAt: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/InvoiceLine" }
+
+    InvoiceDraftInput:
+      type: object
+      required: [clientId, lines]
+      properties:
+        clientId: { type: integer }
+        issueDate: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+        dueDate: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+        notes: { type: string, maxLength: 2000 }
+        paymentTerms: { type: string, maxLength: 500 }
+        taxTreatment:
+          type: string
+          description: >
+            intra | inter | exempt | reverse_charge | unspecified. Not decided by
+            this application — the firm's accountant settles which applies.
+        placeOfSupply: { type: string, maxLength: 100 }
+        sacCode: { type: string, maxLength: 20 }
+        cgstRateBp: { type: integer, minimum: 0, maximum: 10000 }
+        sgstRateBp: { type: integer, minimum: 0, maximum: 10000 }
+        igstRateBp: { type: integer, minimum: 0, maximum: 10000 }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/InvoiceLineInput" }
+
+    InvoiceStatusInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [sent, paid, void] }
+        reason: { type: string, maxLength: 500 }
+
+    InvoiceList:
+      type: object
+      required: [invoices, outstandingMinor, overdueMinor, paidMinor, currency]
+      properties:
+        invoices:
+          type: array
+          items: { $ref: "#/components/schemas/Invoice" }
+        outstandingMinor: { type: integer, description: Issued or sent, not yet paid. }
+        overdueMinor: { type: integer, description: Of the outstanding, past its due date. }
+        paidMinor: { type: integer }
+        currency: { type: string }
+
+    UnbilledEntry:
+      type: object
+      required: [id, caseId, caseTitle, userName, workDate, minutes, billable]
+      properties:
+        id: { type: integer }
+        caseId: { type: integer }
+        caseTitle: { type: string }
+        clientId: { type: ["integer", "null"] }
+        userName: { type: string }
+        workDate: { type: string, pattern: "^\\d{4}-\\d{2}-\\d{2}$" }
+        minutes: { type: integer }
+        description: { type: ["string", "null"] }
+        billable: { type: boolean }
+
+    BillingSettings:
+      type: object
+      properties:
+        firmName: { type: string }
+        firmAddress: { type: string, maxLength: 1000 }
+        firmGstin: { type: string, maxLength: 20 }
+        firmPlaceOfSupply: { type: string, maxLength: 100 }
+        defaultSacCode: { type: string, maxLength: 20 }
+        defaultCgstRateBp: { type: integer, minimum: 0, maximum: 10000 }
+        defaultSgstRateBp: { type: integer, minimum: 0, maximum: 10000 }
+        defaultIgstRateBp: { type: integer, minimum: 0, maximum: 10000 }
+        defaultHourlyRateMinor: { type: integer, minimum: 0 }
+        defaultPaymentTerms: { type: string, maxLength: 500 }
+        defaultPaymentDays: { type: integer, minimum: 0, maximum: 365 }
+        nextInvoiceRef:
+          { type: string, description: What the next issued invoice would be numbered. }
 
     # ── Case ──────────────────────────────────────────────────────────────
     Case:

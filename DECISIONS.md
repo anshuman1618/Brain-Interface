@@ -501,6 +501,94 @@ wrong on a document that goes to a tax authority.
 
 ---
 
+### Phase 7 — invoicing (routes, PDF, billing details)
+
+The numbering above was reviewed first, as the brief required. What follows is
+what was built on top of it.
+
+#### Billing details live on the chamber and the client, not on a settings blob
+
+**Decided:** the firm's address, GSTIN, place of supply, SAC code, default tax
+rates, hourly rate and payment terms are columns on `workspaces`. The client's
+address, GSTIN and place of supply are columns on `users`.
+
+**Why:** every one of these is a real attribute of a real party, and the invoice
+snapshots them at issue. A JSON settings column would have been quicker to add
+and would have made the snapshot code guess at shapes that no type checks. They
+are also the fields a chamber will want to filter and report on later.
+
+Every column is nullable or defaults to empty/zero, so `0005_billing_details.sql`
+adds them to a populated table without a table rewrite and without inventing a
+tax position for an existing chamber. Nothing existing is dropped or retyped.
+
+#### Issuing an invoice is one transaction, and it does four things
+
+**Decided:** `POST /invoices/:id/issue` reserves the number, snapshots the
+client, snapshots the firm, and flips the status — all inside a single
+`db.transaction`.
+
+**Why:** any one of those failing after another succeeded leaves a document that
+is wrong in a way nobody would notice until a client queried it. A number
+reserved but not written is the gap the whole counter design exists to prevent;
+a status flipped without a snapshot is an invoice whose address silently follows
+the client's next office move.
+
+#### The PDF recomputes nothing
+
+**Decided:** `lib/invoice-pdf.ts` prints `line.amountMinor` and
+`invoice.totalMinor` straight from the stored row. It never multiplies quantity
+by rate.
+
+**Why:** the paper is the copy the client is holding. If the PDF derived its own
+figures, changing a rounding rule later would make the document and the database
+disagree, and the disagreement would surface as a client dispute rather than as
+a failing test. Rendering server-side rather than in the browser is the same
+argument: the bytes must not depend on who downloaded it.
+
+#### Immutability is enforced by the route, not by convention
+
+**Decided:** `PATCH` and `DELETE` on anything past draft return **409**, not 403.
+`paid → sent` returns 409. Voiding is the only way to retract an issued invoice,
+and it records who and why while keeping the number.
+
+**Why:** 403 would say "you lack permission", which is false and would send an
+admin looking for a role to grant. 409 says the document's state forbids it,
+which is the actual reason. Voiding rather than deleting is what keeps the series
+gapless after a mistake — the number stays spent and the record says why.
+
+#### pdfkit 0.19, and two things it needs that are not obvious
+
+**Decided:** pdfkit `^0.19.1`, with `@swc/helpers` declared as a direct
+dependency of `api-server`, and `build.mjs` copying pdfkit's `.afm` font metrics
+into `dist/data`.
+
+**Why:** pdfkit 0.15 pulls fontkit 1.9, which calls
+`@swc/helpers`'s `applyDecoratedDescriptor` — removed in the 0.5 line that
+everything else in the tree resolves to, so the server would not boot at all.
+0.19 pulls fontkit 2, which works, but still `require`s `@swc/helpers` without
+declaring it; under pnpm's strict layout that resolves only if `api-server`
+declares it. Removing that dependency was tried and the server failed to start.
+
+The font metrics are a separate trap: esbuild bundles JavaScript and nothing
+else, so the built server threw `ENOENT: Helvetica.afm` on the first PDF
+request while every test against the source tree passed.
+
+#### Verified
+
+41 checks end to end against the built server: rounding applied once (7.7h ×
+₹4,500 = 3,465,000 paise exactly), tax taken from chamber settings, no number on
+a draft, `RC/2026-27/0001` at issue, both parties snapshotted, edit and delete
+refused with 409 once issued, `paid → sent` refused, **a deleted draft leaves no
+gap** (the next issue took number 2), a void keeping its number and recording
+who and why, list totals excluding voided invoices, a real PDF with correct magic
+bytes, stored totals unchanged since issue, and a non-member refused on both the
+list and the PDF.
+
+**Still not built:** the admin UI. The routes, the numbering and the PDF exist
+and are proven; there is no invoices screen yet.
+
+---
+
 ## Architecture
 
 ### Single origin: the API server also serves the frontend

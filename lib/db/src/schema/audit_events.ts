@@ -38,6 +38,16 @@ export const AUDIT_ACTIONS = [
   "erasure.requested",
   "erasure.completed",
   "erasure.rejected",
+  // Invoicing. Every state change a document goes through is recorded, because
+  // "who issued this and when" is the first question asked about an invoice
+  // that turns out to be wrong.
+  "invoice.created",
+  "invoice.draft_deleted",
+  "invoice.issued",
+  "invoice.sent",
+  "invoice.paid",
+  "invoice.void",
+  "billing.settings_updated",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

@@ -11,6 +11,16 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull().default(""),
   /** How they last signed in: google | zoho | email. Display only — never authorization. */
   authProvider: text("auth_provider").notNull().default(""),
+  /**
+   * Billing details, used when this user is a client being invoiced.
+   *
+   * Current values only — an invoice snapshots them at issue, so a client who
+   * moves office does not retrospectively change an invoice already sent.
+   */
+  billingAddress: text("billing_address").notNull().default(""),
+  billingGstin: text("billing_gstin"),
+  /** State or UT of the client — the other half of the tax split. */
+  billingPlaceOfSupply: text("billing_place_of_supply"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
