@@ -8,6 +8,7 @@ import {
   casesTable,
   usersTable,
   workspacesTable,
+  workspaceMembershipsTable,
   type Invoice,
   type InvoiceLineItem,
 } from "@workspace/db";
@@ -50,6 +51,37 @@ const router: IRouter = Router();
  * open matters and log time still cannot issue a document in the firm's name.
  */
 const requireBilling = [requireWorkspace, requireCapability("billing.manage")] as const;
+
+/**
+ * The user being billed, but only if this chamber may bill them.
+ *
+ * A user id on its own proves nothing — every chamber's users share one table.
+ * Without this check an admin could name any id at all and the invoice would
+ * snapshot that person's name, email and billing address onto a document their
+ * own chamber then reads and prints. Membership of the caller's workspace is
+ * what makes someone a client of it, so that is what is required.
+ *
+ * Only membership at draft time is checked. An invoice already issued keeps the
+ * snapshot it was issued with even if the person later leaves — they were a
+ * client when the work was billed, and rewriting history is the thing the
+ * snapshot exists to prevent.
+ */
+async function billableClient(workspaceId: number, userId: number) {
+  const [row] = await db
+    .select({ user: usersTable })
+    .from(usersTable)
+    .innerJoin(
+      workspaceMembershipsTable,
+      and(
+        eq(workspaceMembershipsTable.userId, usersTable.id),
+        eq(workspaceMembershipsTable.workspaceId, workspaceId),
+        eq(workspaceMembershipsTable.status, "active"),
+      ),
+    )
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  return row?.user ?? null;
+}
 
 function view(invoice: Invoice, lines: InvoiceLineItem[]) {
   return {
@@ -315,9 +347,12 @@ router.post("/invoices", ...requireBilling, async (req: AuthRequest, res): Promi
   const d = parsed.data;
 
   const [ws] = await db.select().from(workspacesTable).where(eq(workspacesTable.id, c.workspaceId));
-  const [client] = await db.select().from(usersTable).where(eq(usersTable.id, d.clientId));
+  const client = await billableClient(c.workspaceId, d.clientId);
   if (!client) {
-    res.status(400).json({ error: "invalid_request", message: "That client does not exist." });
+    res.status(400).json({
+      error: "invalid_request",
+      message: "That client is not a member of this chamber.",
+    });
     return;
   }
 
@@ -406,6 +441,19 @@ router.patch("/invoices/:id", ...requireBilling, async (req: AuthRequest, res): 
   }
 
   const d = parsed.data;
+
+  // Same gate as creation — an edit can change who is billed.
+  if (d.clientId && d.clientId !== loaded.invoice.clientId) {
+    const client = await billableClient(c.workspaceId, d.clientId);
+    if (!client) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "That client is not a member of this chamber.",
+      });
+      return;
+    }
+  }
+
   const rates = {
     cgstRateBp: d.cgstRateBp ?? loaded.invoice.cgstRateBp,
     sgstRateBp: d.sgstRateBp ?? loaded.invoice.sgstRateBp,

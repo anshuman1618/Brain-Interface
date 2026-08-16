@@ -140,7 +140,9 @@ async function copyPdfkitFontData() {
   // .../pdfkit/js/pdfkit.js -> .../pdfkit/js/data
   const from = path.join(path.dirname(pdfkitEntry), "data");
   if (!existsSync(from)) {
-    throw new Error(`pdfkit font data not found at ${from} — the invoice PDF would fail at runtime`);
+    throw new Error(
+      `pdfkit font data not found at ${from} — the invoice PDF would fail at runtime`,
+    );
   }
   const to = path.join(process.cwd(), "dist", "data");
   mkdirSync(to, { recursive: true });

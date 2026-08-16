@@ -409,18 +409,27 @@ be reviewed before anything was built on top.
 
 Built after the numbering above was reviewed.
 
-| File                                    | Change                                                                                                                                                                             |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/db/src/schema/workspaces.ts`       | Firm billing identity and tax defaults — address, GSTIN, place of supply, SAC, three rate columns in basis points, hourly rate in paise, payment terms and days.                   |
-| `lib/db/src/schema/users.ts`            | Client billing address, GSTIN and place of supply. Current values; an invoice snapshots them.                                                                                      |
-| `lib/db/src/schema/audit_events.ts`     | Seven new actions: `invoice.created`, `draft_deleted`, `issued`, `sent`, `paid`, `void`, and `billing.settings_updated`.                                                            |
-| `lib/db/drizzle/0005_billing_details.sql` | Additive only — every column nullable or defaulted, so no rewrite of a populated table.                                                                                          |
-| `api-server/src/routes/invoices.ts`     | **New.** Eight endpoints, all behind `requireBilling` = `requireWorkspace` + `requireCapability("billing.manage")`. Issue is one transaction: reserve number, snapshot both parties, flip status. |
-| `api-server/src/lib/invoice-pdf.ts`     | **New.** Server-side render. Prints stored amounts only — it never multiplies quantity by rate.                                                                                    |
-| `api-server/build.mjs`                  | Copies pdfkit's `.afm` font metrics into `dist/data`. esbuild bundles JS and nothing else, so without this the built server throws `ENOENT: Helvetica.afm` on the first PDF.       |
-| `lib/api-spec/openapi.yaml`             | 8 paths, 9 schemas. `lib/api-zod` and `lib/api-client-react` regenerated from it — never hand-edited.                                                                              |
+| File                                      | Change                                                                                                                                                                                            |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/workspaces.ts`         | Firm billing identity and tax defaults — address, GSTIN, place of supply, SAC, three rate columns in basis points, hourly rate in paise, payment terms and days.                                  |
+| `lib/db/src/schema/users.ts`              | Client billing address, GSTIN and place of supply. Current values; an invoice snapshots them.                                                                                                     |
+| `lib/db/src/schema/audit_events.ts`       | Seven new actions: `invoice.created`, `draft_deleted`, `issued`, `sent`, `paid`, `void`, and `billing.settings_updated`.                                                                          |
+| `lib/db/drizzle/0005_billing_details.sql` | Additive only — every column nullable or defaulted, so no rewrite of a populated table.                                                                                                           |
+| `api-server/src/routes/invoices.ts`       | **New.** Eight endpoints, all behind `requireBilling` = `requireWorkspace` + `requireCapability("billing.manage")`. Issue is one transaction: reserve number, snapshot both parties, flip status. |
+| `api-server/src/lib/invoice-pdf.ts`       | **New.** Server-side render. Prints stored amounts only — it never multiplies quantity by rate.                                                                                                   |
+| `api-server/build.mjs`                    | Copies pdfkit's `.afm` font metrics into `dist/data`. esbuild bundles JS and nothing else, so without this the built server throws `ENOENT: Helvetica.afm` on the first PDF.                      |
+| `lib/api-spec/openapi.yaml`               | 8 paths, 9 schemas. `lib/api-zod` and `lib/api-client-react` regenerated from it — never hand-edited.                                                                                             |
 
-**Not built:** the admin UI. There is no invoices screen yet.
+### Phase 7 — the invoicing screen
+
+| File                                                        | Change                                                                                                                                                                                            |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `practice-portal/src/pages/invoices.tsx`                    | **New.** Period totals, status filter, the table, the read-only record, and voiding. The row menu offers only what the invoice's state permits, so a 409 is never the way a user learns the rule. |
+| `practice-portal/src/components/invoice-form-modal.tsx`     | **New.** Draft composer: client picker, line editor with a live per-line amount, tax fields prefilled from chamber settings, and unbilled time pulled in at the chamber's hourly rate.            |
+| `practice-portal/src/components/billing-settings-modal.tsx` | **New.** The chamber's own details and its defaults.                                                                                                                                              |
+| `practice-portal/src/lib/format.ts`                         | `formatMinor` / `parseRupeesToMinor` / `formatMilli` / `parseQuantityToMilli` — the only place paise and thousandths are turned into text, and the only place text is turned back.                |
+| `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
+| `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
 
 ### Where the new code sits in the request path
 

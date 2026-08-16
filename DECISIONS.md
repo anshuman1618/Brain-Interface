@@ -584,8 +584,64 @@ who and why, list totals excluding voided invoices, a real PDF with correct magi
 bytes, stored totals unchanged since issue, and a non-member refused on both the
 list and the PDF.
 
-**Still not built:** the admin UI. The routes, the numbering and the PDF exist
-and are proven; there is no invoices screen yet.
+---
+
+### Phase 7 — the invoicing screen, and a hole it exposed
+
+#### Only a member of the chamber can be billed
+
+**Decided:** `billableClient()` in `routes/invoices.ts` resolves the client by
+joining `workspace_memberships`, and both creating and editing a draft refuse a
+user who holds no active membership of the caller's workspace.
+
+**Why:** wiring the client picker to `listWorkspaceMembers` is what surfaced
+this. Until then the route accepted **any** user id in the table — every
+chamber's users share one — so an admin could name an id belonging to a
+different firm and the invoice would snapshot that person's name, email and
+billing address onto a document their own chamber then reads and prints. It is
+exactly the cross-tenant leak the capability matrix exists to prevent, arriving
+through a field nobody thought of as an access decision.
+
+Membership is checked at draft time only. An invoice already issued keeps the
+snapshot it was issued with even if the person later leaves the chamber — they
+were a client when the work was billed, and rewriting that is the thing the
+snapshot exists to stop.
+
+#### A draft shows a live name; an issued invoice shows its snapshot
+
+**Decided:** the list and the detail view print `clientName` when the invoice
+has one, and otherwise look the client up in the current member list.
+
+**Why:** the snapshot is written at issue, so a draft has none and every draft
+row read "—" — including one raised seconds earlier for a named client. The
+fallback is deliberately one-directional: an issued invoice always shows its own
+stored name, never the member record, because that is the name actually printed
+on the paper the client is holding.
+
+#### One rounding rule, restated in the form
+
+**Decided:** `lineAmountMinor` is duplicated in `invoice-form-modal.tsx` with a
+comment saying why, rather than the form deriving totals its own way.
+
+**Why:** the preview must not be able to disagree with what the server stores.
+The alternative — a round trip per keystroke — is worse, and a form that quietly
+computes 7.7 × ₹4,500 differently from the document is the specific failure this
+whole phase is built to avoid. The figures shown after saving are re-read from
+the server regardless, so the duplicate is a preview and never the authority.
+
+#### Verified
+
+24 checks in a real browser (Chromium, preview mode) on top of the 44 against
+the API: the nav item appears for admin only, the preview rounds 7.7h × ₹4,500
+to ₹34,650 exactly, tax defaults arrive from chamber settings, the dialog names
+the number issuing would assign, a draft shows no number, issuing shows one and
+moves the outstanding figure, an issued invoice offers no Edit or Delete, the
+PDF downloads named `RC-2026-27-0001.pdf`, voiding refuses to proceed without a
+reason and then keeps the number while dropping out of the outstanding total,
+and a client signed in to the same chamber cannot reach the page at all.
+
+The API suite also now proves the cross-tenant refusal directly: billing a user
+from outside the chamber returns 400 and says why.
 
 ---
 
