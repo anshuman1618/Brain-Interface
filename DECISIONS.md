@@ -645,6 +645,43 @@ from outside the chamber returns 400 and says why.
 
 ---
 
+### `drizzle-kit push` refuses to run on a deployed instance
+
+**Decided:** `lib/db/push-guard.mjs` stands in front of the `push` and
+`push-force` scripts. On Render or with `NODE_ENV=production` it prints why it
+is refusing and **exits 0**. Locally it forwards to drizzle-kit unchanged,
+`--force` included.
+
+**Why:** the live service's dashboard Start Command still reads
+`pnpm --filter @workspace/db run push && pnpm run start`, and that field cannot
+be changed from the repository — Render does not read `render.yaml` for a
+service created by hand, and the Render MCP exposes no way to update a service.
+So `push` runs on every deploy, and on the last one it asked, in the production
+log:
+
+> You're about to add `workspace_memberships_workspace_user_key` unique
+> constraint to the table, which contains 2 items. Do you want to truncate
+> `workspace_memberships` table?
+
+It could not read an answer — no TTY — so it gave up and the deploy continued.
+That was luck. The same prompt under a different drizzle-kit version, or a
+`--force` reaching that command, drops every membership row, which is every
+user's access to every chamber. Migrations are applied by `migrate-on-boot.mjs`
+from `pnpm run start`, so push has no work to do there anyway.
+
+**Exit 0 is load-bearing.** The Start Command chains with `&&`. A non-zero exit
+would mean `pnpm run start` never runs and the service never comes up — refusing
+to push must not become refusing to deploy. Verified by running the exact chain:
+push refuses, migrate applies six files, the server reaches "Server listening"
+with `nodeEnv: production`.
+
+`RENDER` is checked as well as `NODE_ENV`, because a deployed service with
+`NODE_ENV` unset is precisely the misconfiguration that would make this guard
+silently not apply.
+
+**This does not replace fixing the dashboard field**, which should say `migrate`.
+It is the half of the problem that can be fixed from the repository.
+
 ### Migrations run from `pnpm run start`, not from the Start Command
 
 **Decided:** the root `start` script runs `lib/db/migrate-on-boot.mjs` before
