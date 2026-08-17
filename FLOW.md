@@ -123,8 +123,10 @@ model.
         │    /api/workspaces       30/min
         │    /api/access-requests  20/min
         │    /api/privacy          20/min per user
+        │    /api/kpi/performance  20/min per user  ← 8 SQL aggregates
+        │    /api/invoices/:id/pdf 20/min per user  ← renders a PDF
         │    /api  non-GET        120/min per user
-        │    /api  GET            unlimited
+        │    /api  GET            300/min per user
         │
   ⑩  /api → billingRouter          routes/billing.ts
         │  /api → router              routes/index.ts  ← all feature routes
@@ -430,6 +432,31 @@ Built after the numbering above was reviewed.
 | `practice-portal/src/lib/format.ts`                         | `formatMinor` / `parseRupeesToMinor` / `formatMilli` / `parseQuantityToMilli` — the only place paise and thousandths are turned into text, and the only place text is turned back.                |
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
+
+### Security hardening — reads, uploads, dependencies
+
+| File                                      | Change                                                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api-server/src/app.ts`                   | GET now has a 300/min per-user ceiling; `/kpi/performance` and `/invoices/:id/pdf` get their own 20/min bucket above it. Reads were previously exempt entirely.        |
+| `api-server/src/middlewares/rateLimit.ts` | `subjectFor()` — resolves identity via `resolveClerkId` rather than `req.userId`, which is not set yet at the mount point. `perUser` silently keyed on IP before this. |
+| `api-server/src/lib/blob-store.ts`        | `contentMatchesMime()` — file-signature check for every allowed type; text is checked by rejecting NUL bytes instead.                                                  |
+| `api-server/src/routes/documents.ts`      | Upload refuses a signature mismatch with `415 content_type_mismatch`, kept distinct from the allowlist's `unsupported_type`.                                           |
+| `api-server/src/routes/search.ts`         | `MAX_QUERY` (200, refused not truncated) and `likePattern()`, which escapes `%` `_` `\` so ILIKE reads the query as text. A bare `%` used to match every row.          |
+| `.github/dependabot.yml`                  | **New.** Weekly, grouped; security updates grouped separately so they arrive alone.                                                                                    |
+| `.github/workflows/ci.yml`                | `pnpm audit --audit-level=high`, reporting only — every open advisory is transitive dev tooling, outside the request path.                                             |
+
+The rate-limit block in §3 ⑨ now reads:
+
+```
+/api/session          30/min   per address
+/api/workspaces       30/min   per address
+/api/access-requests  20/min   per address
+/api/privacy          20/min   per user
+/api/kpi/performance  20/min   per user   ← eight SQL aggregates
+/api/invoices/:id/pdf 20/min   per user   ← renders a PDF, uncached
+/api  non-GET        120/min   per user
+/api  GET            300/min   per user   ← was unlimited
+```
 
 ### Migrations, and where they now run
 

@@ -252,6 +252,17 @@ router.post(
       return;
     }
 
+    // The header above is the caller's claim; this is the file itself. Checked
+    // separately so the message can say which of the two was wrong — "not
+    // accepted" and "not what you said it was" send someone to different fixes.
+    if (!blobs.contentMatchesMime(buf, mime)) {
+      res.status(415).json({
+        error: "content_type_mismatch",
+        message: `This file does not look like ${mime}. Upload it with its real type, or re-save it in that format.`,
+      });
+      return;
+    }
+
     const rawName = req.headers["x-document-name"];
     const name = blobs.sanitiseFileName(
       decodeURIComponent(Array.isArray(rawName) ? rawName[0]! : (rawName ?? "file")),

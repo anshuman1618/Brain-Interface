@@ -50,6 +50,15 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # Reports, never blocks. Every advisory open today is in transitive dev
+      # tooling and none is in the running server's path, so failing the build
+      # on one would stop unrelated work to fix something that cannot be
+      # reached in production — and a gate that fires for reasons the author
+      # cannot act on is a gate people learn to route around. Dependabot opens
+      # the PRs; this is so the count is visible in the log while it does.
+      - name: Dependency advisories
+        run: pnpm audit --audit-level=high || true
+
       # The zod validators and React hooks are generated from openapi.yaml.
       # Regenerating and diffing catches a spec edit that was never codegen'd —
       # otherwise the committed client silently drifts from the contract.

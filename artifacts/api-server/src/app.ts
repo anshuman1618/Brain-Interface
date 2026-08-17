@@ -118,16 +118,39 @@ if (isPreviewAuth()) {
  *
  * /session is the sign-in path: it is what an attacker hits to enumerate
  * addresses or spam one-time codes, so it gets the tightest budget. Writes get
- * a moderate one keyed per user where we know who they are. Reads are left
- * generous — a busy chamber refreshing a cause list is not an attack.
+ * a moderate one keyed per user where we know who they are.
+ *
+ * Reads used to be exempt entirely, on the reasoning that a busy chamber
+ * refreshing a cause list is not an attack. That reasoning stopped holding when
+ * two genuinely expensive GETs arrived: /kpi/performance runs eight SQL
+ * aggregates with percentile_cont over full tables, and /invoices/:id/pdf
+ * renders a document with pdfkit on every call, uncached. Neither is reachable
+ * without an admin session, so the threat is an authenticated user (or a leaked
+ * session) looping a request, not an anonymous flood — but on a single small
+ * instance either one in a loop is enough to starve everybody else.
+ *
+ * So reads now have a generous ceiling, and the two costly ones have their own
+ * tighter bucket on top of it. A named bucket does not draw from another's
+ * budget, so the specific limit binds first and the general one still catches
+ * anything cheap being hammered.
  */
 app.use("/api/session", rateLimit({ name: "auth", max: 30, windowMs: 60_000 }));
 app.use("/api/workspaces", rateLimit({ name: "auth", max: 30, windowMs: 60_000 }));
 app.use("/api/access-requests", rateLimit({ name: "auth", max: 20, windowMs: 60_000 }));
 app.use("/api/privacy", rateLimit({ name: "privacy", max: 20, windowMs: 60_000, perUser: true }));
+
+/**
+ * The expensive reads. 20/min is far above any human use — opening every
+ * invoice in a chamber one after another does not approach it — and far below
+ * what it takes to hold the event loop down.
+ */
+const expensiveRead = rateLimit({ name: "expensive", max: 20, windowMs: 60_000, perUser: true });
+app.use("/api/kpi/performance", expensiveRead);
+app.use("/api/invoices/:id/pdf", expensiveRead);
+
 app.use("/api", (req, res, next) =>
   req.method === "GET" || req.method === "HEAD"
-    ? next()
+    ? rateLimit({ name: "read", max: 300, windowMs: 60_000, perUser: true })(req, res, next)
     : rateLimit({ name: "write", max: 120, windowMs: 60_000, perUser: true })(req, res, next),
 );
 

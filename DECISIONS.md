@@ -694,6 +694,134 @@ been exercised outside PGlite:
 
 ---
 
+### Security hardening — reads, uploads, and dependency drift
+
+Three findings from a checklist audit. Each was real; none was reachable by an
+anonymous attacker, which is why they were fixed together rather than urgently.
+
+#### Reads are throttled, and the two expensive ones have their own bucket
+
+**Decided:** GET now carries a 300/min ceiling per user, and
+`/kpi/performance` and `/invoices/:id/pdf` carry a tighter 20/min on top.
+
+**Why:** reads were exempt entirely, on the stated reasoning that "a busy
+chamber refreshing a cause list is not an attack". That was true when every GET
+was a cheap indexed select. It stopped being true when `/kpi/performance`
+arrived — eight SQL aggregates with `percentile_cont` over full tables — and
+again with `/invoices/:id/pdf`, which renders a document with pdfkit on every
+call and caches nothing. Both are admin-only, so the threat is an authenticated
+user or a leaked session looping a request, not an anonymous flood. On one small
+instance either is enough to starve everyone else.
+
+Separate named buckets rather than one number: a named bucket does not draw from
+another's budget, so the specific limit binds first and the general ceiling still
+catches anything cheap being hammered. Verified that exhausting the PDF bucket
+leaves ordinary reads answering 200.
+
+#### `perUser` did not actually key per user
+
+**Decided:** the limiter resolves the subject itself via `resolveClerkId`
+instead of reading `req.userId`.
+
+**Why:** found while adding the above. `req.userId` is set by `requireAuth` /
+`requireWorkspace`, which run **inside** the routers — later than the limiters
+mounted on `/api`. So every limiter marked `perUser` silently fell back to the
+client address, and a whole chamber behind one NAT shared a single write budget.
+`clerkMiddleware` runs before the limiters and preview identity is in the bearer
+token, so identity is available at that point; it just was not being read.
+Verified: with the admin down to 275 of their 300 reads, a second identity from
+the same socket starts at 298.
+
+#### An upload must be what it says it is
+
+**Decided:** `contentMatchesMime()` checks file signatures, and the upload route
+refuses a mismatch with `415 content_type_mismatch` — distinct from the
+allowlist's `unsupported_type`.
+
+**Why:** the allowlist checked a `Content-Type` header, which the client writes.
+That is a declaration, not a fact: a shell script uploaded as `application/pdf`
+passed it. Nothing here executes an upload, downloads are forced to `attachment`
+with `nosniff`, and files are stored encrypted outside any served directory — so
+it was not exploitable. It was still the one property in that path taken on
+trust, and checking it costs sixteen bytes.
+
+Signatures only, not container parsing: proving a PDF is a well-formed PDF means
+running a parser over hostile input, which adds more attack surface than it
+removes. Text has no signature, so that test is inverted — reject a NUL byte in
+the first 8 KB, which catches a binary renamed to `.txt`. A shell script sent as
+`text/plain` is _accepted_, correctly: it is genuinely text, nothing will run it,
+and refusing it would break a chamber attaching a plain-text exhibit.
+
+Two error codes rather than one because "not accepted" and "not what you said it
+was" send someone to different fixes.
+
+#### Search is capped, and its wildcards are literal
+
+**Decided:** `/search` refuses a query over 200 characters with
+`400 query_too_long`, and `likePattern()` escapes `%`, `_` and `\` before the
+text reaches ILIKE.
+
+**Why:** the query was type-checked but unbounded, and this endpoint runs four
+ILIKE patterns per call, so a megabyte of pasted text was matched against every
+visible case title and description on every keystroke.
+
+Escaping turned out to matter more than the cap. `` `%${q}%` `` handed the
+user's own text to ILIKE as _grammar_: a query of `%` matched every row, and a
+chamber searching for "50%" got the whole registry back. That is a correctness
+bug that happens to also be the cheapest way to make the endpoint expensive,
+since a run of `%` is pathological to match. Backslash is Postgres's default
+LIKE escape character, so escaping the three metacharacters needs no `ESCAPE`
+clause. This was never an injection risk — Drizzle binds the value as a
+parameter either way; it is about ILIKE's own syntax.
+
+**Refused rather than truncated:** searching the first 200 characters of a
+pasted document and presenting that as the answer is a quiet lie. 200 because
+nobody types more than that into a search box.
+
+#### Dependabot reports; CI does not block on it
+
+**Decided:** weekly grouped Dependabot, plus `pnpm audit` in CI as a
+non-blocking step.
+
+**Why:** all eight open advisories are in transitive **dev** tooling — orval's
+yaml parser, eslint's glob matcher, the sandbox's vite. None sits in the path a
+request takes through the running server. Failing the build on them would stop
+unrelated work to fix something unreachable in production, and a gate that fires
+for reasons the author cannot act on is one people learn to route around. Grouped
+weekly rather than one PR per bump for the same reason: twelve PRs every Monday
+is how a team learns to ignore Dependabot. Security updates are grouped
+separately so they arrive alone and reviewable.
+
+#### Verified
+
+36 new checks (21 hardening, 15 search), plus every existing suite re-run: 52
+across the five API suites, 44 on invoicing, 46 in the browser.
+
+The new checks cover a real PDF, PNG, docx, webp and plain text accepted; an ELF
+declared as PDF, a shell script declared as PDF, an ELF declared as text, and a
+PNG declared as JPEG all refused with the right code; a disallowed type still
+refused by the allowlist; the PDF route limiting at 21 requests, not 300;
+ordinary reads unaffected when it does; and the per-user keying above.
+
+**Suites must be run against a fresh server, one at a time.** This bit twice
+while verifying the above. The browser suite run straight after the API suites
+reports three 429s and a failure; the invoicing suite run after them fails 41 of
+44, starting with `429` on chamber creation. Both are the same thing: the
+`auth` limiters on `/api/session` and `/api/workspaces` are keyed by **address**
+at 30/min, the security suite deliberately exhausts them as one of its tests,
+and the counters live in process memory — so anything run next from the same
+machine inherits an empty budget.
+
+Confirmed from the limiter name in the server log rather than inferred: all 49
+rejections were `limiter: "auth", subject: "a:127.0.0.1"`, none from the new
+`read` or `expensive` buckets. On fresh servers: browser 46/46, invoicing 44/44,
+hardening 21/21, search 15/15.
+
+CI is unaffected — it runs the API and browser suites as separate jobs on
+separate runners, so they never share limiter state. The trap is local.
+
+---
+
 ## Architecture
 
 ### Single origin: the API server also serves the frontend

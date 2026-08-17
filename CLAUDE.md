@@ -57,6 +57,13 @@ Suites are `security` (zero-trust isolation), `chamber`, `modules`, `subs`,
 `gov`. They run in series deliberately — several assert on plan quotas and rate
 limits, which concurrent runs would perturb.
 
+**Restart the server between suites.** The `auth` limiters on `/api/session` and
+`/api/workspaces` are keyed by address at 30/min and the counters live in process
+memory, and the security suite deliberately exhausts them. Anything run next from
+the same machine starts with an empty budget and fails at setup with a `429` that
+looks like a broken feature. CI is unaffected — it runs the API and browser
+suites as separate jobs on separate runners.
+
 Write new verification the same way: a standalone `.mjs` that hits the running
 server and prints PASS/FAIL. **Keep scratch check scripts out of the repo root**
 — eslint lints them and they will fail `pnpm run check`.
