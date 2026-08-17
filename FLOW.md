@@ -460,12 +460,12 @@ The rate-limit block in §3 ⑨ now reads:
 
 ### Migrations, and where they now run
 
-| File                         | Change                                                                                                                                                                                           |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lib/db/migrate-on-boot.mjs` | **New.** Applies pending migrations, then exits so `start` can hand off. Skips when `DATABASE_URL` is unset (PGlite builds its own schema). A failure is fatal — see below.                      |
-| `lib/db/push-guard.mjs`      | **New.** `push` / `push-force` refuse on Render or under `NODE_ENV=production`, **exiting 0** so the Start Command's `&&` chain still reaches `start`. Local use unchanged, `--force` forwarded. |
-| `package.json`               | Root `start` is now `node ./lib/db/migrate-on-boot.mjs && pnpm --filter @workspace/api-server run start`.                                                                                        |
-| `lib/db/drizzle.config.ts`   | `out` is explicit and absolute. It defaulted to `./drizzle` relative to the working directory, which was right only while the command happened to be run from `lib/db`.                          |
+| File                         | Change                                                                                                                                                                                                                |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/migrate-on-boot.mjs` | **New.** Applies pending migrations **in-process** via drizzle-orm's migrator, then exits so `start` can hand off. Skips when `DATABASE_URL` is unset (PGlite builds its own schema). A failure is fatal — see below. |
+| `lib/db/push-guard.mjs`      | **New.** `push` / `push-force` refuse on Render or under `NODE_ENV=production`, **exiting 0** so the Start Command's `&&` chain still reaches `start`. Local use unchanged, `--force` forwarded.                      |
+| `package.json`               | Root `start` is now `node ./lib/db/migrate-on-boot.mjs && pnpm --filter @workspace/api-server run start`.                                                                                                             |
+| `lib/db/drizzle.config.ts`   | `out` is explicit and absolute. It defaulted to `./drizzle` relative to the working directory, which was right only while the command happened to be run from `lib/db`.                                               |
 
 The deployed service was created by hand in the dashboard, so Render never reads
 `render.yaml` and the live Start Command still says `push`. `push` exits 0
@@ -477,6 +477,14 @@ it does not match.
 Boot order is therefore: **migrate → the §2a startup sequence → listen.** The
 migration finishes before `initDatabase()` is even called, in a separate
 process, so nothing queries a half-migrated schema.
+
+Speed matters here more than it looks. Render gives a new instance a limited
+window to bind a port, and on the free plan most of that window is already spent
+scheduling the container — one failed deploy logged eight and a half minutes
+between `Deploying…` and the start command running. Everything this chain does
+comes out of what is left, which is why the migration runs in-process rather
+than through `pnpm → drizzle-kit → tsx`: **4.1 s** to a bound port, down from
+**38 s**.
 
 ### Where the new code sits in the request path
 

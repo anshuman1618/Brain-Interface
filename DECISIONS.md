@@ -645,6 +645,53 @@ from outside the chamber returns 400 and says why.
 
 ---
 
+### Migrations run in-process, not by shelling out to drizzle-kit
+
+**Decided:** `migrate-on-boot.mjs` uses drizzle-orm's programmatic migrator
+against a single `pg.Client`, instead of spawning
+`pnpm --filter @workspace/db run migrate`.
+
+**Why:** a deploy failed with **"Port scan timeout reached, no open ports
+detected"**, and the logs showed the cause was time, not a crash. The new
+instance did bind — `Server listening … port 10000, commit b282e14` — but the
+window had already gone: Render logged `Deploying…` at 08:16:40 and the start
+command did not begin until **08:25:15**, eight and a half minutes of container
+scheduling on the free plan, before any code in this repository ran.
+
+Nothing here can shorten that eight minutes. What it can shorten is the part
+after it. The old chain was `node → pnpm → drizzle-kit → tsx` compiling
+`drizzle.config.ts` before a single row moved: three extra processes and a
+TypeScript compile, all inside the window Render is waiting in. Measured end to
+end, from start command to a bound port:
+
+|                                   | before | after     |
+| --------------------------------- | ------ | --------- |
+| migration step alone              | ~15 s  | **1.3 s** |
+| whole chain to `Server listening` | ~38 s  | **4.1 s** |
+
+It also takes drizzle-kit — a devDependency — out of the production boot path,
+where it never belonged, and drops the peak memory of the boot. That matters
+here: one instance in the failed deploy logged nothing but `ELIFECYCLE Command
+failed.`, which is what a process killed for memory looks like on a 512 MB box.
+
+**The ledger is the same ledger.** Verified in both directions against real
+Postgres 16: a database migrated by `drizzle-kit migrate` then handed to the
+programmatic migrator reports "schema is up to date" and re-applies nothing —
+25 tables and 6 ledger rows before and after — and a database migrated
+programmatically is still readable by `drizzle-kit migrate` by hand. Production
+already carries a drizzle-kit-written ledger, so that first direction is the one
+the next deploy depends on.
+
+Failure is still fatal: a bad `DATABASE_URL` exits 1, and the `&&` chain stops
+before the server starts.
+
+**Not fixed by this, and not fixable from the repository:** the service has
+`healthCheckPath: ""` and runs on the free plan. With no health check, Render
+falls back to blind port scanning, and the free plan is what produces both the
+eight-minute scheduling delay and the memory pressure. Setting the health check
+path is a dashboard field; `render.yaml` already specifies `/api/healthz` and is
+still not read.
+
 ### `drizzle-kit push` refuses to run on a deployed instance
 
 **Decided:** `lib/db/push-guard.mjs` stands in front of the `push` and
