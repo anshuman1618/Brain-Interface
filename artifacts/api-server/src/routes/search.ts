@@ -14,6 +14,37 @@ import { roleHasCapability } from "../lib/permissions";
 const router: IRouter = Router();
 
 /**
+ * The longest thing a person searches for.
+ *
+ * Nobody types two hundred characters into a search box. Without a cap the
+ * query goes to Postgres as an ILIKE pattern at whatever length was posted, and
+ * this endpoint runs four of them; a megabyte of text is then matched against
+ * every visible case title and description on every keystroke. Refused rather
+ * than truncated — searching the first two hundred characters of a pasted
+ * document and presenting that as the answer is a quiet lie.
+ */
+const MAX_QUERY = 200;
+
+/**
+ * A literal substring match, not a wildcard one.
+ *
+ * `%${q}%` hands the user's own text to ILIKE, where `%` and `_` are wildcards.
+ * Two consequences, and the dull one is the more common: searching for "50%"
+ * matched everything, because the percent sign became "any characters". The
+ * other is that a query of many `%` in a row is pathological to match — the
+ * cheapest way to make this endpoint expensive, which is exactly what the
+ * length cap above is trying to prevent.
+ *
+ * Backslash is Postgres's default LIKE escape character, so escaping the three
+ * metacharacters is enough and no ESCAPE clause is needed. The value still
+ * travels as a bind parameter; this is about ILIKE's own grammar, not SQL
+ * injection, which Drizzle already precludes.
+ */
+function likePattern(q: string): string {
+  return `%${q.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+}
+
+/**
  * Global search, bounded by the same scope as the collections it searches.
  *
  * Search is an easy place to leak a tenant: an unscoped ILIKE over every table
@@ -29,7 +60,14 @@ router.get("/search", requireWorkspace, async (req: AuthRequest, res): Promise<v
     res.json({ cases: [], tasks: [], consultations: [], clients: [] });
     return;
   }
-  const pattern = `%${q}%`;
+  if (q.length > MAX_QUERY) {
+    res.status(400).json({
+      error: "query_too_long",
+      message: `Search for something shorter than ${MAX_QUERY} characters.`,
+    });
+    return;
+  }
+  const pattern = likePattern(q);
 
   const allowedCaseIds = await visibleCaseIds(c);
   if (allowedCaseIds.length === 0) {

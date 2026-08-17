@@ -441,6 +441,7 @@ Built after the numbering above was reviewed.
 | `api-server/src/middlewares/rateLimit.ts` | `subjectFor()` — resolves identity via `resolveClerkId` rather than `req.userId`, which is not set yet at the mount point. `perUser` silently keyed on IP before this. |
 | `api-server/src/lib/blob-store.ts`        | `contentMatchesMime()` — file-signature check for every allowed type; text is checked by rejecting NUL bytes instead.                                                  |
 | `api-server/src/routes/documents.ts`      | Upload refuses a signature mismatch with `415 content_type_mismatch`, kept distinct from the allowlist's `unsupported_type`.                                           |
+| `api-server/src/routes/search.ts`         | `MAX_QUERY` (200, refused not truncated) and `likePattern()`, which escapes `%` `_` `\` so ILIKE reads the query as text. A bare `%` used to match every row.          |
 | `.github/dependabot.yml`                  | **New.** Weekly, grouped; security updates grouped separately so they arrive alone.                                                                                    |
 | `.github/workflows/ci.yml`                | `pnpm audit --audit-level=high`, reporting only — every open advisory is transitive dev tooling, outside the request path.                                             |
 

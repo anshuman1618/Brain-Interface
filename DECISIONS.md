@@ -755,6 +755,29 @@ and refusing it would break a chamber attaching a plain-text exhibit.
 Two error codes rather than one because "not accepted" and "not what you said it
 was" send someone to different fixes.
 
+#### Search is capped, and its wildcards are literal
+
+**Decided:** `/search` refuses a query over 200 characters with
+`400 query_too_long`, and `likePattern()` escapes `%`, `_` and `\` before the
+text reaches ILIKE.
+
+**Why:** the query was type-checked but unbounded, and this endpoint runs four
+ILIKE patterns per call, so a megabyte of pasted text was matched against every
+visible case title and description on every keystroke.
+
+Escaping turned out to matter more than the cap. `` `%${q}%` `` handed the
+user's own text to ILIKE as _grammar_: a query of `%` matched every row, and a
+chamber searching for "50%" got the whole registry back. That is a correctness
+bug that happens to also be the cheapest way to make the endpoint expensive,
+since a run of `%` is pathological to match. Backslash is Postgres's default
+LIKE escape character, so escaping the three metacharacters needs no `ESCAPE`
+clause. This was never an injection risk — Drizzle binds the value as a
+parameter either way; it is about ILIKE's own syntax.
+
+**Refused rather than truncated:** searching the first 200 characters of a
+pasted document and presenting that as the answer is a quiet lie. 200 because
+nobody types more than that into a search box.
+
 #### Dependabot reports; CI does not block on it
 
 **Decided:** weekly grouped Dependabot, plus `pnpm audit` in CI as a
@@ -771,8 +794,8 @@ separately so they arrive alone and reviewable.
 
 #### Verified
 
-21 new checks, plus every existing suite re-run: 52 across the five API suites,
-44 on invoicing, 46 in the browser.
+36 new checks (21 hardening, 15 search), plus every existing suite re-run: 52
+across the five API suites, 44 on invoicing, 46 in the browser.
 
 The new checks cover a real PDF, PNG, docx, webp and plain text accepted; an ELF
 declared as PDF, a shell script declared as PDF, an ELF declared as text, and a
@@ -780,13 +803,22 @@ PNG declared as JPEG all refused with the right code; a disallowed type still
 refused by the allowlist; the PDF route limiting at 21 requests, not 300;
 ordinary reads unaffected when it does; and the per-user keying above.
 
-**One thing worth recording about the browser suite.** Run immediately after the
-API suites it reports three 429s and one failure; on a fresh server it is 46/46
-with a clean console. Every one of those 49 rate-limit rejections came from the
-pre-existing `auth` limiter on `/api/session` — which the security suite
-deliberately exhausts as a test — and none from the new buckets, confirmed from
-the limiter name in the server log rather than inferred. CI runs the two as
-separate jobs on separate runners, so they never share limiter state.
+**Suites must be run against a fresh server, one at a time.** This bit twice
+while verifying the above. The browser suite run straight after the API suites
+reports three 429s and a failure; the invoicing suite run after them fails 41 of
+44, starting with `429` on chamber creation. Both are the same thing: the
+`auth` limiters on `/api/session` and `/api/workspaces` are keyed by **address**
+at 30/min, the security suite deliberately exhausts them as one of its tests,
+and the counters live in process memory — so anything run next from the same
+machine inherits an empty budget.
+
+Confirmed from the limiter name in the server log rather than inferred: all 49
+rejections were `limiter: "auth", subject: "a:127.0.0.1"`, none from the new
+`read` or `expensive` buckets. On fresh servers: browser 46/46, invoicing 44/44,
+hardening 21/21, search 15/15.
+
+CI is unaffected — it runs the API and browser suites as separate jobs on
+separate runners, so they never share limiter state. The trap is local.
 
 ---
 
