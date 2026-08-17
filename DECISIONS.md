@@ -839,6 +839,59 @@ and refusing it would break a chamber attaching a plain-text exhibit.
 Two error codes rather than one because "not accepted" and "not what you said it
 was" send someone to different fixes.
 
+### The stacking ladder is explicit, not accidental
+
+**Decided:** header at `z-30`, sidebar and feedback widget at `z-20`, and the
+page's scroll container marked `isolate`.
+
+**Why:** page content painted over the sticky header on every scroll, on every
+page, at every width. The cause was a tie, not a missing z-index. The header was
+`z-10` and the page content inside the scroll container was **also** `z-10`; the
+scroll container is `relative` with no z-index of its own, so it creates no
+stacking context and its child competed directly with the header. Equal
+z-index means document order decides, and the content comes later.
+
+`isolate` on the container is the half that matters most. Raising the header
+alone would have fixed today's symptom and left the trap armed: any page that
+later raised an element above `z-30` would silently reopen it. Isolation makes a
+page's z-indexes local to that page, so the chrome cannot be reached from inside
+it at all.
+
+There is a second consequence that was invisible until it was looked for. The
+search results dropdown is `z-50`, but it renders **inside** the header, which
+does create a stacking context — so its `z-50` was always measured against its
+siblings in the header, never against the page. It could not have risen above
+content that was drawing over the header itself. The fix is the same one.
+
+**Verified by breaking it first.** The Playwright check asserts, via
+`document.elementFromPoint` at the search bar's centre, that nothing covers the
+header after scrolling to the bottom — across four pages and three widths.
+Against the unfixed build it fails **15 of 19**, naming the exact element doing
+the covering on each page. Against the fixed build, 19 of 19. A check that had
+passed both ways would have proved nothing.
+
+One honesty note recorded with it: the two dropdown assertions passed _before_
+the fix as well, because the dropdown is only opened on an unscrolled page where
+the header is not yet being overdrawn. They are a regression guard for the
+isolation, not a reproduction of a bug that was occurring.
+
+#### The feedback widget stops competing
+
+**Decided:** kept for every role, but moved clear of the sidebar rail
+(`sm:left-20`), dropped from `z-40` to `z-20`, and reduced to an icon that
+reveals its label on hover or focus.
+
+**Why:** it was the one permanently visible control on every screen and it
+outranked the header, which is the wrong priority for the least important thing
+on the page — and at `left-4` it sat on top of the navigation rail. It stays for
+staff, not only clients, because staff are the people who find the bugs during a
+beta and taking away their reporting channel would cost more than the clutter
+did. Reducing it to 36px at rest was the alternative to removing it.
+
+Both `App.tsx` mount points are unchanged: it must keep rendering on the
+access-denied and pending-approval screens, which live outside the dashboard
+shell and whose users have no other way to tell you they are stuck.
+
 #### Search is capped, and its wildcards are literal
 
 **Decided:** `/search` refuses a query over 200 characters with

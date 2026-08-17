@@ -67,18 +67,32 @@ export function BetaFeedbackWidget() {
 
   return (
     <>
-      {/* Bottom-left: the bottom-right corner is where toasts land, and a button
-          that gets covered by its own confirmation is a button people stop
-          trusting. Above the safe-area inset so it clears the home indicator. */}
+      {/*
+        Bottom-left: the bottom-right corner is where toasts land, and a button
+        that gets covered by its own confirmation is a button people stop
+        trusting. Above the safe-area inset so it clears the home indicator.
+
+        Deliberately unobtrusive, because it is on every screen and it is the
+        least important thing on any of them:
+
+        - `left-20` on sm+ clears the w-16 sidebar rail instead of sitting on
+          top of it. Below sm there is no rail, so `left-4` is correct there.
+        - z-20, not z-40. It used to outrank the header; a permanent widget
+          should never paint over the chrome, and its own dialog is portalled
+          well above this anyway.
+        - The label is revealed on hover and focus rather than shown always, so
+          at rest this is a small icon rather than a competing button. It stays
+          reachable by keyboard because focus-within expands it too.
+      */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Send feedback about this page"
-        className="fixed left-4 z-40 flex items-center gap-2 rounded-lg bg-card text-card-foreground shadow-md hover:bg-accent hover:text-accent-foreground active:shadow-[var(--press-sm)] px-3 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="group fixed left-4 sm:left-20 z-20 flex items-center gap-0 sm:hover:gap-2 focus-visible:gap-2 rounded-lg bg-card/90 text-muted-foreground backdrop-blur-sm shadow-sm hover:bg-accent hover:text-accent-foreground hover:shadow-md active:shadow-[var(--press-sm)] p-2.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         style={{ bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
       >
         <MessageSquarePlus className="h-4 w-4 shrink-0" />
-        <span className="text-3xs font-mono uppercase tracking-wider font-bold hidden sm:inline">
+        <span className="text-3xs font-mono uppercase tracking-wider font-bold max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-150 sm:group-hover:max-w-24 sm:group-hover:opacity-100 group-focus-visible:max-w-24 group-focus-visible:opacity-100">
           Feedback
         </span>
       </button>

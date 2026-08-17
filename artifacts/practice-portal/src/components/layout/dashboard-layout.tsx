@@ -261,7 +261,23 @@ function DashboardLayoutContent() {
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col min-w-0">
-          <header className="min-h-14 sm:h-16 border-b border-border bg-background flex items-center gap-2 sm:gap-4 px-3 sm:px-6 z-10 sticky top-0 justify-between">
+          {/*
+            z-30, above the sidebar rail's z-20, and the scroll container below
+            is `isolate`. Both halves matter, and the reason is worth writing
+            down because it looked like a header problem and was not.
+
+            The header was z-10 and the page content inside the scroll container
+            was ALSO z-10. The scroll container is `relative` with no z-index of
+            its own, so it creates no stacking context and its child competed
+            directly with the header — equal z-index, later in the document, so
+            the content painted over the header on every scroll.
+
+            The search results dropdown made it worse: it is z-50, but it lives
+            INSIDE this header, which does create a stacking context. Its z-50
+            is therefore relative to this element, not to the page, so it could
+            never rise above content that was drawing over the header itself.
+          */}
+          <header className="min-h-14 sm:h-16 border-b border-border bg-background flex items-center gap-2 sm:gap-4 px-3 sm:px-6 z-30 sticky top-0 justify-between">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               {/* The switcher moves up here now that the sidebar is a rail. It
                   is a tenant boundary, not a nav item, so it stays in sight. */}
@@ -281,7 +297,10 @@ function DashboardLayoutContent() {
             </div>
           </header>
 
-          <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative">
+          {/* `isolate` keeps every z-index inside the page from being measured
+              against the chrome around it. Without it, any page that raises an
+              element re-opens the bug the header comment above describes. */}
+          <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative isolate">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.2] pointer-events-none z-0" />
             <div className="relative z-10 max-w-6xl mx-auto animate-in fade-in duration-500">
               {/*

@@ -433,6 +433,23 @@ Built after the numbering above was reviewed.
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
 
+### Layout stacking — the sticky header and the feedback button
+
+| File                                                      | Change                                                                                                                    |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `practice-portal/.../layout/dashboard-layout.tsx`         | Header `z-10` → `z-30`; the scroll container gains `isolate`. Page content used to paint over the header on every scroll. |
+| `practice-portal/src/components/beta-feedback-widget.tsx` | `left-4` → `left-4 sm:left-20` (clears the rail), `z-40` → `z-20`, label revealed on hover/focus instead of always shown. |
+
+The stacking ladder is now deliberate rather than accidental:
+
+```
+Radix portals (dialogs, dropdowns)   above everything, portalled to <body>
+header                        z-30   sticky, owns the search dropdown's context
+sidebar rail                  z-20
+feedback widget               z-20   fixed, must never outrank the chrome
+page content                  —      isolated inside the scroll container
+```
+
 ### Security hardening — reads, uploads, dependencies
 
 | File                                      | Change                                                                                                                                                                 |
