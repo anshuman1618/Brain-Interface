@@ -192,9 +192,13 @@ retyped with data in it, stop and describe the strategy first. Every migration
 so far is additive and guarded with `IF NOT EXISTS`, which is what lets it
 survive a database that `drizzle-kit push` touched first. Keep that.
 
-`drizzle-kit push` is for local use only. It prompts, and in a non-interactive
-environment it will either die or apply something nobody reviewed — it has
-already asked to truncate `workspace_memberships` in production.
+`drizzle-kit push` is for local use only, and now enforces that itself:
+`lib/db/push-guard.mjs` refuses on Render or under `NODE_ENV=production` and
+exits **0**, because the deployed Start Command chains `push && start` and a
+non-zero exit would stop the service booting. It prompts when a change is
+ambiguous, and in a non-interactive environment it will either die or apply
+something nobody reviewed — it has already asked to truncate
+`workspace_memberships` in production.
 
 ### Money and quantities
 
