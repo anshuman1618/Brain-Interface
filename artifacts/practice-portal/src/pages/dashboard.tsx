@@ -2,8 +2,10 @@ import { useState } from "react";
 import {
   useGetDashboardSummary,
   useListTasks,
+  useListCases,
   getGetDashboardSummaryQueryKey,
   getListTasksQueryKey,
+  getListCasesQueryKey,
   useListDocumentRequests,
   useUpdateDocumentRequest,
   useListCalendarEntries,
@@ -35,6 +37,12 @@ import { usePricingModal } from "@/components/pricing-modal";
 import { DocumentRequestModal } from "@/components/document-request-modal";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { CaseFormModal } from "@/components/case-form-modal";
+import {
+  StatDetailDialog,
+  StatCardButton,
+  MaybeStatButton,
+  type StatRow,
+} from "@/components/stat-detail-dialog";
 import { useSession } from "@/lib/session";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -109,6 +117,57 @@ function StaffDashboard() {
   const pendingTasks =
     tasks?.filter((t) => t.status === "pending" || t.status === "in_progress") || [];
 
+  /**
+   * The rows behind each stat card.
+   *
+   * `/dashboard/summary` returns counts and nothing else, so the lists come from
+   * queries this page already makes. That is not only cheaper than a new
+   * endpoint — it is what guarantees the popup and the number agree, because
+   * they are the same rows counted twice rather than two separate answers.
+   *
+   * Cases are the one addition: the summary reports `activeCases` but never says
+   * which. Scoped by the server to what this caller may see, like every other
+   * list.
+   */
+  const { data: cases = [] } = useListCases(undefined, {
+    query: { queryKey: getListCasesQueryKey(), enabled: can("cases.read") },
+  });
+  const openCases = cases.filter((c) => c.status !== "closed");
+
+  const [openStat, setOpenStat] = useState<"cases" | "pending" | "overdue" | "hearings" | null>(
+    null,
+  );
+
+  const dueLabel = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+  const caseRows: StatRow[] = openCases.map((c) => ({
+    id: c.id,
+    title: c.title,
+    subtitle: `${c.filingRef} · ${c.clientName ?? "No client assigned"}`,
+    trailing: c.priority,
+    href: `/cases/${c.id}`,
+  }));
+
+  const taskRow = (t: (typeof pendingTasks)[number]): StatRow => ({
+    id: t.id,
+    title: t.title,
+    subtitle: t.assigneeName ? `Assigned to ${t.assigneeName}` : "Unassigned",
+    trailing: `due ${dueLabel(t.deadline)}`,
+    href: `/cases/${t.caseId}`,
+  });
+
+  const hearingRows: StatRow[] = calendarEntries
+    .filter((e) => e.kind === "hearing" && e.entryDate >= todayIso)
+    .sort((a, b) => a.entryDate.localeCompare(b.entryDate))
+    .map((e) => ({
+      id: e.id,
+      title: e.title,
+      subtitle: e.caseId ? `Matter ${e.caseId}` : undefined,
+      trailing: dueLabel(e.entryDate),
+      href: "/calendar",
+    }));
+
   return (
     <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
       {can("billing.manage") && (
@@ -155,93 +214,165 @@ function StaffDashboard() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
-              <Briefcase className="h-4 w-4" /> Active Cases
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {summaryLoading ? (
-              <Skeleton className="h-10 w-20" />
-            ) : summary?.activeCases ? (
-              <div className="text-4xl font-bold tracking-tighter">{summary.activeCases}</div>
-            ) : (
-              // A bare "0" is a dead end on a chamber's first day. Say what the
-              // next step is, and make it the thing you click.
-              <div className="space-y-2">
-                <div className="text-4xl font-bold tracking-tighter text-muted-foreground">0</div>
-                {can("cases.write") && (
-                  <button
-                    type="button"
-                    onClick={() => setCaseFormOpen(true)}
-                    className="text-xs font-mono uppercase tracking-wider text-primary hover:underline text-left"
-                  >
-                    File your first case →
-                  </button>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
-              <CheckSquare className="h-4 w-4" /> Pending Tasks
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {summaryLoading ? (
-              <Skeleton className="h-10 w-20" />
-            ) : (
-              <div className="text-4xl font-bold tracking-tighter">
-                {summary?.pendingTasks || 0}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="bg-destructive/10 text-destructive">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium uppercase font-mono tracking-wider flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" /> Overdue Tasks
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {tasksLoading ? (
-              <Skeleton className="h-10 w-20 bg-destructive/20" />
-            ) : (
-              <div className="text-4xl font-bold tracking-tighter">{overdueTasks.length}</div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
-              <Calendar className="h-4 w-4" /> Next Hearing
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {nextHearing ? (
-              <>
-                <div className="text-lg font-bold tracking-tight truncate">
-                  {new Date(`${nextHearing.entryDate}T00:00:00`).toLocaleDateString(undefined, {
-                    day: "numeric",
-                    month: "short",
-                  })}
+        {/*
+          The only card that is not always a button. At zero it holds its own
+          "File your first case" action, and a button inside a button is invalid
+          markup — but it is also the right behaviour: opening an empty list
+          teaches nobody anything, while the empty state already offers the one
+          move worth making.
+        */}
+        <MaybeStatButton
+          active={Boolean(summary?.activeCases)}
+          onClick={() => setOpenStat("cases")}
+          label={`Active cases: ${summary?.activeCases ?? 0}. Open the list.`}
+        >
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+                <Briefcase className="h-4 w-4" /> Active Cases
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {summaryLoading ? (
+                <Skeleton className="h-10 w-20" />
+              ) : summary?.activeCases ? (
+                <div className="text-4xl font-bold tracking-tighter">{summary.activeCases}</div>
+              ) : (
+                // A bare "0" is a dead end on a chamber's first day. Say what the
+                // next step is, and make it the thing you click.
+                <div className="space-y-2">
+                  <div className="text-4xl font-bold tracking-tighter text-muted-foreground">0</div>
+                  {can("cases.write") && (
+                    <button
+                      type="button"
+                      onClick={() => setCaseFormOpen(true)}
+                      className="text-xs font-mono uppercase tracking-wider text-primary hover:underline text-left"
+                    >
+                      File your first case →
+                    </button>
+                  )}
                 </div>
-                <p className="text-xs text-muted-foreground truncate mt-1">{nextHearing.title}</p>
-              </>
-            ) : (
-              <div className="text-lg font-bold tracking-tight text-muted-foreground">
-                None scheduled
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        </MaybeStatButton>
+
+        <StatCardButton
+          onClick={() => setOpenStat("pending")}
+          label={`Pending tasks: ${summary?.pendingTasks ?? 0}. Open the list.`}
+        >
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+                <CheckSquare className="h-4 w-4" /> Pending Tasks
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {summaryLoading ? (
+                <Skeleton className="h-10 w-20" />
+              ) : (
+                <div className="text-4xl font-bold tracking-tighter">
+                  {summary?.pendingTasks || 0}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </StatCardButton>
+
+        <StatCardButton
+          onClick={() => setOpenStat("overdue")}
+          label={`Overdue tasks: ${overdueTasks.length}. Open the list.`}
+        >
+          <Card className="bg-destructive/10 text-destructive">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium uppercase font-mono tracking-wider flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" /> Overdue Tasks
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {tasksLoading ? (
+                <Skeleton className="h-10 w-20 bg-destructive/20" />
+              ) : (
+                <div className="text-4xl font-bold tracking-tighter">{overdueTasks.length}</div>
+              )}
+            </CardContent>
+          </Card>
+        </StatCardButton>
+
+        <MaybeStatButton
+          active={hearingRows.length > 0}
+          onClick={() => setOpenStat("hearings")}
+          label={`Next hearing. ${hearingRows.length} upcoming. Open the list.`}
+        >
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+                <Calendar className="h-4 w-4" /> Next Hearing
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {nextHearing ? (
+                <>
+                  <div className="text-lg font-bold tracking-tight truncate">
+                    {new Date(`${nextHearing.entryDate}T00:00:00`).toLocaleDateString(undefined, {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground truncate mt-1">{nextHearing.title}</p>
+                </>
+              ) : (
+                <div className="text-lg font-bold tracking-tight text-muted-foreground">
+                  None scheduled
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </MaybeStatButton>
       </div>
+
+      {/* One dialog, four sets of rows. Rendering four would duplicate the
+          shell for no gain — only one can be open. */}
+      <StatDetailDialog
+        open={openStat === "cases"}
+        onOpenChange={(o) => !o && setOpenStat(null)}
+        title="Active cases"
+        description="Every matter that is not closed, as far as your role can see."
+        rows={caseRows}
+        emptyMessage="No open matters."
+        seeAllHref="/cases"
+        seeAllLabel="Open the case registry"
+      />
+      <StatDetailDialog
+        open={openStat === "pending"}
+        onOpenChange={(o) => !o && setOpenStat(null)}
+        title="Pending tasks"
+        description="Not yet complete. Earliest deadline first."
+        rows={[...pendingTasks].sort((a, b) => a.deadline.localeCompare(b.deadline)).map(taskRow)}
+        emptyMessage="Nothing outstanding."
+        seeAllHref="/tasks"
+        seeAllLabel="Open the task list"
+      />
+      <StatDetailDialog
+        open={openStat === "overdue"}
+        onOpenChange={(o) => !o && setOpenStat(null)}
+        title="Overdue tasks"
+        description="Past their deadline and still open. Oldest first."
+        rows={[...overdueTasks].sort((a, b) => a.deadline.localeCompare(b.deadline)).map(taskRow)}
+        emptyMessage="Nothing is overdue — every deadline is still ahead of you."
+        seeAllHref="/tasks"
+        seeAllLabel="Open the task list"
+      />
+      <StatDetailDialog
+        open={openStat === "hearings"}
+        onOpenChange={(o) => !o && setOpenStat(null)}
+        title="Upcoming hearings"
+        description="Scheduled from today onward, soonest first."
+        rows={hearingRows}
+        emptyMessage="No hearings scheduled."
+        seeAllHref="/calendar"
+        seeAllLabel="Open the calendar"
+      />
 
       <div className="pt-4 border-t border-border">
         <h3 className="text-xl font-bold tracking-tight mb-4 uppercase font-mono">Quick Actions</h3>

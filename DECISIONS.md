@@ -839,6 +839,38 @@ and refusing it would break a chamber attaching a plain-text exhibit.
 Two error codes rather than one because "not accepted" and "not what you said it
 was" send someone to different fixes.
 
+### A stat card opens the list behind it, from data already loaded
+
+**Decided:** each Status Overview card is a button opening a dialog of the rows
+that make up its number, built from queries the dashboard already makes — no new
+endpoint.
+
+**Why:** `GET /dashboard/summary` returns counts and nothing else, so "3 overdue"
+could only be answered by leaving the page. Adding a `/dashboard/summary/detail`
+endpoint was the obvious move and the wrong one: the count and the list would
+then be two separate answers that can disagree. Deriving both from the same rows
+means they cannot. `useListTasks` and `useListCalendarEntries` were already on the
+page; `useListCases` is the single addition, and the server scopes it to what the
+caller may see like every other list.
+
+**Two cards are not always buttons.** Active Cases carries its own "File your
+first case" action at zero, and a button inside a button is invalid markup. It is
+also the right behaviour — opening an empty list teaches nobody anything, while
+the empty state already offers the one move worth making. `MaybeStatButton`
+renders a plain card until there is something to show. The browser check asserts
+`document.querySelectorAll("button button")` is empty, so the markup cannot
+regress quietly.
+
+**Every row leads somewhere.** A dialog that lists records and strands you there
+has moved the dead end one click deeper rather than removing it. Rows carrying no
+destination render as plain `div`s rather than buttons, so a click is never
+promised and then ignored.
+
+**Verified:** 21 checks in a real browser — each card opens, the overdue dialog
+lists the overdue task and _not_ the one still in the future, a row navigates and
+the dialog closes behind it, "see all" reaches the full page, and a fresh chamber
+produces no nested buttons while keeping its empty-state action.
+
 ### The stacking ladder is explicit, not accidental
 
 **Decided:** header at `z-30`, sidebar and feedback widget at `z-20`, and the

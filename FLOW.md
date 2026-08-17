@@ -433,6 +433,16 @@ Built after the numbering above was reviewed.
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
 
+### Status Overview drill-down
+
+| File                                                    | Change                                                                                                                                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `practice-portal/src/components/stat-detail-dialog.tsx` | **New.** `StatDetailDialog` (rows + empty state + see-all), `StatCardButton` (card relief, keyboard-reachable), `MaybeStatButton` (plain card at zero). |
+| `practice-portal/src/pages/dashboard.tsx`               | The four cards become buttons; four dialogs; `useListCases` added — the only new query, since tasks and calendar were already loaded.                   |
+
+No API change. The lists are the same rows the counts are computed from, which is
+what keeps the popup and the number in agreement.
+
 ### Layout stacking — the sticky header and the feedback button
 
 | File                                                      | Change                                                                                                                    |
