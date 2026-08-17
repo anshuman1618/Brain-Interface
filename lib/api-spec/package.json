@@ -6,6 +6,6 @@
     "codegen": "orval --config ./orval.config.ts && node ./scripts/normalise-barrels.mjs && pnpm -w run typecheck:libs"
   },
   "devDependencies": {
-    "orval": "^8.22.0"
+    "orval": "^8.24.0"
   }
 }
