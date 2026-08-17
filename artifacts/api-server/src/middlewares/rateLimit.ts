@@ -1,5 +1,6 @@
 import type { RequestHandler, Request } from "express";
 import { logger } from "../lib/logger";
+import { resolveClerkId } from "../lib/jit";
 
 /**
  * A fixed-window rate limiter, in process memory.
@@ -58,6 +59,28 @@ export type LimitOptions = {
   perUser?: boolean;
 };
 
+/**
+ * Who this request counts against.
+ *
+ * `req.userId` is set by requireAuth / requireWorkspace, which run *inside* the
+ * routers — later than the limiters mounted on `/api`. So a limiter reading only
+ * that field would find it unset and silently key every request on the client
+ * address, which is not what `perUser` claims and lumps a whole chamber behind
+ * one NAT into a single budget.
+ *
+ * resolveClerkId reads the identity that is already available at this point:
+ * clerkMiddleware runs before the limiters, and in preview mode the identity is
+ * in the bearer token. It resolves identity only and grants nothing — what the
+ * caller may reach is still decided later from workspace_memberships.
+ */
+function subjectFor(req: Request, perUser: boolean | undefined): string {
+  if (perUser) {
+    const known = (req as Request & { userId?: string }).userId ?? resolveClerkId(req);
+    if (known) return `u:${known}`;
+  }
+  return `a:${clientKey(req)}`;
+}
+
 export function rateLimit(opts: LimitOptions): RequestHandler {
   return (req, res, next) => {
     // Preflight carries no credentials and does no work; counting it would
@@ -67,10 +90,7 @@ export function rateLimit(opts: LimitOptions): RequestHandler {
     const now = Date.now();
     if (Math.random() < 0.01) sweep(now);
 
-    const subject =
-      opts.perUser && (req as Request & { userId?: string }).userId
-        ? `u:${(req as Request & { userId?: string }).userId}`
-        : `a:${clientKey(req)}`;
+    const subject = subjectFor(req, opts.perUser);
     const key = `${opts.name}|${subject}`;
 
     let b = buckets.get(key);

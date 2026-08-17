@@ -1,0 +1,63 @@
+# Dependency updates, on a schedule rather than when something breaks.
+#
+# Every advisory open against this repository today is in transitive DEV
+# tooling — orval's yaml parser, eslint's glob matcher, the sandbox's vite.
+# None is in the path a request takes through the running server. That is why
+# this is weekly and grouped rather than daily and one-PR-per-bump: the risk
+# being managed is drift, not an active incident, and twelve separate pull
+# requests every Monday is how a team learns to ignore them.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    # pnpm workspaces: Dependabot reads the root manifest and the lockfile, and
+    # covers every package in pnpm-workspace.yaml from there.
+    versioning-strategy: increase
+    open-pull-requests-limit: 5
+    labels: [dependencies]
+    commit-message:
+      prefix: "deps"
+      include: scope
+
+    groups:
+      # Security fixes travel alone and first. Anything with an advisory should
+      # be reviewable without reading a diff that also bumps a linter.
+      security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+      # Everything else lands as at most three PRs a week. Patch and minor are
+      # grouped because reviewing them individually is not where the risk is.
+      dev-tooling:
+        applies-to: version-updates
+        dependency-type: development
+        update-types: [minor, patch]
+      runtime:
+        applies-to: version-updates
+        dependency-type: production
+        update-types: [minor, patch]
+
+    ignore:
+      # Majors are opened as their own PR by default, which is right, but these
+      # three carry migration work that a bot cannot do and a stale PR sitting
+      # open for weeks is noise. Bump them deliberately.
+      - dependency-name: "react"
+        update-types: [version-update:semver-major]
+      - dependency-name: "react-dom"
+        update-types: [version-update:semver-major]
+      - dependency-name: "express"
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels: [dependencies]
+    commit-message:
+      prefix: "ci"

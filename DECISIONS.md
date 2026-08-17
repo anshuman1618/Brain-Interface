@@ -694,6 +694,102 @@ been exercised outside PGlite:
 
 ---
 
+### Security hardening — reads, uploads, and dependency drift
+
+Three findings from a checklist audit. Each was real; none was reachable by an
+anonymous attacker, which is why they were fixed together rather than urgently.
+
+#### Reads are throttled, and the two expensive ones have their own bucket
+
+**Decided:** GET now carries a 300/min ceiling per user, and
+`/kpi/performance` and `/invoices/:id/pdf` carry a tighter 20/min on top.
+
+**Why:** reads were exempt entirely, on the stated reasoning that "a busy
+chamber refreshing a cause list is not an attack". That was true when every GET
+was a cheap indexed select. It stopped being true when `/kpi/performance`
+arrived — eight SQL aggregates with `percentile_cont` over full tables — and
+again with `/invoices/:id/pdf`, which renders a document with pdfkit on every
+call and caches nothing. Both are admin-only, so the threat is an authenticated
+user or a leaked session looping a request, not an anonymous flood. On one small
+instance either is enough to starve everyone else.
+
+Separate named buckets rather than one number: a named bucket does not draw from
+another's budget, so the specific limit binds first and the general ceiling still
+catches anything cheap being hammered. Verified that exhausting the PDF bucket
+leaves ordinary reads answering 200.
+
+#### `perUser` did not actually key per user
+
+**Decided:** the limiter resolves the subject itself via `resolveClerkId`
+instead of reading `req.userId`.
+
+**Why:** found while adding the above. `req.userId` is set by `requireAuth` /
+`requireWorkspace`, which run **inside** the routers — later than the limiters
+mounted on `/api`. So every limiter marked `perUser` silently fell back to the
+client address, and a whole chamber behind one NAT shared a single write budget.
+`clerkMiddleware` runs before the limiters and preview identity is in the bearer
+token, so identity is available at that point; it just was not being read.
+Verified: with the admin down to 275 of their 300 reads, a second identity from
+the same socket starts at 298.
+
+#### An upload must be what it says it is
+
+**Decided:** `contentMatchesMime()` checks file signatures, and the upload route
+refuses a mismatch with `415 content_type_mismatch` — distinct from the
+allowlist's `unsupported_type`.
+
+**Why:** the allowlist checked a `Content-Type` header, which the client writes.
+That is a declaration, not a fact: a shell script uploaded as `application/pdf`
+passed it. Nothing here executes an upload, downloads are forced to `attachment`
+with `nosniff`, and files are stored encrypted outside any served directory — so
+it was not exploitable. It was still the one property in that path taken on
+trust, and checking it costs sixteen bytes.
+
+Signatures only, not container parsing: proving a PDF is a well-formed PDF means
+running a parser over hostile input, which adds more attack surface than it
+removes. Text has no signature, so that test is inverted — reject a NUL byte in
+the first 8 KB, which catches a binary renamed to `.txt`. A shell script sent as
+`text/plain` is _accepted_, correctly: it is genuinely text, nothing will run it,
+and refusing it would break a chamber attaching a plain-text exhibit.
+
+Two error codes rather than one because "not accepted" and "not what you said it
+was" send someone to different fixes.
+
+#### Dependabot reports; CI does not block on it
+
+**Decided:** weekly grouped Dependabot, plus `pnpm audit` in CI as a
+non-blocking step.
+
+**Why:** all eight open advisories are in transitive **dev** tooling — orval's
+yaml parser, eslint's glob matcher, the sandbox's vite. None sits in the path a
+request takes through the running server. Failing the build on them would stop
+unrelated work to fix something unreachable in production, and a gate that fires
+for reasons the author cannot act on is one people learn to route around. Grouped
+weekly rather than one PR per bump for the same reason: twelve PRs every Monday
+is how a team learns to ignore Dependabot. Security updates are grouped
+separately so they arrive alone and reviewable.
+
+#### Verified
+
+21 new checks, plus every existing suite re-run: 52 across the five API suites,
+44 on invoicing, 46 in the browser.
+
+The new checks cover a real PDF, PNG, docx, webp and plain text accepted; an ELF
+declared as PDF, a shell script declared as PDF, an ELF declared as text, and a
+PNG declared as JPEG all refused with the right code; a disallowed type still
+refused by the allowlist; the PDF route limiting at 21 requests, not 300;
+ordinary reads unaffected when it does; and the per-user keying above.
+
+**One thing worth recording about the browser suite.** Run immediately after the
+API suites it reports three 429s and one failure; on a fresh server it is 46/46
+with a clean console. Every one of those 49 rate-limit rejections came from the
+pre-existing `auth` limiter on `/api/session` — which the security suite
+deliberately exhausts as a test — and none from the new buckets, confirmed from
+the limiter name in the server log rather than inferred. CI runs the two as
+separate jobs on separate runners, so they never share limiter state.
+
+---
+
 ## Architecture
 
 ### Single origin: the API server also serves the frontend
