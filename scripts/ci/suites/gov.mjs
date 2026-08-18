@@ -1,4 +1,6 @@
 // Files, audit, quota, rate limits, privacy, conflicts.
+import { paymentsConfigured, activatePlan } from "../lib/billing.mjs";
+
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
   fail = 0;
@@ -48,6 +50,11 @@ const made = await call("/workspaces", {
 });
 check("chamber created", made.status === 201, `got ${made.status}`);
 const ws = made.data.workspaceToken;
+const wsId = made.data.activeWorkspace.id;
+
+// A deployment with payments configured will not activate a chargeable plan
+// until the money arrives, so the upgrade below has to actually pay for it.
+const paymentsOn = await paymentsConfigured(call, as(owner), ws);
 
 for (const [email, role] of [
   [clerk, "clerk_intern"],
@@ -257,11 +264,13 @@ check("closing a matter frees the slot", afterClose.status === 201, `got ${after
 
 // Seats: owner + clerk + client = 3 of the trial's 5. Upgrade and confirm both
 // caps lift to unlimited.
-await call("/workspace/subscription", {
+await activatePlan(BASE, call, {
   token: as(owner),
   wsToken: ws,
-  method: "PUT",
-  body: { plan: "firm", billingPeriod: "yearly" },
+  workspaceId: wsId,
+  plan: "firm",
+  billingPeriod: "yearly",
+  paymentsOn,
 });
 const usage1 = await call("/workspace/usage", { token: as(owner), wsToken: ws });
 check(

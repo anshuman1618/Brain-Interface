@@ -76,9 +76,19 @@ export async function planStateFor(workspaceId: number): Promise<PlanState> {
   const effectiveStatus = lapsed ? ("lapsed" as const) : ("active" as const);
   const effectivePlan = lapsed ? FALLBACK_PLAN : plan;
 
-  // Days remaining until the period end. Null if no period is set, negative if lapsed.
+  // Days remaining until the period end. Null if no period is set, negative
+  // once it has passed.
+  //
+  // Rounded UP, not down. A period ending in twenty hours has 0.83 days left,
+  // and flooring that to "renews in 0 days" is wrong on the one day it matters
+  // most; a person counting sleeps would say one. Rounding up also absorbs the
+  // fraction of a second between a period being set N days out and this being
+  // read back, which otherwise reports N-1 for the entire first day.
+  //
+  // `lapsed` above is decided by comparing the dates directly, never from this
+  // number, so the rounding cannot affect what is enforced — only what is said.
   const daysLeft = periodEnd
-    ? Math.floor((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.ceil((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     : null;
 
   return {

@@ -2754,7 +2754,12 @@ components:
           enum: [one_time, monthly, half_yearly, yearly]
         status:
           type: string
-          enum: [trialing, active, past_due, cancelled]
+          enum: [trialing, pending_payment, active, past_due, cancelled]
+          description: >
+            The last transition written to the row. `pending_payment` means a
+            chargeable plan was selected and the signed webhook has not yet
+            confirmed payment. Note this is the STORED status — a row may read
+            `active` while its period has already elapsed; see `lapsed`.
         paidMonths:
           type: integer
         freeMonths:
@@ -2769,6 +2774,18 @@ components:
         currentPeriodEnd:
           type: ["string", "null"]
           format: date-time
+        lapsed:
+          type: boolean
+          description: >
+            Whether the period has elapsed, derived server-side on every read.
+            Never computed in the browser: the browser's clock is not what
+            enforcement uses, and the two disagreeing would show a chamber a
+            plan the server has already stopped honouring.
+        daysLeft:
+          type: ["integer", "null"]
+          description: >
+            Whole days until `currentPeriodEnd`, server-computed. Null when no
+            period is running, negative once it has elapsed.
         updatedBy:
           type: ["string", "null"]
 

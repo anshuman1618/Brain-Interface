@@ -24,6 +24,7 @@ import {
   quote,
 } from "../lib/plans";
 import { paymentsEnabled } from "../lib/razorpay";
+import { planStateFor, type PlanState } from "../lib/quota";
 
 const router: IRouter = Router();
 
@@ -44,11 +45,22 @@ function trialDefault(workspaceId: number) {
     currency: CURRENCY,
     startedAt: null,
     currentPeriodEnd: null,
+    // A chamber with no row has nothing to lapse. This must stay false rather
+    // than being derived from a null period, or every new signup would be told
+    // its plan had expired before it chose one.
+    lapsed: false,
+    daysLeft: null,
     updatedBy: null,
   };
 }
 
-function view(row: Subscription) {
+/**
+ * `lapsed` and `daysLeft` are computed here rather than sent as a raw date for
+ * the browser to subtract from `Date.now()`. Enforcement runs off the server's
+ * clock, so a browser with a skewed clock would otherwise show a chamber a
+ * countdown that disagrees with the 402 it is about to receive.
+ */
+function view(row: Subscription, state: PlanState) {
   return {
     workspaceId: row.workspaceId,
     plan: row.plan,
@@ -60,6 +72,8 @@ function view(row: Subscription) {
     currency: row.currency,
     startedAt: row.startedAt?.toISOString() ?? null,
     currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
+    lapsed: state.lapsed,
+    daysLeft: state.daysLeft,
     updatedBy: row.updatedBy ?? null,
   };
 }
@@ -81,7 +95,9 @@ router.get(
       .where(eq(subscriptionsTable.workspaceId, c.workspaceId));
 
     res.json({
-      subscription: row ? view(row) : trialDefault(c.workspaceId),
+      // requireWorkspace already resolved the plan state for this request, so
+      // reading it off the context costs nothing rather than a second query.
+      subscription: row ? view(row, c.planState) : trialDefault(c.workspaceId),
       catalogue: catalogue(),
       canManage: c.capabilities.includes("billing.manage"),
     });
@@ -126,6 +142,24 @@ router.put(
     const q = quote(plan, period);
     const now = new Date();
 
+    const [current] = await db
+      .select()
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.workspaceId, c.workspaceId));
+
+    // The trial pack is bought once. Without this a chamber could re-select it
+    // every two months forever and never pay for a real plan, which would make
+    // the whole catalogue optional. Checked before anything is written so a
+    // refused second trial cannot disturb the plan already in force.
+    if (plan === "trial" && current?.trialUsedAt) {
+      res.status(409).json({
+        error: "trial_already_used",
+        message:
+          "Your chamber has already taken its two-month trial. Choose Pro or Firm to carry on.",
+      });
+      return;
+    }
+
     // A custom plan is an ENQUIRY. Marking it active here would let anyone with
     // billing.manage grant themselves the unlimited plan for nothing, because
     // the quota check honours any active row. It stays `trialing`, so the
@@ -155,6 +189,12 @@ router.put(
       currency: q.currency,
       startedAt: activates ? now : null,
       currentPeriodEnd: activates ? periodEnd(period, now) : null,
+      // Stamped on selection rather than on payment: selecting it is what
+      // consumes the one-per-chamber offer, and a chamber that could abandon
+      // checkout and start again would have an unlimited supply of trials.
+      // Once set it is never cleared — carried forward here so choosing Pro
+      // afterwards does not wipe the record and re-open the trial.
+      trialUsedAt: plan === "trial" ? now : (current?.trialUsedAt ?? null),
       updatedBy: c.user.clerkId,
       updatedAt: now,
     };
@@ -165,8 +205,12 @@ router.put(
       .onConflictDoUpdate({ target: subscriptionsTable.workspaceId, set: values })
       .returning();
 
+    // Re-read rather than reusing `c.planState`: that was resolved by
+    // requireWorkspace BEFORE this write, so it still describes the period the
+    // chamber was on a moment ago. One extra query on a rare write path is
+    // cheaper than a response that contradicts the row it just created.
     res.json({
-      subscription: view(row!),
+      subscription: view(row!, await planStateFor(c.workspaceId)),
       catalogue: catalogue(),
       canManage: true,
     });

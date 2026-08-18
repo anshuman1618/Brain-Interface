@@ -33,7 +33,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { usePricingModal } from "@/components/pricing-modal";
+import { PlanBanner } from "@/components/plan-banner";
 import { DocumentRequestModal } from "@/components/document-request-modal";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { CaseFormModal } from "@/components/case-form-modal";
@@ -89,7 +89,6 @@ function StaffDashboard() {
   // Quick actions are gated on the capability list the backend issued, not on a
   // role the browser worked out for itself.
   const { can, activeWorkspace } = useSession();
-  const { setOpen: setPricingModalOpen } = usePricingModal();
   const [, setLocation] = useLocation();
   const [docRequestOpen, setDocRequestOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
@@ -170,14 +169,9 @@ function StaffDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
-      {can("billing.manage") && (
-        <div
-          onClick={() => setPricingModalOpen(true)}
-          className="w-full p-3 rounded-lg shadow-sm bg-secondary text-secondary-foreground font-bold uppercase font-mono tracking-widest text-center cursor-pointer hover:bg-secondary/80 transition-colors"
-        >
-          1-Month Free Trial Active &mdash; Upgrade Now
-        </div>
-      )}
+      {/* Renders for everyone, and renders nothing when the plan is healthy.
+          Only the CTA inside it is gated on billing.manage. */}
+      <PlanBanner canManage={can("billing.manage")} />
 
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
         <div>

@@ -1112,11 +1112,15 @@ export const SubscriptionBillingPeriod = {
   yearly: 'yearly',
 } as const;
 
+/**
+ * The last transition written to the row. `pending_payment` means a chargeable plan was selected and the signed webhook has not yet confirmed payment. Note this is the STORED status — a row may read `active` while its period has already elapsed; see `lapsed`.
+ */
 export type SubscriptionStatus = typeof SubscriptionStatus[keyof typeof SubscriptionStatus];
 
 
 export const SubscriptionStatus = {
   trialing: 'trialing',
+  pending_payment: 'pending_payment',
   active: 'active',
   past_due: 'past_due',
   cancelled: 'cancelled',
@@ -1126,6 +1130,7 @@ export interface Subscription {
   workspaceId: number;
   plan: SubscriptionPlan;
   billingPeriod: SubscriptionBillingPeriod;
+  /** The last transition written to the row. `pending_payment` means a chargeable plan was selected and the signed webhook has not yet confirmed payment. Note this is the STORED status — a row may read `active` while its period has already elapsed; see `lapsed`. */
   status: SubscriptionStatus;
   paidMonths?: number;
   freeMonths?: number;
@@ -1135,6 +1140,13 @@ export interface Subscription {
   startedAt?: string | null;
   /** @nullable */
   currentPeriodEnd?: string | null;
+  /** Whether the period has elapsed, derived server-side on every read. Never computed in the browser: the browser's clock is not what enforcement uses, and the two disagreeing would show a chamber a plan the server has already stopped honouring. */
+  lapsed?: boolean;
+  /**
+     * Whole days until `currentPeriodEnd`, server-computed. Null when no period is running, negative once it has elapsed.
+     * @nullable
+     */
+  daysLeft?: number | null;
   /** @nullable */
   updatedBy?: string | null;
 }

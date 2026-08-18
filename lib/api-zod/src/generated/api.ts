@@ -684,13 +684,15 @@ export const GetSubscriptionResponse = zod.object({
   "workspaceId": zod.number(),
   "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
   "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly']),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'cancelled']),
+  "status": zod.enum(['trialing', 'pending_payment', 'active', 'past_due', 'cancelled']).describe('The last transition written to the row. `pending_payment` means a chargeable plan was selected and the signed webhook has not yet confirmed payment. Note this is the STORED status — a row may read `active` while its period has already elapsed; see `lapsed`.\n'),
   "paidMonths": zod.number().optional(),
   "freeMonths": zod.number().optional(),
   "amountMinor": zod.number().optional(),
   "currency": zod.string(),
   "startedAt": zod.coerce.date().nullish(),
   "currentPeriodEnd": zod.coerce.date().nullish(),
+  "lapsed": zod.boolean().optional().describe('Whether the period has elapsed, derived server-side on every read. Never computed in the browser: the browser\'s clock is not what enforcement uses, and the two disagreeing would show a chamber a plan the server has already stopped honouring.\n'),
+  "daysLeft": zod.number().nullish().describe('Whole days until `currentPeriodEnd`, server-computed. Null when no period is running, negative once it has elapsed.\n'),
   "updatedBy": zod.string().nullish()
 }),
   "catalogue": zod.array(zod.object({
@@ -726,13 +728,15 @@ export const SetSubscriptionResponse = zod.object({
   "workspaceId": zod.number(),
   "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
   "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly']),
-  "status": zod.enum(['trialing', 'active', 'past_due', 'cancelled']),
+  "status": zod.enum(['trialing', 'pending_payment', 'active', 'past_due', 'cancelled']).describe('The last transition written to the row. `pending_payment` means a chargeable plan was selected and the signed webhook has not yet confirmed payment. Note this is the STORED status — a row may read `active` while its period has already elapsed; see `lapsed`.\n'),
   "paidMonths": zod.number().optional(),
   "freeMonths": zod.number().optional(),
   "amountMinor": zod.number().optional(),
   "currency": zod.string(),
   "startedAt": zod.coerce.date().nullish(),
   "currentPeriodEnd": zod.coerce.date().nullish(),
+  "lapsed": zod.boolean().optional().describe('Whether the period has elapsed, derived server-side on every read. Never computed in the browser: the browser\'s clock is not what enforcement uses, and the two disagreeing would show a chamber a plan the server has already stopped honouring.\n'),
+  "daysLeft": zod.number().nullish().describe('Whole days until `currentPeriodEnd`, server-computed. Null when no period is running, negative once it has elapsed.\n'),
   "updatedBy": zod.string().nullish()
 }),
   "catalogue": zod.array(zod.object({

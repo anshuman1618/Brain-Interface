@@ -433,6 +433,33 @@ Built after the numbering above was reviewed.
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
 
+### Plan enforcement — payment, seats, matters, expiry
+
+Five limits that were recorded and never enforced. Each is now closed at the
+specific transition that used to walk past it.
+
+| File                                              | Change                                                                                                                                                                  |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api-server/src/lib/plans.ts`                     | `TRIAL_LIMITS` — one constant at 10 matters / 5 seats, shared by `trial` and `custom`. New `isChargeable()`.                                                            |
+| `api-server/src/lib/quota.ts`                     | New `planStateFor()` → `{plan, storedPlan, status, effectiveStatus, lapsed, periodEnd, daysLeft}`. `planFor()` now falls back to trial once the period has passed.      |
+| `api-server/src/lib/permissions.ts`               | `CAPABILITIES_WHEN_LAPSED` — an **allowlist**, not a `.write` suffix test, so a new capability fails closed.                                                            |
+| `api-server/src/middlewares/requireAuth.ts`       | `requireWorkspace` puts `planState` on the context; `requireCapability` answers **402 `plan_lapsed`** outside the allowlist.                                            |
+| `api-server/src/routes/subscription.ts`           | Chargeable + `paymentsEnabled()` → `pending_payment` instead of `active`. Trial refused a second time (409). `lapsed`/`daysLeft` on the response.                       |
+| `api-server/src/routes/session.ts`                | Seat check on the revoked → active transition.                                                                                                                          |
+| `api-server/src/lib/access-list.ts`               | Seat check at reconcile; over cap creates **`pending`**, routing into the existing approval queue rather than locking a colleague out.                                  |
+| `api-server/src/routes/cases.ts`                  | Matters check on the closed → open transition, so a PATCH on an already-open matter never 402s.                                                                         |
+| `api-server/src/routes/billing.ts`                | `refund.processed` → `cancelled`, matched by `provider_payment_id`. `payment.failed` and `subscription.halted` recorded and deliberately not acted on.                  |
+| `api-server/src/routes/preview.ts`                | **Preview-only** `POST /preview/set-period-end`, signed `daysFromNow`. 404s outside preview.                                                                            |
+| `practice-portal/.../plan-banner.tsx`             | **New.** Replaces a hardcoded banner that read no data and was wrong twice over. Renders **nothing** when healthy; renders for everyone, CTA gated on `billing.manage`. |
+| `lib/db/drizzle/0006_subscription_trial_used.sql` | Additive, guarded `trial_used_at`. Also in the schema file and **both** blocks of `preview.ts`.                                                                         |
+
+**Where it sits in the request path.** `requireWorkspace` resolves `planState`
+once per request and hangs it on the context, so `requireCapability` can refuse a
+write without a second query, and any route wanting the plan reads it off `ctx`
+rather than asking again. Expiry is therefore evaluated on **every** request with
+no scheduler — and nothing is written back on a read path, so the stored status
+stays the last real transition.
+
 ### Status Overview drill-down
 
 | File                                                    | Change                                                                                                                                                  |
@@ -538,9 +565,29 @@ in preview mode: PGlite for the database, no Clerk tenant, no external service.
 Phase 2 — 13 assertions; Phase 3 — 18; Phase 5 — twelve pages × two themes for
 contrast and overflow; Phase 8 — 19.
 
-**These checks are not in the repository.** They were written per phase and kept
-in the session scratchpad. The repo still has **no test files**; `pnpm run check`
-(format, lint, typecheck) and `pnpm run build` are the only gates CI enforces.
+**Most of these checks are not in the repository.** They were written per phase
+and kept in the session scratchpad. `pnpm run check` (format, lint, typecheck)
+and `pnpm run build` remain the gates CI enforces alongside the API suites.
+
+**Plan enforcement is the exception — it has a committed suite.**
+`scripts/ci/suites/plan.mjs` (registered in `run-suites.mjs` after `subs`) is 38
+checks covering: a fresh chamber with no subscription row is not lapsed (the
+regression guard — `currentPeriodEnd IS NULL` must never read as expired, or a
+refactor bricks every new signup) · the trial allowance · the matters cap on
+reopen, and that an already-open matter is still editable at cap · the trial
+refused twice · expiry, lapsed reads-but-cannot-write, and recovery on renewal ·
+seats not bypassable through the domain path.
+
+It runs against **both** payment modes. `scripts/ci/lib/billing.mjs` mints a
+locally-signed `payment.captured` webhook — `verifyWebhook` is plain HMAC-SHA256
+over the raw body, so no Razorpay account is needed — and `gov` and `subs` use
+the same helper, because a chargeable plan does not activate on selection once a
+provider is configured and their setup would otherwise silently stop working.
+
+Last run: **270 checks green with `RAZORPAY_*` unset, 270 with it set**, each
+suite against a fresh server. The banner was checked separately in a browser
+across all five of its states (17 assertions), which is what caught the
+`daysLeft` rounding.
 
 ### Known, unfixed
 

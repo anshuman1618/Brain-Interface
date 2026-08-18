@@ -46,6 +46,12 @@ const created = await call("/workspaces", {
 check("chamber created", created.status === 201, `got ${created.status}`);
 const ws = created.data.workspaceToken;
 
+// Whether this server can charge decides what "selecting a plan" is allowed to
+// do: activate it outright, or record `pending_payment` and wait for the signed
+// webhook. Both are correct, so several assertions below have to ask first.
+const billingEnabled =
+  (await call("/billing/config", { token: as(owner), wsToken: ws })).data?.enabled === true;
+
 for (const [email, role] of [
   [senior, "senior_advocate"],
   [client, "client"],
@@ -152,7 +158,13 @@ const chosen = await call("/workspace/subscription", {
 });
 check("accepted", chosen.status === 200, `got ${chosen.status}`);
 const sub = chosen.data.subscription;
-check("now active", sub.status === "active");
+// Pro costs money. Where a provider is configured, selecting it records the
+// intent and waits for the webhook; where none is, it goes straight into force.
+check(
+  billingEnabled ? "recorded, awaiting payment" : "now active",
+  sub.status === (billingEnabled ? "pending_payment" : "active"),
+  sub.status,
+);
 check("plan recorded", sub.plan === "pro" && sub.billingPeriod === "yearly");
 check("two free months recorded", sub.freeMonths === 2 && sub.paidMonths === 10);
 check("amount matches the catalogue", sub.amountMinor === yearlyPro.amountMinor);
@@ -285,29 +297,30 @@ check(
 check("who changed it is recorded", Boolean(reread.data.subscription.updatedBy));
 
 section("Payments: the webhook is the only thing that can mark a plan paid");
-// This deployment has no provider configured, which is itself a supported state
-// and the one CI runs in. What must hold either way: checkout refuses politely,
-// and the webhook refuses anything it cannot verify.
+// Both states are supported: no provider configured (what CI runs, and what a
+// self-hosted deployment looks like) and one configured. The unconfigured half
+// of this section only means anything in the first, so it is asked rather than
+// assumed — the forged-webhook checks below must hold either way.
 const billingCfg = await call("/billing/config", { token: as(owner), wsToken: ws });
 check("billing config readable", billingCfg.status === 200, `got ${billingCfg.status}`);
-check(
-  "reports payments as unconfigured here",
-  billingCfg.data.enabled === false,
-  JSON.stringify(billingCfg.data),
-);
-check("...and exposes no key", billingCfg.data.keyId === null);
 
-const checkoutOff = await call("/billing/checkout", {
-  token: as(owner),
-  wsToken: ws,
-  method: "POST",
-  body: { plan: "pro", billingPeriod: "yearly" },
-});
-check(
-  "checkout says so rather than failing obscurely (503)",
-  checkoutOff.status === 503 && checkoutOff.data?.reason === "not_configured",
-  `got ${checkoutOff.status} ${JSON.stringify(checkoutOff.data)}`,
-);
+if (!billingEnabled) {
+  check("...and exposes no key when unconfigured", billingCfg.data.keyId === null);
+
+  const checkoutOff = await call("/billing/checkout", {
+    token: as(owner),
+    wsToken: ws,
+    method: "POST",
+    body: { plan: "pro", billingPeriod: "yearly" },
+  });
+  check(
+    "checkout says so rather than failing obscurely (503)",
+    checkoutOff.status === 503 && checkoutOff.data?.reason === "not_configured",
+    `got ${checkoutOff.status} ${JSON.stringify(checkoutOff.data)}`,
+  );
+} else {
+  check("...and publishes the public key id", typeof billingCfg.data.keyId === "string");
+}
 
 // An unsigned webhook must never be believed, configured or not.
 const forged = await fetch(BASE + "/billing/webhook", {

@@ -93,6 +93,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   -- Null until the plan is in force. A custom-plan enquiry has no start.
   started_at TIMESTAMPTZ,
   current_period_end TIMESTAMPTZ,
+  -- When the one-per-chamber trial pack was taken. Null means never.
+  trial_used_at TIMESTAMPTZ,
   updated_by TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT subscriptions_workspace_key UNIQUE (workspace_id)
@@ -470,6 +472,7 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS document_request_id INTEGER;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS note TEXT;
 ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS fulfilled_document_id INTEGER;
 ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS fulfilled_at TIMESTAMPTZ;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_used_at TIMESTAMPTZ;
 `;
 
 /** Where the preview database lives on disk. */

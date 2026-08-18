@@ -50,6 +50,40 @@ The founder of a chamber is never blocked — they create the chamber, so they c
 
 **Why:** a lapsed chamber should not lose access to its data, but should not be able to create new matters or invite new members. A handful of actions (completing a task assigned before expiry, responding to a client request) are finishing existing work, not new work. Privacy erasure (`privacy.manage`) also stays allowed — that is a legal obligation, not a write that should be gated.
 
+**A consequence worth knowing:** `access_control.manage` is deliberately _not_ on the list, so a lapsed chamber cannot invite anybody. This surfaced while writing the banner check, which invited a junior advocate after expiring the plan and got a 402 instead of a member. That is the rule working, but it means a chamber that lapses with an invitation outstanding cannot issue another until it renews.
+
+### The trial allowance is 10 matters and 5 seats, not 5 and 2
+
+**Decided:** `TRIAL_LIMITS` is a single constant, referenced by both `trial` and `custom`.
+
+**Why:** the old cap could not hold a chamber long enough to evaluate the product. A senior advocate, a junior, a clerk and two clients is five people before any work happens, and two months of practice is more than five matters. A trial that fails for reasons unrelated to the product teaches the customer nothing except that the product does not fit.
+
+**A side effect worth recording, because the plan predicted the opposite:** the implementation plan expected closing the seat hole to break all five CI suites, since they seat three to five members against a cap of two. Raising the cap to five absorbed it entirely — the only failures were the two suites that assert the allowance deliberately. The prediction was reasonable and wrong, and the measurement was cheap.
+
+### `daysLeft` rounds up
+
+**Decided:** `Math.ceil`, not `floor`.
+
+**Why:** a period ending in twenty hours has 0.83 days left, and flooring that reports "renews in 0 days" on the single day the notice matters most. Rounding up also absorbs the sub-second gap between a period being written N days out and being read back, which otherwise reports N−1 for the whole first day — which is exactly how the browser check caught it. `lapsed` is decided by comparing the dates directly and never from this number, so the rounding cannot affect what is enforced, only what is said.
+
+### The trial pack is stamped on selection, not on payment
+
+**Decided:** a new `trial_used_at` column, written when the trial is _chosen_, and never cleared.
+
+**Why:** nothing otherwise stops a chamber re-selecting the ₹99 two-month pack the moment it expires, forever, which makes every paid plan optional. Stamping at selection rather than at payment matters: a chamber that could abandon checkout and start again would have an unlimited supply of trials. It is carried forward when another plan is chosen, so upgrading to Pro and back does not re-open it. Deliberately separate from `startedAt`, which the next plan overwrites and so cannot answer "have they already had their trial?".
+
+### `subscription.halted` is enumerated and deliberately ignored
+
+**Decided:** the webhook names the event and does nothing with it.
+
+**Why:** this integration bills by one-time order per period and never creates a Razorpay Subscription, so the event carries no entity that can be joined to the table. It is listed rather than left to the default branch so the next reader can see the omission was considered rather than missed. Expiry does not depend on it — `planStateFor` derives lapse from `currentPeriodEnd` on every request.
+
+### The time-travel endpoint moves the period both ways
+
+**Decided:** `POST /api/preview/set-period-end` takes a signed `daysFromNow`, negative for the past and positive for the future.
+
+**Why:** it started as `expire-subscription` and only went backwards, which made the "renews in N days" state unreachable by any test. Where the period ends is the one enforcement input no public API can set, and both directions are needed to cover the banner. Three things keep it out of production: `isPreviewAuth()` is hard-false under `NODE_ENV=production` and the route 404s rather than 403s so it does not advertise itself; it sits behind `requireWorkspace` so it can only touch the caller's own workspace; and it moves a date — it cannot grant a plan, change a status or add a seat.
+
 ---
 
 ## The beta hardening pass (2026-08-14)

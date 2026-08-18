@@ -137,6 +137,7 @@ type RazorpayWebhook = {
   payload?: {
     payment?: { entity?: { id?: string; order_id?: string; amount?: number } };
     order?: { entity?: { id?: string; amount?: number; notes?: Record<string, string> } };
+    refund?: { entity?: { id?: string; payment_id?: string; amount?: number } };
   };
 };
 
@@ -159,6 +160,86 @@ async function recordEvent(input: {
     // here first. That is the mechanism working, not an error.
     return false;
   }
+}
+
+/**
+ * The events that are not a payment arriving.
+ *
+ * Three of them mean something and the rest are noise. Each is deliberately
+ * conservative about what it will move, because these fire on money that has
+ * already been taken:
+ *
+ *   payment.failed       an attempt did not go through. A chamber sitting at
+ *                        `pending_payment` STAYS there — the attempt failing is
+ *                        the expected first outcome of a retry loop, and
+ *                        knocking them to `past_due` would make a second try
+ *                        look like a lapse. Recorded, nothing moved.
+ *   subscription.halted  recorded and NOT acted on, deliberately. This
+ *                        integration creates one-time orders per period, never
+ *                        a Razorpay Subscription, so the event carries no
+ *                        entity this table can be joined to. It is enumerated
+ *                        rather than left to the default so the next reader
+ *                        knows the omission was considered. Expiry is already
+ *                        handled without it: `planStateFor` derives lapse from
+ *                        `currentPeriodEnd` on every request.
+ *   refund.processed     the money went back. The plan is `cancelled`.
+ *
+ * A refund carries no order notes, so the workspace is found by the payment id
+ * stored when the plan activated. No match means a refund for something this
+ * table never activated, which is recorded and left alone rather than guessed at.
+ */
+async function handleNonPayment(
+  eventType: string,
+  base: { eventId: string },
+  refundedPaymentId: string | null,
+): Promise<{ workspaceId: number | null; outcome: string; detail: string }> {
+  if (eventType === "payment.failed") {
+    return {
+      workspaceId: null,
+      outcome: "ignored",
+      detail: "payment failed; the chamber keeps its current status and may retry",
+    };
+  }
+
+  if (eventType === "subscription.halted") {
+    return {
+      workspaceId: null,
+      outcome: "ignored",
+      detail: "halted: this integration bills by one-time order, not a provider subscription",
+    };
+  }
+
+  if (eventType === "refund.processed" && refundedPaymentId) {
+    const [row] = await db
+      .select()
+      .from(subscriptionsTable)
+      .where(eq(subscriptionsTable.providerPaymentId, refundedPaymentId));
+
+    if (!row) {
+      return {
+        workspaceId: null,
+        outcome: "ignored",
+        detail: `refund for payment ${refundedPaymentId}, which activated no subscription here`,
+      };
+    }
+
+    await db
+      .update(subscriptionsTable)
+      .set({ status: "cancelled", updatedAt: new Date() })
+      .where(eq(subscriptionsTable.workspaceId, row.workspaceId));
+
+    logger.info(
+      { workspaceId: row.workspaceId, eventId: base.eventId, paymentId: refundedPaymentId },
+      "Subscription cancelled by refund",
+    );
+    return {
+      workspaceId: row.workspaceId,
+      outcome: "applied",
+      detail: "refund processed; subscription cancelled",
+    };
+  }
+
+  return { workspaceId: null, outcome: "ignored", detail: "not a capture" };
 }
 
 /**
@@ -213,17 +294,24 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
   const workspaceId = Number(notes["workspaceId"]);
   const orderId = orderEntity?.id ?? paymentEntity?.order_id ?? null;
   const paidMinor = paymentEntity?.amount ?? orderEntity?.amount ?? null;
+  const refundEntity = event.payload?.refund?.entity;
 
   const base = {
     eventId,
     eventType,
     orderId,
-    paymentId: paymentEntity?.id ?? null,
-    amountMinor: paidMinor,
+    paymentId: paymentEntity?.id ?? refundEntity?.payment_id ?? null,
+    amountMinor: paidMinor ?? refundEntity?.amount ?? null,
   };
 
   if (!isPaid) {
-    await recordEvent({ ...base, workspaceId: null, outcome: "ignored", detail: "not a capture" });
+    const handled = await handleNonPayment(eventType, base, refundEntity?.payment_id ?? null);
+    await recordEvent({
+      ...base,
+      workspaceId: handled.workspaceId,
+      outcome: handled.outcome,
+      detail: handled.detail,
+    });
     res.json({ received: true });
     return;
   }

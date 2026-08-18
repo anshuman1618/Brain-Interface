@@ -21,6 +21,7 @@ const SUITES = [
   ["chamber", "Chamber lifecycle"],
   ["modules", "Documents, feedback and calendar"],
   ["subs", "Subscription and billing RBAC"],
+  ["plan", "Plan enforcement: payment, seats, expiry"],
   ["gov", "Files, audit, quota, privacy, conflicts"],
 ];
 

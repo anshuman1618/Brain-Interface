@@ -6,11 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * The last transition written to the row. `pending_payment` means a chargeable plan was selected and the signed webhook has not yet confirmed payment. Note this is the STORED status — a row may read `active` while its period has already elapsed; see `lapsed`.
+ */
 export type SubscriptionStatus = typeof SubscriptionStatus[keyof typeof SubscriptionStatus];
 
 
 export const SubscriptionStatus = {
   trialing: 'trialing',
+  pending_payment: 'pending_payment',
   active: 'active',
   past_due: 'past_due',
   cancelled: 'cancelled',

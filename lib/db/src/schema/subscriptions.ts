@@ -67,6 +67,17 @@ export const subscriptionsTable = pgTable(
      */
     startedAt: timestamp("started_at", { withTimezone: true }),
     currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    /**
+     * When this chamber took the two-month trial pack. Null means never.
+     *
+     * The pack is bought ONCE — it exists to evaluate the product, not to run a
+     * practice on. Without this stamp nothing stops a chamber re-selecting it
+     * the moment it expires, indefinitely, which would make every paid plan
+     * optional. Deliberately separate from `startedAt`, which is overwritten by
+     * the next plan the chamber chooses and so cannot answer "have they already
+     * had their trial?".
+     */
+    trialUsedAt: timestamp("trial_used_at", { withTimezone: true }),
     /** The provider's order and payment ids, for reconciliation and refunds. */
     providerOrderId: text("provider_order_id"),
     providerPaymentId: text("provider_payment_id"),
