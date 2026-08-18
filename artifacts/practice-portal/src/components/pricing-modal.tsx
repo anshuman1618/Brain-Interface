@@ -93,7 +93,12 @@ const PLAN_COPY: Record<
   trial: {
     name: "Trial",
     blurb: "Two months to decide, at the price of a coffee.",
-    features: ["5 open matters", "2 seats", "Every module unlocked", "Runs two months, then stops"],
+    features: [
+      "10 open matters",
+      "5 seats",
+      "Every module unlocked",
+      "Runs two months, then stops",
+    ],
     metered: false,
   },
   pro: {

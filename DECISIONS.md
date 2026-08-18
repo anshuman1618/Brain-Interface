@@ -23,6 +23,7 @@ Five enforcement holes existed: any plan could be selected for free, seats were 
 ### Seat quota enforced at three choke points, not just one
 
 **Decided:** seats are checked when:
+
 1. Reconciling access-list entries on sign-in — over-cap creates as `pending` (routes to approval queue)
 2. Approving an access request — over-cap returns 402 (already existed, verified)
 3. Reactivating a revoked member — over-cap returns 402 (newly added)

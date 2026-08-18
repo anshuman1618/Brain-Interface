@@ -519,7 +519,7 @@ Everything here should be true before the first real client signs in.
       and is included in backups
 - [ ] SMTP configured, and `mail_outbox` shows `sent` rather than `suppressed`
 - [ ] Plan limits are the ones you intend to sell — they are enforced, so a
-      chamber on Starter is genuinely stopped at 5 open matters and 2 seats
+      chamber on Trial is genuinely stopped at 10 open matters and 5 seats
 - [ ] Browser walkthrough in section 7 completed, including the `/kpi` check
 - [ ] No `.env` file committed — `git log --all --full-history -- .env` is empty
 - [ ] The first chamber founded, and the founding address confirmed correct:

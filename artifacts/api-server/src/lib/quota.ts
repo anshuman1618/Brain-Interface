@@ -77,7 +77,9 @@ export async function planStateFor(workspaceId: number): Promise<PlanState> {
   const effectivePlan = lapsed ? FALLBACK_PLAN : plan;
 
   // Days remaining until the period end. Null if no period is set, negative if lapsed.
-  const daysLeft = periodEnd ? Math.floor((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+  const daysLeft = periodEnd
+    ? Math.floor((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    : null;
 
   return {
     plan: effectivePlan,

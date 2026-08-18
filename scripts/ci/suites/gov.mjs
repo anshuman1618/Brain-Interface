@@ -215,11 +215,11 @@ check(
   usage0.status === 200 && usage0.data.plan === "trial",
   JSON.stringify(usage0.data),
 );
-check("the trial caps matters at 5", usage0.data.matters.limit === 5);
-check("the trial caps seats at 2", usage0.data.seats.limit === 2);
+check("the trial caps matters at 10", usage0.data.matters.limit === 10);
+check("the trial caps seats at 5", usage0.data.seats.limit === 5);
 
-// One matter exists; add four more to reach the cap.
-for (let i = 2; i <= 5; i++) {
+// One matter exists; add nine more to reach the cap.
+for (let i = 2; i <= 10; i++) {
   await call("/cases", {
     token: as(owner),
     wsToken: ws,
@@ -227,17 +227,17 @@ for (let i = 2; i <= 5; i++) {
     body: { title: `Matter ${i}`, filingRef: `CV-2026-1${i}` },
   });
 }
-const sixth = await call("/cases", {
+const overCap = await call("/cases", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { title: "Sixth", filingRef: "CV-2026-006" },
+  body: { title: "Eleventh", filingRef: "CV-2026-011" },
 });
-check("the 6th matter is refused (402)", sixth.status === 402, `got ${sixth.status}`);
+check("the 11th matter is refused (402)", overCap.status === 402, `got ${overCap.status}`);
 check(
   "...with a message naming the plan and number",
-  /Trial/.test(sixth.data?.message ?? "") && /5/.test(sixth.data?.message ?? ""),
-  sixth.data?.message,
+  /Trial/.test(overCap.data?.message ?? "") && /10/.test(overCap.data?.message ?? ""),
+  overCap.data?.message,
 );
 
 // Closing one frees a slot.
@@ -255,8 +255,8 @@ const afterClose = await call("/cases", {
 });
 check("closing a matter frees the slot", afterClose.status === 201, `got ${afterClose.status}`);
 
-// Seats: owner + clerk + client = 3 already, so the cap is already exceeded
-// for a NEW approval. Upgrade and confirm the cap moves.
+// Seats: owner + clerk + client = 3 of the trial's 5. Upgrade and confirm both
+// caps lift to unlimited.
 await call("/workspace/subscription", {
   token: as(owner),
   wsToken: ws,

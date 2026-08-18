@@ -206,10 +206,15 @@ export function periodLabel(billingPeriod: BillingPeriod): string {
 /**
  * What each plan actually entitles a chamber to.
  *
- * These are enforced, not advertised. The pricing screen lists "5 open matters,
- * 2 seats" on the trial, and the quota check is what makes that sentence true —
- * without it the plans would be decoration and nobody would ever have a reason
- * to move off the trial.
+ * These are enforced, not advertised. The pricing screen lists "10 open
+ * matters, 5 seats" on the trial, and the quota check is what makes that
+ * sentence true — without it the plans would be decoration and nobody would
+ * ever have a reason to move off the trial.
+ *
+ * The trial allowance is sized to fit a real chamber evaluating the product:
+ * a senior advocate, a junior, a clerk and a couple of clients is five people,
+ * and two months of work is more than five matters. Set any lower and the
+ * evaluation fails for reasons that have nothing to do with the product.
  *
  * `null` means unlimited. A chamber that has not chosen a plan, or whose plan
  * lapsed, gets the trial allowance: enough to evaluate the product, not enough
@@ -217,17 +222,20 @@ export function periodLabel(billingPeriod: BillingPeriod): string {
  *
  * `custom` carries the trial allowance on purpose. Its real limits are whatever
  * the contract says, and until an operator sets them a selected-but-unquoted
- * custom plan must not be a free upgrade to unlimited.
+ * custom plan must not be a free upgrade to unlimited. It tracks trial rather
+ * than holding its own numbers so the two cannot drift apart.
  */
 export type PlanLimits = { matters: number | null; seats: number | null };
 
 export const FALLBACK_PLAN: SubscriptionPlan = "trial";
 
+const TRIAL_LIMITS: PlanLimits = { matters: 10, seats: 5 };
+
 const LIMITS: Record<SubscriptionPlan, PlanLimits> = {
-  trial: { matters: 5, seats: 2 },
+  trial: TRIAL_LIMITS,
   pro: { matters: null, seats: 10 },
   firm: { matters: null, seats: null },
-  custom: { matters: 5, seats: 2 },
+  custom: TRIAL_LIMITS,
 };
 
 export function limitsFor(plan: SubscriptionPlan): PlanLimits {

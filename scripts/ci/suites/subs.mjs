@@ -188,7 +188,7 @@ check("...and no period is running", custom.data.subscription.currentPeriodEnd =
 const customUsage = await call("/workspace/usage", { token: as(owner), wsToken: ws });
 check(
   "the chamber keeps the trial allowance, not unlimited",
-  customUsage.data.plan === "trial" && customUsage.data.matters.limit === 5,
+  customUsage.data.plan === "trial" && customUsage.data.matters.limit === 10,
   JSON.stringify(customUsage.data),
 );
 
