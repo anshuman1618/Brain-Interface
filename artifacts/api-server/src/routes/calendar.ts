@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, calendarEntriesTable, casesTable, audienceIncludes } from "@workspace/db";
+import { db, calendarEntriesTable, casesTable, usersTable, audienceIncludes } from "@workspace/db";
 import {
   ListCalendarEntriesResponse,
   CreateCalendarEntryBody,
@@ -11,11 +11,13 @@ import {
 import {
   requireWorkspace,
   requireCapability,
+  findActiveMembership,
   ctx,
   type AuthRequest,
+  type WorkspaceContext,
 } from "../middlewares/requireAuth";
 import { caseInWorkspace } from "../lib/scope";
-import { displayRole } from "../lib/permissions";
+import { displayRole, isWorkspaceRole } from "../lib/permissions";
 
 const router: IRouter = Router();
 
@@ -34,6 +36,47 @@ function audienceLabel(audience: string): string {
   if (audience.startsWith("role:")) return displayRole(audience.slice(5));
   if (audience.startsWith("user:")) return "One person";
   return audience;
+}
+
+/**
+ * Reject an audience that `audienceIncludes` would silently hide from everyone.
+ *
+ * `audienceIncludes` fails closed by design — an unrecognised value matches
+ * nobody, rather than defaulting to visible. That is the right default for a
+ * READ, but on a WRITE it turned an admin's typo (`"firm"` instead of `"all"`)
+ * into a 201 for an entry nobody would ever see: no error, no warning, just a
+ * hearing that silently existed for no one.
+ *
+ * `role:` and `user:` are checked against real data, not just their shape —
+ * `role:advocate` (not a role; the real ones are `senior_advocate` /
+ * `junior_advocate`) and `user:` naming someone outside the workspace are the
+ * same failure mode as the typo that motivated this.
+ *
+ * Returns null when the audience is fine, or the message to show otherwise.
+ */
+async function audienceError(c: WorkspaceContext, audience: string): Promise<string | null> {
+  if (audience === "all" || audience === "staff") return null;
+
+  if (audience.startsWith("role:")) {
+    const role = audience.slice(5);
+    if (!isWorkspaceRole(role)) {
+      return `"${role}" is not a role in this chamber.`;
+    }
+    return null;
+  }
+
+  if (audience.startsWith("user:")) {
+    const clerkId = audience.slice(5);
+    const [target] = clerkId
+      ? await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId))
+      : [];
+    if (!target || !(await findActiveMembership(target.id, c.workspaceId))) {
+      return "That person is not an active member of this workspace.";
+    }
+    return null;
+  }
+
+  return 'Audience must be "all", "staff", "role:<role>", or "user:<id>".';
 }
 
 async function view(entry: typeof calendarEntriesTable.$inferSelect) {
@@ -89,6 +132,13 @@ router.post(
       return;
     }
 
+    const audience = parsed.data.audience ?? "all";
+    const audienceProblem = await audienceError(c, audience);
+    if (audienceProblem) {
+      res.status(400).json({ error: "invalid_audience", message: audienceProblem });
+      return;
+    }
+
     const [created] = await db
       .insert(calendarEntriesTable)
       .values({
@@ -101,7 +151,7 @@ router.post(
         entryDate: String(parsed.data.entryDate).slice(0, 10),
         entryTime: parsed.data.entryTime ?? null,
         caseId: parsed.data.caseId ?? null,
-        audience: parsed.data.audience ?? "all",
+        audience,
         createdBy: c.user.displayName,
         createdByRole: c.role,
         createdByClerkId: c.user.clerkId,
@@ -150,6 +200,14 @@ router.patch(
     if (parsed.data.caseId != null && !(await caseInWorkspace(c, parsed.data.caseId))) {
       res.status(404).json({ error: "Matter not found" });
       return;
+    }
+
+    if (parsed.data.audience != null) {
+      const audienceProblem = await audienceError(c, parsed.data.audience);
+      if (audienceProblem) {
+        res.status(400).json({ error: "invalid_audience", message: audienceProblem });
+        return;
+      }
     }
 
     const update: Partial<typeof calendarEntriesTable.$inferSelect> = {};

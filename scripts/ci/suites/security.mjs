@@ -324,5 +324,45 @@ check(
     .length === 0,
 );
 
+// A bad audience used to return 201 and silently create an entry nobody would
+// ever see — audienceIncludes() fails closed on read, so the typo was
+// invisible rather than loud. It must now be refused outright.
+const badAudience = await call("/calendar", {
+  token: as(`a.admin+${suffix}@a.test`),
+  wsToken: aTok,
+  method: "POST",
+  body: { title: `typo-${suffix}`, entryDate: plus(1), audience: "firm" },
+});
+check(
+  "an unrecognised audience is refused, not silently created (400)",
+  badAudience.status === 400 && badAudience.data?.error === "invalid_audience",
+  `got ${badAudience.status} ${JSON.stringify(badAudience.data)}`,
+);
+const badRole = await call("/calendar", {
+  token: as(`a.admin+${suffix}@a.test`),
+  wsToken: aTok,
+  method: "POST",
+  body: { title: `bad-role-${suffix}`, entryDate: plus(1), audience: "role:advocate" },
+});
+check("...and so is a role that does not exist", badRole.status === 400, `got ${badRole.status}`);
+const badUser = await call("/calendar", {
+  token: as(`a.admin+${suffix}@a.test`),
+  wsToken: aTok,
+  method: "POST",
+  body: { title: `bad-user-${suffix}`, entryDate: plus(1), audience: "user:nobody-here" },
+});
+check("...and so is a user outside the workspace", badUser.status === 400, `got ${badUser.status}`);
+const goodUser = await call("/calendar", {
+  token: as(`a.admin+${suffix}@a.test`),
+  wsToken: aTok,
+  method: "POST",
+  body: { title: `real-user-${suffix}`, entryDate: plus(1), audience: `user:${clerk.clerkId}` },
+});
+check(
+  "...but a real member of the workspace is accepted",
+  goodUser.status === 201,
+  `got ${goodUser.status} ${JSON.stringify(goodUser.data)}`,
+);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

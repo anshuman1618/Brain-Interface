@@ -10,6 +10,30 @@ were, and what would make it worth revisiting.
 
 ---
 
+## Calendar audience validated on write, not just filtered on read (2026-08-18)
+
+**Decided:** `POST /calendar` and `PATCH /calendar/:id` now reject an audience
+that `audienceIncludes()` would silently hide from everyone, with a 400 naming
+the problem — instead of accepting it and creating an entry nobody could ever see.
+
+**Why:** `audienceIncludes()` fails closed by design, and that is correct for a
+_read_ — an unrecognised value should match nobody rather than everybody. But
+nothing stopped that same value from being _written_, so an admin who typed
+`audience: "firm"` instead of `"all"` got a 201 and a hearing that existed on
+the calendar with no code path that would ever show it to a single person. No
+error, no warning — the record was silently unreachable from the moment it was
+created.
+
+**Also checked, not just the shape:** `role:<role>` is validated against the
+real role list (`role:advocate` is not a role; the real ones are
+`senior_advocate` / `junior_advocate`), and `user:<clerkId>` is validated
+against an active membership of the caller's own workspace, the same pattern
+`tasks.ts` already uses for assignee validation. Both are the identical failure
+mode as the typo that motivated this — a value that parses as _a_ shape but
+addresses nobody real.
+
+---
+
 ## Plan enforcement — making the subscription model real (2026-08-18)
 
 Five enforcement holes existed: any plan could be selected for free, seats were bypassable, revoked members could be reactivated unlimited, closed matters could be reopened unlimited, and expired plans were never checked. Each is now closed by a server-side gate on the specific transition.

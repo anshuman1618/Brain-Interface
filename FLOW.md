@@ -433,6 +433,17 @@ Built after the numbering above was reviewed.
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
 
+### Calendar audience — validated on write
+
+| File                                | Change                                                                                                                                                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api-server/src/routes/calendar.ts` | New `audienceError()`, called from `POST /calendar` and `PATCH /calendar/:id`. Checks shape, checks `role:` against real roles, checks `user:` against an active membership. 400 `invalid_audience` on failure. |
+
+`audienceIncludes()` (`lib/db/src/schema/calendar_entries.ts`) is unchanged — it
+still fails closed on read, which is correct there. The gap was that nothing
+stopped the same bad value being written in the first place, so a 201 could
+create an entry that no read path would ever surface.
+
 ### Plan enforcement — payment, seats, matters, expiry
 
 Five limits that were recorded and never enforced. Each is now closed at the
