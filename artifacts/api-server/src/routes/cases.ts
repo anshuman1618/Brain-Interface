@@ -275,6 +275,26 @@ router.patch(
       return;
     }
 
+    // If reopening a closed matter, check the matters quota. The matter being
+    // reopened is already counted as closed, so it is not in openMatters yet.
+    if (
+      body.data.status &&
+      body.data.status !== "closed" &&
+      existing.status === "closed"
+    ) {
+      const breach = await checkQuota(c.workspaceId, "matters");
+      if (breach) {
+        const usage = await usageFor(c.workspaceId);
+        res.status(402).json({
+          error: "plan_limit",
+          reason: "matters",
+          message: quotaMessage(breach, usage.plan),
+          usage,
+        });
+        return;
+      }
+    }
+
     const updateData: Partial<typeof casesTable.$inferSelect> = {};
     if (body.data.title != null) updateData.title = body.data.title;
     if (body.data.description != null) updateData.description = body.data.description;

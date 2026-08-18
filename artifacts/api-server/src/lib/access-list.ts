@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { isWorkspaceRole } from "./permissions";
 import type { AppUser } from "./jit";
+import { assertSeatAvailable } from "./quota";
 
 /**
  * The bridge between "who signed in" and "who is allowed in".
@@ -107,13 +108,19 @@ export async function reconcileAccessList(user: AppUser): Promise<number> {
   for (const match of matches) {
     if (alreadyKnown.has(match.workspace.id)) continue;
 
+    // Check if adding this seat exceeds the plan limit. If so, create as
+    // "pending" rather than "active", routing them to the admin approval queue.
+    const seatBreach = await assertSeatAvailable(match.workspace.id);
+    const status = seatBreach ? "pending" : "active";
+    const decidedBy = seatBreach ? "seat unavailable" : "access list";
+
     await db.insert(workspaceMembershipsTable).values({
       workspaceId: match.workspace.id,
       userId: user.id,
       clerkId: user.clerkId,
       role: match.role,
-      status: "active",
-      decidedBy: "access list",
+      status,
+      decidedBy,
       decidedAt: new Date(),
     });
 

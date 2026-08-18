@@ -32,7 +32,9 @@ async function planFor(workspaceId: number): Promise<SubscriptionPlan> {
     .select()
     .from(subscriptionsTable)
     .where(eq(subscriptionsTable.workspaceId, workspaceId));
-  // No row, or a lapsed/cancelled one, falls back to the trial allowance.
+  // No row, or a lapsed/cancelled/pending-payment one, falls back to the trial allowance.
+  // pending_payment means the plan is selected but payment hasn't cleared, so limits
+  // revert to trial while awaiting payment.
   if (!row || row.status !== "active" || !isSubscriptionPlan(row.plan)) return FALLBACK_PLAN;
   return row.plan;
 }
@@ -89,4 +91,13 @@ export function quotaMessage(b: QuotaBreach, plan: SubscriptionPlan): string {
   const noun = b.resource === "matters" ? "open matters" : "team members";
   const planName = PLAN_NAMES[plan] ?? plan;
   return `Your ${planName} plan covers ${b.limit} ${noun} and you have ${b.used}. Upgrade the plan, or close a matter to free a slot.`;
+}
+
+/**
+ * Check if a seat is available before adding one.
+ *
+ * Returns null if the seat can be added, or the breach details if it would exceed the limit.
+ */
+export async function assertSeatAvailable(workspaceId: number): Promise<QuotaBreach | null> {
+  return checkQuota(workspaceId, "seats");
 }

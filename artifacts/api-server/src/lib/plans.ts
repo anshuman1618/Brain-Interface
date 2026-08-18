@@ -84,6 +84,16 @@ export function activatesOnSelection(plan: SubscriptionPlan): boolean {
 }
 
 /**
+ * Whether this plan costs money.
+ *
+ * `trial` returns true — the ₹99 pack is paid, even though it is not metered.
+ * `custom` returns false — a quote is not a charge. It is priced by a person.
+ */
+export function isChargeable(plan: SubscriptionPlan): boolean {
+  return plan !== "custom";
+}
+
+/**
  * The term a plan is actually billed on, whatever the client asked for.
  *
  * A trial pack is two months or it is not a trial pack, and a quote has no

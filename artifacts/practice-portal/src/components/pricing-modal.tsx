@@ -161,8 +161,10 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
   // Only the plans that cost money, and only when a provider is configured.
   // Everywhere else the button records the selection as it always did, which is
   // what keeps preview mode and self-hosted deployments working.
-  const payable = (plan: SubscriptionInputPlan) =>
-    (billing?.enabled ?? false) && PLAN_COPY[plan].metered;
+  const payable = (plan: SubscriptionInputPlan) => {
+    const q = quoteFor(plan);
+    return (billing?.enabled ?? false) && q && q.amountMinor > 0;
+  };
 
   const current = data?.subscription;
   const canManage = data?.canManage ?? false;

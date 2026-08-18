@@ -18,10 +18,12 @@ import {
   CURRENCY,
   activatesOnSelection,
   catalogue,
+  isChargeable,
   normalisePeriod,
   periodEnd,
   quote,
 } from "../lib/plans";
+import { paymentsEnabled } from "../lib/razorpay";
 
 const router: IRouter = Router();
 
@@ -129,11 +131,24 @@ router.put(
     // the quota check honours any active row. It stays `trialing`, so the
     // chamber keeps the allowance it already had until an operator prices it.
     const activates = activatesOnSelection(plan);
+
+    // A plan that costs money becomes pending_payment if payments are configured
+    // and required; otherwise it activates immediately (preview mode and
+    // self-hosted, where no payment is possible).
+    let status: "trialing" | "active" | "pending_payment" = "trialing";
+    if (activates) {
+      if (isChargeable(plan) && paymentsEnabled()) {
+        status = "pending_payment";
+      } else {
+        status = "active";
+      }
+    }
+
     const values = {
       workspaceId: c.workspaceId,
       plan,
       billingPeriod: period,
-      status: (activates ? "active" : "trialing") as "active" | "trialing",
+      status,
       paidMonths: q.paidMonths,
       freeMonths: q.freeMonths,
       amountMinor: q.amountMinor,

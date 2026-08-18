@@ -30,12 +30,19 @@ export const BILLING_PERIODS = ["one_time", "monthly", "half_yearly", "yearly"] 
 export type BillingPeriod = (typeof BILLING_PERIODS)[number];
 
 /**
- * trialing  — a new chamber, before any plan is chosen
- * active    — a plan is selected and the period has not lapsed
- * past_due  — the period lapsed (a payment provider would set this)
- * cancelled — deliberately ended; access falls back to trial limits
+ * trialing      — a new chamber, before any plan is chosen
+ * pending_payment — a plan selected, payment required but not yet received
+ * active        — a plan is selected and the period has not lapsed
+ * past_due      — the period lapsed (a payment provider would set this)
+ * cancelled     — deliberately ended; access falls back to trial limits
  */
-export const SUBSCRIPTION_STATUSES = ["trialing", "active", "past_due", "cancelled"] as const;
+export const SUBSCRIPTION_STATUSES = [
+  "trialing",
+  "pending_payment",
+  "active",
+  "past_due",
+  "cancelled",
+] as const;
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
 
 export const subscriptionsTable = pgTable(

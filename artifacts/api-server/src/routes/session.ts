@@ -44,7 +44,7 @@ import { displayRole, isWorkspaceRole } from "../lib/permissions";
 import { mintWorkspaceToken, verifyWorkspaceToken } from "../lib/workspace-token";
 import { reconcileAccessList } from "../lib/access-list";
 import { recordAudit } from "../lib/audit";
-import { checkQuota, quotaMessage, usageFor } from "../lib/quota";
+import { assertSeatAvailable, checkQuota, quotaMessage, usageFor } from "../lib/quota";
 
 const router: IRouter = Router();
 
@@ -789,6 +789,26 @@ router.patch(
     if (existing.userId === c.user.id) {
       res.status(409).json({ error: "You cannot change your own membership." });
       return;
+    }
+
+    // If reactivating a revoked member, check the seat quota. Only check on
+    // transition to active; editing an already-active member does not consume another seat.
+    if (
+      parsed.data.status === "active" &&
+      existing.status !== "active" &&
+      existing.status !== "pending"
+    ) {
+      const seatBreach = await assertSeatAvailable(c.workspaceId);
+      if (seatBreach) {
+        const usage = await usageFor(c.workspaceId);
+        res.status(402).json({
+          error: "plan_limit",
+          reason: "seats",
+          message: quotaMessage(seatBreach, usage.plan),
+          usage,
+        });
+        return;
+      }
     }
 
     const update: Partial<typeof workspaceMembershipsTable.$inferSelect> = {
