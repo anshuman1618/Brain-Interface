@@ -23,10 +23,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, UserMinus } from "lucide-react";
+import { ShieldCheck, UserMinus, Scale } from "lucide-react";
+import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/session";
-import { ROLE_OPTIONS, roleLabel } from "@/lib/role-options";
+import { ROLE_OPTIONS, roleLabel, needsBarRegistration } from "@/lib/role-options";
 
 const ASSIGNABLE_ROLES = ROLE_OPTIONS.map((o) => o.value);
 
@@ -152,6 +153,20 @@ export default function TeamPage() {
                         <span className="text-muted-foreground font-normal ml-2 text-xs">
                           (you)
                         </span>
+                      )}
+                      {/* Self-declared, so only editable by the person it
+                          describes — not something an admin sets for someone
+                          else here. Reaching this page at all already implies
+                          profileComplete is true (the dashboard gate blocks
+                          every page until then), so this is always "Edit". */}
+                      {isSelf && needsBarRegistration(m.role) && (
+                        <Link
+                          href="/complete-profile"
+                          className="mt-1 flex w-fit items-center gap-1 text-2xs font-mono uppercase tracking-wider text-primary hover:text-primary/80"
+                        >
+                          <Scale className="h-3 w-3" />
+                          Edit bar registration
+                        </Link>
                       )}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">

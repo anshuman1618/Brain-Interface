@@ -1,5 +1,7 @@
 // Zero-trust regression suite, rebuilt to bootstrap its own data now that the
 // platform ships empty. Same adversarial checks as before, no fixtures.
+import { declareBarRegistration } from "../lib/bar-registration.mjs";
+
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
   fail = 0;
@@ -55,6 +57,8 @@ const aTok = A.data.workspaceToken,
   bTok = B.data.workspaceToken;
 const aId = A.data.activeWorkspace.id,
   bId = B.data.activeWorkspace.id;
+await declareBarRegistration(call, as(`a.admin+${suffix}@a.test`));
+await declareBarRegistration(call, as(`b.admin+${suffix}@b.test`));
 
 await call("/invites", {
   token: as(`a.admin+${suffix}@a.test`),
@@ -70,6 +74,7 @@ await call("/invites", {
 });
 const senior = (await call("/session", { token: as(`a.senior+${suffix}@a.test`, "A Senior") }))
   .data;
+await declareBarRegistration(call, as(`a.senior+${suffix}@a.test`));
 const clerk = (await call("/session", { token: as(`a.clerk+${suffix}@a.test`, "A Clerk") })).data;
 // A user row exists the moment anyone authenticates, whether or not they are
 // admitted anywhere — so the client's id is available before they are invited,

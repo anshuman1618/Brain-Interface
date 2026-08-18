@@ -1,4 +1,6 @@
 // Subscription: who may change the plan, and can a client name its own price?
+import { declareBarRegistration } from "../lib/bar-registration.mjs";
+
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
   fail = 0;
@@ -45,6 +47,7 @@ const created = await call("/workspaces", {
 });
 check("chamber created", created.status === 201, `got ${created.status}`);
 const ws = created.data.workspaceToken;
+await declareBarRegistration(call, as(owner));
 
 // Whether this server can charge decides what "selecting a plan" is allowed to
 // do: activate it outright, or record `pending_payment` and wait for the signed
@@ -59,6 +62,7 @@ await call("/invites", {
   body: { email: senior, role: "senior_advocate" },
 });
 const seniorS = (await call("/session", { token: as(senior, "S Senior") })).data;
+await declareBarRegistration(call, as(senior));
 
 // A client invite must be restricted to a matter — see DECISIONS.md. Nothing
 // below cares which one; this exists solely to satisfy that requirement.
@@ -290,6 +294,7 @@ const rival = await call("/workspaces", {
   method: "POST",
   body: { name: `Rival ${stamp}`, role: "admin" },
 });
+await declareBarRegistration(call, as(`rival${stamp}@other.test`));
 const rivalSub = await call("/workspace/subscription", {
   token: as(`rival${stamp}@other.test`),
   wsToken: rival.data.workspaceToken,

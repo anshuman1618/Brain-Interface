@@ -1,6 +1,8 @@
 // "Restrict to Case ID" via the direct access-list path (not invites.ts).
 // security.mjs already covers the invite path; this covers the second door —
 // POST /workspace/access-list — which reconcileAccessList also feeds into.
+import { declareBarRegistration } from "../lib/bar-registration.mjs";
+
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
   fail = 0;
@@ -40,6 +42,9 @@ const founded = await call("/workspaces", {
 });
 const ws = founded.data.workspaceToken;
 check("chamber founded", founded.status === 201, `got ${founded.status}`);
+
+// admin needs bar registration before touching anything workspace-scoped.
+await declareBarRegistration(call, as(owner));
 
 // User row exists from the first authenticated call regardless of admission.
 const clientPre = (await call("/session", { token: as(clientEmail, "Client") })).data;

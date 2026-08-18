@@ -56,6 +56,19 @@ export function roleLabel(role: string | null | undefined): string {
 }
 
 /**
+ * Mirrors `needsBarRegistration()` in the API's `lib/permissions.ts`.
+ *
+ * Display only — deciding whether to show the "Edit bar registration" link on
+ * a person's own row in Team Roles. The actual gate is server-computed
+ * (`SessionClaims.profileComplete`) and enforced again on every
+ * workspace-scoped request; this exists so the UI does not have to wait for a
+ * round trip to know whether the link is worth showing.
+ */
+export function needsBarRegistration(role: string | null | undefined): boolean {
+  return role === "admin" || role === "senior_advocate" || role === "junior_advocate";
+}
+
+/**
  * The role a visitor selected before creating their account.
  *
  * Stored in localStorage purely so the request form can be pre-filled after

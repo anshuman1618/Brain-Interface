@@ -1,4 +1,6 @@
 // Empty platform → found a chamber → invite a team → assign work → calendar.
+import { declareBarRegistration } from "../lib/bar-registration.mjs";
+
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
   fail = 0;
@@ -73,6 +75,10 @@ check(
   created.data.role === "senior_advocate",
   `role=${created.data.role}`,
 );
+
+// senior_advocate needs bar registration before touching anything
+// workspace-scoped — see DECISIONS.md.
+await declareBarRegistration(call, as("founder@chambers.test"));
 check("and is flagged owner", created.data.isOwner === true);
 const WS = created.data.activeWorkspace.id;
 const founderWs = created.data.workspaceToken;
@@ -152,6 +158,11 @@ for (const [email, role] of invited) {
   );
   check(`${role} gets exactly the invited role`, s.data.role === role, `role=${s.data.role}`);
   check(`${role} is not an owner`, s.data.isOwner === false);
+  // senior_advocate / junior_advocate need bar registration before touching
+  // anything workspace-scoped — see DECISIONS.md.
+  if (role === "senior_advocate" || role === "junior_advocate") {
+    await declareBarRegistration(call, as(email));
+  }
   sessions[role] = s.data;
 }
 const uninvited = await call("/session", { token: as("stranger@nowhere.test") });
@@ -315,6 +326,7 @@ const rival = await call("/workspaces", {
 check("second chamber created", rival.status === 201, `got ${rival.status}`);
 const rivalWs = rival.data.workspaceToken;
 check("rival admin is owner of theirs", rival.data.isOwner === true);
+await declareBarRegistration(call, as("other@rival.test"));
 
 const rivalCases = await call("/cases", { token: as("other@rival.test"), wsToken: rivalWs });
 check(

@@ -57,6 +57,13 @@ export type Session = {
   isPendingApproval: boolean;
   /** Signed in, but the verified email is on no access list and no request is open. */
   isNotRecognised: boolean;
+  /**
+   * False when the active workspace's role requires bar registration (admin,
+   * senior_advocate, junior_advocate) and it has not been declared yet.
+   * Server-computed — see `SessionClaims.profileComplete`. True whenever
+   * there is no active workspace, since the other two gates take over first.
+   */
+  profileComplete: boolean;
   /** How they signed in: google | zoho | email. Display only. */
   authProvider: string | null;
   role: string | null;
@@ -187,6 +194,7 @@ function baseSessionFields(claims: SessionClaims | null) {
     isOwner: claims?.isOwner ?? false,
     isPendingApproval: claims ? claims.accessStatus === "pending_approval" : false,
     isNotRecognised: claims ? claims.accessStatus === "not_recognised" : false,
+    profileComplete: claims?.profileComplete ?? true,
     authProvider: claims?.authProvider ?? null,
     role: claims?.role ?? null,
     displayRole: claims?.displayRole ?? "",

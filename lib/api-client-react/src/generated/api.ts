@@ -26,6 +26,8 @@ import type {
   AccessRequest,
   AccessRequestInput,
   AuditEvent,
+  BarRegistration,
+  BarRegistrationInput,
   BetaFeedbackAck,
   BetaFeedbackInput,
   BillingConfig,
@@ -356,6 +358,78 @@ export const useUpdateMe = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUpdateMeMutationOptions(options));
+    }
+
+export const getSetBarRegistrationUrl = () => {
+
+
+
+
+  return `/api/users/me/bar-registration`
+}
+
+/**
+ * Required before an admin, senior_advocate or junior_advocate reaches the dashboard — see `SessionClaims.profileComplete`. Callable at any time afterward to correct or update what was declared; there is no separate admin approval step, because this is self-declaration, not a credential check.
+ * @summary Declare bar enrolment (self-declared, not verified against a bar council)
+ */
+export const setBarRegistration = async (barRegistrationInput: BarRegistrationInput, options?: RequestInit): Promise<BarRegistration> => {
+
+  return customFetch<BarRegistration>(getSetBarRegistrationUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(barRegistrationInput)
+  }
+);}
+
+
+
+
+
+export const getSetBarRegistrationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setBarRegistration>>, TError,{data: BodyType<BarRegistrationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setBarRegistration>>, TError,{data: BodyType<BarRegistrationInput>}, TContext> => {
+
+const mutationKey = ['setBarRegistration'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setBarRegistration>>, {data: BodyType<BarRegistrationInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setBarRegistration(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetBarRegistrationMutationResult = NonNullable<Awaited<ReturnType<typeof setBarRegistration>>>
+    export type SetBarRegistrationMutationBody = BodyType<BarRegistrationInput>
+    export type SetBarRegistrationMutationError = ErrorType<void>
+
+    /**
+ * @summary Declare bar enrolment (self-declared, not verified against a bar council)
+ */
+export const useSetBarRegistration = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setBarRegistration>>, TError,{data: BodyType<BarRegistrationInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setBarRegistration>>,
+        TError,
+        {data: BodyType<BarRegistrationInput>},
+        TContext
+      > => {
+      return useMutation(getSetBarRegistrationMutationOptions(options));
     }
 
 export const getGetSessionUrl = () => {

@@ -260,3 +260,16 @@ const CAPABILITIES_WHEN_LAPSED: readonly Capability[] = [
 export function isCapabilityAllowedWhenLapsed(capability: Capability): boolean {
   return (CAPABILITIES_WHEN_LAPSED as readonly string[]).includes(capability);
 }
+
+/**
+ * Roles required to declare bar registration before reaching the dashboard.
+ *
+ * Practice-tier roles only: `clerk_intern` and `client` never appear in front
+ * of a bench and are exempt. `admin` is included even though it is a
+ * management role here, not a practice one elsewhere in this matrix — a firm
+ * admin in this product is assumed to be a practicing advocate running their
+ * own chamber, not a pure back-office role.
+ */
+export function needsBarRegistration(role: string): boolean {
+  return role === ADMIN_ROLE || (ADVOCATE_ROLES as readonly string[]).includes(role);
+}

@@ -169,6 +169,10 @@ CREATE TABLE IF NOT EXISTS users (
   display_name TEXT NOT NULL DEFAULT '',
   email TEXT NOT NULL DEFAULT '',
   auth_provider TEXT NOT NULL DEFAULT '',
+  bar_council_state TEXT,
+  bar_enrolment_no TEXT,
+  aor_no TEXT,
+  bar_declared_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -492,6 +496,10 @@ ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS fulfilled_at TIMESTAMPTZ;
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_used_at TIMESTAMPTZ;
 ALTER TABLE workspace_access_list ADD COLUMN IF NOT EXISTS case_id INTEGER;
 ALTER TABLE workspace_memberships ADD COLUMN IF NOT EXISTS case_id INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_council_state TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_enrolment_no TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS aor_no TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_declared_at TIMESTAMPTZ;
 `;
 
 /** Where the preview database lives on disk. */

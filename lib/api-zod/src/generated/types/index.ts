@@ -22,6 +22,8 @@ export * from './accessRequestStatus';
 export * from './ageingBucket';
 export * from './ageingBucketBucket';
 export * from './auditEvent';
+export * from './barRegistration';
+export * from './barRegistrationInput';
 export * from './betaFeedbackAck';
 export * from './betaFeedbackInput';
 export * from './billingConfig';

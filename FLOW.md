@@ -433,6 +433,30 @@ Built after the numbering above was reviewed.
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
 
+### Bar registration — a gate that sits inside `requireWorkspace` itself
+
+| File                                             | Change                                                                                                                                                                                         |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/users.ts`                     | New `barCouncilState`, `barEnrolmentNo`, `aorNo`, `barDeclaredAt` — all nullable, additive.                                                                                                    |
+| `lib/db/drizzle/0009_bar_registration.sql`       | Guarded `ALTER TABLE`. Also in `preview.ts`'s base `users` table and its `ALTER … ADD COLUMN IF NOT EXISTS` block.                                                                             |
+| `api-server/src/lib/jit.ts`                      | `AppUser` carries `barCouncilState` / `barEnrolmentNo` — the two fields `requireWorkspace` needs to compute completeness.                                                                      |
+| `api-server/src/lib/permissions.ts`              | `needsBarRegistration(role)` — admin, senior_advocate, junior_advocate only.                                                                                                                   |
+| `api-server/src/middlewares/requireAuth.ts`      | `requireWorkspace` refuses with **403 `profile_incomplete`** before a `WorkspaceContext` is ever built, for a role that needs it and hasn't declared.                                          |
+| `api-server/src/routes/session.ts`               | `buildSessionClaims` computes `profileComplete` per the ACTIVE workspace's role, not stored — the same person can be gated in one chamber and not another.                                     |
+| `api-server/src/routes/users.ts`                 | `PUT /users/me/bar-registration` — `requireAuth`, not `requireWorkspace`, since this is exactly the route that has to stay reachable while blocked.                                            |
+| `practice-portal/src/pages/complete-profile.tsx` | **New.** Renders both as the hard gate (`dashboard-layout.tsx`, no `onDone`) and as a deliberate revisit (`onDone` returns to Team Roles), pre-filled from `GET /users/me` in the second case. |
+| `practice-portal/.../dashboard-layout.tsx`       | Third full-screen gate, checked after `isPendingApproval` and before the nav renders.                                                                                                          |
+| `practice-portal/src/pages/team.tsx`             | "Edit bar registration" link on a person's own row only — self-declared, so never editable on someone else's.                                                                                  |
+
+**Where it sits in the request path.** Checked inside `requireWorkspace`
+itself, immediately after the active-membership lookup and before
+`WorkspaceContext` is constructed — so every route behind `requireWorkspace`
+is covered by construction, the same guarantee `no_active_membership` already
+had. No allowlist to maintain: unlike the lapsed-plan gate
+(`CAPABILITIES_WHEN_LAPSED`), nothing needs to stay reachable through this one
+except `PUT /users/me/bar-registration`, which sits behind `requireAuth` and
+was never inside the blocked surface.
+
 ### "Restrict to Case ID" — from decoration to an actual filter
 
 | File                                          | Change                                                                                                                                 |
@@ -639,7 +663,27 @@ proof — a client sees the one matter they were restricted to and gets a 404
 the role selector, the submit button is disabled until a case id is entered,
 and the restriction badge renders once granted.
 
-Last run: **297 checks green with `RAZORPAY_*` unset, 297 with it set**, each
+**Bar registration has a committed suite too.**
+`scripts/ci/suites/bar-registration.mjs` is 19 checks: a founder is blocked
+from every workspace-scoped call until they declare, an empty declaration is
+refused, declaring it unblocks the same call immediately, the AOR field
+round-trips when supplied and is null when not, `clerk_intern` and `client`
+are exempt without declaring anything, a `junior_advocate` is gated exactly
+like an `admin`, and the declaration endpoint itself works with **no** active
+workspace — the one call that has to stay reachable while everything else is
+blocked. A 12-assertion browser check drives the real flow end to end:
+founding a chamber, hitting the gate, the form's validation, the dashboard
+unlocking, the "Edit" link on Team Roles pre-filling from what was declared,
+and a clerk invited alongside never seeing the gate at all.
+
+Adding this gate broke every existing suite's setup — every chamber-founding
+call in this repo is `admin` or `senior_advocate`, and every suite makes a
+workspace-scoped call immediately after founding. Fixed with a shared
+`scripts/ci/lib/bar-registration.mjs` helper, called in all seven other
+suites right after founding or right after an invited senior/junior
+advocate's session is established.
+
+Last run: **316 checks green with `RAZORPAY_*` unset, 316 with it set**, each
 suite against a fresh server. The banner was checked separately in a browser
 across all five of its states (17 assertions), which is what caught the
 `daysLeft` rounding.

@@ -28,6 +28,7 @@ const TeamPage = lazy(() => import("@/pages/team"));
 const ActivityPage = lazy(() => import("@/pages/activity"));
 import PendingApprovalPage from "@/pages/pending-approval";
 import AccessDeniedPage from "@/pages/access-denied";
+import CompleteProfilePage from "@/pages/complete-profile";
 import UnauthorizedPage from "@/pages/unauthorized";
 import NotFound from "@/pages/not-found";
 import {
@@ -73,11 +74,12 @@ function DashboardLayoutContent() {
     claims,
     isPendingApproval,
     isNotRecognised,
+    profileComplete,
     activeWorkspace,
     displayRole,
     can,
   } = useSession();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { setOpen: setPricingModalOpen } = usePricingModal();
 
   if (!isLoaded || (isSignedIn && !claims)) {
@@ -116,6 +118,20 @@ function DashboardLayoutContent() {
       <div className="min-h-screen bg-background text-foreground">
         <PreviewBar />
         <PendingApprovalPage />
+      </div>
+    );
+  }
+
+  // A practice role (admin, senior/junior advocate) that has not declared bar
+  // enrolment yet is stopped here, before the nav or any page renders. This is
+  // the client-side half of the gate — every capability-guarded write is also
+  // refused server-side (requireCapability checks profileComplete directly),
+  // since a client-only gate is bypassable by calling the API.
+  if (!profileComplete) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <PreviewBar />
+        <CompleteProfilePage />
       </div>
     );
   }
@@ -318,6 +334,13 @@ function DashboardLayoutContent() {
                 <Switch>
                   <Route path="/dashboard" component={DashboardPage} />
                   <Route path="/unauthorized" component={UnauthorizedPage} />
+                  {/* Reachable at will, not only as the gate above — this is
+                      where "editable later" in Team Roles points to. No
+                      capability guard: it only ever writes the caller's own
+                      declared bar details. */}
+                  <Route path="/complete-profile">
+                    <CompleteProfilePage onDone={() => setLocation("/team")} />
+                  </Route>
                   <Route path="/calendar">
                     <RequireCapability capability="calendar.read">
                       <ErrorBoundary label="Master Calendar">

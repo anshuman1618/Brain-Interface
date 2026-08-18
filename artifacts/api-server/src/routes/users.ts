@@ -7,9 +7,12 @@ import {
   UpdateMeResponse,
   ListUsersQueryParams,
   ListUsersResponse,
+  SetBarRegistrationBody,
+  SetBarRegistrationResponse,
 } from "@workspace/api-zod";
 import { requireAuth, requireWorkspace, ctx, type AuthRequest } from "../middlewares/requireAuth";
 import { getOrCreateUser } from "../lib/jit";
+import { zodMessage } from "../lib/validation";
 
 const router: IRouter = Router();
 
@@ -46,6 +49,70 @@ router.patch("/users/me", requireAuth, async (req: AuthRequest, res): Promise<vo
 
   res.json(UpdateMeResponse.parse(updated));
 });
+
+/**
+ * Self-declared bar enrolment. Not verified against any bar council — see
+ * `bar_declared_at` on the schema for why the column is named for what it
+ * actually is.
+ *
+ * `requireAuth`, not `requireWorkspace`: this writes the caller's own user
+ * row, which is not workspace-scoped, and the gate that gets someone here
+ * (`SessionClaims.profileComplete`) can fire before any workspace context
+ * exists to check. Callable again later to correct what was declared —
+ * there is no one-time lock, because self-declaration has nothing to
+ * protect against a second honest answer.
+ */
+router.put(
+  "/users/me/bar-registration",
+  requireAuth,
+  async (req: AuthRequest, res): Promise<void> => {
+    const user = await getOrCreateUser(req);
+    if (!user) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const parsed = SetBarRegistrationBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "invalid_request", message: zodMessage(parsed.error) });
+      return;
+    }
+
+    const barCouncilState = parsed.data.barCouncilState.trim();
+    const barEnrolmentNo = parsed.data.barEnrolmentNo.trim();
+    if (!barCouncilState || !barEnrolmentNo) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "Both the bar council state and the enrolment number are required.",
+      });
+      return;
+    }
+
+    const now = new Date();
+    const [updated] = await db
+      .update(usersTable)
+      .set({
+        barCouncilState,
+        barEnrolmentNo,
+        aorNo: parsed.data.aorNo?.trim() || null,
+        barDeclaredAt: now,
+      })
+      .where(eq(usersTable.id, user.id))
+      .returning();
+
+    res.json(
+      SetBarRegistrationResponse.parse({
+        barCouncilState: updated.barCouncilState,
+        barEnrolmentNo: updated.barEnrolmentNo,
+        aorNo: updated.aorNo ?? null,
+        // A real Date, not an ISO string: `format: date-time` in this spec
+        // generates zod.date(), which validates the driver's Date instance
+        // and lets res.json()'s own Date.toJSON() do the string conversion.
+        barDeclaredAt: updated.barDeclaredAt!,
+      }),
+    );
+  },
+);
 
 /**
  * The user directory, scoped to the caller's workspace.

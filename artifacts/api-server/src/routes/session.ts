@@ -40,7 +40,7 @@ import {
 } from "../middlewares/requireAuth";
 import { getOrCreateUser, type AppUser } from "../lib/jit";
 import { zodMessage } from "../lib/validation";
-import { displayRole, isWorkspaceRole } from "../lib/permissions";
+import { displayRole, isWorkspaceRole, needsBarRegistration } from "../lib/permissions";
 import { mintWorkspaceToken, verifyWorkspaceToken } from "../lib/workspace-token";
 import { reconcileAccessList } from "../lib/access-list";
 import { recordAudit } from "../lib/audit";
@@ -104,6 +104,16 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
     active.find((m) => m.workspace.id === activeWorkspaceId) ??
     (active.length === 1 ? active[0] : undefined);
 
+  // Computed from the role on the ACTIVE membership, not stored — a person
+  // who is an advocate in one chamber and a client in another must not be
+  // blocked in the second by a role that does not apply there. True when no
+  // role is selected yet: the pending-approval / access-denied screens take
+  // over before this could ever gate anything.
+  const profileComplete =
+    !selected || !needsBarRegistration(selected.role)
+      ? true
+      : Boolean(user.barCouncilState?.trim() && user.barEnrolmentNo?.trim());
+
   return {
     userId: user.id,
     clerkId: user.clerkId,
@@ -117,6 +127,7 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
     displayRole: selected ? displayRole(selected.role) : null,
     isOwner: selected ? selected.isOwner : false,
     capabilities: selected ? capabilitiesFor(selected.role, selected.isOwner) : [],
+    profileComplete,
     workspaceToken: selected
       ? mintWorkspaceToken({ sub: user.clerkId, wsId: selected.workspace.id, role: selected.role })
       : null,

@@ -6,6 +6,7 @@ import {
   capabilitiesForRole,
   caseScopeForRole,
   taskScopeForRole,
+  needsBarRegistration,
   type Capability,
   type RowScope,
   isCapabilityAllowedWhenLapsed,
@@ -240,6 +241,25 @@ export const requireWorkspace = async (
         requested === null
           ? "Select a workspace before calling this endpoint."
           : "You are not an active member of this workspace.",
+    });
+    return;
+  }
+
+  // The server-side half of the bar-registration gate. The dashboard blocks
+  // the whole shell client-side until this is declared, so nothing in the UI
+  // would reach a workspace-scoped endpoint while incomplete — but that gate
+  // is a fetch call away from being skipped, and this is what actually stops
+  // the request rather than just hiding the button that would have sent it.
+  // PUT /users/me/bar-registration sits behind requireAuth, not this guard,
+  // so declaring it is never itself blocked by this check.
+  if (
+    needsBarRegistration(target.role) &&
+    !(user.barCouncilState?.trim() && user.barEnrolmentNo?.trim())
+  ) {
+    res.status(403).json({
+      error: "Forbidden",
+      reason: "profile_incomplete",
+      message: "Declare your bar enrolment before using this workspace.",
     });
     return;
   }

@@ -17,5 +17,13 @@ export interface UserProfile {
   email: string;
   /** @nullable */
   authProvider?: string | null;
+  /** @nullable */
+  barCouncilState?: string | null;
+  /** @nullable */
+  barEnrolmentNo?: string | null;
+  /** @nullable */
+  aorNo?: string | null;
+  /** @nullable */
+  barDeclaredAt?: Date | null;
   createdAt: Date;
 }

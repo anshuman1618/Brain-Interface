@@ -31,6 +31,14 @@ export interface UserProfile {
   email: string;
   /** @nullable */
   authProvider?: string | null;
+  /** @nullable */
+  barCouncilState?: string | null;
+  /** @nullable */
+  barEnrolmentNo?: string | null;
+  /** @nullable */
+  aorNo?: string | null;
+  /** @nullable */
+  barDeclaredAt?: string | null;
   createdAt: string;
 }
 
@@ -124,6 +132,28 @@ export interface SessionClaims {
      * @nullable
      */
   workspaceToken?: string | null;
+  /** False when the role on the active workspace requires bar registration (admin, senior_advocate, junior_advocate) and the caller has not declared it. True for every other role, and true when there is no active workspace yet — those states are gated elsewhere. Drives a full-screen gate client-side; the server also enforces it directly, since a client-only gate is bypassable. */
+  profileComplete: boolean;
+}
+
+export interface BarRegistrationInput {
+  /**
+     * Self-declared, loosely validated — enrolment formats vary by state bar and are not standardised. What is typed is stored.
+     * @minLength 1
+     */
+  barCouncilState: string;
+  /** @minLength 1 */
+  barEnrolmentNo: string;
+  /** Supreme Court Advocate-on-Record number. Optional — most advocates never hold one. */
+  aorNo?: string;
+}
+
+export interface BarRegistration {
+  barCouncilState: string;
+  barEnrolmentNo: string;
+  /** @nullable */
+  aorNo?: string | null;
+  barDeclaredAt: string;
 }
 
 export interface WorkspaceSwitchInput {

@@ -93,6 +93,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserProfile"
 
+  /users/me/bar-registration:
+    put:
+      operationId: setBarRegistration
+      tags: [users]
+      summary: Declare bar enrolment (self-declared, not verified against a bar council)
+      description: >
+        Required before an admin, senior_advocate or junior_advocate reaches
+        the dashboard — see `SessionClaims.profileComplete`. Callable at any
+        time afterward to correct or update what was declared; there is no
+        separate admin approval step, because this is self-declaration, not a
+        credential check.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BarRegistrationInput"
+      responses:
+        "200":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BarRegistration"
+        "400":
+          description: Invalid
+        "401":
+          description: Unauthorized
+
   # ── Session & workspaces ───────────────────────────────────────────────────
   /session:
     get:
@@ -1843,6 +1872,15 @@ components:
           type: string
         authProvider:
           type: ["string", "null"]
+        barCouncilState:
+          type: ["string", "null"]
+        barEnrolmentNo:
+          type: ["string", "null"]
+        aorNo:
+          type: ["string", "null"]
+        barDeclaredAt:
+          type: ["string", "null"]
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -1888,7 +1926,17 @@ components:
     SessionClaims:
       type: object
       required:
-        [userId, clerkId, displayName, email, accessStatus, memberships, capabilities, isOwner]
+        [
+          userId,
+          clerkId,
+          displayName,
+          email,
+          accessStatus,
+          memberships,
+          capabilities,
+          isOwner,
+          profileComplete,
+        ]
       properties:
         userId:
           type: integer
@@ -1934,6 +1982,46 @@ components:
         workspaceToken:
           type: ["string", "null"]
           description: Scoped token for the active workspace, minted after membership was verified.
+        profileComplete:
+          type: boolean
+          description: >
+            False when the role on the active workspace requires bar
+            registration (admin, senior_advocate, junior_advocate) and the
+            caller has not declared it. True for every other role, and true
+            when there is no active workspace yet — those states are gated
+            elsewhere. Drives a full-screen gate client-side; the server also
+            enforces it directly, since a client-only gate is bypassable.
+
+    BarRegistrationInput:
+      type: object
+      required: [barCouncilState, barEnrolmentNo]
+      properties:
+        barCouncilState:
+          type: string
+          minLength: 1
+          description: >
+            Self-declared, loosely validated — enrolment formats vary by
+            state bar and are not standardised. What is typed is stored.
+        barEnrolmentNo:
+          type: string
+          minLength: 1
+        aorNo:
+          type: string
+          description: Supreme Court Advocate-on-Record number. Optional — most advocates never hold one.
+
+    BarRegistration:
+      type: object
+      required: [barCouncilState, barEnrolmentNo, barDeclaredAt]
+      properties:
+        barCouncilState:
+          type: string
+        barEnrolmentNo:
+          type: string
+        aorNo:
+          type: ["string", "null"]
+        barDeclaredAt:
+          type: string
+          format: date-time
 
     WorkspaceSwitchInput:
       type: object

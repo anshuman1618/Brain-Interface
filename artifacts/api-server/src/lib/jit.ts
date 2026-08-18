@@ -12,6 +12,9 @@ export type AppUser = {
   email: string;
   authProvider: string;
   clerkId: string;
+  /** Self-declared, see `needsBarRegistration()` in lib/permissions.ts. */
+  barCouncilState: string | null;
+  barEnrolmentNo: string | null;
 };
 
 /**

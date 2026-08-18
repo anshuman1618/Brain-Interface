@@ -10,6 +10,73 @@ were, and what would make it worth revisiting.
 
 ---
 
+## Bar registration: self-declared, gated, enforced twice (2026-08-18)
+
+**Decided:** four additive columns on `users` (`bar_council_state`,
+`bar_enrolment_no`, `aor_no`, `bar_declared_at`), required for `admin`,
+`senior_advocate` and `junior_advocate` before they reach anything
+workspace-scoped. Computed server-side as `SessionClaims.profileComplete` and
+enforced twice: a full-screen client gate in `dashboard-layout.tsx`, and a
+403 `profile_incomplete` directly inside `requireWorkspace` — the same
+middleware every protected route already runs through, so no route can forget
+the check by omission.
+
+**Why `admin` is included, not just the two advocate tiers:** in this
+product's model, a firm admin is assumed to be a practicing advocate running
+their own chamber, not a pure back-office role — the two self-serve founder
+roles (`create-chamber.tsx`) are exactly `admin` and `senior_advocate`. `clerk_intern`
+and `client` are exempt outright; neither ever appears in front of a bench.
+
+**Why `bar_declared_at`, not `bar_verified_at`:** nothing here is checked
+against a bar council. The column name has to say so, or a future reader
+building an admin screen around it could reasonably assume the state means
+"verified" when it only ever meant "the person typed something and clicked
+save." Enrolment formats vary by state bar and are not standardised, so
+validation is "both fields non-empty," not a pattern — what is typed is what
+is stored.
+
+**Why enforced in `requireWorkspace` rather than as an allowlist like the
+lapsed-plan gate:** the lapsed-plan gate (`CAPABILITIES_WHEN_LAPSED`) exists
+because a lapsed chamber should keep reading its own data. There is no
+equivalent case here — nothing in the UI calls a workspace-scoped endpoint
+while the gate is up, because the gate replaces the entire dashboard shell,
+not just disabled buttons on it. A full block, checked once in the same place
+every other membership check already lives, is simpler than maintaining a
+second allowlist and has no legitimate action to carve an exception for.
+`PUT /users/me/bar-registration` — the one thing that has to remain reachable
+while blocked — sits behind `requireAuth`, not `requireWorkspace`, so it was
+never inside the blocked surface to begin with.
+
+**Why the declaration endpoint is `requireAuth`, not scoped to a workspace at
+all:** the fields live on `users`, not on a membership — an advocate's bar
+enrolment does not change chamber to chamber. `profileComplete` is still
+recomputed per active workspace, because a person who is `senior_advocate` in
+one chamber and `client` in another must not be blocked in the second by a
+requirement that role doesn't carry there.
+
+**Why it stays editable, with no lock after the first declaration:** self-
+declaration has nothing to protect against a second honest answer, so
+`PUT /users/me/bar-registration` is callable at any time, not just once. The
+"Edit bar registration" link on a person's own row in Team Roles — never on
+someone else's, since this is self-declared — reuses the same
+`complete-profile.tsx` component the gate renders, given an `onDone` callback
+that returns to Team Roles instead of nothing (the gate has nowhere to
+"return" to, since clearing it is what un-blocks the page underneath).
+
+**The founder path was the largest blast radius, and it was not obvious until
+measured.** Every existing chamber-founding call in the seven CI suites is an
+`admin` or `senior_advocate`, and every suite makes a workspace-scoped call
+immediately afterward — creating this gate meant every suite's setup started
+failing at step one. Fixed with a shared `scripts/ci/lib/bar-registration.mjs`
+helper, called right after founding or right after an invited
+senior/junior-advocate's session is first established, in all seven suites —
+the same shape as the client-invite blast radius from the case-restriction
+change earlier the same day, and the same lesson: a gate added to shared
+middleware has to be measured against every existing caller, not reasoned
+about in isolation.
+
+---
+
 ## "Restrict to Case ID" made real, then mandatory (2026-08-18)
 
 **Decided:** `case_id` on `workspace_access_list` and `workspace_memberships`

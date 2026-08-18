@@ -4,6 +4,7 @@
 // Every limit in here was walkable before this suite existed. The point of
 // each section is a specific hole, named in the comment above it.
 import { paymentsConfigured, payForPlan, activatePlan } from "../lib/billing.mjs";
+import { declareBarRegistration } from "../lib/bar-registration.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -49,6 +50,7 @@ const founded = await call("/workspaces", {
 const ws = founded.data.workspaceToken;
 const wsId = founded.data.activeWorkspace.id;
 check("chamber founded", founded.status === 201, `got ${founded.status}`);
+await declareBarRegistration(call, as(owner));
 
 // With no provider configured a selected plan activates immediately; with one
 // it must wait for money. Both are correct, so the suite asks which server it
@@ -329,6 +331,7 @@ const seatWs = await call("/workspaces", {
   body: { name: `Seat Chambers ${suffix}`, role: "admin" },
 });
 const sTok = seatWs.data.workspaceToken;
+await declareBarRegistration(call, as(seatOwner));
 
 // Founder is seat 1. Admit a whole domain, then sign in six people through it.
 await call("/workspace/access-list", {

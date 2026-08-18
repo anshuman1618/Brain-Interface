@@ -1,5 +1,6 @@
 // Files, audit, quota, rate limits, privacy, conflicts.
 import { paymentsConfigured, activatePlan } from "../lib/billing.mjs";
+import { declareBarRegistration } from "../lib/bar-registration.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -51,6 +52,7 @@ const made = await call("/workspaces", {
 check("chamber created", made.status === 201, `got ${made.status}`);
 const ws = made.data.workspaceToken;
 const wsId = made.data.activeWorkspace.id;
+await declareBarRegistration(call, as(owner));
 
 // A deployment with payments configured will not activate a chargeable plan
 // until the money arrives, so the upgrade below has to actually pay for it.

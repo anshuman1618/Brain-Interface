@@ -39,4 +39,6 @@ export interface SessionClaims {
      * @nullable
      */
   workspaceToken?: string | null;
+  /** False when the role on the active workspace requires bar registration (admin, senior_advocate, junior_advocate) and the caller has not declared it. True for every other role, and true when there is no active workspace yet — those states are gated elsewhere. Drives a full-screen gate client-side; the server also enforces it directly, since a client-only gate is bypassable. */
+  profileComplete: boolean;
 }

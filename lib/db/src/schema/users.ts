@@ -21,6 +21,26 @@ export const usersTable = pgTable("users", {
   billingGstin: text("billing_gstin"),
   /** State or UT of the client — the other half of the tax split. */
   billingPlaceOfSupply: text("billing_place_of_supply"),
+  /**
+   * Self-declared practice credentials — required for admin, senior_advocate
+   * and junior_advocate before they reach the dashboard; see
+   * `lib/permissions.ts`'s `needsBarRegistration()`.
+   *
+   * Enrolment formats vary by state bar and are not standardised, so these are
+   * validated loosely (non-empty) rather than against a pattern — what is
+   * typed is what is stored.
+   */
+  barCouncilState: text("bar_council_state"),
+  barEnrolmentNo: text("bar_enrolment_no"),
+  /** Supreme Court Advocate-on-Record number. Optional — most advocates never hold one. */
+  aorNo: text("aor_no"),
+  /**
+   * When the two required fields above were last declared complete. Named
+   * `_declared_at`, not `_verified_at`: nothing here is checked against a bar
+   * council, and the column name must not let a future reader mistake
+   * self-declaration for proof.
+   */
+  barDeclaredAt: timestamp("bar_declared_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

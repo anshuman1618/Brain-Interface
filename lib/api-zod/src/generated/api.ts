@@ -28,6 +28,10 @@ export const GetMeResponse = zod.object({
   "displayName": zod.string(),
   "email": zod.string(),
   "authProvider": zod.string().nullish(),
+  "barCouncilState": zod.string().nullish(),
+  "barEnrolmentNo": zod.string().nullish(),
+  "aorNo": zod.string().nullish(),
+  "barDeclaredAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
 
@@ -47,7 +51,33 @@ export const UpdateMeResponse = zod.object({
   "displayName": zod.string(),
   "email": zod.string(),
   "authProvider": zod.string().nullish(),
+  "barCouncilState": zod.string().nullish(),
+  "barEnrolmentNo": zod.string().nullish(),
+  "aorNo": zod.string().nullish(),
+  "barDeclaredAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Required before an admin, senior_advocate or junior_advocate reaches the dashboard — see `SessionClaims.profileComplete`. Callable at any time afterward to correct or update what was declared; there is no separate admin approval step, because this is self-declaration, not a credential check.
+ * @summary Declare bar enrolment (self-declared, not verified against a bar council)
+ */
+
+
+
+
+export const SetBarRegistrationBody = zod.object({
+  "barCouncilState": zod.string().min(1).describe('Self-declared, loosely validated — enrolment formats vary by state bar and are not standardised. What is typed is stored.\n'),
+  "barEnrolmentNo": zod.string().min(1),
+  "aorNo": zod.string().optional().describe('Supreme Court Advocate-on-Record number. Optional — most advocates never hold one.')
+})
+
+export const SetBarRegistrationResponse = zod.object({
+  "barCouncilState": zod.string(),
+  "barEnrolmentNo": zod.string(),
+  "aorNo": zod.string().nullish(),
+  "barDeclaredAt": zod.coerce.date()
 })
 
 
@@ -84,7 +114,8 @@ export const GetSessionResponse = zod.object({
   "displayRole": zod.string().nullish(),
   "isOwner": zod.boolean().describe('True when the caller founded the active workspace.'),
   "capabilities": zod.array(zod.string()).describe('Server-resolved capability list. The UI renders from this and nothing else.'),
-  "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.')
+  "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.'),
+  "profileComplete": zod.boolean().describe('False when the role on the active workspace requires bar registration (admin, senior_advocate, junior_advocate) and the caller has not declared it. True for every other role, and true when there is no active workspace yet — those states are gated elsewhere. Drives a full-screen gate client-side; the server also enforces it directly, since a client-only gate is bypassable.\n')
 })
 
 
@@ -125,7 +156,8 @@ export const SwitchWorkspaceResponse = zod.object({
   "displayRole": zod.string().nullish(),
   "isOwner": zod.boolean().describe('True when the caller founded the active workspace.'),
   "capabilities": zod.array(zod.string()).describe('Server-resolved capability list. The UI renders from this and nothing else.'),
-  "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.')
+  "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.'),
+  "profileComplete": zod.boolean().describe('False when the role on the active workspace requires bar registration (admin, senior_advocate, junior_advocate) and the caller has not declared it. True for every other role, and true when there is no active workspace yet — those states are gated elsewhere. Drives a full-screen gate client-side; the server also enforces it directly, since a client-only gate is bypassable.\n')
 })
 
 
@@ -171,7 +203,8 @@ export const CreateWorkspaceResponse = zod.object({
   "displayRole": zod.string().nullish(),
   "isOwner": zod.boolean().describe('True when the caller founded the active workspace.'),
   "capabilities": zod.array(zod.string()).describe('Server-resolved capability list. The UI renders from this and nothing else.'),
-  "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.')
+  "workspaceToken": zod.string().nullish().describe('Scoped token for the active workspace, minted after membership was verified.'),
+  "profileComplete": zod.boolean().describe('False when the role on the active workspace requires bar registration (admin, senior_advocate, junior_advocate) and the caller has not declared it. True for every other role, and true when there is no active workspace yet — those states are gated elsewhere. Drives a full-screen gate client-side; the server also enforces it directly, since a client-only gate is bypassable.\n')
 })
 
 
@@ -908,6 +941,10 @@ export const ListUsersResponseItem = zod.object({
   "displayName": zod.string(),
   "email": zod.string(),
   "authProvider": zod.string().nullish(),
+  "barCouncilState": zod.string().nullish(),
+  "barEnrolmentNo": zod.string().nullish(),
+  "aorNo": zod.string().nullish(),
+  "barDeclaredAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
 export const ListUsersResponse = zod.array(ListUsersResponseItem)
