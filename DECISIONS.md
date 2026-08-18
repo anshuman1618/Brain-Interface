@@ -10,6 +10,47 @@ were, and what would make it worth revisiting.
 
 ---
 
+## Plan enforcement — making the subscription model real (2026-08-18)
+
+Five enforcement holes existed: any plan could be selected for free, seats were bypassable, revoked members could be reactivated unlimited, closed matters could be reopened unlimited, and expired plans were never checked. Each is now closed by a server-side gate on the specific transition.
+
+### Chargeable plans require payment before activating
+
+**Decided:** `PUT /workspace/subscription` returns `pending_payment` status when a plan costs money and Razorpay is configured, rather than immediately activating it.
+
+**Why:** the trial pack costs ₹99, but the check was looking at `metered` (which is false for trial). Without payment, selecting it granted unlimited access for nothing. Payment is optional in preview mode and self-hosted (no Razorpay configured), so the gate only applies when `paymentsEnabled()` is true. Trial remains free in self-hosted.
+
+### Seat quota enforced at three choke points, not just one
+
+**Decided:** seats are checked when:
+1. Reconciling access-list entries on sign-in — over-cap creates as `pending` (routes to approval queue)
+2. Approving an access request — over-cap returns 402 (already existed, verified)
+3. Reactivating a revoked member — over-cap returns 402 (newly added)
+
+The founder of a chamber is never blocked — they create the chamber, so they cannot be over-cap.
+
+**Why:** before, only approval-queue entries were checked. An admin could invite a user via the access list and it would silently succeed even when the seat cap was exceeded, and a revoked member could be flipped back to active without a check. Three sites set `status:"active"`; two were unguarded. Now all three enforce. The access-list path creates as pending rather than failing because an invited colleague should not be locked out — the admin can free a seat or upgrade before approving.
+
+### Matters quota checked on reopen, not just on create
+
+**Decided:** reopening a closed matter checks the matters quota, just as creating a new one does.
+
+**Why:** close a matter, create a new one, reopen the closed one — the seat cap was checked on create but the reopen bypassed it because `openMatters` counts `ne(status,"closed")`, so the matter being reopened was not in the denominator. The check is guarded on the transition (closed → not closed) so editing an already-open matter never 402s.
+
+### Plan expiry is evaluated on every request, never written by reads
+
+**Decided:** `planStateFor()` returns the effective plan, status, and days-left. When `status:"active"` but `currentPeriodEnd` is in the past, the effective plan falls back to trial and `lapsed:true`.
+
+**Why:** a cron job to sweep expired plans is strictly weaker than checking on every request — a chamber lapsing at 3 AM would still accept writes until midnight. No scheduler is needed. Write-on-read is wrong under concurrency, so the stored status stays the transaction history (written only by webhooks) and lapsed-ness is derived. A plan that lapsed thirty seconds ago stops working now, not at token expiry.
+
+### Lapsed plans are read-everything, write-nothing
+
+**Decided:** `requireCapability` checks `planState.lapsed` and rejects writes outside `CAPABILITIES_WHEN_LAPSED` with 402. The allowlist includes read-only operations, `tasks.complete`, `document_requests.respond`, `feedback.respond`, and `billing.manage` (so they can upgrade).
+
+**Why:** a lapsed chamber should not lose access to its data, but should not be able to create new matters or invite new members. A handful of actions (completing a task assigned before expiry, responding to a client request) are finishing existing work, not new work. Privacy erasure (`privacy.manage`) also stays allowed — that is a legal obligation, not a write that should be gated.
+
+---
+
 ## The beta hardening pass (2026-08-14)
 
 Phases 1–5 and 8 of a brief to prepare the app for an external feedback beta.
