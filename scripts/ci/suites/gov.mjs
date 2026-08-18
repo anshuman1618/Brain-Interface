@@ -56,23 +56,42 @@ const wsId = made.data.activeWorkspace.id;
 // until the money arrives, so the upgrade below has to actually pay for it.
 const paymentsOn = await paymentsConfigured(call, as(owner), ws);
 
-for (const [email, role] of [
-  [clerk, "clerk_intern"],
-  [client, "client"],
-]) {
-  await call("/invites", { token: as(owner), wsToken: ws, method: "POST", body: { email, role } });
-}
+await call("/invites", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { email: clerk, role: "clerk_intern" },
+});
 const clerkS = (await call("/session", { token: as(clerk, "G Clerk") })).data;
-const clientS = (await call("/session", { token: as(client, "G Client") })).data;
+
+// A user row exists from the first authenticated call regardless of whether
+// they are admitted anywhere, which is what lets the matter below name them
+// as its client before the invite — and the case restriction it carries —
+// exist at all.
+const clientPre = (await call("/session", { token: as(client, "G Client") })).data;
 
 const matter = await call("/cases", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { title: "Persistent matter", filingRef: "CV-2026-010", clientId: clientS.userId },
+  body: { title: "Persistent matter", filingRef: "CV-2026-010", clientId: clientPre.userId },
 });
 check("matter created", matter.status === 201, `got ${matter.status}`);
 const CASE = matter.data.id;
+
+// A client invite must be restricted to a matter — see DECISIONS.md.
+const clientInvite = await call("/invites", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { email: client, role: "client", caseId: CASE },
+});
+check(
+  "client invited, restricted to the matter",
+  clientInvite.status === 201,
+  `got ${clientInvite.status}`,
+);
+const clientS = (await call("/session", { token: as(client, "G Client") })).data;
 
 /* ─────────────────────────────── 1. FILES ─────────────────────────────── */
 section("1. Documents hold real bytes");

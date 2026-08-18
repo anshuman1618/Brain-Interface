@@ -9,6 +9,7 @@ import {
   ctx,
   type AuthRequest,
 } from "../middlewares/requireAuth";
+import { caseInWorkspace } from "../lib/scope";
 
 const router: IRouter = Router();
 
@@ -42,10 +43,41 @@ router.post(
       return;
     }
 
+    /**
+     * A case restriction only means anything for a client — every other role
+     * reaches the whole workspace regardless, so a caseId on them would sit
+     * on the row unread. Rejecting it here rather than silently ignoring it
+     * catches the mistake at the point someone made it, not later when they
+     * wonder why "restricting" a clerk did nothing.
+     *
+     * For a client it is mandatory, not merely encouraged: an unrestricted
+     * client sees every matter their `clientId` is attached to, which is
+     * rarely what an admin handing out one invite link intended.
+     */
+    if (parsed.data.role !== "client") {
+      if (parsed.data.caseId != null) {
+        res.status(400).json({
+          error: "invalid_request",
+          message: "Restrict to Case ID only applies to the Client role.",
+        });
+        return;
+      }
+    } else if (parsed.data.caseId == null) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "A client invite must be restricted to a matter.",
+      });
+      return;
+    } else if (!(await caseInWorkspace(c, parsed.data.caseId))) {
+      res.status(404).json({ error: "That matter was not found in this chamber." });
+      return;
+    }
+
     const token = randomBytes(24).toString("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     const email = normaliseEmail(parsed.data.email);
+    const caseId = parsed.data.caseId ?? null;
 
     const [invite] = await db
       .insert(invitesTable)
@@ -54,7 +86,7 @@ router.post(
         email,
         token,
         role: parsed.data.role,
-        caseId: parsed.data.caseId ?? null,
+        caseId,
         expiresAt,
       })
       .returning();
@@ -64,6 +96,11 @@ router.post(
     // simply signs in with that address and is let in at the invited role — there
     // is no separate "redeem" step to get wrong, and no window where a link is
     // circulating that grants more than the admin intended.
+    //
+    // caseId travels with it: the access-list row is what `reconcileAccessList`
+    // reads to seed the membership, and the membership is what `lib/scope.ts`
+    // actually checks. Without this, a link restricted to one matter would
+    // stop restricting anything the moment the invitee signed in.
     const [existing] = await db
       .select()
       .from(workspaceAccessListTable)
@@ -78,7 +115,12 @@ router.post(
     if (existing) {
       await db
         .update(workspaceAccessListTable)
-        .set({ revokedAt: null, role: parsed.data.role, addedBy: c.user.displayName })
+        .set({
+          revokedAt: null,
+          role: parsed.data.role,
+          caseId,
+          addedBy: c.user.displayName,
+        })
         .where(eq(workspaceAccessListTable.id, existing.id));
     } else {
       await db.insert(workspaceAccessListTable).values({
@@ -86,6 +128,7 @@ router.post(
         kind: "email",
         value: email,
         role: parsed.data.role,
+        caseId,
         note: "Invited",
         addedBy: c.user.displayName,
       });

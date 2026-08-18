@@ -35,6 +35,15 @@ export const workspaceAccessListTable = pgTable(
     value: text("value").notNull(),
     /** The role granted on first sign-in. Chosen by the admin, never by the applicant. */
     role: text("role").notNull().default("client"),
+    /**
+     * Pins the membership this entry creates to one matter. Set only for
+     * client invites — see `invites.ts`, which is also what makes it
+     * mandatory for that role. Copied from `invites.case_id` when the entry
+     * is written, then copied again onto the membership at reconcile
+     * (`access-list.ts`), because a client's actual visibility is enforced
+     * from the membership row, not this one.
+     */
+    caseId: integer("case_id"),
     note: text("note"),
     addedBy: text("added_by").notNull().default(""),
     /** Set instead of deleting, so a revoked grant stays auditable. */

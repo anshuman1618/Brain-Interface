@@ -10,6 +10,59 @@ were, and what would make it worth revisiting.
 
 ---
 
+## "Restrict to Case ID" made real, then mandatory (2026-08-18)
+
+**Decided:** `case_id` on `workspace_access_list` and `workspace_memberships`
+(additive, nullable, no FK — matching every other cross-reference in this
+schema, which is validated in application code, not constraints). Propagated
+from an invite through the access-list entry to the membership at reconcile,
+then intersected into `lib/scope.ts`'s visibility. Required for the `client`
+role, rejected for every other role, on **both** paths that can create a
+client membership.
+
+**Why it needed a real fix, not just wiring:** the field existed on the
+`invites` table already, the invite screen already had the input, and the
+client list already rendered a `RESTRICTED TO CASE-42` badge. All three were
+decoration — `case_id` was written to the invite row and read by nothing.
+`lib/scope.ts`'s "own" case scope is `cases.clientId = caller`, which has no
+relationship to what an invite claimed to restrict. A client invited "to
+matter 42" saw every matter naming them as client, exactly as an unrestricted
+one would.
+
+**Why both grant paths, not just `invites.ts`:** `POST /workspace/access-list`
+(`AccessListManager` in the UI) can create a client membership directly,
+bypassing `invites.ts` entirely — it is the same table, same role, same
+`reconcileAccessList` reading it on sign-in. Closing the hole in one path and
+leaving the other open would make "mandatory" true only when an admin happened
+to use the invite screen instead of the access-list screen. Both now enforce
+the identical rule, and a dedicated suite (`case-restriction.mjs`) exercises
+each independently rather than assuming one implies the other.
+
+**Why intersected, not substituted, in `scope.ts`:** a restriction narrows
+whatever the role's scope already computed; it does not grant anything a
+`caseScope` wouldn't otherwise allow. In practice only a client (`own` scope)
+ever carries one — every other role is rejected at the write path — but
+checking the intersection unconditionally in `visibleCaseIds` and
+`getVisibleCase` means the guarantee holds regardless of what role ends up
+with a value there, rather than depending on the write-side rule never having
+a bug.
+
+**Why validated against a real case, not just "some integer":** `invites.ts`
+had no foreign key on `case_id`, so case 9999 was silently accepted in a
+workspace with no matter 9999 at all — a restriction to nothing, which reads
+as "restricted" in the UI while doing nothing at all. Both paths now call
+`caseInWorkspace()` before accepting the value, the same helper the codebase
+already uses to validate a task's or calendar entry's `caseId`.
+
+**Why the mandatory rule is enforced twice (client and UI both check it):** the
+UI disables the submit button until a case id is present, and the server
+checks again — the same shape as every other "required, but which field
+depends on another field" rule in this codebase (see the migration add-on's
+phone-preference validation, added the same day). A client UI can be wrong or
+bypassed; the API is the actual boundary.
+
+---
+
 ## Migration service add-on: a lead, not a plan (2026-08-18)
 
 **Decided:** a new `service_enquiries` table, one `POST /service-enquiries`

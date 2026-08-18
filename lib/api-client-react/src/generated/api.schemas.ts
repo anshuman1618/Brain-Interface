@@ -337,6 +337,11 @@ export interface AccessListEntry {
   kind: AccessListEntryKind;
   value: string;
   role: AccessListEntryRole;
+  /**
+     * Set only when role is "client". Copied onto the membership on first sign-in.
+     * @nullable
+     */
+  caseId?: number | null;
   /** @nullable */
   note?: string | null;
   /** @nullable */
@@ -379,6 +384,8 @@ export interface AccessListEntryInput {
   value: string;
   /** The role granted on first sign-in. Chosen by the admin. */
   role: AccessListEntryInputRole;
+  /** Required when role is "client" — the server rejects a client entry with no caseId, and rejects a caseId on any other role. Same rule as InviteInput.caseId; this is the other of the two paths that can create a client membership. */
+  caseId?: number;
   note?: string;
 }
 
@@ -1682,6 +1689,7 @@ export interface InviteInput {
   email: string;
   /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
+  /** Required when role is "client" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field's value, which JSON Schema expresses badly; see routes/invites.ts for the actual rule. */
   caseId?: number;
 }
 

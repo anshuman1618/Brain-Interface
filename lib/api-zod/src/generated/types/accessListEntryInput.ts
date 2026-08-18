@@ -17,5 +17,7 @@ export interface AccessListEntryInput {
   value: string;
   /** The role granted on first sign-in. Chosen by the admin. */
   role: AccessListEntryInputRole;
+  /** Required when role is "client" — the server rejects a client entry with no caseId, and rejects a caseId on any other role. Same rule as InviteInput.caseId; this is the other of the two paths that can create a client membership. */
+  caseId?: number;
   note?: string;
 }

@@ -52,13 +52,28 @@ const ws = created.data.workspaceToken;
 const billingEnabled =
   (await call("/billing/config", { token: as(owner), wsToken: ws })).data?.enabled === true;
 
-for (const [email, role] of [
-  [senior, "senior_advocate"],
-  [client, "client"],
-]) {
-  await call("/invites", { token: as(owner), wsToken: ws, method: "POST", body: { email, role } });
-}
+await call("/invites", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { email: senior, role: "senior_advocate" },
+});
 const seniorS = (await call("/session", { token: as(senior, "S Senior") })).data;
+
+// A client invite must be restricted to a matter — see DECISIONS.md. Nothing
+// below cares which one; this exists solely to satisfy that requirement.
+const clientCase = await call("/cases", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { title: "Client onboarding matter", filingRef: `CV-SUB-${stamp}` },
+});
+await call("/invites", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { email: client, role: "client", caseId: clientCase.data.id },
+});
 const clientS = (await call("/session", { token: as(client, "S Client") })).data;
 
 section("A new chamber is on trial, not on a paid plan");

@@ -68,24 +68,42 @@ await call("/invites", {
   method: "POST",
   body: { email: `a.clerk+${suffix}@a.test`, role: "clerk_intern" },
 });
-await call("/invites", {
-  token: as(`a.admin+${suffix}@a.test`),
-  wsToken: aTok,
-  method: "POST",
-  body: { email: `a.client+${suffix}@a.test`, role: "client" },
-});
 const senior = (await call("/session", { token: as(`a.senior+${suffix}@a.test`, "A Senior") }))
   .data;
 const clerk = (await call("/session", { token: as(`a.clerk+${suffix}@a.test`, "A Clerk") })).data;
-const client = (await call("/session", { token: as(`a.client+${suffix}@a.test`, "A Client") }))
+// A user row exists the moment anyone authenticates, whether or not they are
+// admitted anywhere — so the client's id is available before they are invited,
+// which is what lets the case they will be restricted to name them as its
+// client before that restriction exists.
+const clientPre = (await call("/session", { token: as(`a.client+${suffix}@a.test`, "A Client") }))
   .data;
 
 const caseA = await call("/cases", {
   token: as(`a.admin+${suffix}@a.test`),
   wsToken: aTok,
   method: "POST",
-  body: { title: `Alpha matter ${suffix}`, filingRef: `CV-A-${suffix}`, clientId: client.userId },
+  body: {
+    title: `Alpha matter ${suffix}`,
+    filingRef: `CV-A-${suffix}`,
+    clientId: clientPre.userId,
+  },
 });
+
+// A client invite must be restricted to a matter — see DECISIONS.md.
+const clientInvite = await call("/invites", {
+  token: as(`a.admin+${suffix}@a.test`),
+  wsToken: aTok,
+  method: "POST",
+  body: { email: `a.client+${suffix}@a.test`, role: "client", caseId: caseA.data.id },
+});
+check(
+  "a restricted client invite is accepted",
+  clientInvite.status === 201,
+  `got ${clientInvite.status} ${JSON.stringify(clientInvite.data)}`,
+);
+const client = (await call("/session", { token: as(`a.client+${suffix}@a.test`, "A Client") }))
+  .data;
+check("...and actually admits them", client.accessStatus === "active", client.accessStatus);
 const caseB = await call("/cases", {
   token: as(`b.admin+${suffix}@b.test`),
   wsToken: bTok,
@@ -283,6 +301,76 @@ check(
       body: { kind: "email", value: "f@x.test", role: "admin" },
     })
   ).status === 403,
+);
+
+section("Case restriction has teeth");
+// A second matter, also naming the client — "own" scope (cases.clientId) would
+// show it to them, which is exactly what the restriction has to override. If
+// this leaks, the invite's caseId is decoration rather than an actual filter.
+const caseC = await call("/cases", {
+  token: as(`a.admin+${suffix}@a.test`),
+  wsToken: aTok,
+  method: "POST",
+  body: {
+    title: `Alpha unrelated matter ${suffix}`,
+    filingRef: `CV-A2-${suffix}`,
+    clientId: clientPre.userId,
+  },
+});
+const clientList = await call("/cases", {
+  token: as(`a.client+${suffix}@a.test`),
+  wsToken: client.workspaceToken,
+});
+check(
+  "the restricted client sees only the matter they were invited to",
+  clientList.data.length === 1 && clientList.data[0].id === caseA.data.id,
+  JSON.stringify(clientList.data.map((c) => c.id)),
+);
+check(
+  "...and NOT the other matter naming them as client",
+  !clientList.data.some((c) => c.id === caseC.data.id),
+);
+const directFetch = await call(`/cases/${caseC.data.id}`, {
+  token: as(`a.client+${suffix}@a.test`),
+  wsToken: client.workspaceToken,
+});
+check(
+  "...fetching it directly by id is a 404, not a 403",
+  directFetch.status === 404,
+  `got ${directFetch.status}`,
+);
+check(
+  "a non-client role rejects a caseId outright",
+  (
+    await call("/invites", {
+      token: as(`a.admin+${suffix}@a.test`),
+      wsToken: aTok,
+      method: "POST",
+      body: { email: `a.wrongscope+${suffix}@a.test`, role: "clerk_intern", caseId: caseA.data.id },
+    })
+  ).status === 400,
+);
+check(
+  "a client invite with no caseId is refused, not silently unrestricted",
+  (
+    await call("/invites", {
+      token: as(`a.admin+${suffix}@a.test`),
+      wsToken: aTok,
+      method: "POST",
+      body: { email: `a.norestrict+${suffix}@a.test`, role: "client" },
+    })
+  ).status === 400,
+);
+check(
+  "a caseId from another chamber is refused (matter not found)",
+  (
+    await call("/invites", {
+      token: as(`a.admin+${suffix}@a.test`),
+      wsToken: aTok,
+      method: "POST",
+      body: { email: `a.crosstenant+${suffix}@a.test`, role: "client", caseId: caseB.data.id },
+    })
+  ).status === 404,
 );
 
 section("Calendar audience");

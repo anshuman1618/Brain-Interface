@@ -30,6 +30,14 @@ export type WorkspaceContext = {
   caseScope: RowScope;
   taskScope: RowScope;
   planState: PlanState;
+  /**
+   * Narrows visibility to exactly one matter, on top of whatever `caseScope`
+   * already allows. Set only when the membership was created from a client
+   * invite carrying a case restriction — see `invites.ts` and
+   * `lib/access-list.ts`. Null for everyone else, including an unrestricted
+   * client, which is why `lib/scope.ts` intersects rather than replaces.
+   */
+  restrictedCaseId: number | null;
 };
 
 export interface AuthRequest extends Request {
@@ -95,6 +103,7 @@ export type MembershipLookup = {
   workspace: Workspace;
   role: string;
   isOwner: boolean;
+  caseId: number | null;
 };
 
 /**
@@ -129,6 +138,7 @@ export async function findActiveMembership(
     .select({
       role: workspaceMembershipsTable.role,
       isOwner: workspaceMembershipsTable.isOwner,
+      caseId: workspaceMembershipsTable.caseId,
       workspace: workspacesTable,
     })
     .from(workspaceMembershipsTable)
@@ -141,7 +151,9 @@ export async function findActiveMembership(
       ),
     );
 
-  return row ? { workspace: row.workspace, role: row.role, isOwner: row.isOwner } : null;
+  return row
+    ? { workspace: row.workspace, role: row.role, isOwner: row.isOwner, caseId: row.caseId }
+    : null;
 }
 
 export async function listActiveMemberships(userId: number): Promise<MembershipLookup[]> {
@@ -149,6 +161,7 @@ export async function listActiveMemberships(userId: number): Promise<MembershipL
     .select({
       role: workspaceMembershipsTable.role,
       isOwner: workspaceMembershipsTable.isOwner,
+      caseId: workspaceMembershipsTable.caseId,
       workspace: workspacesTable,
     })
     .from(workspaceMembershipsTable)
@@ -160,7 +173,12 @@ export async function listActiveMemberships(userId: number): Promise<MembershipL
       ),
     );
 
-  return rows.map((r) => ({ workspace: r.workspace, role: r.role, isOwner: r.isOwner }));
+  return rows.map((r) => ({
+    workspace: r.workspace,
+    role: r.role,
+    isOwner: r.isOwner,
+    caseId: r.caseId,
+  }));
 }
 
 /**
@@ -238,6 +256,7 @@ export const requireWorkspace = async (
     caseScope: caseScopeForRole(target.role),
     taskScope: taskScopeForRole(target.role),
     planState,
+    restrictedCaseId: target.caseId,
   };
 
   next();

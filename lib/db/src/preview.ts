@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS workspace_memberships (
   role TEXT NOT NULL DEFAULT 'client',
   is_owner BOOLEAN NOT NULL DEFAULT false,
   requested_role TEXT,
+  case_id INTEGER,
   status TEXT NOT NULL DEFAULT 'pending',
   request_note TEXT,
   decided_by TEXT,
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS workspace_access_list (
   kind TEXT NOT NULL DEFAULT 'email',
   value TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'client',
+  case_id INTEGER,
   note TEXT,
   added_by TEXT NOT NULL DEFAULT '',
   revoked_at TIMESTAMPTZ,
@@ -488,6 +490,8 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS note TEXT;
 ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS fulfilled_document_id INTEGER;
 ALTER TABLE document_requests ADD COLUMN IF NOT EXISTS fulfilled_at TIMESTAMPTZ;
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_used_at TIMESTAMPTZ;
+ALTER TABLE workspace_access_list ADD COLUMN IF NOT EXISTS case_id INTEGER;
+ALTER TABLE workspace_memberships ADD COLUMN IF NOT EXISTS case_id INTEGER;
 `;
 
 /** Where the preview database lives on disk. */

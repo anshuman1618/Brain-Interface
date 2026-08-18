@@ -45,6 +45,7 @@ import { mintWorkspaceToken, verifyWorkspaceToken } from "../lib/workspace-token
 import { reconcileAccessList } from "../lib/access-list";
 import { recordAudit } from "../lib/audit";
 import { assertSeatAvailable, checkQuota, quotaMessage, usageFor } from "../lib/quota";
+import { caseInWorkspace } from "../lib/scope";
 
 const router: IRouter = Router();
 
@@ -629,6 +630,29 @@ router.post(
       return;
     }
 
+    // The same rule as invites.ts, because this is the other of the two paths
+    // that can create a client membership — closing it on only one would
+    // leave "mandatory" false for whichever door was left open.
+    if (parsed.data.role !== "client") {
+      if (parsed.data.caseId != null) {
+        res.status(400).json({
+          error: "invalid_request",
+          message: "Restrict to Case ID only applies to the Client role.",
+        });
+        return;
+      }
+    } else if (parsed.data.caseId == null) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "A client entry must be restricted to a matter.",
+      });
+      return;
+    } else if (!(await caseInWorkspace(c, parsed.data.caseId))) {
+      res.status(404).json({ error: "That matter was not found in this chamber." });
+      return;
+    }
+    const caseId = parsed.data.caseId ?? null;
+
     const [existing] = await db
       .select()
       .from(workspaceAccessListTable)
@@ -652,6 +676,7 @@ router.post(
         .set({
           revokedAt: null,
           role: parsed.data.role,
+          caseId,
           note: parsed.data.note ?? null,
           addedBy: c.user.displayName,
         })
@@ -674,6 +699,7 @@ router.post(
         kind: parsed.data.kind,
         value,
         role: parsed.data.role,
+        caseId,
         note: parsed.data.note ?? null,
         addedBy: c.user.displayName,
       })

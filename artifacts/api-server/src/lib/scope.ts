@@ -16,6 +16,8 @@ import type { WorkspaceContext } from "../middlewares/requireAuth";
 
 /** The case ids the caller may see. Always workspace-filtered first. */
 export async function visibleCaseIds(ctx: WorkspaceContext): Promise<number[]> {
+  let ids: number[];
+
   if (ctx.caseScope === "own") {
     const rows = await db
       .select({ id: casesTable.id })
@@ -23,10 +25,8 @@ export async function visibleCaseIds(ctx: WorkspaceContext): Promise<number[]> {
       .where(
         and(eq(casesTable.workspaceId, ctx.workspaceId), eq(casesTable.clientId, ctx.user.id)),
       );
-    return rows.map((r) => r.id);
-  }
-
-  if (ctx.caseScope === "assigned") {
+    ids = rows.map((r) => r.id);
+  } else if (ctx.caseScope === "assigned") {
     // Clerk/Intern: only matters they hold a task on. The join is constrained to
     // this workspace's cases so a task row can never drag in a foreign case.
     const rows = await db
@@ -39,14 +39,27 @@ export async function visibleCaseIds(ctx: WorkspaceContext): Promise<number[]> {
           eq(tasksTable.assigneeId, ctx.user.clerkId),
         ),
       );
-    return [...new Set(rows.map((r) => r.id))];
+    ids = [...new Set(rows.map((r) => r.id))];
+  } else {
+    const rows = await db
+      .select({ id: casesTable.id })
+      .from(casesTable)
+      .where(eq(casesTable.workspaceId, ctx.workspaceId));
+    ids = rows.map((r) => r.id);
   }
 
-  const rows = await db
-    .select({ id: casesTable.id })
-    .from(casesTable)
-    .where(eq(casesTable.workspaceId, ctx.workspaceId));
-  return rows.map((r) => r.id);
+  // An invite pinned to one matter narrows visibility to exactly that matter,
+  // on top of whatever the role's own scope already computed. Intersected
+  // rather than substituted: a restricted caller still cannot see a case
+  // their scope would not otherwise permit, even if the ids happened to match.
+  // In practice this only ever fires for a client ("own" scope, see
+  // invites.ts), but checking it here rather than only where "own" is handled
+  // means the guarantee holds regardless of what role ends up carrying one.
+  if (ctx.restrictedCaseId != null) {
+    ids = ids.filter((id) => id === ctx.restrictedCaseId);
+  }
+
+  return ids;
 }
 
 /**
@@ -58,6 +71,11 @@ export async function getVisibleCase(
   ctx: WorkspaceContext,
   caseId: number,
 ): Promise<typeof casesTable.$inferSelect | null> {
+  // Same intersection as visibleCaseIds, checked here too since this is a
+  // separate entry point (GET /cases/:id, and every write that loads the
+  // existing row first) rather than a filter over that function's result.
+  if (ctx.restrictedCaseId != null && caseId !== ctx.restrictedCaseId) return null;
+
   const [row] = await db
     .select()
     .from(casesTable)

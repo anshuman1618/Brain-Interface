@@ -108,18 +108,34 @@ check(
 );
 check("owner holds team.manage", created.data.capabilities.includes("team.manage"));
 // ...but a plain Senior Advocate must not.
+
+// A client invite must be restricted to a matter — see DECISIONS.md. This
+// case exists purely to give it one; "First matter" below is the one the
+// rest of the suite actually assigns work against.
+const clientCase = await call("/cases", {
+  token: as("founder@chambers.test"),
+  wsToken: founderWs,
+  method: "POST",
+  body: { title: "Client onboarding matter", filingRef: "CV-2026-000" },
+});
+check(
+  "a matter exists to restrict the client invite to",
+  clientCase.status === 201,
+  `got ${clientCase.status}`,
+);
+
 const invited = [];
-for (const [email, role] of [
-  ["junior@chambers.test", "junior_advocate"],
-  ["clerk@chambers.test", "clerk_intern"],
-  ["client@elsewhere.test", "client"],
-  ["senior2@chambers.test", "senior_advocate"],
+for (const [email, role, caseId] of [
+  ["junior@chambers.test", "junior_advocate", undefined],
+  ["clerk@chambers.test", "clerk_intern", undefined],
+  ["client@elsewhere.test", "client", clientCase.data.id],
+  ["senior2@chambers.test", "senior_advocate", undefined],
 ]) {
   const r = await call("/invites", {
     token: as("founder@chambers.test"),
     wsToken: founderWs,
     method: "POST",
-    body: { email, role },
+    body: caseId != null ? { email, role, caseId } : { email, role },
   });
   check(`invited ${role}`, r.status === 201, `got ${r.status}`);
   invited.push([email, role]);

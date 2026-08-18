@@ -22,6 +22,7 @@ const SUITES = [
   ["modules", "Documents, feedback and calendar"],
   ["subs", "Subscription and billing RBAC"],
   ["plan", "Plan enforcement: payment, seats, expiry"],
+  ["case-restriction", "Restrict to Case ID, via both grant paths"],
   ["gov", "Files, audit, quota, privacy, conflicts"],
 ];
 

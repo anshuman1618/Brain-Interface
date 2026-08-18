@@ -14,6 +14,11 @@ export interface AccessListEntry {
   kind: AccessListEntryKind;
   value: string;
   role: AccessListEntryRole;
+  /**
+     * Set only when role is "client". Copied onto the membership on first sign-in.
+     * @nullable
+     */
+  caseId?: number | null;
   /** @nullable */
   note?: string | null;
   /** @nullable */

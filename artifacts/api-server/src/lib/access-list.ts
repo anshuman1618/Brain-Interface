@@ -30,6 +30,8 @@ export type AccessListMatch = {
   entryId: number;
   /** 'email' beats 'domain' — a specific grant overrides a blanket one. */
   kind: string;
+  /** Carried onto the membership at reconcile. Only ever set on a client entry. */
+  caseId: number | null;
 };
 
 /**
@@ -76,6 +78,7 @@ export async function findAccessListMatches(email: string): Promise<AccessListMa
       role: isWorkspaceRole(row.entry.role) ? row.entry.role : "client",
       entryId: row.entry.id,
       kind: row.entry.kind,
+      caseId: row.entry.caseId,
     });
   }
 
@@ -119,6 +122,7 @@ export async function reconcileAccessList(user: AppUser): Promise<number> {
       userId: user.id,
       clerkId: user.clerkId,
       role: match.role,
+      caseId: match.caseId,
       status,
       decidedBy,
       decidedAt: new Date(),

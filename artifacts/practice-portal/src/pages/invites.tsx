@@ -56,12 +56,17 @@ export default function InvitesPage() {
   const [caseId, setCaseId] = useState("");
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
+  // A client invite must name the one matter it admits them to — the server
+  // rejects a client invite with no caseId, and rejects a caseId on any other
+  // role, so this mirrors that rule rather than letting the request round-trip
+  // to learn it.
+  const caseIdRequired = role === "client";
+  const canSubmit = !!email && !!role && (!caseIdRequired || !!caseId) && !createInvite.isPending;
+
   const handleCreate = () => {
-    // Only a client invite can be pinned to a matter; the other roles reach the
-    // whole workspace, so a caseId on them would be meaningless.
     const payload: InviteInput = { email, role };
-    if (role === "client" && caseId) {
-      payload.caseId = parseInt(caseId);
+    if (role === "client") {
+      payload.caseId = parseInt(caseId, 10);
     }
 
     createInvite.mutate(
@@ -136,7 +141,7 @@ export default function InvitesPage() {
               </div>
               {role === "client" && (
                 <div className="grid gap-2 border-l-2 border-primary pl-4 py-2 mt-2">
-                  <Label>Restrict to Case ID (Optional but recommended)</Label>
+                  <Label>Restrict to Case ID (Required)</Label>
                   <Input
                     type="number"
                     value={caseId}
@@ -144,18 +149,14 @@ export default function InvitesPage() {
                     placeholder="e.g. 42"
                   />
                   <p className="text-3xs text-muted-foreground font-mono uppercase tracking-wider">
-                    Clients without an assigned Case ID can only see global portal elements until
-                    assigned.
+                    A client is admitted to this one matter, and nothing else — this is enforced,
+                    not just a label.
                   </p>
                 </div>
               )}
             </div>
             <DialogFooter>
-              <Button
-                disabled={!email || !role || createInvite.isPending}
-                onClick={handleCreate}
-                className="rounded-lg"
-              >
+              <Button disabled={!canSubmit} onClick={handleCreate} className="rounded-lg">
                 {createInvite.isPending ? "Generating..." : "Generate Link"}
               </Button>
             </DialogFooter>

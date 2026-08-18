@@ -791,6 +791,7 @@ export const ListAccessListResponseItem = zod.object({
   "kind": zod.enum(['email', 'domain']),
   "value": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
+  "caseId": zod.number().nullish().describe('Set only when role is \"client\". Copied onto the membership on first sign-in.'),
   "note": zod.string().nullish(),
   "addedBy": zod.string().nullish(),
   "lastUsedAt": zod.coerce.date().nullish(),
@@ -811,6 +812,7 @@ export const CreateAccessListEntryBody = zod.object({
   "kind": zod.enum(['email', 'domain']),
   "value": zod.string().min(createAccessListEntryBodyValueMin).describe('An exact email address, or a bare domain such as \"chambers.in\".'),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role granted on first sign-in. Chosen by the admin.'),
+  "caseId": zod.number().optional().describe('Required when role is \"client\" — the server rejects a client entry with no caseId, and rejects a caseId on any other role. Same rule as InviteInput.caseId; this is the other of the two paths that can create a client membership.\n'),
   "note": zod.string().optional()
 })
 
@@ -820,6 +822,7 @@ export const CreateAccessListEntryResponse = zod.object({
   "kind": zod.enum(['email', 'domain']),
   "value": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
+  "caseId": zod.number().nullish().describe('Set only when role is \"client\". Copied onto the membership on first sign-in.'),
   "note": zod.string().nullish(),
   "addedBy": zod.string().nullish(),
   "lastUsedAt": zod.coerce.date().nullish(),
@@ -1703,7 +1706,7 @@ export const ListInvitesResponse = zod.array(ListInvitesResponseItem)
 export const CreateInviteBody = zod.object({
   "email": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role the invited person is admitted at. Chosen by the admin.'),
-  "caseId": zod.number().optional()
+  "caseId": zod.number().optional().describe('Required when role is \"client\" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field\'s value, which JSON Schema expresses badly; see routes\/invites.ts for the actual rule.\n')
 })
 
 export const CreateInviteResponse = zod.object({

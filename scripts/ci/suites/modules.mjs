@@ -59,23 +59,36 @@ if (phase === "setup") {
     token: as(founder),
     wsToken: wsTok,
     method: "POST",
-    body: { email: "arch.client@x.test", role: "client" },
-  });
-  await call("/invites", {
-    token: as(founder),
-    wsToken: wsTok,
-    method: "POST",
     body: { email: "arch.clerk@chambers.test", role: "clerk_intern" },
   });
-  const client = (await call("/session", { token: as("arch.client@x.test", "A Client") })).data;
   const clerk = (await call("/session", { token: as("arch.clerk@chambers.test", "A Clerk") })).data;
+
+  // A user row exists from the first authenticated call regardless of whether
+  // they are admitted anywhere — so the client's id is available before the
+  // matter naming them as its client, and before the invite carrying the
+  // restriction to that matter, both exist.
+  const clientPre = (await call("/session", { token: as("arch.client@x.test", "A Client") })).data;
 
   const matter = await call("/cases", {
     token: as(founder),
     wsToken: wsTok,
     method: "POST",
-    body: { title: "Persistent matter", filingRef: "CV-2026-020", clientId: client.userId },
+    body: { title: "Persistent matter", filingRef: "CV-2026-020", clientId: clientPre.userId },
   });
+
+  // A client invite must be restricted to a matter — see DECISIONS.md.
+  const clientInvite = await call("/invites", {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { email: "arch.client@x.test", role: "client", caseId: matter.data.id },
+  });
+  check(
+    "client invited, restricted to the matter",
+    clientInvite.status === 201,
+    `got ${clientInvite.status}`,
+  );
+  const client = (await call("/session", { token: as("arch.client@x.test", "A Client") })).data;
   const entry = await call("/calendar", {
     token: as(founder),
     wsToken: wsTok,

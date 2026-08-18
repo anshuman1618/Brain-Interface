@@ -2117,6 +2117,9 @@ components:
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
+        caseId:
+          type: ["integer", "null"]
+          description: Set only when role is "client". Copied onto the membership on first sign-in.
         note:
           type: ["string", "null"]
         addedBy:
@@ -2146,6 +2149,13 @@ components:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
           description: The role granted on first sign-in. Chosen by the admin.
+        caseId:
+          type: integer
+          description: >
+            Required when role is "client" — the server rejects a client
+            entry with no caseId, and rejects a caseId on any other role.
+            Same rule as InviteInput.caseId; this is the other of the two
+            paths that can create a client membership.
         note:
           type: string
 
@@ -3347,6 +3357,12 @@ components:
           description: The role the invited person is admitted at. Chosen by the admin.
         caseId:
           type: integer
+          description: >
+            Required when role is "client" — the server rejects a client
+            invite with no caseId, and rejects a caseId on any other role.
+            Not modelled as conditionally required here because it depends on
+            a sibling field's value, which JSON Schema expresses badly; see
+            routes/invites.ts for the actual rule.
 
     # ── Notifications ───────────────────────────────────────────────────────
     Notification:

@@ -42,6 +42,13 @@ export const workspaceMembershipsTable = pgTable(
     isOwner: boolean("is_owner").notNull().default(false),
     /** What the applicant asked for at sign-up. Recorded as intent only — never granted. */
     requestedRole: text("requested_role"),
+    /**
+     * Pins this membership's visibility to one matter, in addition to
+     * whatever the role's own row scope already allows — see
+     * `lib/scope.ts`. Only ever set on a client, and only ever copied in
+     * from an invite or access-list entry; nothing here writes it directly.
+     */
+    caseId: integer("case_id"),
     status: text("status").notNull().default("pending"),
     /** Free-text justification supplied with an access request. */
     requestNote: text("request_note"),

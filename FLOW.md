@@ -433,6 +433,25 @@ Built after the numbering above was reviewed.
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
 
+### "Restrict to Case ID" — from decoration to an actual filter
+
+| File                                          | Change                                                                                                                                 |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/workspace_access_list.ts`  | New `caseId`. Written by both `invites.ts` and the direct access-list POST.                                                            |
+| `lib/db/src/schema/workspace_memberships.ts`  | New `caseId`, copied from the access-list entry at reconcile — this is the column `scope.ts` actually reads.                           |
+| `lib/db/drizzle/0008_case_restriction.sql`    | Additive, guarded. Both columns also in `preview.ts`'s base tables and its `ALTER … ADD COLUMN IF NOT EXISTS` block.                   |
+| `api-server/src/lib/access-list.ts`           | `AccessListMatch` carries `caseId`; `reconcileAccessList` copies it onto the new membership.                                           |
+| `api-server/src/middlewares/requireAuth.ts`   | `MembershipLookup` and `WorkspaceContext` both carry it, as `restrictedCaseId` on the context — set once per request, read everywhere. |
+| `api-server/src/lib/scope.ts`                 | `visibleCaseIds` and `getVisibleCase` intersect with `restrictedCaseId` when set. **This is the step that gives the label teeth.**     |
+| `api-server/src/routes/invites.ts`            | Rejects a `caseId` on a non-client role; requires one for `client`; validates it with `caseInWorkspace()` before accepting.            |
+| `api-server/src/routes/session.ts`            | `POST /workspace/access-list` enforces the identical rule — the other of the two paths that can create a client membership.            |
+| `practice-portal/src/pages/invites.tsx`       | Case-id field only shows for `client`; submit is disabled until filled.                                                                |
+| `practice-portal/.../access-list-manager.tsx` | Same field, same rule, in the direct-grant form; the table now shows the restriction badge there too.                                  |
+
+`invites.case_id` (the pre-existing column on the `invites` table itself) is
+unchanged — it was always just the audit record of what was asked for. The new
+columns are what the runtime actually reads.
+
 ### Migration service add-on
 
 | File                                         | Change                                                                                                                                                        |
@@ -608,7 +627,19 @@ over the raw body, so no Razorpay account is needed — and `gov` and `subs` use
 the same helper, because a chargeable plan does not activate on selection once a
 provider is configured and their setup would otherwise silently stop working.
 
-Last run: **270 checks green with `RAZORPAY_*` unset, 270 with it set**, each
+**"Restrict to Case ID" has a committed suite too.**
+`scripts/ci/suites/case-restriction.mjs` is 12 checks against the direct
+access-list path specifically (`security.mjs` covers the invite path in its
+own "Case restriction has teeth" section, 8 checks): a non-client role with a
+`caseId` is refused, a client with none is refused, a `caseId` naming no real
+matter is refused, a valid grant round-trips its restriction, and — the actual
+proof — a client sees the one matter they were restricted to and gets a 404
+(not a 403) reaching a second matter that also names them as `clientId`. A
+15-assertion browser check covers both forms: the field's visibility follows
+the role selector, the submit button is disabled until a case id is entered,
+and the restriction badge renders once granted.
+
+Last run: **297 checks green with `RAZORPAY_*` unset, 297 with it set**, each
 suite against a fresh server. The banner was checked separately in a browser
 across all five of its states (17 assertions), which is what caught the
 `daysLeft` rounding.

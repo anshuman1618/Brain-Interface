@@ -49,17 +49,32 @@ export function AccessListManager() {
   const [kind, setKind] = useState<"email" | "domain">("email");
   const [value, setValue] = useState("");
   const [role, setRole] = useState("client");
+  const [caseId, setCaseId] = useState("");
   const [note, setNote] = useState("");
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListAccessListQueryKey() });
 
   const active = (entries ?? []).filter((e: AccessListEntry) => !e.revokedAt);
 
+  // Same rule the server enforces: a client entry must name the one matter it
+  // admits into, so this mirrors that rather than letting the request
+  // round-trip to learn it.
+  const caseIdRequired = role === "client";
+  const canSubmit = !!value.trim() && (!caseIdRequired || !!caseId) && !createEntry.isPending;
+
   const add = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!value.trim()) return;
+    if (!canSubmit) return;
     createEntry.mutate(
-      { data: { kind, value: value.trim(), role: role as never, note: note.trim() || undefined } },
+      {
+        data: {
+          kind,
+          value: value.trim(),
+          role: role as never,
+          ...(role === "client" ? { caseId: parseInt(caseId, 10) } : {}),
+          note: note.trim() || undefined,
+        },
+      },
       {
         onSuccess: (created) => {
           invalidate();
@@ -68,6 +83,7 @@ export function AccessListManager() {
             description: `Will sign in as ${roleLabel(created.role)} in ${activeWorkspace?.name}.`,
           });
           setValue("");
+          setCaseId("");
           setNote("");
         },
         onError: (err: unknown) => {
@@ -165,14 +181,25 @@ export function AccessListManager() {
             </Select>
           </div>
 
-          <Button
-            type="submit"
-            className="rounded-lg"
-            disabled={createEntry.isPending || !value.trim()}
-          >
+          <Button type="submit" className="rounded-lg" disabled={!canSubmit}>
             <Plus className="h-4 w-4 mr-1.5" />
             {createEntry.isPending ? "Adding..." : "Admit"}
           </Button>
+
+          {role === "client" && (
+            <div className="sm:col-span-4 space-y-1.5">
+              <label className="block text-3xs font-mono uppercase tracking-wider text-muted-foreground">
+                Restrict to Case ID (Required)
+              </label>
+              <Input
+                type="number"
+                value={caseId}
+                onChange={(e) => setCaseId(e.target.value)}
+                className="rounded-lg font-mono text-sm sm:max-w-[180px]"
+                placeholder="e.g. 42"
+              />
+            </div>
+          )}
 
           <div className="sm:col-span-4 space-y-1.5">
             <Input
@@ -241,6 +268,11 @@ export function AccessListManager() {
                     {entry.role === "admin" && <ShieldCheck className="h-3 w-3" />}
                     {roleLabel(entry.role) || entry.role}
                   </Badge>
+                  {entry.caseId != null && (
+                    <p className="text-3xs text-muted-foreground font-mono mt-1">
+                      RESTRICTED TO CASE-{entry.caseId}
+                    </p>
+                  )}
                 </TableCell>
                 <TableCell className="text-xs font-mono text-muted-foreground">
                   {entry.lastUsedAt ? new Date(entry.lastUsedAt).toLocaleDateString() : "Never"}

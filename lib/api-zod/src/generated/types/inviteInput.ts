@@ -11,5 +11,6 @@ export interface InviteInput {
   email: string;
   /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
+  /** Required when role is "client" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field's value, which JSON Schema expresses badly; see routes/invites.ts for the actual rule. */
   caseId?: number;
 }
