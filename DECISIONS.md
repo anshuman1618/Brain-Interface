@@ -10,6 +10,43 @@ were, and what would make it worth revisiting.
 
 ---
 
+## Migration service add-on: a lead, not a plan (2026-08-18)
+
+**Decided:** a new `service_enquiries` table, one `POST /service-enquiries`
+endpoint behind `requireWorkspace` + `requireCapability("billing.manage")`, and
+a small dashed-border square card below the pricing tiers — not a fifth tier —
+opening a form that records the enquiry and nothing more.
+
+**Why not a fifth tier:** the pricing grid is four columns of things a chamber
+can buy by clicking a button. Migration help is not that — nobody can self-serve
+their way into having their files moved, so putting it in the grid would promise
+a transaction the product cannot complete. A visually distinct box under the
+grid says "this is different" before anyone reads the label.
+
+**Why `billing.manage`, the same boundary as choosing a plan:** this is a
+conversation about the chamber's account, not a support ticket. The alternative
+— any signed-in team member could open it — would let a junior advocate start a
+commercial negotiation the chamber owner never agreed to.
+
+**Why no admin screen yet:** the table is the whole deliverable. Building a
+listing screen before a single enquiry has arrived is building for a load that
+does not exist. `status` (`new` / `contacted` / `closed`) is on the row now
+specifically so that screen, whenever it is worth building, needs no migration
+of its own.
+
+**Why `serviceKind` is an enum of one:** `migration` is the only kind today, and
+a free-text field would let a future client-side change silently start writing
+values the server has no opinion about. An enum that grows by one value when a
+second service exists costs nothing now and closes that door.
+
+**Why a phone preference without a phone number is refused, not silently
+stored:** an enquiry nobody can act on is worse than no enquiry — it looks like
+a lead and wastes whoever follows up. Checked on both sides: the form validates
+before it will submit, and the endpoint checks again, because the API is never
+allowed to trust the form it happens to be talking to today.
+
+---
+
 ## Calendar audience validated on write, not just filtered on read (2026-08-18)
 
 **Decided:** `POST /calendar` and `PATCH /calendar/:id` now reject an audience

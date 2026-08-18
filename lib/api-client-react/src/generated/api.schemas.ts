@@ -1199,6 +1199,41 @@ export interface CheckoutOrder {
   billingPeriod: CheckoutOrderBillingPeriod;
 }
 
+export type ServiceEnquiryInputServiceKind = typeof ServiceEnquiryInputServiceKind[keyof typeof ServiceEnquiryInputServiceKind];
+
+
+export const ServiceEnquiryInputServiceKind = {
+  migration: 'migration',
+} as const;
+
+export type ServiceEnquiryInputContactPreference = typeof ServiceEnquiryInputContactPreference[keyof typeof ServiceEnquiryInputContactPreference];
+
+
+export const ServiceEnquiryInputContactPreference = {
+  email: 'email',
+  phone: 'phone',
+} as const;
+
+export interface ServiceEnquiryInput {
+  serviceKind: ServiceEnquiryInputServiceKind;
+  /**
+     * @minLength 3
+     * @maxLength 4000
+     */
+  message: string;
+  contactPreference: ServiceEnquiryInputContactPreference;
+  /**
+     * Required when contactPreference is "phone".
+     * @maxLength 32
+     */
+  contactPhone?: string;
+}
+
+export interface ServiceEnquiryAck {
+  id: number;
+  createdAt: string;
+}
+
 export type SubscriptionInputPlan = typeof SubscriptionInputPlan[keyof typeof SubscriptionInputPlan];
 
 

@@ -16,6 +16,7 @@ import betaFeedbackRouter from "./beta-feedback";
 import timeEntriesRouter from "./time-entries";
 import invoicesRouter from "./invoices";
 import subscriptionRouter from "./subscription";
+import serviceEnquiriesRouter from "./service-enquiries";
 import governanceRouter from "./governance";
 
 const router: IRouter = Router();
@@ -40,6 +41,7 @@ router.use(betaFeedbackRouter);
 router.use(timeEntriesRouter);
 router.use(invoicesRouter);
 router.use(subscriptionRouter);
+router.use(serviceEnquiriesRouter);
 router.use(governanceRouter);
 
 export default router;

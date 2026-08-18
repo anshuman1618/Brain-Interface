@@ -5,20 +5,27 @@ import {
   DialogTitle,
   DialogDescription,
   DialogHeader,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Check, Info } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Check, Info, Truck } from "lucide-react";
 import {
   useGetSubscription,
   useSetSubscription,
   useGetBillingConfig,
   useCreateCheckout,
+  useCreateServiceEnquiry,
   getGetBillingConfigQueryKey,
   getGetSubscriptionQueryKey,
   type PlanQuote,
   type SubscriptionInputPlan,
   type SubscriptionInputBillingPeriod,
+  type ServiceEnquiryInputContactPreference,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -163,6 +170,15 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
   const createCheckout = useCreateCheckout();
   const [paying, setPaying] = useState<SubscriptionInputPlan | null>(null);
 
+  // The migration add-on: a lead, not a plan. Its own small piece of state so
+  // opening it does not disturb anything the tier cards are doing.
+  const [enquiryOpen, setEnquiryOpen] = useState(false);
+  const [enquiryMessage, setEnquiryMessage] = useState("");
+  const [contactPreference, setContactPreference] =
+    useState<ServiceEnquiryInputContactPreference>("email");
+  const [contactPhone, setContactPhone] = useState("");
+  const createEnquiry = useCreateServiceEnquiry();
+
   // Only the plans that cost money, and only when a provider is configured.
   // Everywhere else the button records the selection as it always did, which is
   // what keeps preview mode and self-hosted deployments working.
@@ -252,6 +268,46 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
         onError: (err: Error) => {
           toast({
             title: "Could not change the plan",
+            description: err.message,
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  const submitEnquiry = () => {
+    const message = enquiryMessage.trim();
+    if (!message) {
+      toast({ title: "Write something first.", variant: "destructive" });
+      return;
+    }
+    if (contactPreference === "phone" && !contactPhone.trim()) {
+      toast({ title: "Add a phone number, or choose email instead.", variant: "destructive" });
+      return;
+    }
+    createEnquiry.mutate(
+      {
+        data: {
+          serviceKind: "migration",
+          message,
+          contactPreference,
+          ...(contactPreference === "phone" ? { contactPhone: contactPhone.trim() } : {}),
+        },
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: "Enquiry sent",
+            description: "We will be in touch to talk through the migration.",
+          });
+          setEnquiryOpen(false);
+          setEnquiryMessage("");
+          setContactPhone("");
+        },
+        onError: (err: Error) => {
+          toast({
+            title: "Could not send that",
             description: err.message,
             variant: "destructive",
           });
@@ -441,6 +497,32 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
             </div>
           )}
 
+          {/* The migration add-on. Deliberately not a fifth tier: it is a
+              service, not a plan, so it sits below the grid in its own small
+              square box rather than competing with the tiers for width.
+              Gated on canManage like every other control here — the endpoint
+              enforces billing.manage, so showing it to someone who cannot use
+              it would only earn them a 403. */}
+          {canManage && (
+            <div className="px-8 pb-6">
+              <button
+                type="button"
+                onClick={() => setEnquiryOpen(true)}
+                className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border bg-muted/20 p-4 text-left transition-colors hover:bg-muted/40 sm:w-64"
+              >
+                <Truck className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+                <div className="min-w-0">
+                  <div className="font-mono text-xs uppercase tracking-widest text-foreground">
+                    Migration add-on
+                  </div>
+                  <div className="mt-0.5 text-2xs text-muted-foreground">
+                    Moving from what you use today? Talk to us.
+                  </div>
+                </div>
+              </button>
+            </div>
+          )}
+
           <div className="px-8 py-4 border-t border-border bg-muted/30 flex items-start gap-2 text-xs text-muted-foreground">
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <p>
@@ -451,6 +533,78 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                   : "Choosing a plan records it against your chamber. No payment provider is connected to this deployment, so nothing is charged."}
             </p>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={enquiryOpen} onOpenChange={setEnquiryOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Migration add-on</DialogTitle>
+            <DialogDescription>
+              Tell us what you are moving from, and how you would like us to reach you. This records
+              an enquiry — it does not change your plan.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="enquiry-message">What are you migrating?</Label>
+              <Textarea
+                id="enquiry-message"
+                value={enquiryMessage}
+                onChange={(e) => setEnquiryMessage(e.target.value)}
+                placeholder="e.g. Matters and documents from a spreadsheet and shared drive"
+                rows={4}
+                maxLength={4000}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>How should we reach you?</Label>
+              <RadioGroup
+                value={contactPreference}
+                onValueChange={(v) =>
+                  setContactPreference(v as ServiceEnquiryInputContactPreference)
+                }
+                className="flex gap-4"
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="email" id="contact-email" />
+                  <Label htmlFor="contact-email" className="font-normal">
+                    Email
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="phone" id="contact-phone" />
+                  <Label htmlFor="contact-phone" className="font-normal">
+                    Phone
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {contactPreference === "phone" && (
+              <div className="space-y-2">
+                <Label htmlFor="enquiry-phone">Phone number</Label>
+                <Input
+                  id="enquiry-phone"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                  placeholder="+91 98765 43210"
+                  maxLength={32}
+                />
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEnquiryOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitEnquiry} disabled={createEnquiry.isPending}>
+              {createEnquiry.isPending ? "Sending..." : "Send"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </PricingModalContext.Provider>

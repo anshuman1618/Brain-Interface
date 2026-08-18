@@ -138,6 +138,10 @@ app.use("/api/session", rateLimit({ name: "auth", max: 30, windowMs: 60_000 }));
 app.use("/api/workspaces", rateLimit({ name: "auth", max: 30, windowMs: 60_000 }));
 app.use("/api/access-requests", rateLimit({ name: "auth", max: 20, windowMs: 60_000 }));
 app.use("/api/privacy", rateLimit({ name: "privacy", max: 20, windowMs: 60_000, perUser: true }));
+app.use(
+  "/api/service-enquiries",
+  rateLimit({ name: "service-enquiries", max: 10, windowMs: 60_000, perUser: true }),
+);
 
 /**
  * The expensive reads. 20/min is far above any human use — opening every

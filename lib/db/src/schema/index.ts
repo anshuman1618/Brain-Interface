@@ -9,6 +9,7 @@ export * from "./mail_outbox";
 export * from "./calendar_entries";
 export * from "./feedback";
 export * from "./beta_feedback";
+export * from "./service_enquiries";
 export * from "./users";
 export * from "./cases";
 export * from "./time_entries";

@@ -685,6 +685,33 @@ paths:
         "403":
           description: Forbidden
 
+  /service-enquiries:
+    post:
+      operationId: createServiceEnquiry
+      tags: [session]
+      summary: Ask about a service the pricing screen names but does not sell (billing.manage only)
+      description: >
+        Records the enquiry against the caller's workspace. There is no
+        self-serve fulfilment behind this — it is a lead into a conversation,
+        read straight from the table until an admin screen exists for it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceEnquiryInput"
+      responses:
+        "201":
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceEnquiryAck"
+        "400":
+          description: Invalid
+        "403":
+          description: Forbidden
+
   /workspace/access-list:
     get:
       operationId: listAccessList
@@ -2833,6 +2860,34 @@ components:
         billingPeriod:
           type: string
           enum: [one_time, monthly, half_yearly, yearly]
+
+    ServiceEnquiryInput:
+      type: object
+      required: [serviceKind, message, contactPreference]
+      properties:
+        serviceKind:
+          type: string
+          enum: [migration]
+        message:
+          type: string
+          minLength: 3
+          maxLength: 4000
+        contactPreference:
+          type: string
+          enum: [email, phone]
+        contactPhone:
+          type: string
+          maxLength: 32
+          description: Required when contactPreference is "phone".
+    ServiceEnquiryAck:
+      type: object
+      required: [id, createdAt]
+      properties:
+        id:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
 
     SubscriptionInput:
       type: object

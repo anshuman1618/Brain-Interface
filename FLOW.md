@@ -149,14 +149,14 @@ model.
 
 ### The feature routes
 
-`routes/index.ts` mounts fifteen routers on `/api`. `sessionRouter` is first
+`routes/index.ts` mounts nineteen routers on `/api`. `sessionRouter` is first
 because it owns `/session` and `/workspaces` — the only endpoints a user with no
 active membership may reach.
 
 ```
 session  users  cases  documents  tasks  consultations  kpi  invites
-notifications  document-requests  search  calendar  feedback
-subscription  governance
+notifications  document-requests  search  calendar  feedback  beta-feedback
+time-entries  invoices  subscription  service-enquiries  governance
 ```
 
 ### The authorisation gate — `middlewares/requireAuth.ts`
@@ -432,6 +432,19 @@ Built after the numbering above was reviewed.
 | `practice-portal/src/lib/format.ts`                         | `formatMinor` / `parseRupeesToMinor` / `formatMilli` / `parseQuantityToMilli` — the only place paise and thousandths are turned into text, and the only place text is turned back.                |
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
+
+### Migration service add-on
+
+| File                                         | Change                                                                                                                                                        |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/service_enquiries.ts`     | **New.** `workspaceId`, submitter identity, `serviceKind` (enum of one: `migration`), `message`, `contactPreference` + `contactPhone`, `status`.              |
+| `lib/db/drizzle/0007_service_enquiries.sql`  | **New.** Additive, guarded `CREATE TABLE IF NOT EXISTS`. Also in `preview.ts`'s base table list.                                                              |
+| `api-server/src/routes/service-enquiries.ts` | **New.** `POST /service-enquiries`, `requireWorkspace` + `requireCapability("billing.manage")`. Rejects `phone` preference with no number.                    |
+| `api-server/src/app.ts`                      | New `service-enquiries` rate bucket, 10/min per user — alongside `access-requests` and `privacy`.                                                             |
+| `practice-portal/.../pricing-modal.tsx`      | New dashed-border card below the plan grid (not a fifth tier), opening a nested form dialog. Gated on `canManage`, same as every other control on the screen. |
+
+No admin listing yet — the table is read straight from the database until one
+is worth building. `status` is already on the row for when it is.
 
 ### Calendar audience — validated on write
 

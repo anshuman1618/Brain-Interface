@@ -759,6 +759,30 @@ export const SetSubscriptionResponse = zod.object({
 
 
 /**
+ * Records the enquiry against the caller's workspace. There is no self-serve fulfilment behind this — it is a lead into a conversation, read straight from the table until an admin screen exists for it.
+ * @summary Ask about a service the pricing screen names but does not sell (billing.manage only)
+ */
+export const createServiceEnquiryBodyMessageMin = 3;
+export const createServiceEnquiryBodyMessageMax = 4000;
+
+export const createServiceEnquiryBodyContactPhoneMax = 32;
+
+
+
+export const CreateServiceEnquiryBody = zod.object({
+  "serviceKind": zod.enum(['migration']),
+  "message": zod.string().min(createServiceEnquiryBodyMessageMin).max(createServiceEnquiryBodyMessageMax),
+  "contactPreference": zod.enum(['email', 'phone']),
+  "contactPhone": zod.string().max(createServiceEnquiryBodyContactPhoneMax).optional().describe('Required when contactPreference is \"phone\".')
+})
+
+export const CreateServiceEnquiryResponse = zod.object({
+  "id": zod.number(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
  * @summary Email addresses and domains admitted to this workspace (admin only)
  */
 export const ListAccessListResponseItem = zod.object({

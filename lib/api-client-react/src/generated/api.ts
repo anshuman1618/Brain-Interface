@@ -82,6 +82,8 @@ import type {
   Notification,
   RunningTimer,
   SearchResults,
+  ServiceEnquiryAck,
+  ServiceEnquiryInput,
   SessionClaims,
   SlaReportEntry,
   SubscriptionInput,
@@ -2370,6 +2372,78 @@ export const useSetSubscription = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getSetSubscriptionMutationOptions(options));
+    }
+
+export const getCreateServiceEnquiryUrl = () => {
+
+
+
+
+  return `/api/service-enquiries`
+}
+
+/**
+ * Records the enquiry against the caller's workspace. There is no self-serve fulfilment behind this — it is a lead into a conversation, read straight from the table until an admin screen exists for it.
+ * @summary Ask about a service the pricing screen names but does not sell (billing.manage only)
+ */
+export const createServiceEnquiry = async (serviceEnquiryInput: ServiceEnquiryInput, options?: RequestInit): Promise<ServiceEnquiryAck> => {
+
+  return customFetch<ServiceEnquiryAck>(getCreateServiceEnquiryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(serviceEnquiryInput)
+  }
+);}
+
+
+
+
+
+export const getCreateServiceEnquiryMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createServiceEnquiry>>, TError,{data: BodyType<ServiceEnquiryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createServiceEnquiry>>, TError,{data: BodyType<ServiceEnquiryInput>}, TContext> => {
+
+const mutationKey = ['createServiceEnquiry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createServiceEnquiry>>, {data: BodyType<ServiceEnquiryInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createServiceEnquiry(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateServiceEnquiryMutationResult = NonNullable<Awaited<ReturnType<typeof createServiceEnquiry>>>
+    export type CreateServiceEnquiryMutationBody = BodyType<ServiceEnquiryInput>
+    export type CreateServiceEnquiryMutationError = ErrorType<void>
+
+    /**
+ * @summary Ask about a service the pricing screen names but does not sell (billing.manage only)
+ */
+export const useCreateServiceEnquiry = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createServiceEnquiry>>, TError,{data: BodyType<ServiceEnquiryInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createServiceEnquiry>>,
+        TError,
+        {data: BodyType<ServiceEnquiryInput>},
+        TContext
+      > => {
+      return useMutation(getCreateServiceEnquiryMutationOptions(options));
     }
 
 export const getListAccessListUrl = () => {

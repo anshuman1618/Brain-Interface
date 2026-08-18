@@ -409,6 +409,21 @@ CREATE TABLE IF NOT EXISTS timeline_events (
   actor_name TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS service_enquiries (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  clerk_id TEXT NOT NULL,
+  email TEXT NOT NULL DEFAULT '',
+  display_name TEXT NOT NULL DEFAULT '',
+  service_kind TEXT NOT NULL DEFAULT 'migration',
+  message TEXT NOT NULL,
+  contact_preference TEXT NOT NULL DEFAULT 'email',
+  contact_phone TEXT,
+  status TEXT NOT NULL DEFAULT 'new',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 /**
