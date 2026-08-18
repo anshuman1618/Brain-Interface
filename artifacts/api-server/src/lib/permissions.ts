@@ -227,3 +227,36 @@ export function displayRole(role: string): string {
       return role;
   }
 }
+
+/**
+ * Capabilities allowed when a plan has lapsed.
+ *
+ * A lapsed chamber can read everything and perform a few necessary actions
+ * (responding to feedback, completing tasks, responding to document requests),
+ * but cannot create new records. billing.manage and privacy.manage stay
+ * allowed because they are how the chamber upgrades or fulfills legal obligations.
+ */
+const CAPABILITIES_WHEN_LAPSED: readonly Capability[] = [
+  // Reads
+  "workspace.view",
+  "cases.read",
+  "tasks.read",
+  "consultations.read",
+  "documents.read",
+  "document_requests.read",
+  "calendar.read",
+  "time.read",
+  "feedback.read",
+  "kpi.read",
+  "audit.read",
+  // Writes
+  "tasks.complete",
+  "document_requests.respond",
+  "feedback.respond",
+  "billing.manage",
+  "privacy.manage",
+];
+
+export function isCapabilityAllowedWhenLapsed(capability: Capability): boolean {
+  return (CAPABILITIES_WHEN_LAPSED as readonly string[]).includes(capability);
+}

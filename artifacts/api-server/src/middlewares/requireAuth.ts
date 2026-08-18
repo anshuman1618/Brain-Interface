@@ -8,8 +8,10 @@ import {
   taskScopeForRole,
   type Capability,
   type RowScope,
+  isCapabilityAllowedWhenLapsed,
 } from "../lib/permissions";
 import { verifyWorkspaceToken } from "../lib/workspace-token";
+import { planStateFor, type PlanState } from "../lib/quota";
 
 /**
  * The verified request context. Everything downstream reads from here and
@@ -27,6 +29,7 @@ export type WorkspaceContext = {
   capabilities: Capability[];
   caseScope: RowScope;
   taskScope: RowScope;
+  planState: PlanState;
 };
 
 export interface AuthRequest extends Request {
@@ -224,6 +227,7 @@ export const requireWorkspace = async (
   }
 
   req.userRole = target.role;
+  const planState = await planStateFor(target.workspace.id);
   req.ctx = {
     user,
     workspace: target.workspace,
@@ -233,6 +237,7 @@ export const requireWorkspace = async (
     capabilities: capabilitiesFor(target.role, target.isOwner),
     caseScope: caseScopeForRole(target.role),
     taskScope: taskScopeForRole(target.role),
+    planState,
   };
 
   next();
@@ -242,6 +247,11 @@ export const requireWorkspace = async (
  * Capability check, layered on top of `requireWorkspace`. Answers 403 — never
  * 404 or a silent empty list — so a caller learns the boundary exists rather
  * than that the resource does.
+ *
+ * When the plan is lapsed, only capabilities in CAPABILITIES_WHEN_LAPSED are
+ * allowed. A lapsed chamber can read everything and perform a few necessary
+ * actions (responding to feedback, completing tasks, responding to document
+ * requests), but cannot create new records. Denies with 402 plan_lapsed.
  */
 export const requireCapability =
   (...capabilities: Capability[]) =>
@@ -250,6 +260,18 @@ export const requireCapability =
     if (!context) {
       res.status(403).json({ error: "Forbidden", reason: "no_workspace_context" });
       return;
+    }
+
+    // Check if plan is lapsed and any requested capability is not in the allowlist.
+    if (context.planState.lapsed) {
+      const notAllowed = capabilities.filter((c) => !isCapabilityAllowedWhenLapsed(c));
+      if (notAllowed.length > 0) {
+        res.status(402).json({
+          error: "plan_lapsed",
+          message: `Your ${context.planState.storedPlan || "trial"} plan expired. Records stay readable; new entries need a plan.`,
+        });
+        return;
+      }
     }
 
     const held = new Set(context.capabilities);

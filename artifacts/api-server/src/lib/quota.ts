@@ -21,6 +21,16 @@ import { FALLBACK_PLAN, PLAN_NAMES, limitsFor, type PlanLimits } from "./plans";
  * trap rather than a plan.
  */
 
+export type PlanState = {
+  plan: SubscriptionPlan;
+  storedPlan: SubscriptionPlan | null;
+  status: string | null;
+  effectiveStatus: "active" | "lapsed";
+  lapsed: boolean;
+  periodEnd: Date | null;
+  daysLeft: number | null;
+};
+
 export type Usage = {
   plan: SubscriptionPlan;
   matters: { used: number; limit: number | null };
@@ -32,11 +42,52 @@ async function planFor(workspaceId: number): Promise<SubscriptionPlan> {
     .select()
     .from(subscriptionsTable)
     .where(eq(subscriptionsTable.workspaceId, workspaceId));
-  // No row, or a lapsed/cancelled/pending-payment one, falls back to the trial allowance.
-  // pending_payment means the plan is selected but payment hasn't cleared, so limits
-  // revert to trial while awaiting payment.
+  // No row, or a non-active one, falls back to the trial allowance.
   if (!row || row.status !== "active" || !isSubscriptionPlan(row.plan)) return FALLBACK_PLAN;
+
+  // If the period has lapsed, effective plan falls back to trial.
+  const now = new Date();
+  if (row.currentPeriodEnd && row.currentPeriodEnd <= now) return FALLBACK_PLAN;
+
   return row.plan;
+}
+
+/**
+ * Evaluate the subscription's state including expiry.
+ *
+ * A plan is lapsed when status is "active" and currentPeriodEnd is in the past.
+ * The effective plan falls back to trial when lapsed. The state is derived on
+ * every request — written only by webhooks — so no scheduler is needed.
+ */
+export async function planStateFor(workspaceId: number): Promise<PlanState> {
+  const [row] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.workspaceId, workspaceId));
+
+  const plan: SubscriptionPlan = row && isSubscriptionPlan(row.plan) ? row.plan : FALLBACK_PLAN;
+  const storedPlan = row && isSubscriptionPlan(row.plan) ? row.plan : null;
+  const status = row?.status ?? null;
+  const periodEnd = row?.currentPeriodEnd ?? null;
+  const now = new Date();
+
+  // A plan is lapsed when the row exists, status is active, but currentPeriodEnd has passed.
+  const lapsed = status === "active" && periodEnd !== null && periodEnd <= now;
+  const effectiveStatus = lapsed ? ("lapsed" as const) : ("active" as const);
+  const effectivePlan = lapsed ? FALLBACK_PLAN : plan;
+
+  // Days remaining until the period end. Null if no period is set, negative if lapsed.
+  const daysLeft = periodEnd ? Math.floor((periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+  return {
+    plan: effectivePlan,
+    storedPlan,
+    status,
+    effectiveStatus,
+    lapsed,
+    periodEnd,
+    daysLeft,
+  };
 }
 
 async function openMatters(workspaceId: number): Promise<number> {
