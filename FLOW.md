@@ -149,14 +149,14 @@ model.
 
 ### The feature routes
 
-`routes/index.ts` mounts nineteen routers on `/api`. `sessionRouter` is first
+`routes/index.ts` mounts twenty routers on `/api`. `sessionRouter` is first
 because it owns `/session` and `/workspaces` — the only endpoints a user with no
 active membership may reach.
 
 ```
 session  users  cases  documents  tasks  consultations  kpi  invites
 notifications  document-requests  search  calendar  feedback  beta-feedback
-time-entries  invoices  subscription  service-enquiries  governance
+time-entries  invoices  subscription  service-enquiries  cause-list  governance
 ```
 
 ### The authorisation gate — `middlewares/requireAuth.ts`
@@ -433,6 +433,62 @@ Built after the numbering above was reviewed.
 | `practice-portal/.../layout/dashboard-layout.tsx`           | Lazy route and nav item, both behind `billing.manage`.                                                                                                                                            |
 | `api-server/src/routes/invoices.ts`                         | `billableClient()` — the client must hold an active membership of the caller's workspace. Without it any user id was accepted and the invoice snapshotted a stranger's name, email and address.   |
 
+### Cause lists — the one part of the system that is not workspace-scoped
+
+```
+  cron (every 6h, only when CAUSE_LIST_SYNC=on)
+        │  lib/cause-list/scheduler.ts
+        ▼
+  syncAllCourts(date)                        lib/cause-list/sync.ts
+        │  in SERIES — these are other people's servers
+        ▼
+  syncCourt(court, date)
+        │
+        ├─ adapterFor(court.adapter)         lib/cause-list/registry.ts
+        │     └─ none → run recorded `skipped`, nothing tried
+        │
+        ├─ adapter.fetchCauseList({ date })  ── the ONLY court-specific code
+        │     └─ throws → run recorded `failed` + error, other courts continue
+        │
+        ├─ upsert cause_list_entries         ◄── GLOBAL. Idempotent on
+        │                                        (court, date, sourceKey)
+        │
+        └─ proposeMatches(court, date)       lib/cause-list/matcher.ts
+              │  exact only: court + caseTypeNorm + number + year
+              ▼
+           cause_list_matches (status: pending)   ◄── WORKSPACE-SCOPED.
+              │                                       Workspace comes from the
+              │                                       MATTER, never a caller.
+              ▼
+         ── nothing further happens automatically ──
+              │
+              ▼
+   a person accepts                          lib/cause-list/decide.ts
+              │  POST /cause-list/proposals/:id/decision  (calendar.write)
+              ▼
+        calendar_entries (source: "court_sync", causeListEntryId)
+```
+
+| File                                           | Role                                                                                                                        |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `lib/cause-list/types.ts`                      | `CourtAdapter` — `(court, date) → CauseListRow[]`. The only interface a new court has to satisfy.                           |
+| `lib/cause-list/adapters/fixture.ts`           | Deterministic rows, preview only. What CI runs on — a real implementation of the interface, not a mock of it.               |
+| `lib/cause-list/adapters/allahabad-lucknow.ts` | **Stub.** Documented checklist for writing it against the live site. Deliberately not registered → `skipped`, not `failed`. |
+| `lib/cause-list/registry.ts`                   | id → adapter. Fixtures registered only against a preview database.                                                          |
+| `lib/cause-list/matcher.ts`                    | The tenant crossing-point. Global listing → per-chamber proposal, scoped by the matter's own `workspaceId`.                 |
+| `lib/cause-list/sync.ts`                       | Orchestration + `cause_list_sync_runs`. Catches per court so one broken site cannot stop the rest.                          |
+| `lib/cause-list/decide.ts`                     | Accept (creates the calendar entry) / dismiss (remembered, never re-proposed).                                              |
+| `lib/cause-list/seed.ts`                       | Courts registry. The one exception to "the platform ships empty" — a High Court is not somebody's data.                     |
+| `routes/cause-list.ts`                         | `/courts`, `/cause-list/proposals`, `…/:id/decision`, `/cause-list/runs`, `/cause-list/sync`.                               |
+| `routes/cases.ts`                              | `courtIdentity()` — the four court fields, validated as a unit and normalised on write.                                     |
+
+**Capabilities.** Viewing proposals is `calendar.read` (so the clerk who keeps
+the diary sees them, and clients — who hold neither — never do). Accepting is
+`calendar.write`, the same boundary as posting any other calendar entry, which
+also means a lapsed plan can see its proposals and cannot act on them, for
+free. The ops surface (`/runs`, manual `/sync`) is `audit.read` — admin only,
+because it reaches out to third-party servers on demand.
+
 ### Bar registration — a gate that sits inside `requireWorkspace` itself
 
 | File                                             | Change                                                                                                                                                                                         |
@@ -683,7 +739,21 @@ workspace-scoped call immediately after founding. Fixed with a shared
 suites right after founding or right after an invited senior/junior
 advocate's session is established.
 
-Last run: **316 checks green with `RAZORPAY_*` unset, 316 with it set**, each
+**Cause-list ingestion has a committed suite.**
+`scripts/ci/suites/cause-list.mjs` is 56 checks running entirely on the
+fixture adapter — which implements the same interface a real court adapter
+does, so everything except HTML/PDF parsing is exercised for real. It covers:
+the four court fields validated as a unit; `normaliseCaseType` bridging
+"WP(C)" on the matter against "W.P.(C)" on the list; **that a sync creates no
+calendar entry at all**; re-sync upserting without re-proposing; a second
+chamber seeing none of the first's proposals and getting a 404 (not a 403)
+deciding one; the same shared listing proposing correctly to both chambers
+once both hold a matching matter; accept creating exactly one hearing carrying
+the raw listing; double-accept refused with 409; dismissal surviving a later
+sync; and all three run outcomes — `ok`, `failed` (adapter threw) and
+`skipped` (adapter unwritten) — distinguishable in `cause_list_sync_runs`.
+
+Last run: **372 checks green with `RAZORPAY_*` unset, 372 with it set**, each
 suite against a fresh server. The banner was checked separately in a browser
 across all five of its states (17 assertions), which is what caught the
 `daysLeft` rounding.

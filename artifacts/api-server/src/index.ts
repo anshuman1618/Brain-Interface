@@ -3,6 +3,8 @@ import app from "./app";
 import { initDatabase, isPreviewDatabase, previewDataDir } from "@workspace/db";
 import { logger } from "./lib/logger";
 import { startReminderScheduler } from "./lib/reminder-scheduler";
+import { seedCourts } from "./lib/cause-list/seed";
+import { startCauseListScheduler } from "./lib/cause-list/scheduler";
 import { assertEncryptionConfigured } from "./lib/blob-store";
 import { assertProductionConfig } from "./lib/preflight";
 import { installProcessHandlers } from "./lib/error-reporter";
@@ -32,6 +34,12 @@ if (isPreviewDatabase()) {
 }
 
 startReminderScheduler();
+
+// Reference data, not tenant data — idempotent, and it has to land before the
+// scheduler below can find a court to read. See lib/cause-list/seed.ts for why
+// this is the one exception to the platform shipping empty.
+await seedCourts();
+startCauseListScheduler();
 
 // Most Node hosts (Render, Railway, Fly, Heroku, Replit) inject PORT; fall back
 // to the documented local port so `pnpm dev` works without extra setup.

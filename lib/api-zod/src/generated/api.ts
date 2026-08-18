@@ -816,6 +816,130 @@ export const CreateServiceEnquiryResponse = zod.object({
 
 
 /**
+ * Global reference data, not workspace-scoped — a court is a fact about the world. Populates the court picker on a matter, which is what makes a matter matchable against a published cause list at all.
+ * @summary Courts a matter can be filed at
+ */
+export const ListCourtsResponseItem = zod.object({
+  "id": zod.number(),
+  "code": zod.string(),
+  "name": zod.string(),
+  "bench": zod.string().describe('The seat, where a court sits at more than one. Empty otherwise.'),
+  "jurisdiction": zod.string(),
+  "active": zod.boolean(),
+  "syncable": zod.boolean().optional().describe('Whether an adapter is registered for this court in this build. False means the court can be recorded on a matter but its list is never read — the honest state for a court whose adapter is unwritten.\n')
+})
+export const ListCourtsResponse = zod.array(ListCourtsResponseItem)
+
+
+/**
+ * A proposal is never a calendar entry. Nothing published by a court reaches this chamber's calendar until somebody accepts it here.
+ * @summary Listings matched to this chamber's matters, awaiting a decision
+ */
+export const ListCauseListProposalsQueryParams = zod.object({
+  "status": zod.enum(['pending', 'accepted', 'dismissed']).optional().describe('Defaults to pending.')
+})
+
+export const ListCauseListProposalsResponseItem = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'accepted', 'dismissed']),
+  "confidence": zod.enum(['exact']),
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "listDate": zod.string().describe('YYYY-MM-DD — the day the court has listed it for.'),
+  "courtName": zod.string(),
+  "caseRef": zod.string().optional().describe('As printed on the list, e.g. \"W.P.(C) 1234\/2026\".'),
+  "parties": zod.string().optional(),
+  "courtNo": zod.string().optional(),
+  "itemNo": zod.string().optional(),
+  "coram": zod.string().optional(),
+  "purpose": zod.string().optional(),
+  "rawText": zod.string().optional().describe('The listing exactly as read, before parsing. Evidence, not decoration.'),
+  "calendarEntryId": zod.number().nullish().describe('The calendar entry accepting it created. Null until accepted.'),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCauseListProposalsResponse = zod.array(ListCauseListProposalsResponseItem)
+
+
+/**
+ * Accepting creates the hearing entry and records which entry it created. Dismissing records the refusal so the next sync cannot re-propose it. Same capability as posting any other calendar update.
+ * @summary Accept a listing onto the calendar, or dismiss it (calendar.write only)
+ */
+export const DecideCauseListProposalParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DecideCauseListProposalBody = zod.object({
+  "decision": zod.enum(['accept', 'dismiss'])
+})
+
+export const DecideCauseListProposalResponse = zod.object({
+  "id": zod.number(),
+  "status": zod.enum(['pending', 'accepted', 'dismissed']),
+  "confidence": zod.enum(['exact']),
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "listDate": zod.string().describe('YYYY-MM-DD — the day the court has listed it for.'),
+  "courtName": zod.string(),
+  "caseRef": zod.string().optional().describe('As printed on the list, e.g. \"W.P.(C) 1234\/2026\".'),
+  "parties": zod.string().optional(),
+  "courtNo": zod.string().optional(),
+  "itemNo": zod.string().optional(),
+  "coram": zod.string().optional(),
+  "purpose": zod.string().optional(),
+  "rawText": zod.string().optional().describe('The listing exactly as read, before parsing. Evidence, not decoration.'),
+  "calendarEntryId": zod.number().nullish().describe('The calendar entry accepting it created. Null until accepted.'),
+  "decidedBy": zod.string().nullish(),
+  "decidedAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * A scraper's usual failure is going quiet, not crashing. This is where "the Lucknow list has returned zero rows since the 4th" is visible.
+ * @summary Sync health — did each court's list actually get read? (audit.read only)
+ */
+export const ListCauseListRunsResponseItem = zod.object({
+  "id": zod.number(),
+  "courtId": zod.number(),
+  "courtName": zod.string(),
+  "adapter": zod.string(),
+  "listDate": zod.string(),
+  "status": zod.enum(['ok', 'failed', 'skipped']),
+  "fetched": zod.number(),
+  "upserted": zod.number(),
+  "proposed": zod.number(),
+  "error": zod.string().nullish(),
+  "durationMs": zod.number().optional(),
+  "startedAt": zod.coerce.date()
+})
+export const ListCauseListRunsResponse = zod.array(ListCauseListRunsResponseItem)
+
+
+/**
+ * Reaches out to a third-party — usually government — server, so it is held to the same capability as the audit log and rate-limited hard.
+ * @summary Fetch a court's list now, rather than waiting for the schedule (audit.read only)
+ */
+export const triggerCauseListSyncBodyListDateRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const TriggerCauseListSyncBody = zod.object({
+  "courtCode": zod.string(),
+  "listDate": zod.string().regex(triggerCauseListSyncBodyListDateRegExp).describe('A patterned string, not format:date — `format: date` generates zod.date(), which rejects the string a browser actually sends.\n')
+})
+
+export const TriggerCauseListSyncResponse = zod.object({
+  "courtId": zod.number(),
+  "status": zod.enum(['ok', 'failed', 'skipped']),
+  "fetched": zod.number(),
+  "upserted": zod.number(),
+  "proposed": zod.number(),
+  "error": zod.string().optional()
+})
+
+
+/**
  * @summary Email addresses and domains admitted to this workspace (admin only)
  */
 export const ListAccessListResponseItem = zod.object({
@@ -971,6 +1095,11 @@ export const ListCasesResponseItem = zod.object({
   "conflictAcknowledgedBy": zod.string().nullish(),
   "conflictNote": zod.string().nullish(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  "courtId": zod.number().nullish().describe('Which court the matter is before. Null opts the matter out of cause-list matching entirely — correct for anything not filed.\n'),
+  "caseType": zod.string().nullish().describe('As entered, for display: \"W.P.(C)\".'),
+  "caseNumber": zod.number().nullish(),
+  "caseYear": zod.number().nullish(),
+  "courtName": zod.string().nullish().describe('Resolved from courtId for display. Not stored on the matter.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -995,7 +1124,11 @@ export const CreateCaseBody = zod.object({
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']).default(createCaseBodyStatusDefault),
   "clientId": zod.number().optional(),
   "filingRef": zod.string().min(createCaseBodyFilingRefMin).describe('Court or registry reference for the matter, e.g. CV-2026-118. Required — a matter that cannot be tied back to a filing is not findable in the place that counts.'),
-  "priority": zod.enum(['low', 'medium', 'high', 'urgent']).default(createCaseBodyPriorityDefault)
+  "priority": zod.enum(['low', 'medium', 'high', 'urgent']).default(createCaseBodyPriorityDefault),
+  "courtId": zod.number().optional().describe('The court this matter is before. Optional — but a matter without it, and without the three fields below, can never be matched to a published cause list. `filingRef` above is free text and cannot substitute: a court\'s list keys on type, number and year, and chambers write filingRef a dozen different ways.\n'),
+  "caseType": zod.string().optional().describe('As printed on the filing: \"W.P.(C)\", \"CRL.M.C.\".'),
+  "caseNumber": zod.number().optional(),
+  "caseYear": zod.number().optional()
 })
 
 export const CreateCaseResponse = zod.object({
@@ -1011,6 +1144,11 @@ export const CreateCaseResponse = zod.object({
   "conflictAcknowledgedBy": zod.string().nullish(),
   "conflictNote": zod.string().nullish(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  "courtId": zod.number().nullish().describe('Which court the matter is before. Null opts the matter out of cause-list matching entirely — correct for anything not filed.\n'),
+  "caseType": zod.string().nullish().describe('As entered, for display: \"W.P.(C)\".'),
+  "caseNumber": zod.number().nullish(),
+  "caseYear": zod.number().nullish(),
+  "courtName": zod.string().nullish().describe('Resolved from courtId for display. Not stored on the matter.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1036,6 +1174,11 @@ export const GetCaseResponse = zod.object({
   "conflictAcknowledgedBy": zod.string().nullish(),
   "conflictNote": zod.string().nullish(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  "courtId": zod.number().nullish().describe('Which court the matter is before. Null opts the matter out of cause-list matching entirely — correct for anything not filed.\n'),
+  "caseType": zod.string().nullish().describe('As entered, for display: \"W.P.(C)\".'),
+  "caseNumber": zod.number().nullish(),
+  "caseYear": zod.number().nullish(),
+  "courtName": zod.string().nullish().describe('Resolved from courtId for display. Not stored on the matter.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1059,7 +1202,11 @@ export const UpdateCaseBody = zod.object({
   "status": zod.enum(['open', 'in_progress', 'review', 'closed']).optional(),
   "clientId": zod.number().optional(),
   "filingRef": zod.string().min(updateCaseBodyFilingRefMin).optional().describe('Optional on update because this is a partial patch, but it cannot be cleared: omit it to leave it alone.'),
-  "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional()
+  "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  "courtId": zod.number().optional(),
+  "caseType": zod.string().optional(),
+  "caseNumber": zod.number().optional(),
+  "caseYear": zod.number().optional()
 })
 
 export const UpdateCaseResponse = zod.object({
@@ -1075,6 +1222,11 @@ export const UpdateCaseResponse = zod.object({
   "conflictAcknowledgedBy": zod.string().nullish(),
   "conflictNote": zod.string().nullish(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  "courtId": zod.number().nullish().describe('Which court the matter is before. Null opts the matter out of cause-list matching entirely — correct for anything not filed.\n'),
+  "caseType": zod.string().nullish().describe('As entered, for display: \"W.P.(C)\".'),
+  "caseNumber": zod.number().nullish(),
+  "caseYear": zod.number().nullish(),
+  "courtName": zod.string().nullish().describe('Resolved from courtId for display. Not stored on the matter.'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })

@@ -38,6 +38,11 @@ import type {
   Case,
   CaseInput,
   CaseUpdate,
+  CauseListDecisionInput,
+  CauseListProposal,
+  CauseListSyncInput,
+  CauseListSyncRun,
+  CauseListSyncRunResult,
   ChamberPerformance,
   CheckConflicts200,
   CheckoutOrder,
@@ -45,6 +50,7 @@ import type {
   Consultation,
   ConsultationInput,
   ConsultationUpdate,
+  Court,
   DashboardSummary,
   DataExport,
   DelayLog,
@@ -73,6 +79,7 @@ import type {
   KpiDashboard,
   ListAuditEventsParams,
   ListCasesParams,
+  ListCauseListProposalsParams,
   ListConsultationsParams,
   ListInvoicesParams,
   ListTasksParams,
@@ -2518,6 +2525,392 @@ export const useCreateServiceEnquiry = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateServiceEnquiryMutationOptions(options));
+    }
+
+export const getListCourtsUrl = () => {
+
+
+
+
+  return `/api/courts`
+}
+
+/**
+ * Global reference data, not workspace-scoped — a court is a fact about the world. Populates the court picker on a matter, which is what makes a matter matchable against a published cause list at all.
+ * @summary Courts a matter can be filed at
+ */
+export const listCourts = async ( options?: RequestInit): Promise<Court[]> => {
+
+  return customFetch<Court[]>(getListCourtsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCourtsQueryKey = () => {
+    return [
+    `/api/courts`
+    ] as const;
+    }
+
+
+export const getListCourtsQueryOptions = <TData = Awaited<ReturnType<typeof listCourts>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCourts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCourtsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCourts>>> = ({ signal }) => listCourts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCourts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCourtsQueryResult = NonNullable<Awaited<ReturnType<typeof listCourts>>>
+export type ListCourtsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Courts a matter can be filed at
+ */
+
+export function useListCourts<TData = Awaited<ReturnType<typeof listCourts>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCourts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCourtsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListCauseListProposalsUrl = (params?: ListCauseListProposalsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/cause-list/proposals?${stringifiedParams}` : `/api/cause-list/proposals`
+}
+
+/**
+ * A proposal is never a calendar entry. Nothing published by a court reaches this chamber's calendar until somebody accepts it here.
+ * @summary Listings matched to this chamber's matters, awaiting a decision
+ */
+export const listCauseListProposals = async (params?: ListCauseListProposalsParams, options?: RequestInit): Promise<CauseListProposal[]> => {
+
+  return customFetch<CauseListProposal[]>(getListCauseListProposalsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCauseListProposalsQueryKey = (params?: ListCauseListProposalsParams,) => {
+    return [
+    `/api/cause-list/proposals`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListCauseListProposalsQueryOptions = <TData = Awaited<ReturnType<typeof listCauseListProposals>>, TError = ErrorType<void>>(params?: ListCauseListProposalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCauseListProposals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCauseListProposalsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCauseListProposals>>> = ({ signal }) => listCauseListProposals(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCauseListProposals>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCauseListProposalsQueryResult = NonNullable<Awaited<ReturnType<typeof listCauseListProposals>>>
+export type ListCauseListProposalsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Listings matched to this chamber's matters, awaiting a decision
+ */
+
+export function useListCauseListProposals<TData = Awaited<ReturnType<typeof listCauseListProposals>>, TError = ErrorType<void>>(
+ params?: ListCauseListProposalsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCauseListProposals>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCauseListProposalsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDecideCauseListProposalUrl = (id: number,) => {
+
+
+
+
+  return `/api/cause-list/proposals/${id}/decision`
+}
+
+/**
+ * Accepting creates the hearing entry and records which entry it created. Dismissing records the refusal so the next sync cannot re-propose it. Same capability as posting any other calendar update.
+ * @summary Accept a listing onto the calendar, or dismiss it (calendar.write only)
+ */
+export const decideCauseListProposal = async (id: number,
+    causeListDecisionInput: CauseListDecisionInput, options?: RequestInit): Promise<CauseListProposal> => {
+
+  return customFetch<CauseListProposal>(getDecideCauseListProposalUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(causeListDecisionInput)
+  }
+);}
+
+
+
+
+
+export const getDecideCauseListProposalMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideCauseListProposal>>, TError,{id: number;data: BodyType<CauseListDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof decideCauseListProposal>>, TError,{id: number;data: BodyType<CauseListDecisionInput>}, TContext> => {
+
+const mutationKey = ['decideCauseListProposal'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof decideCauseListProposal>>, {id: number;data: BodyType<CauseListDecisionInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  decideCauseListProposal(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DecideCauseListProposalMutationResult = NonNullable<Awaited<ReturnType<typeof decideCauseListProposal>>>
+    export type DecideCauseListProposalMutationBody = BodyType<CauseListDecisionInput>
+    export type DecideCauseListProposalMutationError = ErrorType<void>
+
+    /**
+ * @summary Accept a listing onto the calendar, or dismiss it (calendar.write only)
+ */
+export const useDecideCauseListProposal = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof decideCauseListProposal>>, TError,{id: number;data: BodyType<CauseListDecisionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof decideCauseListProposal>>,
+        TError,
+        {id: number;data: BodyType<CauseListDecisionInput>},
+        TContext
+      > => {
+      return useMutation(getDecideCauseListProposalMutationOptions(options));
+    }
+
+export const getListCauseListRunsUrl = () => {
+
+
+
+
+  return `/api/cause-list/runs`
+}
+
+/**
+ * A scraper's usual failure is going quiet, not crashing. This is where "the Lucknow list has returned zero rows since the 4th" is visible.
+ * @summary Sync health — did each court's list actually get read? (audit.read only)
+ */
+export const listCauseListRuns = async ( options?: RequestInit): Promise<CauseListSyncRun[]> => {
+
+  return customFetch<CauseListSyncRun[]>(getListCauseListRunsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCauseListRunsQueryKey = () => {
+    return [
+    `/api/cause-list/runs`
+    ] as const;
+    }
+
+
+export const getListCauseListRunsQueryOptions = <TData = Awaited<ReturnType<typeof listCauseListRuns>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCauseListRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCauseListRunsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCauseListRuns>>> = ({ signal }) => listCauseListRuns({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCauseListRuns>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCauseListRunsQueryResult = NonNullable<Awaited<ReturnType<typeof listCauseListRuns>>>
+export type ListCauseListRunsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Sync health — did each court's list actually get read? (audit.read only)
+ */
+
+export function useListCauseListRuns<TData = Awaited<ReturnType<typeof listCauseListRuns>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCauseListRuns>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCauseListRunsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getTriggerCauseListSyncUrl = () => {
+
+
+
+
+  return `/api/cause-list/sync`
+}
+
+/**
+ * Reaches out to a third-party — usually government — server, so it is held to the same capability as the audit log and rate-limited hard.
+ * @summary Fetch a court's list now, rather than waiting for the schedule (audit.read only)
+ */
+export const triggerCauseListSync = async (causeListSyncInput: CauseListSyncInput, options?: RequestInit): Promise<CauseListSyncRunResult> => {
+
+  return customFetch<CauseListSyncRunResult>(getTriggerCauseListSyncUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(causeListSyncInput)
+  }
+);}
+
+
+
+
+
+export const getTriggerCauseListSyncMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerCauseListSync>>, TError,{data: BodyType<CauseListSyncInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof triggerCauseListSync>>, TError,{data: BodyType<CauseListSyncInput>}, TContext> => {
+
+const mutationKey = ['triggerCauseListSync'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof triggerCauseListSync>>, {data: BodyType<CauseListSyncInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  triggerCauseListSync(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type TriggerCauseListSyncMutationResult = NonNullable<Awaited<ReturnType<typeof triggerCauseListSync>>>
+    export type TriggerCauseListSyncMutationBody = BodyType<CauseListSyncInput>
+    export type TriggerCauseListSyncMutationError = ErrorType<void>
+
+    /**
+ * @summary Fetch a court's list now, rather than waiting for the schedule (audit.read only)
+ */
+export const useTriggerCauseListSync = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof triggerCauseListSync>>, TError,{data: BodyType<CauseListSyncInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof triggerCauseListSync>>,
+        TError,
+        {data: BodyType<CauseListSyncInput>},
+        TContext
+      > => {
+      return useMutation(getTriggerCauseListSyncMutationOptions(options));
     }
 
 export const getListAccessListUrl = () => {

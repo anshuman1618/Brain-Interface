@@ -44,6 +44,8 @@ tags:
     description: Data export and erasure requests
   - name: invoices
     description: Invoice generation (firm admin only)
+  - name: cause-list
+    description: Court cause lists, and the listings proposed against a chamber's matters
 
 paths:
   /healthz:
@@ -740,6 +742,135 @@ paths:
           description: Invalid
         "403":
           description: Forbidden
+
+  /courts:
+    get:
+      operationId: listCourts
+      tags: [cause-list]
+      summary: Courts a matter can be filed at
+      description: >
+        Global reference data, not workspace-scoped — a court is a fact about
+        the world. Populates the court picker on a matter, which is what makes
+        a matter matchable against a published cause list at all.
+      responses:
+        "200":
+          description: Courts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Court"
+        "403":
+          description: Forbidden
+
+  /cause-list/proposals:
+    get:
+      operationId: listCauseListProposals
+      tags: [cause-list]
+      summary: Listings matched to this chamber's matters, awaiting a decision
+      description: >
+        A proposal is never a calendar entry. Nothing published by a court
+        reaches this chamber's calendar until somebody accepts it here.
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, accepted, dismissed]
+          description: Defaults to pending.
+      responses:
+        "200":
+          description: Proposals
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CauseListProposal"
+        "403":
+          description: Forbidden
+
+  /cause-list/proposals/{id}/decision:
+    post:
+      operationId: decideCauseListProposal
+      tags: [cause-list]
+      summary: Accept a listing onto the calendar, or dismiss it (calendar.write only)
+      description: >
+        Accepting creates the hearing entry and records which entry it created.
+        Dismissing records the refusal so the next sync cannot re-propose it.
+        Same capability as posting any other calendar update.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CauseListDecisionInput"
+      responses:
+        "200":
+          description: Decided
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CauseListProposal"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such proposal in this workspace
+        "409":
+          description: Already decided
+
+  /cause-list/runs:
+    get:
+      operationId: listCauseListRuns
+      tags: [cause-list]
+      summary: Sync health — did each court's list actually get read? (audit.read only)
+      description: >
+        A scraper's usual failure is going quiet, not crashing. This is where
+        "the Lucknow list has returned zero rows since the 4th" is visible.
+      responses:
+        "200":
+          description: Recent runs, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CauseListSyncRun"
+        "403":
+          description: Forbidden
+
+  /cause-list/sync:
+    post:
+      operationId: triggerCauseListSync
+      tags: [cause-list]
+      summary: Fetch a court's list now, rather than waiting for the schedule (audit.read only)
+      description: >
+        Reaches out to a third-party — usually government — server, so it is
+        held to the same capability as the audit log and rate-limited hard.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CauseListSyncInput"
+      responses:
+        "200":
+          description: What the run did
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CauseListSyncRunResult"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such court
 
   /workspace/access-list:
     get:
@@ -2627,6 +2758,21 @@ components:
         priority:
           type: string
           enum: [low, medium, high, urgent]
+        courtId:
+          type: ["integer", "null"]
+          description: >
+            Which court the matter is before. Null opts the matter out of
+            cause-list matching entirely — correct for anything not filed.
+        caseType:
+          type: ["string", "null"]
+          description: 'As entered, for display: "W.P.(C)".'
+        caseNumber:
+          type: ["integer", "null"]
+        caseYear:
+          type: ["integer", "null"]
+        courtName:
+          type: ["string", "null"]
+          description: Resolved from courtId for display. Not stored on the matter.
         createdAt:
           type: string
           format: date-time
@@ -2669,6 +2815,21 @@ components:
           type: string
           enum: [low, medium, high, urgent]
           default: medium
+        courtId:
+          type: integer
+          description: >
+            The court this matter is before. Optional — but a matter without
+            it, and without the three fields below, can never be matched to a
+            published cause list. `filingRef` above is free text and cannot
+            substitute: a court's list keys on type, number and year, and
+            chambers write filingRef a dozen different ways.
+        caseType:
+          type: string
+          description: 'As printed on the filing: "W.P.(C)", "CRL.M.C.".'
+        caseNumber:
+          type: integer
+        caseYear:
+          type: integer
 
     CaseUpdate:
       type: object
@@ -2692,6 +2853,14 @@ components:
         priority:
           type: string
           enum: [low, medium, high, urgent]
+        courtId:
+          type: integer
+        caseType:
+          type: string
+        caseNumber:
+          type: integer
+        caseYear:
+          type: integer
 
     TimelineEvent:
       type: object
@@ -2958,6 +3127,150 @@ components:
         billingPeriod:
           type: string
           enum: [one_time, monthly, half_yearly, yearly]
+
+    Court:
+      type: object
+      required: [id, code, name, bench, jurisdiction, active]
+      properties:
+        id:
+          type: integer
+        code:
+          type: string
+        name:
+          type: string
+        bench:
+          type: string
+          description: The seat, where a court sits at more than one. Empty otherwise.
+        jurisdiction:
+          type: string
+        active:
+          type: boolean
+        syncable:
+          type: boolean
+          description: >
+            Whether an adapter is registered for this court in this build. False
+            means the court can be recorded on a matter but its list is never
+            read — the honest state for a court whose adapter is unwritten.
+
+    CauseListProposal:
+      type: object
+      required: [id, status, confidence, caseId, caseTitle, listDate, courtName, createdAt]
+      properties:
+        id:
+          type: integer
+        status:
+          type: string
+          enum: [pending, accepted, dismissed]
+        confidence:
+          type: string
+          enum: [exact]
+        caseId:
+          type: integer
+        caseTitle:
+          type: string
+        listDate:
+          type: string
+          description: YYYY-MM-DD — the day the court has listed it for.
+        courtName:
+          type: string
+        caseRef:
+          type: string
+          description: 'As printed on the list, e.g. "W.P.(C) 1234/2026".'
+        parties:
+          type: string
+        courtNo:
+          type: string
+        itemNo:
+          type: string
+        coram:
+          type: string
+        purpose:
+          type: string
+        rawText:
+          type: string
+          description: The listing exactly as read, before parsing. Evidence, not decoration.
+        calendarEntryId:
+          type: ["integer", "null"]
+          description: The calendar entry accepting it created. Null until accepted.
+        decidedBy:
+          type: ["string", "null"]
+        decidedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    CauseListDecisionInput:
+      type: object
+      required: [decision]
+      properties:
+        decision:
+          type: string
+          enum: [accept, dismiss]
+
+    CauseListSyncRun:
+      type: object
+      required:
+        [id, courtId, courtName, adapter, listDate, status, fetched, upserted, proposed, startedAt]
+      properties:
+        id:
+          type: integer
+        courtId:
+          type: integer
+        courtName:
+          type: string
+        adapter:
+          type: string
+        listDate:
+          type: string
+        status:
+          type: string
+          enum: [ok, failed, skipped]
+        fetched:
+          type: integer
+        upserted:
+          type: integer
+        proposed:
+          type: integer
+        error:
+          type: ["string", "null"]
+        durationMs:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+
+    CauseListSyncInput:
+      type: object
+      required: [courtCode, listDate]
+      properties:
+        courtCode:
+          type: string
+        listDate:
+          type: string
+          pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: >
+            A patterned string, not format:date — `format: date` generates
+            zod.date(), which rejects the string a browser actually sends.
+
+    CauseListSyncRunResult:
+      type: object
+      required: [courtId, status, fetched, upserted, proposed]
+      properties:
+        courtId:
+          type: integer
+        status:
+          type: string
+          enum: [ok, failed, skipped]
+        fetched:
+          type: integer
+        upserted:
+          type: integer
+        proposed:
+          type: integer
+        error:
+          type: string
 
     ServiceEnquiryInput:
       type: object

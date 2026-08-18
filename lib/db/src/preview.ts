@@ -416,6 +416,67 @@ CREATE TABLE IF NOT EXISTS timeline_events (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS courts (
+  id SERIAL PRIMARY KEY,
+  code TEXT NOT NULL,
+  name TEXT NOT NULL,
+  bench TEXT NOT NULL DEFAULT '',
+  jurisdiction TEXT NOT NULL DEFAULT '',
+  adapter TEXT NOT NULL DEFAULT '',
+  website TEXT NOT NULL DEFAULT '',
+  active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT courts_code_key UNIQUE (code)
+);
+
+CREATE TABLE IF NOT EXISTS cause_list_entries (
+  id SERIAL PRIMARY KEY,
+  court_id INTEGER NOT NULL,
+  list_date TEXT NOT NULL,
+  case_type TEXT NOT NULL DEFAULT '',
+  case_type_norm TEXT NOT NULL DEFAULT '',
+  case_number INTEGER,
+  case_year INTEGER,
+  parties TEXT NOT NULL DEFAULT '',
+  court_no TEXT NOT NULL DEFAULT '',
+  item_no TEXT NOT NULL DEFAULT '',
+  coram TEXT NOT NULL DEFAULT '',
+  purpose TEXT NOT NULL DEFAULT '',
+  raw_text TEXT NOT NULL DEFAULT '',
+  source_key TEXT NOT NULL,
+  sync_run_id INTEGER,
+  fetched_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT cause_list_entries_court_date_key UNIQUE (court_id, list_date, source_key)
+);
+
+CREATE TABLE IF NOT EXISTS cause_list_matches (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  cause_list_entry_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  confidence TEXT NOT NULL DEFAULT 'exact',
+  calendar_entry_id INTEGER,
+  decided_by TEXT,
+  decided_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT cause_list_matches_ws_entry_case_key UNIQUE (workspace_id, cause_list_entry_id, case_id)
+);
+
+CREATE TABLE IF NOT EXISTS cause_list_sync_runs (
+  id SERIAL PRIMARY KEY,
+  court_id INTEGER NOT NULL,
+  adapter TEXT NOT NULL DEFAULT '',
+  list_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'ok',
+  fetched INTEGER NOT NULL DEFAULT 0,
+  upserted INTEGER NOT NULL DEFAULT 0,
+  proposed INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS service_enquiries (
   id SERIAL PRIMARY KEY,
   workspace_id INTEGER NOT NULL,
@@ -500,6 +561,13 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_council_state TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_enrolment_no TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS aor_no TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_declared_at TIMESTAMPTZ;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS court_id INTEGER;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_type TEXT;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_type_norm TEXT;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_number INTEGER;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_year INTEGER;
+ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
+ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS cause_list_entry_id INTEGER;
 `;
 
 /** Where the preview database lives on disk. */

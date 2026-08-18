@@ -27,6 +27,29 @@ export const casesTable = pgTable("cases", {
    * prevent.
    */
   filingRef: text("filing_ref").notNull(),
+  /**
+   * Structured court identity — the four fields a cause list actually keys on.
+   *
+   * `filingRef` above is free text and stays that way: it is whatever the
+   * chamber writes on the file, and chambers write it a dozen ways
+   * ("W.P.(C) 1234/2026", "WP 1234 of 26", "CV-2026-118"). That is fine for a
+   * human reading a folder and useless for matching, because a court's list
+   * identifies a matter as a TYPE, a NUMBER and a YEAR at a named court, and
+   * nothing else. Parsing those back out of `filingRef` after the fact is
+   * guesswork; asking for them once, at filing, is not.
+   *
+   * All nullable. Every matter that existed before this feature has none, a
+   * matter not before a court (an advisory, an unfiled brief) never will, and
+   * neither is broken — they simply never match a listing. `courtId` null is
+   * the switch that opts a matter out entirely.
+   */
+  courtId: integer("court_id"),
+  /** As entered, for display: "W.P.(C)". */
+  caseType: text("case_type"),
+  /** Written by `normaliseCaseType` — this is the column matching compares. */
+  caseTypeNorm: text("case_type_norm"),
+  caseNumber: integer("case_number"),
+  caseYear: integer("case_year"),
   priority: text("priority").notNull().default("medium"), // low | medium | high | urgent
   /**
    * When the matter was closed. Null while it is open.

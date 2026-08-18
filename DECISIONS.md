@@ -10,6 +10,102 @@ were, and what would make it worth revisiting.
 
 ---
 
+## Cause-list ingestion: shared fetch, per-chamber proposals, no automatic calendar (2026-08-18)
+
+**Decided:** read court cause lists on a schedule into a global store, match
+them against matters by structured court identity, and surface every match as
+a **proposal a person accepts**. Nothing published by a court reaches a
+chamber's calendar without somebody agreeing to it.
+
+**Why proposals and not automatic entries.** This was the product owner's
+call and it is the right one. A wrong hearing date in a practice-management
+tool is not a cosmetic bug — an advocate who does not appear because the tool
+said the listing was Thursday can have the matter dismissed for
+non-appearance. A parser that misreads a court number should therefore
+produce something a person looks at, not a date somebody plans their week
+around. The cost is that a proposal queue has to be cleared; the benefit is
+that the failure mode of every scraper bug is "a proposal you ignore" rather
+than "a hearing you miss".
+
+**Why the scraped data is GLOBAL, breaking this codebase's central
+invariant.** Every other table here is workspace-scoped, and `courts`,
+`cause_list_entries` and `cause_list_sync_runs` are deliberately not. A
+published cause list is one public document that every chamber appearing in
+it reads identically. Fetching it per tenant would mean fifty chambers making
+fifty requests to one government server for one identical file — rude, and
+the fastest route to a blocked IP. Fetch once, store once, match per
+workspace.
+
+The tenant boundary moves to `cause_list_matches`, and it is structural
+rather than a filter that could be forgotten: a proposal's workspace is read
+from the MATTER it matched (`cases.workspaceId`), so a chamber can only ever
+be told about a listing that hit a matter it already holds. There is no query
+in the matcher a caller could widen.
+
+**Why `cases` needed four new columns before any of this could work.**
+`filingRef` is free text and stays that way — it is whatever the chamber
+writes on the file, and chambers write it a dozen ways ("W.P.(C) 1234/2026",
+"WP 1234 of 26", "CV-2026-118"). A court's list keys on a TYPE, a NUMBER and
+a YEAR at a named court and nothing else, so matching against `filingRef`
+would be parsing prose. `courtId` / `caseType` / `caseNumber` / `caseYear` are
+asked for once, at filing. They travel as a unit — all four or none — because
+a case number with no court matches nothing and a court with no number would
+match everything the parser failed to read.
+
+`caseTypeNorm` is stored on both sides, written by one shared
+`normaliseCaseType()`, so "W.P.(C)" on the matter and "WP(C)" on the list
+compare as plain equality. Same reasoning as `normaliseEmail` on the access
+list: normalise on write, compare exactly, keep the original for display.
+
+**Why matching is exact only.** Fuzzy matching on party names would produce
+proposals that are wrong often enough to train an advocate into clicking
+accept without reading — which is strictly worse than proposing nothing,
+because the entire value of the feature is whether the person still trusts it
+on the day it matters. The `confidence` column exists so a future fuzzy
+matcher has somewhere to record how sure it was, and so the queue can sort by
+it, without a migration.
+
+**Why an adapter that does not exist is `skipped`, not `failed`.** The
+Lucknow Bench is seeded and selectable on a matter today, with no adapter
+written. That is a real and useful state — a chamber can record its court
+identity now and get proposals the day the adapter lands — and it is not an
+error. `failed` is reserved for an adapter that ran and broke, which is a
+thing somebody has to fix.
+
+**Why `cause_list_sync_runs` exists at all.** A scraper's characteristic
+failure is not crashing, it is going quiet after a site redesign: returning
+zero rows while everything downstream keeps working on an empty set, for a
+month, unnoticed. An empty list is also a legitimate answer, because courts
+do not sit every day. Those two have to be distinguishable in the data rather
+than in a log nobody reads, which is why every run is recorded and why an
+adapter must THROW rather than return `[]` when it fails.
+
+**Why the scheduler is off unless `CAUSE_LIST_SYNC=on`.** It makes requests
+to other people's servers, so it should be switched on deliberately and be
+switchable off in one environment variable if a registry ever objects —
+without a deploy. It also keeps CI deterministic (the suites drive sync
+explicitly), and it avoids promising a schedule that Render's free plan
+cannot keep, since a cron inside a spun-down instance does not fire.
+
+**The line not crossed.** Cause lists are public records published precisely
+so advocates know when to appear — this is the intended audience, not a
+loophole. That is an argument for reading them politely (robots.txt honoured,
+a real User-Agent with a contact, rate-limited, fetched once globally,
+cached), not for ignoring what a site asks. Where a court gates its list
+behind a CAPTCHA, the answer is assisted import for that court, not defeating
+the control: that is where "public data" stops describing what you are doing.
+
+**What is deliberately NOT built.** The Lucknow adapter itself. This was
+written in an environment whose egress policy blocks
+`allahabadhighcourt.in`, so the page has never been fetched here. Writing
+selectors against HTML nobody has looked at produces code that compiles,
+passes review, and silently returns zero rows forever — the exact failure the
+run table exists to catch, and not one worth shipping deliberately.
+`adapters/allahabad-lucknow.ts` is a documented stub carrying the checklist
+for writing it against the live site.
+
+---
+
 ## Bar registration: self-declared, gated, enforced twice (2026-08-18)
 
 **Decided:** four additive columns on `users` (`bar_council_state`,

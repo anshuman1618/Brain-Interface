@@ -24,6 +24,7 @@ const SUITES = [
   ["plan", "Plan enforcement: payment, seats, expiry"],
   ["case-restriction", "Restrict to Case ID, via both grant paths"],
   ["bar-registration", "Bar enrolment gate for practice roles"],
+  ["cause-list", "Court cause lists: fetch, match, propose, accept"],
   ["gov", "Files, audit, quota, privacy, conflicts"],
 ];
 

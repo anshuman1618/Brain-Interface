@@ -142,6 +142,13 @@ app.use(
   "/api/service-enquiries",
   rateLimit({ name: "service-enquiries", max: 10, windowMs: 60_000, perUser: true }),
 );
+// A manual cause-list sync reaches out to a third-party — usually government —
+// server. Tighter than any other write, and keyed per user: the scheduled sync
+// is the normal path, and this exists for the occasional "fetch it again now".
+app.use(
+  "/api/cause-list/sync",
+  rateLimit({ name: "cause-list-sync", max: 6, windowMs: 60_000, perUser: true }),
+);
 
 /**
  * The expensive reads. 20/min is far above any human use — opening every

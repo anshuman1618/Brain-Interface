@@ -26,4 +26,10 @@ export interface CaseInput {
      */
   filingRef: string;
   priority?: CaseInputPriority;
+  /** The court this matter is before. Optional — but a matter without it, and without the three fields below, can never be matched to a published cause list. `filingRef` above is free text and cannot substitute: a court's list keys on type, number and year, and chambers write filingRef a dozen different ways. */
+  courtId?: number;
+  /** As printed on the filing: "W.P.(C)", "CRL.M.C.". */
+  caseType?: string;
+  caseNumber?: number;
+  caseYear?: number;
 }

@@ -862,6 +862,25 @@ export interface Case {
   /** @nullable */
   conflictNote?: string | null;
   priority?: CasePriority;
+  /**
+     * Which court the matter is before. Null opts the matter out of cause-list matching entirely — correct for anything not filed.
+     * @nullable
+     */
+  courtId?: number | null;
+  /**
+     * As entered, for display: "W.P.(C)".
+     * @nullable
+     */
+  caseType?: string | null;
+  /** @nullable */
+  caseNumber?: number | null;
+  /** @nullable */
+  caseYear?: number | null;
+  /**
+     * Resolved from courtId for display. Not stored on the matter.
+     * @nullable
+     */
+  courtName?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -904,6 +923,12 @@ export interface CaseInput {
      */
   filingRef: string;
   priority?: CaseInputPriority;
+  /** The court this matter is before. Optional — but a matter without it, and without the three fields below, can never be matched to a published cause list. `filingRef` above is free text and cannot substitute: a court's list keys on type, number and year, and chambers write filingRef a dozen different ways. */
+  courtId?: number;
+  /** As printed on the filing: "W.P.(C)", "CRL.M.C.". */
+  caseType?: string;
+  caseNumber?: number;
+  caseYear?: number;
 }
 
 export type CaseUpdateStatus = typeof CaseUpdateStatus[keyof typeof CaseUpdateStatus];
@@ -938,6 +963,10 @@ export interface CaseUpdate {
      */
   filingRef?: string;
   priority?: CaseUpdatePriority;
+  courtId?: number;
+  caseType?: string;
+  caseNumber?: number;
+  caseYear?: number;
 }
 
 export interface TimelineEvent {
@@ -1234,6 +1263,128 @@ export interface CheckoutOrder {
   currency: string;
   plan: CheckoutOrderPlan;
   billingPeriod: CheckoutOrderBillingPeriod;
+}
+
+export interface Court {
+  id: number;
+  code: string;
+  name: string;
+  /** The seat, where a court sits at more than one. Empty otherwise. */
+  bench: string;
+  jurisdiction: string;
+  active: boolean;
+  /** Whether an adapter is registered for this court in this build. False means the court can be recorded on a matter but its list is never read — the honest state for a court whose adapter is unwritten. */
+  syncable?: boolean;
+}
+
+export type CauseListProposalStatus = typeof CauseListProposalStatus[keyof typeof CauseListProposalStatus];
+
+
+export const CauseListProposalStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  dismissed: 'dismissed',
+} as const;
+
+export type CauseListProposalConfidence = typeof CauseListProposalConfidence[keyof typeof CauseListProposalConfidence];
+
+
+export const CauseListProposalConfidence = {
+  exact: 'exact',
+} as const;
+
+export interface CauseListProposal {
+  id: number;
+  status: CauseListProposalStatus;
+  confidence: CauseListProposalConfidence;
+  caseId: number;
+  caseTitle: string;
+  /** YYYY-MM-DD — the day the court has listed it for. */
+  listDate: string;
+  courtName: string;
+  /** As printed on the list, e.g. "W.P.(C) 1234/2026". */
+  caseRef?: string;
+  parties?: string;
+  courtNo?: string;
+  itemNo?: string;
+  coram?: string;
+  purpose?: string;
+  /** The listing exactly as read, before parsing. Evidence, not decoration. */
+  rawText?: string;
+  /**
+     * The calendar entry accepting it created. Null until accepted.
+     * @nullable
+     */
+  calendarEntryId?: number | null;
+  /** @nullable */
+  decidedBy?: string | null;
+  /** @nullable */
+  decidedAt?: string | null;
+  createdAt: string;
+}
+
+export type CauseListDecisionInputDecision = typeof CauseListDecisionInputDecision[keyof typeof CauseListDecisionInputDecision];
+
+
+export const CauseListDecisionInputDecision = {
+  accept: 'accept',
+  dismiss: 'dismiss',
+} as const;
+
+export interface CauseListDecisionInput {
+  decision: CauseListDecisionInputDecision;
+}
+
+export type CauseListSyncRunStatus = typeof CauseListSyncRunStatus[keyof typeof CauseListSyncRunStatus];
+
+
+export const CauseListSyncRunStatus = {
+  ok: 'ok',
+  failed: 'failed',
+  skipped: 'skipped',
+} as const;
+
+export interface CauseListSyncRun {
+  id: number;
+  courtId: number;
+  courtName: string;
+  adapter: string;
+  listDate: string;
+  status: CauseListSyncRunStatus;
+  fetched: number;
+  upserted: number;
+  proposed: number;
+  /** @nullable */
+  error?: string | null;
+  durationMs?: number;
+  startedAt: string;
+}
+
+export interface CauseListSyncInput {
+  courtCode: string;
+  /**
+     * A patterned string, not format:date — `format: date` generates zod.date(), which rejects the string a browser actually sends.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  listDate: string;
+}
+
+export type CauseListSyncRunResultStatus = typeof CauseListSyncRunResultStatus[keyof typeof CauseListSyncRunResultStatus];
+
+
+export const CauseListSyncRunResultStatus = {
+  ok: 'ok',
+  failed: 'failed',
+  skipped: 'skipped',
+} as const;
+
+export interface CauseListSyncRunResult {
+  courtId: number;
+  status: CauseListSyncRunResultStatus;
+  fetched: number;
+  upserted: number;
+  proposed: number;
+  error?: string;
 }
 
 export type ServiceEnquiryInputServiceKind = typeof ServiceEnquiryInputServiceKind[keyof typeof ServiceEnquiryInputServiceKind];
@@ -1840,6 +1991,22 @@ limit?: number;
 export type CheckConflicts200 = {
   hits: ConflictHit[];
 };
+
+export type ListCauseListProposalsParams = {
+/**
+ * Defaults to pending.
+ */
+status?: ListCauseListProposalsStatus;
+};
+
+export type ListCauseListProposalsStatus = typeof ListCauseListProposalsStatus[keyof typeof ListCauseListProposalsStatus];
+
+
+export const ListCauseListProposalsStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  dismissed: 'dismissed',
+} as const;
 
 export type ListUsersParams = {
 role?: ListUsersRole;

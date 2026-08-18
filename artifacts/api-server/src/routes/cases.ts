@@ -1,6 +1,14 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray, SQL } from "drizzle-orm";
-import { db, casesTable, usersTable, timelineEventsTable } from "@workspace/db";
+import {
+  db,
+  casesTable,
+  usersTable,
+  timelineEventsTable,
+  courtsTable,
+  courtLabel,
+  normaliseCaseType,
+} from "@workspace/db";
 import {
   ListCasesQueryParams,
   ListCasesResponse,
@@ -20,6 +28,7 @@ import {
   requireCapability,
   ctx,
   type AuthRequest,
+  type WorkspaceContext,
 } from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
@@ -57,7 +66,80 @@ async function enrichCase(c: typeof casesTable.$inferSelect) {
     const [u] = await db.select().from(usersTable).where(eq(usersTable.id, c.clientId));
     clientName = u?.displayName ?? null;
   }
-  return { ...c, clientName };
+  // Resolved for display rather than stored on the matter: the court's name is
+  // the court's, and a matter holding a stale copy of it is a bug waiting for
+  // the day a bench is renamed.
+  let courtName: string | null = null;
+  if (c.courtId) {
+    const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, c.courtId));
+    courtName = court ? courtLabel(court) : null;
+  }
+  return { ...c, clientName, courtName };
+}
+
+/**
+ * Validate and normalise the four court-identity fields.
+ *
+ * They travel together: a case number with no court matches nothing, and a
+ * court with no number matches everything the parser could not read. Either
+ * all four are given or none is, which is also what stops a half-filled
+ * matter from looking matchable on the case screen when it is not.
+ *
+ * Returns the columns to write, or a message explaining what is missing.
+ */
+async function courtIdentity(
+  c: WorkspaceContext,
+  input: { courtId?: number; caseType?: string; caseNumber?: number; caseYear?: number },
+): Promise<
+  | { ok: true; values: Partial<typeof casesTable.$inferSelect> }
+  | { ok: false; status: number; message: string }
+> {
+  const given = [input.courtId, input.caseType, input.caseNumber, input.caseYear].filter(
+    (v) => v !== undefined && v !== null && v !== "",
+  ).length;
+
+  if (given === 0) return { ok: true, values: {} };
+  if (given < 4) {
+    return {
+      ok: false,
+      status: 400,
+      message:
+        "Court, case type, number and year go together — give all four, or none. " +
+        "A partial reference cannot be matched against a cause list.",
+    };
+  }
+
+  const [court] = await db
+    .select()
+    .from(courtsTable)
+    .where(and(eq(courtsTable.id, input.courtId!), eq(courtsTable.active, true)));
+  if (!court) {
+    return { ok: false, status: 404, message: "That court was not found." };
+  }
+
+  // Sanity, not schema: a year outside this range is a typo, and a matter
+  // carrying one silently never matches.
+  const year = input.caseYear!;
+  if (year < 1900 || year > new Date().getFullYear() + 1) {
+    return { ok: false, status: 400, message: `${year} does not look like a filing year.` };
+  }
+  if (input.caseNumber! <= 0) {
+    return { ok: false, status: 400, message: "A case number is a positive whole number." };
+  }
+
+  const caseType = input.caseType!.trim();
+  return {
+    ok: true,
+    values: {
+      courtId: court.id,
+      caseType,
+      // Normalised by the same function the scraped row goes through, which is
+      // what lets matching be a plain equality. See schema/courts.ts.
+      caseTypeNorm: normaliseCaseType(caseType),
+      caseNumber: input.caseNumber!,
+      caseYear: year,
+    },
+  };
 }
 
 router.get(
@@ -184,9 +266,16 @@ router.post(
 
     const acknowledged = conflictHits.length > 0;
 
+    const identity = await courtIdentity(c, parsed.data);
+    if (!identity.ok) {
+      res.status(identity.status).json({ error: "invalid_request", message: identity.message });
+      return;
+    }
+
     const [newCase] = await db
       .insert(casesTable)
       .values({
+        ...identity.values,
         // Taken from the verified context, never from the request body — otherwise a
         // caller could plant a case inside another tenant.
         workspaceId: c.workspaceId,
@@ -317,6 +406,16 @@ router.patch(
       updateData.filingRef = trimmed;
     }
     if (body.data.priority != null) updateData.priority = body.data.priority;
+
+    // Court identity is patched as a unit, like it is created — see
+    // courtIdentity(). Omitting all four leaves whatever the matter already
+    // had; giving a partial set is refused rather than half-applied.
+    const identity = await courtIdentity(c, body.data);
+    if (!identity.ok) {
+      res.status(identity.status).json({ error: "invalid_request", message: identity.message });
+      return;
+    }
+    Object.assign(updateData, identity.values);
 
     const [updated] = await db
       .update(casesTable)

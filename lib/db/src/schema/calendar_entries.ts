@@ -37,6 +37,20 @@ export const calendarEntriesTable = pgTable("calendar_entries", {
   entryTime: text("entry_time"),
   caseId: integer("case_id"),
   audience: text("audience").notNull().default("all"),
+  /**
+   * Where this entry came from: "manual" (somebody typed it) or "court_sync"
+   * (somebody ACCEPTED a proposal from a court's cause list — never the sync
+   * itself; see `cause_list_matches`).
+   *
+   * Recorded because the two carry different authority. An entry a clerk
+   * typed is the chamber's own note; one traced to a published list can be
+   * checked against that list, and `causeListEntryId` is how. It also lets
+   * the calendar say where a hearing came from, which is the difference
+   * between an advocate trusting the date and re-checking it by hand.
+   */
+  source: text("source").notNull().default("manual"),
+  /** The `cause_list_entries` row this was accepted from. Null when manual. */
+  causeListEntryId: integer("cause_list_entry_id"),
   createdBy: text("created_by").notNull().default(""),
   createdByRole: text("created_by_role").notNull().default(""),
   createdByClerkId: text("created_by_clerk_id").notNull().default(""),

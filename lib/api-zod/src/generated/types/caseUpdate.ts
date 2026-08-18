@@ -20,4 +20,8 @@ export interface CaseUpdate {
      */
   filingRef?: string;
   priority?: CaseUpdatePriority;
+  courtId?: number;
+  caseType?: string;
+  caseNumber?: number;
+  caseYear?: number;
 }

@@ -28,6 +28,25 @@ export interface Case {
   /** @nullable */
   conflictNote?: string | null;
   priority?: CasePriority;
+  /**
+     * Which court the matter is before. Null opts the matter out of cause-list matching entirely — correct for anything not filed.
+     * @nullable
+     */
+  courtId?: number | null;
+  /**
+     * As entered, for display: "W.P.(C)".
+     * @nullable
+     */
+  caseType?: string | null;
+  /** @nullable */
+  caseNumber?: number | null;
+  /** @nullable */
+  caseYear?: number | null;
+  /**
+     * Resolved from courtId for display. Not stored on the matter.
+     * @nullable
+     */
+  courtName?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
