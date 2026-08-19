@@ -189,18 +189,20 @@ function PreviewRoutes() {
         <Route path="/sign-up/*?">
           <Redirect to="/portal?new=1" />
         </Route>
-        {/* "/:rest*" does not match the bare root in wouter, so it needs its
-            own route — without it, "/" renders nothing at all. */}
+        {/* "/*" is the catch-all, and unlike "/:rest*" it matches a path of
+            any depth. ":rest*" compiles to a single-segment pattern, so
+            anything two levels deep fell through the Switch and rendered a
+            blank page. The explicit "/" stays for legibility; the Switch takes
+            the first match either way. */}
         <Route path="/" component={LandingPage} />
-        <Route path="/:rest*" component={LandingPage} />
+        <Route path="/*" component={LandingPage} />
       </Switch>
     );
   }
 
   return (
     <Switch>
-      {/* "/:rest*" does not match the bare root, so send it to the dashboard
-          explicitly — otherwise entering the portal renders an empty page. */}
+      {/* "/" is claimed first so the catch-all below cannot swallow it. */}
       <Route path="/">
         <Redirect to="/dashboard" />
       </Route>
@@ -216,7 +218,9 @@ function PreviewRoutes() {
       <Route path="/sign-up/*?">
         <Redirect to="/dashboard" />
       </Route>
-      <Route path="/:rest*" component={DashboardLayout} />
+      {/* Depth matters: "/:rest*" matches ONE segment only, which left
+          /cases/:id rendering nothing at all. */}
+      <Route path="/*" component={DashboardLayout} />
     </Switch>
   );
 }
@@ -277,7 +281,8 @@ function ClerkApp() {
                 <Route path="/sign-up/*?">
                   <Redirect to="/portal?new=1" />
                 </Route>
-                <Route path="/:rest*" component={DashboardLayout} />
+                {/* "/*", not "/:rest*" — see the preview tree above. */}
+                <Route path="/*" component={DashboardLayout} />
               </Switch>
               <Toaster />
               <BetaFeedbackWidget />

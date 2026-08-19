@@ -411,5 +411,66 @@ const unknownCourt = await call("/cause-list/sync", {
 });
 check("an unknown court code is a 404", unknownCourt.status === 404, `got ${unknownCourt.status}`);
 
+/* ─────────────── Identity on a matter that already exists ─────────────── */
+// Every matter opened before this feature shipped has no court identity, and
+// the only route to one is a patch. If that does not work the feature reaches
+// almost no real matter.
+section("Court identity can be added to, and taken off, an existing matter");
+
+const patched = await call(`/cases/${noCourt.data.id}`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "PATCH",
+  body: { courtId: fixtureCourt.id, caseType: "CRL.M.C.", caseNumber: 7777, caseYear: 2024 },
+});
+check(
+  "an unfiled matter can be given a court identity",
+  patched.status === 200,
+  `got ${patched.status}`,
+);
+check("...storing the number", patched.data?.caseNumber === 7777, String(patched.data?.caseNumber));
+check("...and resolving the court for display", patched.data?.courtName === "Fixture Court");
+
+const halfPatch = await call(`/cases/${noCourt.data.id}`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "PATCH",
+  body: { caseNumber: 8888 },
+});
+check(
+  "a partial patch is refused rather than half-applied",
+  halfPatch.status === 400,
+  `got ${halfPatch.status}`,
+);
+
+const untouched = await call(`/cases/${noCourt.data.id}`, { token: as(owner), wsToken: ws });
+check("...leaving the stored identity alone", untouched.data?.caseNumber === 7777);
+
+const titleOnly = await call(`/cases/${noCourt.data.id}`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "PATCH",
+  body: { title: "Renamed, court untouched" },
+});
+check("a patch naming none of the four leaves it alone", titleOnly.data?.caseNumber === 7777);
+
+// The way out of a typo. Without it a mistyped number proposes somebody
+// else's listings forever.
+const cleared = await call(`/cases/${noCourt.data.id}`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "PATCH",
+  body: { courtId: null },
+});
+check(
+  "an explicit null court clears the identity",
+  cleared.status === 200,
+  `got ${cleared.status}`,
+);
+check("...the court", cleared.data?.courtId === null, String(cleared.data?.courtId));
+check("...the type", cleared.data?.caseType === null, String(cleared.data?.caseType));
+check("...the number", cleared.data?.caseNumber === null, String(cleared.data?.caseNumber));
+check("...and the year", cleared.data?.caseYear === null, String(cleared.data?.caseYear));
+
 console.log(`\n${fail === 0 ? "✓" : "✗"} ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

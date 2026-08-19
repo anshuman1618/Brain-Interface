@@ -85,15 +85,33 @@ async function enrichCase(c: typeof casesTable.$inferSelect) {
  * all four are given or none is, which is also what stops a half-filled
  * matter from looking matchable on the case screen when it is not.
  *
+ * On a patch, an explicit `courtId: null` clears all five columns. That is the
+ * only way back out of being proposed somebody else's listings after a typo,
+ * so it is worth the one nullable field in the schema; `undefined` still means
+ * "leave it alone", which is what every other field on a patch means.
+ *
  * Returns the columns to write, or a message explaining what is missing.
  */
 async function courtIdentity(
   c: WorkspaceContext,
-  input: { courtId?: number; caseType?: string; caseNumber?: number; caseYear?: number },
+  input: { courtId?: number | null; caseType?: string; caseNumber?: number; caseYear?: number },
 ): Promise<
   | { ok: true; values: Partial<typeof casesTable.$inferSelect> }
   | { ok: false; status: number; message: string }
 > {
+  if (input.courtId === null) {
+    return {
+      ok: true,
+      values: {
+        courtId: null,
+        caseType: null,
+        caseTypeNorm: null,
+        caseNumber: null,
+        caseYear: null,
+      },
+    };
+  }
+
   const given = [input.courtId, input.caseType, input.caseNumber, input.caseYear].filter(
     (v) => v !== undefined && v !== null && v !== "",
   ).length;
@@ -409,7 +427,8 @@ router.patch(
 
     // Court identity is patched as a unit, like it is created — see
     // courtIdentity(). Omitting all four leaves whatever the matter already
-    // had; giving a partial set is refused rather than half-applied.
+    // had; giving a partial set is refused rather than half-applied; an
+    // explicit null court clears it.
     const identity = await courtIdentity(c, body.data);
     if (!identity.ok) {
       res.status(identity.status).json({ error: "invalid_request", message: identity.message });

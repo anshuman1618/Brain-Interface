@@ -2855,6 +2855,12 @@ components:
           enum: [low, medium, high, urgent]
         courtId:
           type: integer
+          nullable: true
+          description: >-
+            Null clears the matter's court identity — all four fields go with
+            it, and the matter stops being matched against cause lists. Omit to
+            leave it alone. Correcting a mistyped number is otherwise the only
+            way out of being proposed somebody else's listings.
         caseType:
           type: string
         caseNumber:

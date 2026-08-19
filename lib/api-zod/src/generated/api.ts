@@ -1203,7 +1203,7 @@ export const UpdateCaseBody = zod.object({
   "clientId": zod.number().optional(),
   "filingRef": zod.string().min(updateCaseBodyFilingRefMin).optional().describe('Optional on update because this is a partial patch, but it cannot be cleared: omit it to leave it alone.'),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
-  "courtId": zod.number().optional(),
+  "courtId": zod.number().nullish().describe('Null clears the matter\'s court identity — all four fields go with it, and the matter stops being matched against cause lists. Omit to leave it alone. Correcting a mistyped number is otherwise the only way out of being proposed somebody else\'s listings.'),
   "caseType": zod.string().optional(),
   "caseNumber": zod.number().optional(),
   "caseYear": zod.number().optional()

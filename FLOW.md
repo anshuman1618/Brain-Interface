@@ -243,11 +243,19 @@ than sit alongside it.
             /portal          → PortalSignInPage    signed out → LandingPage)
             /portal/callback → AuthenticateWithRedirectCallback
             /sign-in, /sign-up → Redirect to /portal   ← passwordless only
-            /:rest*          → DashboardLayout    ← everything else
+            /*               → DashboardLayout    ← everything else
 ```
 
 Routing is **wouter**, not Next.js and not React Router. There is no `app/`
 directory and no file-based routing — routes are the `<Route>` elements above.
+
+**The catch-all must be `/*`, never `/:rest*`.** In wouter 3, `/:rest*`
+compiles to `/^\/([^/]+?)\/?$/` — one segment. It was the catch-all in both
+trees until 2026-08-19, and every route two levels deep (`/cases/:id`, the
+matter detail page) matched nothing and rendered an empty document — no error,
+no failed request, nothing to notice. `/*` compiles to `/^\/(.*)\/?$/` and
+matches any depth, including `/`, which is why the explicit `/` route is
+declared above it: a `Switch` takes the first match.
 
 ### Where authorisation surfaces in the UI
 
@@ -469,18 +477,24 @@ Built after the numbering above was reviewed.
         calendar_entries (source: "court_sync", causeListEntryId)
 ```
 
-| File                                           | Role                                                                                                                        |
-| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `lib/cause-list/types.ts`                      | `CourtAdapter` — `(court, date) → CauseListRow[]`. The only interface a new court has to satisfy.                           |
-| `lib/cause-list/adapters/fixture.ts`           | Deterministic rows, preview only. What CI runs on — a real implementation of the interface, not a mock of it.               |
-| `lib/cause-list/adapters/allahabad-lucknow.ts` | **Stub.** Documented checklist for writing it against the live site. Deliberately not registered → `skipped`, not `failed`. |
-| `lib/cause-list/registry.ts`                   | id → adapter. Fixtures registered only against a preview database.                                                          |
-| `lib/cause-list/matcher.ts`                    | The tenant crossing-point. Global listing → per-chamber proposal, scoped by the matter's own `workspaceId`.                 |
-| `lib/cause-list/sync.ts`                       | Orchestration + `cause_list_sync_runs`. Catches per court so one broken site cannot stop the rest.                          |
-| `lib/cause-list/decide.ts`                     | Accept (creates the calendar entry) / dismiss (remembered, never re-proposed).                                              |
-| `lib/cause-list/seed.ts`                       | Courts registry. The one exception to "the platform ships empty" — a High Court is not somebody's data.                     |
-| `routes/cause-list.ts`                         | `/courts`, `/cause-list/proposals`, `…/:id/decision`, `/cause-list/runs`, `/cause-list/sync`.                               |
-| `routes/cases.ts`                              | `courtIdentity()` — the four court fields, validated as a unit and normalised on write.                                     |
+| File                                              | Role                                                                                                                                                                                 |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lib/cause-list/types.ts`                         | `CourtAdapter` — `(court, date) → CauseListRow[]`. The only interface a new court has to satisfy.                                                                                    |
+| `lib/cause-list/adapters/fixture.ts`              | Deterministic rows, preview only. What CI runs on — a real implementation of the interface, not a mock of it.                                                                        |
+| `lib/cause-list/adapters/allahabad-lucknow.ts`    | **Stub.** Documented checklist for writing it against the live site. Deliberately not registered → `skipped`, not `failed`.                                                          |
+| `lib/cause-list/registry.ts`                      | id → adapter. Fixtures registered only against a preview database.                                                                                                                   |
+| `lib/cause-list/matcher.ts`                       | The tenant crossing-point. Global listing → per-chamber proposal, scoped by the matter's own `workspaceId`.                                                                          |
+| `lib/cause-list/sync.ts`                          | Orchestration + `cause_list_sync_runs`. Catches per court so one broken site cannot stop the rest.                                                                                   |
+| `lib/cause-list/decide.ts`                        | Accept (creates the calendar entry) / dismiss (remembered, never re-proposed).                                                                                                       |
+| `lib/cause-list/seed.ts`                          | Courts registry. The one exception to "the platform ships empty" — a High Court is not somebody's data.                                                                              |
+| `routes/cause-list.ts`                            | `/courts`, `/cause-list/proposals`, `…/:id/decision`, `/cause-list/runs`, `/cause-list/sync`.                                                                                        |
+| `routes/cases.ts`                                 | `courtIdentity()` — the four court fields, validated as a unit and normalised on write. An explicit `courtId: null` clears all five columns.                                         |
+| `practice-portal/src/pages/cause-list.tsx`        | **New.** The review queue: pending / accepted / dismissed, the listing as published, Accept and "Not ours". Plus the admin run log and manual "check now", both behind `audit.read`. |
+| `practice-portal/src/lib/court-identity.ts`       | **New.** The all-or-none rule and the two payload shapes — create (omit) and patch (`courtId: null` clears). No React.                                                               |
+| `practice-portal/.../court-identity-fields.tsx`   | **New.** The four fields, shared by the create form and the matter. Choosing "not filed" empties the other three with it.                                                            |
+| `practice-portal/.../case-court-identity.tsx`     | **New.** The identity on the matter itself — the only route to one for a matter opened before this shipped.                                                                          |
+| `practice-portal/.../case-form-modal.tsx`         | The same field group at filing time. Submit is blocked on a partial set before the server has to refuse it.                                                                          |
+| `practice-portal/.../layout/dashboard-layout.tsx` | Lazy route and nav item for Court Listings, behind `calendar.read`.                                                                                                                  |
 
 **Capabilities.** Viewing proposals is `calendar.read` (so the clerk who keeps
 the diary sees them, and clients — who hold neither — never do). Accepting is
@@ -692,6 +706,12 @@ contrast and overflow; Phase 8 — 19.
 and kept in the session scratchpad. `pnpm run check` (format, lint, typecheck)
 and `pnpm run build` remain the gates CI enforces alongside the API suites.
 
+`scripts/ci/browser/portal.mjs` §8 is committed, and now measures what it says
+it does. It had been founding no chamber and sizing the Access Denied screen as
+"the dashboard" — fixed by walking the real founding flow (including the bar
+registration gate) and asserting a positive signal. It now also opens a matter,
+which is the check that would have caught `/cases/:id` rendering blank.
+
 **Plan enforcement is the exception — it has a committed suite.**
 `scripts/ci/suites/plan.mjs` (registered in `run-suites.mjs` after `subs`) is 38
 checks covering: a fresh chamber with no subscription row is not lapsed (the
@@ -740,7 +760,7 @@ suites right after founding or right after an invited senior/junior
 advocate's session is established.
 
 **Cause-list ingestion has a committed suite.**
-`scripts/ci/suites/cause-list.mjs` is 56 checks running entirely on the
+`scripts/ci/suites/cause-list.mjs` is 67 checks running entirely on the
 fixture adapter — which implements the same interface a real court adapter
 does, so everything except HTML/PDF parsing is exercised for real. It covers:
 the four court fields validated as a unit; `normaliseCaseType` bridging
@@ -752,11 +772,20 @@ once both hold a matching matter; accept creating exactly one hearing carrying
 the raw listing; double-accept refused with 409; dismissal surviving a later
 sync; and all three run outcomes — `ok`, `failed` (adapter threw) and
 `skipped` (adapter unwritten) — distinguishable in `cause_list_sync_runs`.
+It also covers the patch path, which is how the feature reaches any matter
+opened before it existed: identity added to an existing matter, a partial
+patch refused without disturbing what is stored, a patch naming none of the
+four leaving it alone, and `courtId: null` clearing all five columns.
 
-Last run: **372 checks green with `RAZORPAY_*` unset, 372 with it set**, each
-suite against a fresh server. The banner was checked separately in a browser
-across all five of its states (17 assertions), which is what caught the
-`daysLeft` rounding.
+A 24-assertion browser check drives the whole feature end to end: a matter
+filed with a court identity, a sync run from the admin panel, the proposal
+appearing, the listing as published, accept, the hearing turning up on the
+calendar, and the identity being changed and cleared from the matter itself.
+
+Last run: **383 checks green with `RAZORPAY_*` unset, 383 with it set**, each
+suite against a fresh server and a fresh database. The banner was checked
+separately in a browser across all five of its states (17 assertions), which is
+what caught the `daysLeft` rounding.
 
 ### Known, unfixed
 
@@ -766,8 +795,6 @@ across all five of its states (17 assertions), which is what caught the
 - **Nine Quick Action tiles on the dashboard mostly navigate nowhere useful** —
   four promise filtered views that do not exist. Information architecture, left
   alone deliberately.
-- **`scripts/ci/browser/portal.mjs` §8** still measures the Access Denied screen
-  while claiming to measure the signed-in app (carried over from last session).
 - **`/invites` still renders a 529px table at 375px.** It scrolls in place.
 
 ---

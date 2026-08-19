@@ -22,6 +22,7 @@ const InvoicesPage = lazy(() => import("@/pages/invoices"));
 const InvitesPage = lazy(() => import("@/pages/invites"));
 const ClientPortalPage = lazy(() => import("@/pages/client-portal"));
 const CalendarPage = lazy(() => import("@/pages/calendar"));
+const CauseListPage = lazy(() => import("@/pages/cause-list"));
 const DocumentsPage = lazy(() => import("@/pages/documents"));
 const FeedbackPage = lazy(() => import("@/pages/feedback"));
 const TeamPage = lazy(() => import("@/pages/team"));
@@ -42,6 +43,7 @@ import {
   Loader2,
   ChevronRight,
   Calendar as CalendarIcon,
+  Gavel,
   CreditCard,
   ShieldCheck,
   FileText,
@@ -141,6 +143,7 @@ function DashboardLayoutContent() {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: can("calendar.read") },
+    { href: "/cause-list", label: "Court Listings", icon: Gavel, show: can("calendar.read") },
     {
       href: "/client-portal",
       label: "My Portal",
@@ -345,6 +348,15 @@ function DashboardLayoutContent() {
                     <RequireCapability capability="calendar.read">
                       <ErrorBoundary label="Master Calendar">
                         <CalendarPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  {/* calendar.read to SEE proposals; the Accept button inside
+                      is gated on calendar.write, matching the API. */}
+                  <Route path="/cause-list">
+                    <RequireCapability capability="calendar.read">
+                      <ErrorBoundary label="Court Listings">
+                        <CauseListPage />
                       </ErrorBoundary>
                     </RequireCapability>
                   </Route>

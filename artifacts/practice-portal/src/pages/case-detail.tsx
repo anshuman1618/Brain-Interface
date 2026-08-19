@@ -61,6 +61,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TimeLogPanel } from "@/components/time-log-panel";
+import { CaseCourtIdentity } from "@/components/case-court-identity";
 
 export default function CaseDetailPage() {
   const { id } = useParams();
@@ -293,6 +294,8 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </div>
+
+      <CaseCourtIdentity caseData={caseData} />
 
       {/* Tabs */}
       <Tabs defaultValue="tasks" className="w-full">

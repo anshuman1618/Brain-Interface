@@ -20,7 +20,8 @@ export interface CaseUpdate {
      */
   filingRef?: string;
   priority?: CaseUpdatePriority;
-  courtId?: number;
+  /** Null clears the matter's court identity — all four fields go with it, and the matter stops being matched against cause lists. Omit to leave it alone. Correcting a mistyped number is otherwise the only way out of being proposed somebody else's listings. */
+  courtId?: number | null;
   caseType?: string;
   caseNumber?: number;
   caseYear?: number;

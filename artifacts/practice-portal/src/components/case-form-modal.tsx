@@ -32,6 +32,12 @@ import {
 import { AlertCircle, AlertTriangle, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePricingModal } from "@/components/pricing-modal";
+import { CourtIdentityFields } from "@/components/court-identity-fields";
+import {
+  courtIdentityPayload,
+  courtIdentityProblem,
+  type CourtIdentity,
+} from "@/lib/court-identity";
 import { userMessage } from "@/lib/errors";
 
 /** Mirrors the API's minimum, so the form and the server cannot disagree. */
@@ -93,9 +99,14 @@ export function CaseFormModal({
   const [planBlock, setPlanBlock] = useState<string | null>(null);
   const [refError, setRefError] = useState<string | null>(null);
   const [newCase, setNewCase] = useState<CaseInput>(EMPTY_CASE);
+  const [court, setCourt] = useState<CourtIdentity>({});
 
-  // Submit stays disabled until both required fields hold something usable.
-  const canSubmit = newCase.title.trim().length > 0 && filingRefProblem(newCase.filingRef) === null;
+  // Submit stays disabled until both required fields hold something usable, and
+  // until the optional court block is either complete or entirely empty.
+  const canSubmit =
+    newCase.title.trim().length > 0 &&
+    filingRefProblem(newCase.filingRef) === null &&
+    courtIdentityProblem(court) === null;
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
@@ -103,6 +114,7 @@ export function CaseFormModal({
       setConflictNote("");
       setPlanBlock(null);
       setRefError(null);
+      setCourt({});
     }
     onOpenChange(next);
   };
@@ -123,6 +135,7 @@ export function CaseFormModal({
       {
         data: {
           ...newCase,
+          ...courtIdentityPayload(court),
           // Only sent when the advocate has actually been shown a conflict.
           conflictAcknowledged: hits.length > 0 ? true : undefined,
           conflictNote: hits.length > 0 ? conflictNote.trim() : undefined,
@@ -164,6 +177,7 @@ export function CaseFormModal({
           setConflictNote("");
           setRefError(null);
           setNewCase(EMPTY_CASE);
+          setCourt({});
           onOpenChange(false);
           onOpened?.(created.id);
         },
@@ -310,6 +324,8 @@ export function CaseFormModal({
               </Select>
             </div>
           </div>
+
+          <CourtIdentityFields value={court} onChange={setCourt} idPrefix="new-case" />
         </div>
         <DialogFooter>
           <Button

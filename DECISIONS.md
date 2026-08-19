@@ -104,6 +104,52 @@ run table exists to catch, and not one worth shipping deliberately.
 `adapters/allahabad-lucknow.ts` is a documented stub carrying the checklist
 for writing it against the live site.
 
+**Where the four court fields are typed.** A matter opened before this feature
+existed carries none of them, and that is nearly every matter a chamber has —
+so the fields sit in two places, not one: on the create-matter form, and on the
+matter itself (`case-court-identity.tsx`) where somebody has the filing in
+front of them. One shared `CourtIdentityFields` renders both, so the all-or-none
+rule cannot drift out of step with `courtIdentity()` on the server.
+
+Clearing an identity is an explicit `courtId: null` on the patch — the one
+field on `CaseUpdate` that is nullable, and the only way back out of a mistyped
+number that would otherwise propose somebody else's listings forever. On every
+other field `undefined` still means "leave it alone", which is what a patch
+means everywhere else in this API.
+
+**The manual "check now" is not a convenience.** The scheduler is off unless
+`CAUSE_LIST_SYNC=on`, so on a default deployment an admin would otherwise face
+a permanently empty queue with nothing to press and no way to tell an empty
+queue from a broken reader. The run log is on the same screen for the same
+reason: a scraper's real failure is going quiet, and a failure nobody can see
+is a failure nobody fixes. Both are `audit.read` — admin only, because
+"check now" reaches out to somebody else's server on demand.
+
+---
+
+## `"/:rest*"` matched exactly one segment, so `/cases/:id` was blank (2026-08-19)
+
+**Found:** every matter detail page in the product rendered an empty document.
+No console error, no failed request, no 404 — the router simply matched nothing
+and React rendered nothing.
+
+`App.tsx` mounted the whole application behind
+`<Route path="/:rest*" component={DashboardLayout} />` in both the preview and
+the Clerk tree. In wouter 3 (regexparam 3) `/:rest*` compiles to
+`/^\/([^/]+?)\/?$/` — a **single** segment. `/cases` matched; `/cases/1` did
+not, fell past every route in the `Switch`, and rendered nothing at all. The
+catch-all is now `/*`, which compiles to `/^\/(.*)\/?$/`.
+
+**Why nothing caught it:** the browser suite founded no chamber. It filled
+`input[type="text"]` on the Access Denied screen — where there is no such
+input, so the block silently did nothing — and then asserted only that the page
+did _not_ say "sign in to your chamber", which the Access Denied screen also
+does not say. Every "dashboard @ Npx has no horizontal scroll" check below it
+was measuring Access Denied. Both are fixed: the suite now walks the real
+founding flow, asserts a **positive** signal (the nav button, which exists only
+inside the application shell), and opens a matter — the deep route is now a
+committed check rather than something to rediscover.
+
 ---
 
 ## Bar registration: self-declared, gated, enforced twice (2026-08-18)

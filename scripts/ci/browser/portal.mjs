@@ -275,20 +275,45 @@ check(
   afterSignIn.slice(0, 200),
 );
 
-// Found a chamber so there is a dashboard to measure.
-const nameField = page.locator('input[type="text"]').first();
-if (await nameField.count()) {
-  await nameField.fill("Browser Chambers");
-  const admin = page.getByText(/Firm Admin/).first();
-  if (await admin.count()) await admin.click();
-  const create = page.getByRole("button", { name: /create|found|continue/i }).last();
-  if (await create.count()) await create.click();
+/*
+ * Found a chamber so there is a dashboard to measure.
+ *
+ * An address nobody has admitted lands on Access Denied, and the way forward
+ * is the "Create a chamber" button on it — the form is on the next screen, not
+ * this one. Skipping that click leaves the suite sizing the Access Denied page
+ * and calling it the dashboard, which is what it did until this was fixed.
+ */
+const startFounding = page.getByRole("button", { name: /create a chamber/i });
+if (await startFounding.count()) {
+  await startFounding.first().click();
+  await page.waitForTimeout(1500);
+}
+await page.locator("#chamber-name").fill("Browser Chambers");
+await page
+  .getByRole("button", { name: /Firm Admin/ })
+  .first()
+  .click();
+await page.getByRole("button", { name: /^Create chamber$/ }).click();
+await page.waitForTimeout(2500);
+
+// A practice role has to declare its bar enrolment before the app renders at
+// all. Section 8 is about the signed-in application, so walk the gate rather
+// than measuring it — every viewport check below would otherwise be sizing the
+// gate screen and reporting the dashboard as fine.
+if (/bar council|enrolment/i.test(await text())) {
+  await page.locator("#bar-state").fill("Uttar Pradesh");
+  await page.locator("#bar-enrolment").fill("UP/1234/2015");
+  await page.getByRole("button", { name: /^Continue$/ }).click();
   await page.waitForTimeout(2000);
 }
 
 const inApp = await text();
-const signedIn = !/sign in to your chamber/i.test(inApp);
-check("reached the application", signedIn, inApp.slice(0, 220));
+// Positive, not negative: "does not say sign in" was also true of the Access
+// Denied screen, which is how a chamber that was never founded passed as a
+// dashboard and every viewport check below measured the wrong page. The nav
+// button exists only inside the application shell.
+const signedIn = (await page.getByRole("button", { name: /Open navigation menu/i }).count()) > 0;
+check("reached the application", signedIn, `${page.url()} — ${inApp.slice(0, 220)}`);
 
 if (signedIn) {
   for (const { w, h, label } of VIEWPORTS) {
@@ -305,6 +330,44 @@ if (signedIn) {
       check(`dashboard @ ${w}px (${label}) has no horizontal scroll`, true);
     }
   }
+
+  /*
+   * A route two levels deep, which is a class of its own.
+   *
+   * wouter's "/:rest*" compiles to a single-segment pattern, so for a while
+   * every /cases/:id rendered an empty document — no error in the console, no
+   * failed request, nothing for a suite watching either of those to notice.
+   * The only way to catch it is to open one and look, so this opens one.
+   */
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.getByRole("button", { name: /Open navigation menu/i }).click();
+  await page.waitForTimeout(300);
+  await page.getByRole("menuitem", { name: /^Cases$/i }).click();
+  await page.waitForTimeout(1200);
+  await page
+    .getByRole("button", { name: /new case file|open new case|new case/i })
+    .first()
+    .click();
+  await page.waitForTimeout(700);
+  await page.locator("#case-title").fill("Deep Route Matter");
+  await page.locator("#case-ref").fill("CV-DEEP-1");
+  await page
+    .getByRole("button", { name: /create case/i })
+    .last()
+    .click();
+  await page.waitForTimeout(2000);
+  await page
+    .getByText(/Deep Route Matter/)
+    .first()
+    .click();
+  await page.waitForLoadState("networkidle");
+  await page.waitForTimeout(2000);
+  const detail = await text();
+  check(
+    "a matter opens on its own page — /cases/:id is not a blank document",
+    /Deep Route Matter/.test(detail) && /CV-DEEP-1/.test(detail),
+    `${page.url()} — ${detail.slice(0, 200)}`,
+  );
 
   // The pricing screen is the newest and most crowded thing in the app: four
   // plan cards where there used to be three.
