@@ -79,13 +79,17 @@ gave it.
 Only the providers needed to run the Service. Each is bound by contract, and
 each processes only what its function requires:
 
-| Provider            | What for                            | Where    |
-| ------------------- | ----------------------------------- | -------- |
-| [HOSTING PROVIDER]  | Running the application             | [REGION] |
-| [DATABASE PROVIDER] | The database                        | [REGION] |
-| [CLERK / AUTH]      | Sign-in and identity                | [REGION] |
-| [PAYMENT PROCESSOR] | Taking payment                      | India    |
-| [EMAIL PROVIDER]    | Sending notifications and reminders | [REGION] |
+| Provider                           | What for                            | Where                |
+| ---------------------------------- | ----------------------------------- | -------------------- |
+| Render Services, Inc.              | Running the application             | Singapore            |
+| Render Services, Inc.              | The database                        | Singapore            |
+| Clerk, Inc.                        | Sign-in and identity                | [CONFIRM WITH CLERK] |
+| Razorpay Software Private Limited  | Taking payment                      | India                |
+| [NOT YET ENGAGED — see note below] | Sending notifications and reminders | —                    |
+
+No email provider is engaged at present: `SMTP_HOST` is unset, so reminders and
+notices are recorded in the application and not sent by email. This row must be
+completed before that changes.
 
 The current list is maintained in `docs/legal/data-processing-agreement.md`.
 

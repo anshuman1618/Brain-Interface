@@ -9,6 +9,29 @@ Four documents, served to users at `/legal/<slug>` by the API server:
 | `dpdp-notice.md`               | `notice`  | Shown at the point personal data is collected   |
 | `data-processing-agreement.md` | `dpa`     | You as Data Processor, the chamber as Fiduciary |
 
+## What has already been filled in
+
+The subprocessor tables in `privacy-policy.md` and
+`data-processing-agreement.md` are complete, because they are facts about the
+deployment rather than decisions: hosting and the database are Render Services,
+Inc., both in Render's **Singapore** region (verified against the live service
+and Postgres instance), payment is Razorpay, and identity is Clerk.
+
+Two cells in those tables are deliberately still open:
+
+- **Clerk's location.** Clerk's data residency depends on the instance tier and
+  is not something to state from memory in a privacy policy. Confirm it with
+  Clerk and fill it in — it also determines what the "Transfers outside India"
+  paragraph has to say.
+- **The email provider.** None is engaged: `SMTP_HOST` is unset, so reminders
+  and erasure notices are recorded and not sent. Fill the row in when that
+  changes; do not fill it in before.
+
+Everything still bracketed is a decision only you can make: the entity name and
+CIN, the registered office, the governing-law seat, the Grievance Officer's
+name and contact details, the four contact addresses, and the retention and
+notice periods shown as `[30]`, `[12]`, `[24]` and `[8]`.
+
 ## Read this before you publish them
 
 **These are drafts, not advice.** They were written to be a competent starting

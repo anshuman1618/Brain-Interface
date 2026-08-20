@@ -93,13 +93,16 @@ These are implemented, not aspirational:
 The Chamber authorises the following. Each is engaged under terms no less
 protective than these:
 
-| Subprocessor        | Function                          | Location |
-| ------------------- | --------------------------------- | -------- |
-| [HOSTING PROVIDER]  | Application hosting               | [REGION] |
-| [DATABASE PROVIDER] | Managed database and backups      | [REGION] |
-| [CLERK / AUTH]      | Authentication and identity       | [REGION] |
-| [PAYMENT PROCESSOR] | Payment processing (billing only) | India    |
-| [EMAIL PROVIDER]    | Transactional email               | [REGION] |
+| Subprocessor                      | Function                          | Location             |
+| --------------------------------- | --------------------------------- | -------------------- |
+| Render Services, Inc.             | Application hosting               | Singapore            |
+| Render Services, Inc.             | Managed database and backups      | Singapore            |
+| Clerk, Inc.                       | Authentication and identity       | [CONFIRM WITH CLERK] |
+| Razorpay Software Private Limited | Payment processing (billing only) | India                |
+| [NOT YET ENGAGED]                 | Transactional email               | —                    |
+
+No email subprocessor is engaged at present: `SMTP_HOST` is unset, so
+transactional mail is not sent. Complete this row before enabling it.
 
 We will give **[30] days' notice** before adding or replacing one. The Chamber
 may object on reasonable data-protection grounds; if we cannot resolve the
