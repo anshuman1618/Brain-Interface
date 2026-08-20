@@ -24,9 +24,18 @@ export type R2Config = {
   secretAccessKey: string;
   /** Overridable for tests and for S3-compatible stores that are not R2. */
   endpoint: string;
+  /**
+   * The region named in the credential scope.
+   *
+   * R2 has exactly one and calls it `auto`. Every other S3-compatible store
+   * signs against its real region and rejects `auto` with a signature error
+   * that says nothing about the region being the problem — so an endpoint
+   * override without a region override would be an escape hatch that cannot
+   * actually be used.
+   */
+  region: string;
 };
 
-const REGION = "auto"; // R2 has one; the signature still needs the field.
 const SERVICE = "s3";
 
 /**
@@ -60,6 +69,7 @@ export function r2Config(): R2Config | null {
     accessKeyId: accessKeyId!,
     secretAccessKey: secretAccessKey!,
     endpoint: process.env["R2_ENDPOINT"]?.trim() || `https://${accountId}.r2.cloudflarestorage.com`,
+    region: process.env["R2_REGION"]?.trim() || "auto",
   };
 }
 
@@ -130,11 +140,11 @@ export function signRequest({
     payloadHash,
   ].join("\n");
 
-  const scope = `${dateStamp}/${REGION}/${SERVICE}/aws4_request`;
+  const scope = `${dateStamp}/${config.region}/${SERVICE}/aws4_request`;
   const stringToSign = ["AWS4-HMAC-SHA256", amzDate, scope, sha256(canonicalRequest)].join("\n");
 
   const signingKey = hmac(
-    hmac(hmac(hmac(`AWS4${config.secretAccessKey}`, dateStamp), REGION), SERVICE),
+    hmac(hmac(hmac(`AWS4${config.secretAccessKey}`, dateStamp), config.region), SERVICE),
     "aws4_request",
   );
   const signature = createHmac("sha256", signingKey).update(stringToSign, "utf8").digest("hex");

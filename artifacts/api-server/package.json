@@ -8,7 +8,8 @@
     "build": "node ./build.mjs",
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "encrypt-existing": "node ./scripts/encrypt-existing-files.mjs"
+    "encrypt-existing": "node ./scripts/encrypt-existing-files.mjs",
+    "check-storage": "node ./scripts/check-storage.mjs"
   },
   "dependencies": {
     "@clerk/express": "^2.1.46",

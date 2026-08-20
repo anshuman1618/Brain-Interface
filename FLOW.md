@@ -521,12 +521,13 @@ because it reaches out to third-party servers on demand.
         └─ SOME R2_* set      → throws at boot. No fallback.
 ```
 
-| File                                 | Role                                                                                                                               |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/blob-store.ts`                  | Everything that makes a file safe: key generation, encryption, size cap, MIME allowlist, signature check. Backend-agnostic.        |
-| `lib/blob-backends.ts`               | The `BlobBackend` interface, the filesystem implementation, and the choice. `describeBlobBackend()` feeds the boot log and readyz. |
-| `lib/r2.ts`                          | SigV4 and four HTTP calls. No SDK — see DECISIONS.md.                                                                              |
-| `scripts/ci/suites/blob-storage.mjs` | 17 checks, entirely offline: the signature against an independent computation, and the refusal on a partial configuration.         |
+| File                                 | Role                                                                                                                                                |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/blob-store.ts`                  | Everything that makes a file safe: key generation, encryption, size cap, MIME allowlist, signature check. Backend-agnostic.                         |
+| `lib/blob-backends.ts`               | The `BlobBackend` interface, the filesystem implementation, and the choice. `describeBlobBackend()` feeds the boot log and readyz.                  |
+| `lib/r2.ts`                          | SigV4 and four HTTP calls. No SDK — see DECISIONS.md. `R2_ENDPOINT` + `R2_REGION` point it at any S3-compatible store.                              |
+| `scripts/check-storage.mjs`          | `pnpm --filter @workspace/api-server run check-storage` — a real put/get/compare/delete against whatever is configured, before a chamber finds out. |
+| `scripts/ci/suites/blob-storage.mjs` | 21 checks, entirely offline: the signature against an independent computation, and the refusal on a partial configuration.                          |
 
 **The bytes Cloudflare holds are ciphertext.** Encryption happens before the
 backend is called, so `FILE_ENCRYPTION_KEY` never leaves the server and R2
@@ -872,14 +873,14 @@ server was started with, and the suite fails loudly when it is missing rather
 than passing vacuously on a wall of 404s.
 
 **File storage has a committed suite**, and it needs no server, network or
-credentials: `scripts/ci/suites/blob-storage.mjs` is 17 checks over the SigV4
+credentials: `scripts/ci/suites/blob-storage.mjs` is 21 checks over the SigV4
 signer and the backend choice. The signature is recomputed independently from
 the specification — longhand, so it agrees with S3 rather than with the
 implementation — and key, body and method are each shown to change it. The
 other half asserts that a partly configured R2 **throws** instead of quietly
 falling back to a disk the next deploy will wipe.
 
-Last run: **438 checks green with `RAZORPAY_*` unset**, each suite against a
+Last run: **442 checks green with `RAZORPAY_*` unset**, each suite against a
 fresh server and a fresh database. The banner was checked
 separately in a browser across all five of its states (17 assertions), which is
 what caught the `daysLeft` rounding.

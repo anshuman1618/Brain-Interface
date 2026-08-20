@@ -209,7 +209,22 @@ R2_BUCKET=lex-files
 R2_ACCESS_KEY_ID=...                 # R2 -> Manage API tokens -> Object Read & Write
 R2_SECRET_ACCESS_KEY=...
 # R2_ENDPOINT=...                    # only for an S3-compatible store that is not R2
+# R2_REGION=...                      # with R2_ENDPOINT: that store's real region
 ```
+
+**Check it before a chamber does.** A mistyped secret is not discovered by the
+server until somebody uploads a filing, and by then the failure is in front of
+a customer. One command writes an object, reads it back, compares the bytes and
+deletes it:
+
+```bash
+R2_ACCOUNT_ID=... R2_BUCKET=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=... \
+  pnpm --filter @workspace/api-server run check-storage
+```
+
+It touches one key under `_healthcheck/` and removes it, so it is safe to run
+against the live bucket. 403 points at the access key, the secret or the bucket
+name; 404 on a bucket you know exists points at the account id in the endpoint.
 
 - **All four, or none.** Three of four makes the server **refuse to start**
   rather than fall back to local disk — a fallback would look like working

@@ -32,6 +32,7 @@ const config = {
   accessKeyId: "AKIAIOSFODNN7EXAMPLE",
   secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
   endpoint: "https://acct.r2.cloudflarestorage.com",
+  region: "auto",
 };
 const when = new Date(Date.UTC(2026, 7, 20, 12, 0, 0));
 const payload = Buffer.from("a court filing");
@@ -211,6 +212,45 @@ check("three of four also throws", !three.ok, JSON.stringify(three));
 
 const blank = withEnv({ ...FULL, R2_BUCKET: "   " }, () => r2Config());
 check("a whitespace-only value counts as missing, not as set", !blank.ok, JSON.stringify(blank));
+
+const defaultRegion = withEnv(FULL, () => r2Config());
+check(
+  "the region defaults to auto, which is the only one R2 has",
+  defaultRegion.ok && defaultRegion.value?.region === "auto",
+  defaultRegion.value?.region,
+);
+
+// The endpoint override is only usable if the region is overridable too: every
+// other S3-compatible store signs against its real region and rejects "auto"
+// with a signature error that never mentions the region.
+const customRegion = withEnv(FULL, () => {
+  process.env.R2_REGION = "ap-south-1";
+  const c = r2Config();
+  delete process.env.R2_REGION;
+  return c;
+});
+check(
+  "R2_REGION overrides it for a store that is not R2",
+  customRegion.ok && customRegion.value?.region === "ap-south-1",
+  customRegion.value?.region,
+);
+
+const signedElsewhere = signRequest({
+  config: { ...config, region: "ap-south-1" },
+  method: "PUT",
+  key: "2026/08/abc",
+  payload,
+  now: when,
+});
+check(
+  "...and the region really reaches the credential scope",
+  signedElsewhere.headers.authorization.includes("/20260820/ap-south-1/s3/aws4_request"),
+  signedElsewhere.headers.authorization,
+);
+check(
+  "...changing the signature with it",
+  signedElsewhere.headers.authorization !== signed.headers.authorization,
+);
 
 const override = withEnv({ ...FULL, R2_ENDPOINT: "https://s3.example.test" }, () => {
   process.env.R2_ENDPOINT = "https://s3.example.test";
