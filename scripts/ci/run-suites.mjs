@@ -25,11 +25,24 @@ const SUITES = [
   ["case-restriction", "Restrict to Case ID, via both grant paths"],
   ["bar-registration", "Bar enrolment gate for practice roles"],
   ["cause-list", "Court cause lists: fetch, match, propose, accept"],
+  ["operator", "Operator metrics: the allowlist, and the numbers"],
   ["gov", "Files, audit, quota, privacy, conflicts"],
 ];
 
-/** The suite scripts hardcode localhost:5000; let CI point them elsewhere. */
-const env = { ...process.env, API_BASE_URL: BASE };
+/**
+ * The suite scripts hardcode localhost:5000; let CI point them elsewhere.
+ *
+ * OPERATOR_TEST_EMAIL has to match the address the SERVER was started with in
+ * OPERATOR_EMAILS — the allowlist is read from the server's environment, not
+ * the suite's. The operator suite fails loudly rather than passing vacuously
+ * when it is missing, because "every request 404s" is indistinguishable from
+ * "the gate works" if nobody checks the admitted case too.
+ */
+const env = {
+  ...process.env,
+  API_BASE_URL: BASE,
+  OPERATOR_TEST_EMAIL: process.env.OPERATOR_TEST_EMAIL ?? "ops@operator.test",
+};
 
 function run(file, args = []) {
   return new Promise((resolve) => {

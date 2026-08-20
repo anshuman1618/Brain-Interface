@@ -12,6 +12,7 @@ import {
   isCapabilityAllowedWhenLapsed,
 } from "../lib/permissions";
 import { verifyWorkspaceToken } from "../lib/workspace-token";
+import { touchLastSeen } from "../lib/last-seen";
 import { planStateFor, type PlanState } from "../lib/quota";
 
 /**
@@ -64,6 +65,11 @@ export const requireAuth = (req: AuthRequest, res: Response, next: NextFunction)
     return;
   }
   req.userId = userId;
+  // Fire-and-forget, throttled to once an hour per person. Placed here rather
+  // than in requireWorkspace on purpose: someone who signs in and is never
+  // admitted to a chamber never reaches requireWorkspace, and they are exactly
+  // the cohort worth being able to count.
+  touchLastSeen(userId);
   next();
 };
 

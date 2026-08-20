@@ -51,9 +51,21 @@ const page = await context.newPage();
 
 const consoleErrors = [];
 const failedRequests = [];
-page.on("pageerror", (e) => consoleErrors.push(String(e)));
+/*
+ * Set only while a refusal is deliberately being provoked.
+ *
+ * A 404 makes the browser log "Failed to load resource", which is a console
+ * error like any other and would fail this suite — correctly, in every other
+ * case. The operator check below asks the server to refuse on purpose, so the
+ * expected noise is suppressed for exactly that navigation rather than by
+ * filtering 404s everywhere, which would blind the suite to a real one.
+ */
+let expectingRefusal = false;
+page.on("pageerror", (e) => {
+  if (!expectingRefusal) consoleErrors.push(String(e));
+});
 page.on("console", (m) => {
-  if (m.type() === "error") consoleErrors.push(m.text());
+  if (m.type() === "error" && !expectingRefusal) consoleErrors.push(m.text());
 });
 page.on("requestfailed", (r) => failedRequests.push(`${r.failure()?.errorText} ${r.url()}`));
 
@@ -367,6 +379,31 @@ if (signedIn) {
     "a matter opens on its own page — /cases/:id is not a blank document",
     /Deep Route Matter/.test(detail) && /CV-DEEP-1/.test(detail),
     `${page.url()} — ${detail.slice(0, 200)}`,
+  );
+
+  /*
+   * The operator view fails closed.
+   *
+   * /operator is not in the navigation, and this run has no OPERATOR_EMAILS
+   * configured, so an ordinary chamber admin typing the URL must be told
+   * nothing. Asserting the absence of the numbers matters as much as the
+   * message: a page that rendered its shell and then failed to fetch would
+   * still have leaked its existence and its headings.
+   */
+  expectingRefusal = true;
+  await page.goto(`${BASE}/operator`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
+  const operatorView = await text();
+  expectingRefusal = false;
+  check(
+    "a chamber admin typing /operator is refused",
+    /not available/i.test(operatorView),
+    operatorView.slice(0, 200),
+  );
+  check(
+    "...and is shown no platform numbers",
+    !/registered/i.test(operatorView) && !/chambers, newest first/i.test(operatorView),
+    operatorView.slice(0, 200),
   );
 
   // The pricing screen is the newest and most crowded thing in the app: four

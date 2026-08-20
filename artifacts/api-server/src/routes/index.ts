@@ -18,6 +18,7 @@ import invoicesRouter from "./invoices";
 import subscriptionRouter from "./subscription";
 import serviceEnquiriesRouter from "./service-enquiries";
 import causeListRouter from "./cause-list";
+import operatorRouter from "./operator";
 import governanceRouter from "./governance";
 
 const router: IRouter = Router();
@@ -44,6 +45,8 @@ router.use(invoicesRouter);
 router.use(subscriptionRouter);
 router.use(serviceEnquiriesRouter);
 router.use(causeListRouter);
+// Cross-tenant by design and gated on OPERATOR_EMAILS, not on any capability.
+router.use(operatorRouter);
 router.use(governanceRouter);
 
 export default router;

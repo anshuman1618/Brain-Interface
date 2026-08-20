@@ -27,6 +27,7 @@ const DocumentsPage = lazy(() => import("@/pages/documents"));
 const FeedbackPage = lazy(() => import("@/pages/feedback"));
 const TeamPage = lazy(() => import("@/pages/team"));
 const ActivityPage = lazy(() => import("@/pages/activity"));
+const OperatorPage = lazy(() => import("@/pages/operator"));
 import PendingApprovalPage from "@/pages/pending-approval";
 import AccessDeniedPage from "@/pages/access-denied";
 import CompleteProfilePage from "@/pages/complete-profile";
@@ -420,6 +421,15 @@ function DashboardLayoutContent() {
                         <ActivityPage />
                       </ErrorBoundary>
                     </RequireCapability>
+                  </Route>
+                  {/* Not in the nav on purpose: the nav is built from
+                      capabilities and this is not one. The server answers 404
+                      to anyone outside OPERATOR_EMAILS, so the URL is not the
+                      control — see lib/operator.ts. */}
+                  <Route path="/operator">
+                    <ErrorBoundary label="Platform">
+                      <OperatorPage />
+                    </ErrorBoundary>
                   </Route>
                   <Route path="/client-portal" component={ClientPortalPage} />
                   <Route component={NotFound} />

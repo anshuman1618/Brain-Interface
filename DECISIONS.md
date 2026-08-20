@@ -127,6 +127,80 @@ is a failure nobody fixes. Both are `audit.read` — admin only, because
 
 ---
 
+## Knowing whether anybody came back (2026-08-20)
+
+**Decided:** one nullable column, `users.last_seen_at`, and a cross-tenant
+operator view gated on an environment allowlist rather than on any capability.
+
+**Why a column and not analytics.** The privacy policy says, in writing and in
+production, that no analytics or tracking scripts are loaded from third
+parties. Adding Google Analytics or PostHog Cloud would make a published legal
+document false, which is a worse cost than the missing number. A column the
+server writes about its own users is first-party operational data the policy
+already discloses, so this direction needs no retraction.
+
+**Why it was the missing number.** Everything else records who _registered_.
+`audit_events` records fourteen privileged write actions, so an advocate who
+opens the diary each morning and writes nothing is indistinguishable from an
+account that signed up once and never returned — the two most important cohorts
+to tell apart collapse into one.
+
+**Written at most once an hour, per person, off the request path.** That is a
+performance decision (a busy user would otherwise generate hundreds of UPDATEs
+an hour on one row) and a privacy one: "seen this week" is what the product
+needs, and a minute-accurate record of when an advocate was at their desk is a
+different and more sensitive thing that is deliberately not collected. The
+throttle is in process memory, so several instances each write once an hour;
+the column means "seen around then" and every reader treats it that way.
+
+**It is written in `requireAuth`, not `requireWorkspace`.** Somebody who signs
+in and is never admitted to a chamber never reaches `requireWorkspace`, and
+they are exactly the cohort worth counting.
+
+**The bug this ordering caused, kept here because it nearly shipped.** The
+write is fired before `getOrCreateUser` has created the row, so a person's
+first-ever request updates nothing — and because the throttle entry was
+recorded _before_ the write, the miss was remembered for an hour. Every one of
+the SPA's opening requests falls inside that hour, so a new account read as
+never-seen indefinitely: a column that existed, code that ran, and a metric
+permanently zero. `touchLastSeen` now checks whether a row was actually
+updated and drops the throttle entry when none was. The suite asserts
+`neverSeen < total` for that reason alone.
+
+### The operator view is gated on an env allowlist, never a capability
+
+`OPERATOR_EMAILS` is the entire authorisation. It is deliberately not a
+capability, and the reason is structural: capabilities are granted per
+membership by chamber admins, and **anyone can found a chamber and become its
+admin**. A capability called `platform.read` would be one self-invite away for
+every user on the platform. An environment variable can only be changed by
+whoever can deploy, which is the correct definition of "operates the service".
+
+**Unset means the route does not exist** — not "open", and not "the first
+registered user". A default that fell open would hand every chamber's numbers
+to whoever signed up first.
+
+**It refuses with 404, not 403.** A 403 would confirm that a cross-tenant
+surface exists and that the caller merely lacks permission. There is nothing to
+gain by admitting it: an operator knows the URL, and to everybody else the
+route should be indistinguishable from a typo. Same reasoning as another
+chamber's cause-list proposal returning 404.
+
+**Counts, never content.** Chamber name, plan, seat and matter counts are facts
+about a customer. A matter's title or a client's name is a fact about somebody
+who never agreed to be visible outside their advocate's chamber — and the DPA
+says we are a Processor of it, not its Fiduciary. Addresses are excluded too:
+knowing four chambers went quiet is operations, knowing who to email about it
+is marketing, and the difference is a mailing list assembled out of other
+people's professional records. The boundary is drawn in the SQL rather than
+trusted to the page, and the suite greps the response body for a matter title,
+a filing reference and an email address.
+
+**The page is not in the navigation.** The nav is a projection of capabilities
+and this is not one. That is tidiness — the server's 404 is the lock.
+
+---
+
 ## `"/:rest*"` matched exactly one segment, so `/cases/:id` was blank (2026-08-19)
 
 **Found:** every matter detail page in the product rendered an empty document.

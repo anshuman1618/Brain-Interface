@@ -503,6 +503,45 @@ also means a lapsed plan can see its proposals and cannot act on them, for
 free. The ops surface (`/runs`, manual `/sync`) is `audit.read` — admin only,
 because it reaches out to third-party servers on demand.
 
+### The operator view — the one router that reads across tenants
+
+```
+  any authenticated request
+        │  middlewares/requireAuth.ts
+        ├─ touchLastSeen(clerkId)          lib/last-seen.ts
+        │     fire-and-forget · ≤1 write per person per hour
+        │     no row updated → drop the throttle entry so the
+        │     next request retries (the row may not exist yet)
+        ▼
+  users.last_seen_at
+
+  GET /api/operator/metrics
+        │  requireAuth            ← identity, or 401
+        │  requireOperator        ← lib/operator.ts
+        │     OPERATOR_EMAILS unset      → 404
+        │     address not on the list    → 404   (never 403)
+        ▼
+  one SQL round trip, counts only          routes/operator.ts
+        │
+        ▼
+  /operator in the SPA — reachable by URL, absent from the nav
+```
+
+| File                                        | Role                                                                                                                            |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/users.ts`                | `lastSeenAt` — nullable, no backfill. NULL means "not seen since this shipped", which is not "never signed in".                 |
+| `lib/db/drizzle/0011_last_seen_at.sql`      | Guarded `ALTER TABLE` plus an index; the metrics query filters on it on every load. Also in both `preview.ts` blocks.           |
+| `api-server/src/lib/last-seen.ts`           | The throttle. Never awaited, never throws, at most one write an hour per person.                                                |
+| `api-server/src/middlewares/requireAuth.ts` | Calls it from `requireAuth`, not `requireWorkspace` — someone never admitted to a chamber is a cohort worth counting.           |
+| `api-server/src/lib/operator.ts`            | `OPERATOR_EMAILS` allowlist and `requireOperator`. **Not a capability** — any capability is one self-invite away for a founder. |
+| `api-server/src/routes/operator.ts`         | One query, seven CTEs. Counts only: no matter titles, no filing references, no addresses.                                       |
+| `practice-portal/src/pages/operator.tsx`    | The screen. Renders "Not available" on the 404, which is the ordinary answer rather than an error.                              |
+
+**Capabilities.** None, on purpose. This is the only surface in the server that
+is not reachable through `requireWorkspace`, and it must stay that way: the nav
+and every route guard project the capability list, and a chamber admin holds
+`access_control.manage` in their own chamber. See DECISIONS.md.
+
 ### Bar registration — a gate that sits inside `requireWorkspace` itself
 
 | File                                             | Change                                                                                                                                                                                         |
@@ -707,7 +746,9 @@ and kept in the session scratchpad. `pnpm run check` (format, lint, typecheck)
 and `pnpm run build` remain the gates CI enforces alongside the API suites.
 
 `scripts/ci/browser/portal.mjs` §8 is committed, and now measures what it says
-it does. It had been founding no chamber and sizing the Access Denied screen as
+it does. It also asserts the operator view fails closed: with no
+`OPERATOR_EMAILS` configured, a chamber admin typing `/operator` is told
+nothing and shown none of the numbers. It had been founding no chamber and sizing the Access Denied screen as
 "the dashboard" — fixed by walking the real founding flow (including the bar
 registration gate) and asserting a positive signal. It now also opens a matter,
 which is the check that would have caught `/cases/:id` rendering blank.
@@ -782,7 +823,20 @@ filed with a court identity, a sync run from the admin panel, the proposal
 appearing, the listing as published, accept, the hearing turning up on the
 calendar, and the identity being changed and cleared from the matter itself.
 
-Last run: **383 checks green with `RAZORPAY_*` unset, 383 with it set**, each
+**The operator view has a committed suite.** `scripts/ci/suites/operator.mjs`
+is 38 checks: anonymous is 401 and a signed-in stranger is **404 not 403**; a
+chamber admin holding every capability in their own chamber is refused too — the
+assertion that stops a future refactor turning this into a capability; a new
+chamber appears with its seat count and no matters, then leaves the never-used
+count when one is opened; and the response body is searched for a matter title,
+a filing reference and an email address, none of which may appear. One check
+exists purely as a regression guard: `neverSeen < total`, because the first
+implementation recorded nothing at all and every activity number read zero.
+The runner passes `OPERATOR_TEST_EMAIL` matching the `OPERATOR_EMAILS` the
+server was started with, and the suite fails loudly when it is missing rather
+than passing vacuously on a wall of 404s.
+
+Last run: **421 checks green with `RAZORPAY_*` unset, 421 with it set**, each
 suite against a fresh server and a fresh database. The banner was checked
 separately in a browser across all five of its states (17 assertions), which is
 what caught the `daysLeft` rounding.

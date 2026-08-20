@@ -41,6 +41,20 @@ export const usersTable = pgTable("users", {
    * self-declaration for proof.
    */
   barDeclaredAt: timestamp("bar_declared_at", { withTimezone: true }),
+  /**
+   * The last time this person made an authenticated request, to the hour.
+   *
+   * The only record that anyone came *back*. Everything else here says who
+   * registered; without this, someone who opens the diary every morning and
+   * writes nothing is indistinguishable from someone who signed up once and
+   * never returned — the audit log only sees privileged writes.
+   *
+   * Deliberately coarse. It is written at most once an hour per person
+   * (`lib/last-seen.ts`), which is enough for "active this week" and far short
+   * of a record of when somebody was at their desk. Nothing derives a session
+   * from it and nothing shows it to another chamber.
+   */
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

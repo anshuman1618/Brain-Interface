@@ -89,6 +89,7 @@ import type {
   MarkAllReadResult,
   MembershipUpdateInput,
   Notification,
+  OperatorMetrics,
   RunningTimer,
   SearchResults,
   ServiceEnquiryAck,
@@ -7279,4 +7280,86 @@ export const useUpdateBillingSettings = <TError = ErrorType<void>,
       > => {
       return useMutation(getUpdateBillingSettingsMutationOptions(options));
     }
+
+export const getGetOperatorMetricsUrl = () => {
+
+
+
+
+  return `/api/operator/metrics`
+}
+
+/**
+ * The one endpoint that reads across tenants. Not gated by a capability: capabilities are granted per membership by chamber admins, so any capability would be one invite away for anyone who founds a chamber. Gated instead on the OPERATOR_EMAILS allowlist, which only whoever can deploy is able to change. Unset means the route does not exist.
+ *
+ * Refuses with 404 rather than 403, so a caller who is not an operator cannot tell a cross-tenant surface is here at all.
+ *
+ * Counts only. No matter titles, no client names, no email addresses — a chamber's data belongs to its chamber, and the DPA says so.
+ * @summary The platform across every chamber — operator only
+ */
+export const getOperatorMetrics = async ( options?: RequestInit): Promise<OperatorMetrics> => {
+
+  return customFetch<OperatorMetrics>(getGetOperatorMetricsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOperatorMetricsQueryKey = () => {
+    return [
+    `/api/operator/metrics`
+    ] as const;
+    }
+
+
+export const getGetOperatorMetricsQueryOptions = <TData = Awaited<ReturnType<typeof getOperatorMetrics>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOperatorMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOperatorMetricsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOperatorMetrics>>> = ({ signal }) => getOperatorMetrics({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOperatorMetrics>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOperatorMetricsQueryResult = NonNullable<Awaited<ReturnType<typeof getOperatorMetrics>>>
+export type GetOperatorMetricsQueryError = ErrorType<void>
+
+
+/**
+ * @summary The platform across every chamber — operator only
+ */
+
+export function useGetOperatorMetrics<TData = Awaited<ReturnType<typeof getOperatorMetrics>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOperatorMetrics>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOperatorMetricsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

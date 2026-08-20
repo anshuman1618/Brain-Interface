@@ -1973,8 +1973,138 @@ paths:
               schema: { $ref: "#/components/schemas/BillingSettings" }
         "403": { description: Forbidden }
 
+  /operator/metrics:
+    get:
+      operationId: getOperatorMetrics
+      tags: [operator]
+      summary: The platform across every chamber — operator only
+      description: >
+        The one endpoint that reads across tenants. Not gated by a capability:
+        capabilities are granted per membership by chamber admins, so any
+        capability would be one invite away for anyone who founds a chamber.
+        Gated instead on the OPERATOR_EMAILS allowlist, which only whoever can
+        deploy is able to change. Unset means the route does not exist.
+
+
+        Refuses with 404 rather than 403, so a caller who is not an operator
+        cannot tell a cross-tenant surface is here at all.
+
+
+        Counts only. No matter titles, no client names, no email addresses —
+        a chamber's data belongs to its chamber, and the DPA says so.
+      responses:
+        "200":
+          description: Every metric, one round trip
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperatorMetrics" }
+        "404":
+          description: Not an operator, or the operator view is not configured
+
 components:
   schemas:
+    OperatorMetrics:
+      type: object
+      required: [generatedAt, users, chambers, trial, revenue, plans, signups, chamberRows]
+      properties:
+        generatedAt:
+          type: string
+        users:
+          type: object
+          required: [total, seen24h, seen7d, seen30d, neverSeen, returning, lapsed]
+          properties:
+            total: { type: integer }
+            seen24h: { type: integer }
+            seen7d: { type: integer }
+            seen30d: { type: integer }
+            neverSeen:
+              type: integer
+              description: >
+                Not seen since last_seen_at shipped. NOT the same as never
+                having signed in — the column has no backfill and cannot have
+                one.
+            returning:
+              type: integer
+              description: Registered over a week ago and back within the last week.
+            lapsed:
+              type: integer
+              description: Registered over a week ago and not seen since.
+        chambers:
+          type: object
+          required: [total, withMatters, empty]
+          properties:
+            total: { type: integer }
+            withMatters: { type: integer }
+            empty:
+              type: integer
+              description: Founded and never opened a matter. The onboarding number.
+        trial:
+          type: object
+          required: [bought, converted, expiredUnconverted, stillInTrial]
+          properties:
+            bought: { type: integer }
+            converted:
+              type: integer
+              description: Took the trial and is now on another plan.
+            expiredUnconverted:
+              type: integer
+              description: Took the trial, still on it, period has run out.
+            stillInTrial: { type: integer }
+        revenue:
+          type: object
+          required: [allTimeMinor, last30dMinor, payments]
+          properties:
+            allTimeMinor:
+              type: integer
+              description: Integer paise, like every other _minor value.
+            last30dMinor: { type: integer }
+            payments: { type: integer }
+        plans:
+          type: array
+          items:
+            type: object
+            required: [plan, status, chambers]
+            properties:
+              plan: { type: string }
+              status: { type: string }
+              chambers: { type: integer }
+        signups:
+          type: array
+          description: Chambers founded per week, last twelve weeks.
+          items:
+            type: object
+            required: [week, chambers]
+            properties:
+              week:
+                type: string
+                pattern: '^\d{4}-\d{2}-\d{2}$'
+              chambers: { type: integer }
+        chamberRows:
+          type: array
+          description: >
+            Newest 200 chambers. Counts and plan state only — never the content
+            of a matter, and never anybody's address.
+          items:
+            type: object
+            required: [id, name, createdAt, plan, status, seats, matters]
+            properties:
+              id: { type: integer }
+              name: { type: string }
+              createdAt:
+                type: string
+                pattern: '^\d{4}-\d{2}-\d{2}$'
+              plan: { type: string }
+              status: { type: string }
+              periodEnd:
+                type: string
+                nullable: true
+              seats: { type: integer }
+              matters: { type: integer }
+              lastSeen:
+                type: string
+                nullable: true
+                description: Most recent sign of life from anyone in the chamber.
+
     HealthStatus:
       type: object
       properties:

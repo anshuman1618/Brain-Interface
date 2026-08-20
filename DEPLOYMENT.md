@@ -118,24 +118,25 @@ pnpm --filter @workspace/api-server run start
 
 Environment:
 
-| Variable                                                | Required             | Purpose                                                                               |
-| ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                          | yes                  | Postgres connection string, with `sslmode=require`                                    |
-| `CLERK_SECRET_KEY`                                      | yes                  | Clerk backend API key                                                                 |
-| `CLERK_PUBLISHABLE_KEY`                                 | yes                  | Clerk publishable key                                                                 |
-| `WORKSPACE_TOKEN_SECRET`                                | **yes in prod**      | HMAC key for scoped workspace tokens (section 2)                                      |
-| `NODE_ENV`                                              | yes                  | `production` — also switches on HSTS and the strict CORS default                      |
-| `CORS_ALLOWED_ORIGINS`                                  | Topology B only      | Comma-separated frontend origins                                                      |
-| `PORT` / `HOST`                                         | usually injected     | Default `5000` / `0.0.0.0`                                                            |
-| `CLIENT_DIST_PATH`                                      | Topology A, if moved | Where the built SPA lives                                                             |
-| `HSTS`                                                  | no                   | `off` only if TLS terminates at a proxy that already sends HSTS                       |
-| `TRUST_PROXY`                                           | no                   | `off` when NOT behind a proxy, so a forged `X-Forwarded-For` cannot dodge rate limits |
-| `FILE_STORAGE_DIR`                                      | **yes in prod**      | Where uploaded case files are written (section 4a)                                    |
-| `FILE_ENCRYPTION_KEY`                                   | **yes in prod**      | 32 bytes of hex. Without it the server refuses to start (section 4a)                  |
-| `RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET`   | to take payment      | All three, or the plan screen records selections and charges nothing (section 4c)     |
-| `ERROR_WEBHOOK_URL`                                     | strongly advised     | Where faults are reported. Unset, you find out from a customer (section 4d)           |
-| `MAX_UPLOAD_BYTES`                                      | no                   | Per-file cap. Defaults to 25 MB                                                       |
-| `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `MAIL_FROM` | for email            | Unset, reminders are recorded but never delivered (section 4b)                        |
+| Variable                                                | Required             | Purpose                                                                                                                          |
+| ------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                          | yes                  | Postgres connection string, with `sslmode=require`                                                                               |
+| `CLERK_SECRET_KEY`                                      | yes                  | Clerk backend API key                                                                                                            |
+| `CLERK_PUBLISHABLE_KEY`                                 | yes                  | Clerk publishable key                                                                                                            |
+| `WORKSPACE_TOKEN_SECRET`                                | **yes in prod**      | HMAC key for scoped workspace tokens (section 2)                                                                                 |
+| `NODE_ENV`                                              | yes                  | `production` — also switches on HSTS and the strict CORS default                                                                 |
+| `CORS_ALLOWED_ORIGINS`                                  | Topology B only      | Comma-separated frontend origins                                                                                                 |
+| `PORT` / `HOST`                                         | usually injected     | Default `5000` / `0.0.0.0`                                                                                                       |
+| `CLIENT_DIST_PATH`                                      | Topology A, if moved | Where the built SPA lives                                                                                                        |
+| `HSTS`                                                  | no                   | `off` only if TLS terminates at a proxy that already sends HSTS                                                                  |
+| `TRUST_PROXY`                                           | no                   | `off` when NOT behind a proxy, so a forged `X-Forwarded-For` cannot dodge rate limits                                            |
+| `FILE_STORAGE_DIR`                                      | **yes in prod**      | Where uploaded case files are written (section 4a)                                                                               |
+| `FILE_ENCRYPTION_KEY`                                   | **yes in prod**      | 32 bytes of hex. Without it the server refuses to start (section 4a)                                                             |
+| `RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET`   | to take payment      | All three, or the plan screen records selections and charges nothing (section 4c)                                                |
+| `ERROR_WEBHOOK_URL`                                     | strongly advised     | Where faults are reported. Unset, you find out from a customer (section 4d)                                                      |
+| `MAX_UPLOAD_BYTES`                                      | no                   | Per-file cap. Defaults to 25 MB                                                                                                  |
+| `OPERATOR_EMAILS`                                       | no                   | Comma-separated. Who may read `/operator` — the platform across every chamber. Unset means the route does not exist (section 4e) |
+| `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `MAIL_FROM` | for email            | Unset, reminders are recorded but never delivered (section 4b)                                                                   |
 
 Apply the schema once the database is reachable:
 
@@ -261,6 +262,37 @@ request bodies or chamber content.
 
 Unset, faults are logged and nothing is forwarded, which in practice means you
 learn about them from a customer.
+
+### 4e. The operator view
+
+`OPERATOR_EMAILS` is a comma-separated list of addresses allowed to read
+`/operator` — the whole platform: registered and active people, chambers with
+and without matters, the trial funnel, revenue, and a table of chambers with
+seat and matter counts.
+
+```bash
+OPERATOR_EMAILS=you@yourfirm.example,partner@yourfirm.example
+```
+
+Three things worth knowing before you set it:
+
+- **Unset means the route does not exist.** It answers 404, as it does to
+  anybody not on the list. There is no default operator and no "first user
+  wins".
+- **It is not a capability, and must never become one.** Anyone can found a
+  chamber and be its admin, so a capability would be one self-invite away for
+  every user. Only whoever can change environment variables can grant this.
+- **It refuses with 404 rather than 403**, so a caller who is not an operator
+  cannot learn that a cross-tenant surface exists.
+
+The page is at `/operator` and is deliberately absent from the navigation. It
+shows counts only — never a matter title, a filing reference or an email
+address.
+
+Activity figures come from `users.last_seen_at`, written at most once an hour
+per person. It has no backfill, so for the first weeks after deploying it
+"never seen" means "not seen since this shipped" rather than "never signed in".
+The screen says so; do not read the early numbers as churn.
 
 ### 4b. Email
 

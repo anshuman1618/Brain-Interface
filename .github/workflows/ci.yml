@@ -110,6 +110,7 @@ jobs:
           PREVIEW_DATA_DIR=$RUNNER_TEMP/ci-db \
           FILE_STORAGE_DIR=$RUNNER_TEMP/ci-files \
           FILE_ENCRYPTION_KEY=$FILE_ENCRYPTION_KEY \
+          OPERATOR_EMAILS=ops@operator.test \
           PORT=5000 node artifacts/api-server/dist/index.mjs &
           for i in $(seq 1 30); do
             if curl -sf http://localhost:5000/api/healthz >/dev/null; then exit 0; fi

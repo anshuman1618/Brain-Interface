@@ -5,6 +5,81 @@
  * Private Practice Management & Client Portal API
  * OpenAPI spec version: 0.1.0
  */
+export type OperatorMetricsUsers = {
+  total: number;
+  seen24h: number;
+  seen7d: number;
+  seen30d: number;
+  /** Not seen since last_seen_at shipped. NOT the same as never having signed in — the column has no backfill and cannot have one. */
+  neverSeen: number;
+  /** Registered over a week ago and back within the last week. */
+  returning: number;
+  /** Registered over a week ago and not seen since. */
+  lapsed: number;
+};
+
+export type OperatorMetricsChambers = {
+  total: number;
+  withMatters: number;
+  /** Founded and never opened a matter. The onboarding number. */
+  empty: number;
+};
+
+export type OperatorMetricsTrial = {
+  bought: number;
+  /** Took the trial and is now on another plan. */
+  converted: number;
+  /** Took the trial, still on it, period has run out. */
+  expiredUnconverted: number;
+  stillInTrial: number;
+};
+
+export type OperatorMetricsRevenue = {
+  /** Integer paise, like every other _minor value. */
+  allTimeMinor: number;
+  last30dMinor: number;
+  payments: number;
+};
+
+export type OperatorMetricsPlansItem = {
+  plan: string;
+  status: string;
+  chambers: number;
+};
+
+export type OperatorMetricsSignupsItem = {
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  week: string;
+  chambers: number;
+};
+
+export type OperatorMetricsChamberRowsItem = {
+  id: number;
+  name: string;
+  /** @pattern ^\d{4}-\d{2}-\d{2}$ */
+  createdAt: string;
+  plan: string;
+  status: string;
+  periodEnd?: string | null;
+  seats: number;
+  matters: number;
+  /** Most recent sign of life from anyone in the chamber. */
+  lastSeen?: string | null;
+};
+
+export interface OperatorMetrics {
+  generatedAt: string;
+  users: OperatorMetricsUsers;
+  chambers: OperatorMetricsChambers;
+  trial: OperatorMetricsTrial;
+  revenue: OperatorMetricsRevenue;
+  plans: OperatorMetricsPlansItem[];
+  /** Chambers founded per week, last twelve weeks. */
+  signups: OperatorMetricsSignupsItem[];
+  /** Newest 200 chambers. Counts and plan state only — never the content of a matter, and never anybody's address. */
+  chamberRows: OperatorMetricsChamberRowsItem[];
+}
+
 export interface HealthStatus {
   status: string;
 }

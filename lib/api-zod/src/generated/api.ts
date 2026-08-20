@@ -2797,3 +2797,65 @@ export const UpdateBillingSettingsResponse = zod.object({
 })
 
 
+/**
+ * The one endpoint that reads across tenants. Not gated by a capability: capabilities are granted per membership by chamber admins, so any capability would be one invite away for anyone who founds a chamber. Gated instead on the OPERATOR_EMAILS allowlist, which only whoever can deploy is able to change. Unset means the route does not exist.
+ *
+ * Refuses with 404 rather than 403, so a caller who is not an operator cannot tell a cross-tenant surface is here at all.
+ *
+ * Counts only. No matter titles, no client names, no email addresses — a chamber's data belongs to its chamber, and the DPA says so.
+ * @summary The platform across every chamber — operator only
+ */
+export const getOperatorMetricsResponseSignupsItemWeekRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const getOperatorMetricsResponseChamberRowsItemCreatedAtRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const GetOperatorMetricsResponse = zod.object({
+  "generatedAt": zod.string(),
+  "users": zod.object({
+  "total": zod.number(),
+  "seen24h": zod.number(),
+  "seen7d": zod.number(),
+  "seen30d": zod.number(),
+  "neverSeen": zod.number().describe('Not seen since last_seen_at shipped. NOT the same as never having signed in — the column has no backfill and cannot have one.\n'),
+  "returning": zod.number().describe('Registered over a week ago and back within the last week.'),
+  "lapsed": zod.number().describe('Registered over a week ago and not seen since.')
+}),
+  "chambers": zod.object({
+  "total": zod.number(),
+  "withMatters": zod.number(),
+  "empty": zod.number().describe('Founded and never opened a matter. The onboarding number.')
+}),
+  "trial": zod.object({
+  "bought": zod.number(),
+  "converted": zod.number().describe('Took the trial and is now on another plan.'),
+  "expiredUnconverted": zod.number().describe('Took the trial, still on it, period has run out.'),
+  "stillInTrial": zod.number()
+}),
+  "revenue": zod.object({
+  "allTimeMinor": zod.number().describe('Integer paise, like every other _minor value.'),
+  "last30dMinor": zod.number(),
+  "payments": zod.number()
+}),
+  "plans": zod.array(zod.object({
+  "plan": zod.string(),
+  "status": zod.string(),
+  "chambers": zod.number()
+})),
+  "signups": zod.array(zod.object({
+  "week": zod.string().regex(getOperatorMetricsResponseSignupsItemWeekRegExp),
+  "chambers": zod.number()
+})).describe('Chambers founded per week, last twelve weeks.'),
+  "chamberRows": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "createdAt": zod.string().regex(getOperatorMetricsResponseChamberRowsItemCreatedAtRegExp),
+  "plan": zod.string(),
+  "status": zod.string(),
+  "periodEnd": zod.string().nullish(),
+  "seats": zod.number(),
+  "matters": zod.number(),
+  "lastSeen": zod.string().nullish().describe('Most recent sign of life from anyone in the chamber.')
+})).describe('Newest 200 chambers. Counts and plan state only — never the content of a matter, and never anybody\'s address.\n')
+})
+
+
