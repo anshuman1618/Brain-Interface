@@ -503,6 +503,41 @@ also means a lapsed plan can see its proposals and cannot act on them, for
 free. The ops surface (`/runs`, manual `/sync`) is `audit.read` — admin only,
 because it reaches out to third-party servers on demand.
 
+### Where case files go
+
+```
+  POST /api/documents (multipart)
+        │  size cap while streaming, MIME allowlist,
+        │  content signature checked against the declared type
+        ▼
+  put(buf)                                   lib/blob-store.ts
+        │  key = YYYY/MM/<uuid>   ← generated here, never client-supplied
+        │  encrypt(AES-256-GCM)   ← ABOVE the backend, always
+        ▼
+  blobBackend().put(key, ciphertext)         lib/blob-backends.ts
+        │
+        ├─ no R2_* set        → filesystem, under FILE_STORAGE_DIR
+        ├─ all four R2_* set  → Cloudflare R2 over its S3 API   lib/r2.ts
+        └─ SOME R2_* set      → throws at boot. No fallback.
+```
+
+| File                                 | Role                                                                                                                               |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/blob-store.ts`                  | Everything that makes a file safe: key generation, encryption, size cap, MIME allowlist, signature check. Backend-agnostic.        |
+| `lib/blob-backends.ts`               | The `BlobBackend` interface, the filesystem implementation, and the choice. `describeBlobBackend()` feeds the boot log and readyz. |
+| `lib/r2.ts`                          | SigV4 and four HTTP calls. No SDK — see DECISIONS.md.                                                                              |
+| `scripts/ci/suites/blob-storage.mjs` | 17 checks, entirely offline: the signature against an independent computation, and the refusal on a partial configuration.         |
+
+**The bytes Cloudflare holds are ciphertext.** Encryption happens before the
+backend is called, so `FILE_ENCRYPTION_KEY` never leaves the server and R2
+stores blobs it cannot read. That is the whole reason object storage is
+acceptable for privileged client files.
+
+**A container filesystem is not storage.** Render's free plan cannot mount a
+disk, so the local backend there loses every file on each deploy. The server
+warns about it at every boot in production and `/api/readyz` reports
+`fileStorage`.
+
 ### The operator view — the one router that reads across tenants
 
 ```
@@ -836,8 +871,16 @@ The runner passes `OPERATOR_TEST_EMAIL` matching the `OPERATOR_EMAILS` the
 server was started with, and the suite fails loudly when it is missing rather
 than passing vacuously on a wall of 404s.
 
-Last run: **421 checks green with `RAZORPAY_*` unset, 421 with it set**, each
-suite against a fresh server and a fresh database. The banner was checked
+**File storage has a committed suite**, and it needs no server, network or
+credentials: `scripts/ci/suites/blob-storage.mjs` is 17 checks over the SigV4
+signer and the backend choice. The signature is recomputed independently from
+the specification — longhand, so it agrees with S3 rather than with the
+implementation — and key, body and method are each shown to change it. The
+other half asserts that a partly configured R2 **throws** instead of quietly
+falling back to a disk the next deploy will wipe.
+
+Last run: **438 checks green with `RAZORPAY_*` unset**, each suite against a
+fresh server and a fresh database. The banner was checked
 separately in a browser across all five of its states (17 assertions), which is
 what caught the `daysLeft` rounding.
 

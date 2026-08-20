@@ -26,6 +26,7 @@ const SUITES = [
   ["bar-registration", "Bar enrolment gate for practice roles"],
   ["cause-list", "Court cause lists: fetch, match, propose, accept"],
   ["operator", "Operator metrics: the allowlist, and the numbers"],
+  ["blob-storage", "File storage: the R2 signer and the backend choice"],
   ["gov", "Files, audit, quota, privacy, conflicts"],
 ];
 

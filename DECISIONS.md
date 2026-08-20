@@ -127,6 +127,55 @@ is a failure nobody fixes. Both are `audit.read` — admin only, because
 
 ---
 
+## Case files go to object storage, and the SDK does not come with them (2026-08-20)
+
+**Found:** the live service runs on Render's free plan, which cannot mount a
+disk at all. `FILE_STORAGE_DIR` therefore pointed at the container's own
+filesystem, so every uploaded case file was already being destroyed by each
+deploy, restart and wake from hibernation. Not the scaling concern the runbook
+described — active data loss, invisible until a chamber opens a filing weeks
+later and finds nothing there.
+
+**Decided:** a `BlobBackend` interface with two implementations, chosen from
+the environment. Four operations on an opaque key; everything that makes a
+stored file _safe_ stays above the choice.
+
+**What stays above it, and why that line is where it is.** The generated key,
+the size cap, the MIME allowlist, the content-signature check and — most
+importantly — **encryption** all live in `blob-store.ts`. A backend receives
+ciphertext and returns ciphertext. That is what makes object storage acceptable
+for privileged client files at all: Cloudflare holds AES-256-GCM blobs it
+cannot open, and `FILE_ENCRYPTION_KEY` never leaves the server. Putting
+encryption inside a backend would have meant a future third backend could
+forget it.
+
+**No AWS SDK.** `@aws-sdk/client-s3` is tens of megabytes of dependency loaded
+into a process that holds the decryption key and every chamber's files, to make
+four HTTP requests. SigV4 is about a hundred lines, and this server already
+hand-verifies HMAC signatures for the Razorpay webhook, so it is not an
+unfamiliar kind of code to own. The trade is fewer moving parts next to the
+sensitive data, paid for by writing the signer once and testing it properly.
+
+**Which is why the signer has a known-answer test.** A wrong SigV4
+implementation fails every request identically with `SignatureDoesNotMatch`,
+which localises nothing among its eight steps. `blob-storage.mjs` recomputes
+the signature independently — written out longhand rather than sharing a helper
+with the implementation, so it agrees with S3 rather than with a bug — and
+checks that the key, the body and the method each change the result. All of it
+offline: no account, no network, no credentials.
+
+**A partial configuration refuses to start.** Three of four R2 variables does
+not fall back to local disk. The fallback is precisely the failure being
+removed: uploads that look like they work until the deploy that destroys them.
+Falling back would be the silent, plausible, wrong thing.
+
+**And the filesystem backend now warns in production, every boot.** Not once in
+a runbook — a chamber cannot tell that the store forgets, so the server says so
+where an operator will actually see it, and `/api/readyz` reports which store
+is in use.
+
+---
+
 ## Knowing whether anybody came back (2026-08-20)
 
 **Decided:** one nullable column, `users.last_seen_at`, and a cross-tenant

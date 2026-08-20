@@ -6,6 +6,7 @@ import { startReminderScheduler } from "./lib/reminder-scheduler";
 import { seedCourts } from "./lib/cause-list/seed";
 import { startCauseListScheduler } from "./lib/cause-list/scheduler";
 import { assertEncryptionConfigured } from "./lib/blob-store";
+import { describeBlobBackend } from "./lib/blob-backends";
 import { assertProductionConfig } from "./lib/preflight";
 import { installProcessHandlers } from "./lib/error-reporter";
 
@@ -21,6 +22,27 @@ assertProductionConfig((msg) => logger.warn(msg));
 // if the preflight is ever narrowed, because writing privileged client files in
 // the clear is worse than not starting. Outside production it warns instead.
 assertEncryptionConfigured((msg) => logger.warn(msg));
+
+/*
+ * Which store the files are going to, said out loud at every boot.
+ *
+ * `blobBackend()` throws on a partly-configured R2, so this doubles as the
+ * guard: three of four variables set means the process stops here rather than
+ * quietly writing to a container disk that the next deploy destroys. And a
+ * filesystem backend in production is worth a warning every single time —
+ * that misconfiguration is invisible until a chamber opens a filing weeks
+ * later and it is gone.
+ */
+const blobs = describeBlobBackend();
+if (blobs.ephemeralRisk) {
+  logger.warn(
+    { backend: blobs.backend },
+    "Uploaded case files are being written to the local filesystem in production. " +
+      "Unless FILE_STORAGE_DIR is a MOUNTED VOLUME, every one of them is destroyed " +
+      "by the next deploy or restart. Configure R2_* to use object storage — see " +
+      "DEPLOYMENT.md §4a.",
+  );
+}
 
 // The db client is a lazy proxy, so the connection must be established before
 // anything can query it — including the reminder scheduler below.
@@ -72,6 +94,7 @@ const server: Server = app.listen(port, host, (err) => {
       nodeEnv: process.env["NODE_ENV"] ?? "development",
       commit: process.env["RENDER_GIT_COMMIT"] ?? process.env["GIT_COMMIT"] ?? null,
       filesEncrypted: Boolean(process.env["FILE_ENCRYPTION_KEY"]?.trim()),
+      fileStorage: blobs.backend,
       workspaceTokenSecretSet: Boolean(process.env["WORKSPACE_TOKEN_SECRET"]?.trim()),
     },
     "Server listening",

@@ -7,6 +7,7 @@ import { resolveClientDist } from "../middlewares/staticClient";
 import { encryptionKey } from "../lib/blob-store";
 import { paymentsEnabled } from "../lib/razorpay";
 import { logger } from "../lib/logger";
+import { describeBlobBackend } from "../lib/blob-backends";
 
 const router: IRouter = Router();
 
@@ -108,6 +109,8 @@ router.get("/readyz", async (_req, res) => {
     frontendPath: clientDist,
     /** Required in production; the process refuses to start without it. */
     filesEncrypted: encryptionKey() !== null,
+    // Which store, so "where did the files go" is answerable over HTTP.
+    fileStorage: describeBlobBackend().backend,
     paymentsConfigured: paymentsEnabled(),
     emailConfigured: Boolean(process.env["SMTP_HOST"]?.trim()),
     errorReportingConfigured: Boolean(process.env["ERROR_WEBHOOK_URL"]?.trim()),

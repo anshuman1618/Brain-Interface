@@ -6,30 +6,38 @@ import {
   randomUUID,
   timingSafeEqual,
 } from "node:crypto";
-import { mkdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { blobBackend, storageRoot } from "./blob-backends";
+
+export { storageRoot };
 
 /**
  * Where uploaded case files actually live.
  *
- * A filesystem store rather than an object-storage SDK: it works on every host
- * this app can run on, needs no credentials, and keeps preview and production
- * on the same code path. Swapping in S3 later means reimplementing the four
- * functions below and nothing else — routes never see a path.
+ * Two stores, one code path. `blob-backends.ts` decides between the local
+ * filesystem and Cloudflare R2 from the environment; routes never see a path
+ * or a bucket, and everything that makes a file SAFE lives here, above that
+ * choice, so a backend cannot weaken it.
+ *
+ * R2 exists because a container filesystem is not storage. On a host with no
+ * mounted volume — Render's free plan cannot have one — every uploaded case
+ * file is destroyed by the next deploy or restart, and nothing says so until a
+ * chamber opens a filing weeks later and it is gone.
  *
  * The key rules, in order of how badly they go wrong if broken:
  *
  *  1. The client never supplies the storage key. It is a generated UUID under a
  *     date-sharded prefix, so a name like "../../etc/passwd" is inert — it is
  *     kept as a display label in the database and never touches the filesystem.
- *  2. Every resolved path is re-checked to be inside the storage root before
- *     any read or write. Belt and braces with (1), because path handling is
- *     where this class of bug always hides.
+ *  2. On the filesystem backend every resolved path is re-checked to be inside
+ *     the storage root before any read or write. Belt and braces with (1),
+ *     because path handling is where this class of bug always hides.
  *  3. Size is capped while streaming, not after. A cap enforced after the bytes
  *     are already on disk is not a cap.
- *  4. Bytes are encrypted before they touch the disk. These are privileged
- *     client files; a stray backup, a snapshotted volume or a host operator
- *     should read ciphertext and nothing else.
+ *  4. Bytes are encrypted before they leave this process. These are privileged
+ *     client files; a stray backup, a snapshotted volume, a host operator — or
+ *     Cloudflare — should read ciphertext and nothing else. It is why object
+ *     storage is acceptable for them at all: FILE_ENCRYPTION_KEY never leaves
+ *     the server, so R2 holds blobs it cannot open.
  */
 
 const DEFAULT_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -39,7 +47,7 @@ const DEFAULT_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
  * AES-256-GCM, one random IV per file, authenticated so a modified file fails
  * to decrypt rather than returning corrupted bytes to a court filing.
  *
- * On-disk layout:
+ * Stored layout, identical on both backends:
  *
  *   magic "LEXP1"  5 bytes   identifies an encrypted blob
  *   iv            12 bytes   random per file
@@ -52,7 +60,7 @@ const DEFAULT_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
  * and a streaming decrypt happily pipes unverified bytes to the client until
  * that moment.
  *
- * A file written before this existed has no magic prefix and is returned as-is.
+ * A blob written before this existed has no magic prefix and is returned as-is.
  * That is deliberate: an upgrade must not make existing documents unreadable.
  * `pnpm --filter @workspace/api-server run encrypt-existing` rewrites them.
  */
@@ -123,10 +131,6 @@ function decrypt(stored: Buffer, key: Buffer): Buffer {
   decipher.setAuthTag(tag);
   // final() throws if the tag does not verify, which is the point.
   return Buffer.concat([decipher.update(stored.subarray(HEADER_BYTES)), decipher.final()]);
-}
-
-export function storageRoot(): string {
-  return resolve(process.env["FILE_STORAGE_DIR"]?.trim() || ".file-storage");
 }
 
 export function maxUploadBytes(): number {
@@ -259,16 +263,6 @@ export function sanitiseFileName(raw: string): string {
   return (cleaned || "file").slice(0, 180);
 }
 
-function keyToPath(key: string): string {
-  const root = storageRoot();
-  const full = resolve(join(root, key));
-  // resolve() collapses any "..", so this comparison is the real guard.
-  if (full !== root && !full.startsWith(root + sep)) {
-    throw new Error("storage key escapes the storage root");
-  }
-  return full;
-}
-
 export type StoredBlob = { key: string; bytes: number; checksum: string };
 
 /**
@@ -284,13 +278,11 @@ export async function put(buf: Buffer): Promise<StoredBlob> {
   const now = new Date();
   const shard = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
   const key = `${shard}/${randomUUID()}`;
-  const full = keyToPath(key);
 
   const key32 = encryptionKey();
-  const onDisk = key32 ? encrypt(buf, key32) : buf;
+  const stored = key32 ? encrypt(buf, key32) : buf;
 
-  await mkdir(dirname(full), { recursive: true });
-  await writeFile(full, onDisk, { mode: 0o600 });
+  await blobBackend().put(key, stored);
 
   return {
     key,
@@ -310,7 +302,7 @@ export async function put(buf: Buffer): Promise<StoredBlob> {
  * unverified bytes to the caller.
  */
 export async function read(key: string): Promise<Buffer> {
-  const stored = await readFile(keyToPath(key));
+  const stored = await blobBackend().get(key);
   if (!isEncrypted(stored)) return stored; // written before encryption existed
   const key32 = encryptionKey();
   if (!key32) {
@@ -324,33 +316,24 @@ export async function read(key: string): Promise<Buffer> {
 
 /** Whether a stored blob is still plaintext — used by the migration script. */
 export async function isPlaintextOnDisk(key: string): Promise<boolean> {
-  return !isEncrypted(await readFile(keyToPath(key)));
+  return !isEncrypted(await blobBackend().get(key));
 }
 
 /** Rewrite a plaintext blob in place as ciphertext. No-op if already encrypted. */
 export async function encryptInPlace(key: string): Promise<boolean> {
   const key32 = encryptionKey();
   if (!key32) throw new Error("FILE_ENCRYPTION_KEY is not set");
-  const full = keyToPath(key);
-  const stored = await readFile(full);
+  const backend = blobBackend();
+  const stored = await backend.get(key);
   if (isEncrypted(stored)) return false;
-  await writeFile(full, encrypt(stored, key32), { mode: 0o600 });
+  await backend.put(key, encrypt(stored, key32));
   return true;
 }
 
 export async function exists(key: string): Promise<boolean> {
-  try {
-    const s = await stat(keyToPath(key));
-    return s.isFile();
-  } catch {
-    return false;
-  }
+  return blobBackend().exists(key);
 }
 
 export async function remove(key: string): Promise<void> {
-  try {
-    await unlink(keyToPath(key));
-  } catch {
-    // Already gone is the desired end state.
-  }
+  await blobBackend().remove(key);
 }

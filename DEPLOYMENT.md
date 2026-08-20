@@ -118,25 +118,26 @@ pnpm --filter @workspace/api-server run start
 
 Environment:
 
-| Variable                                                | Required             | Purpose                                                                                                                          |
-| ------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                          | yes                  | Postgres connection string, with `sslmode=require`                                                                               |
-| `CLERK_SECRET_KEY`                                      | yes                  | Clerk backend API key                                                                                                            |
-| `CLERK_PUBLISHABLE_KEY`                                 | yes                  | Clerk publishable key                                                                                                            |
-| `WORKSPACE_TOKEN_SECRET`                                | **yes in prod**      | HMAC key for scoped workspace tokens (section 2)                                                                                 |
-| `NODE_ENV`                                              | yes                  | `production` — also switches on HSTS and the strict CORS default                                                                 |
-| `CORS_ALLOWED_ORIGINS`                                  | Topology B only      | Comma-separated frontend origins                                                                                                 |
-| `PORT` / `HOST`                                         | usually injected     | Default `5000` / `0.0.0.0`                                                                                                       |
-| `CLIENT_DIST_PATH`                                      | Topology A, if moved | Where the built SPA lives                                                                                                        |
-| `HSTS`                                                  | no                   | `off` only if TLS terminates at a proxy that already sends HSTS                                                                  |
-| `TRUST_PROXY`                                           | no                   | `off` when NOT behind a proxy, so a forged `X-Forwarded-For` cannot dodge rate limits                                            |
-| `FILE_STORAGE_DIR`                                      | **yes in prod**      | Where uploaded case files are written (section 4a)                                                                               |
-| `FILE_ENCRYPTION_KEY`                                   | **yes in prod**      | 32 bytes of hex. Without it the server refuses to start (section 4a)                                                             |
-| `RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET`   | to take payment      | All three, or the plan screen records selections and charges nothing (section 4c)                                                |
-| `ERROR_WEBHOOK_URL`                                     | strongly advised     | Where faults are reported. Unset, you find out from a customer (section 4d)                                                      |
-| `MAX_UPLOAD_BYTES`                                      | no                   | Per-file cap. Defaults to 25 MB                                                                                                  |
-| `OPERATOR_EMAILS`                                       | no                   | Comma-separated. Who may read `/operator` — the platform across every chamber. Unset means the route does not exist (section 4e) |
-| `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `MAIL_FROM` | for email            | Unset, reminders are recorded but never delivered (section 4b)                                                                   |
+| Variable                                                                    | Required             | Purpose                                                                                                                          |
+| --------------------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                              | yes                  | Postgres connection string, with `sslmode=require`                                                                               |
+| `CLERK_SECRET_KEY`                                                          | yes                  | Clerk backend API key                                                                                                            |
+| `CLERK_PUBLISHABLE_KEY`                                                     | yes                  | Clerk publishable key                                                                                                            |
+| `WORKSPACE_TOKEN_SECRET`                                                    | **yes in prod**      | HMAC key for scoped workspace tokens (section 2)                                                                                 |
+| `NODE_ENV`                                                                  | yes                  | `production` — also switches on HSTS and the strict CORS default                                                                 |
+| `CORS_ALLOWED_ORIGINS`                                                      | Topology B only      | Comma-separated frontend origins                                                                                                 |
+| `PORT` / `HOST`                                                             | usually injected     | Default `5000` / `0.0.0.0`                                                                                                       |
+| `CLIENT_DIST_PATH`                                                          | Topology A, if moved | Where the built SPA lives                                                                                                        |
+| `HSTS`                                                                      | no                   | `off` only if TLS terminates at a proxy that already sends HSTS                                                                  |
+| `TRUST_PROXY`                                                               | no                   | `off` when NOT behind a proxy, so a forged `X-Forwarded-For` cannot dodge rate limits                                            |
+| `FILE_STORAGE_DIR`                                                          | unless R2 is set     | Where uploaded case files are written locally. Must be a MOUNTED VOLUME (section 4a)                                             |
+| `R2_ACCOUNT_ID` / `R2_BUCKET` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | **recommended**      | Object storage for case files. All four together, or the server refuses to start (section 4a)                                    |
+| `FILE_ENCRYPTION_KEY`                                                       | **yes in prod**      | 32 bytes of hex. Without it the server refuses to start (section 4a)                                                             |
+| `RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET`                       | to take payment      | All three, or the plan screen records selections and charges nothing (section 4c)                                                |
+| `ERROR_WEBHOOK_URL`                                                         | strongly advised     | Where faults are reported. Unset, you find out from a customer (section 4d)                                                      |
+| `MAX_UPLOAD_BYTES`                                                          | no                   | Per-file cap. Defaults to 25 MB                                                                                                  |
+| `OPERATOR_EMAILS`                                                           | no                   | Comma-separated. Who may read `/operator` — the platform across every chamber. Unset means the route does not exist (section 4e) |
+| `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `MAIL_FROM`                     | for email            | Unset, reminders are recorded but never delivered (section 4b)                                                                   |
 
 Apply the schema once the database is reachable:
 
@@ -194,10 +195,43 @@ openssl rand -hex 32   # -> FILE_ENCRYPTION_KEY
 
   It is idempotent and resumable. Back up the directory first.
 
-> **Object storage is markedly cheaper than a mounted disk.** A persistent disk
-> runs about $0.25/GB/month against $0.015/GB/month with zero egress on
-> Cloudflare R2. The blob store is four functions behind an interface so the
-> swap is contained. See `docs/UNIT-ECONOMICS.md`.
+#### Cloudflare R2 — the recommended store
+
+Set all four and uploads go to object storage instead of the local filesystem.
+Nothing else changes: routes never see a path or a bucket, and the encryption
+above still happens **before** the bytes leave the process, so R2 holds
+AES-256-GCM blobs it cannot read and `FILE_ENCRYPTION_KEY` never leaves your
+server.
+
+```bash
+R2_ACCOUNT_ID=...                    # Cloudflare dashboard -> R2
+R2_BUCKET=lex-files
+R2_ACCESS_KEY_ID=...                 # R2 -> Manage API tokens -> Object Read & Write
+R2_SECRET_ACCESS_KEY=...
+# R2_ENDPOINT=...                    # only for an S3-compatible store that is not R2
+```
+
+- **All four, or none.** Three of four makes the server **refuse to start**
+  rather than fall back to local disk — a fallback would look like working
+  uploads right up until the deploy that destroys them.
+- **A container filesystem is not storage.** On Render's free plan you cannot
+  mount a disk at all, so `FILE_STORAGE_DIR` points at the container and every
+  uploaded file is discarded on the next deploy, restart or wake from
+  hibernation. Nothing surfaces this until a chamber opens a filing weeks later
+  and it is gone. The server warns about exactly this at every boot in
+  production, and `/api/readyz` reports `fileStorage`.
+- **Keep the bucket private** — no public access, no custom domain. Every read
+  goes through `GET /api/documents/:id/content`, which re-checks matter scope.
+  A public bucket would make that authorisation check decorative.
+- **Cost.** About $0.015/GB/month with **no egress charges**, against roughly
+  $0.25/GB/month for a Render disk, and the free tier covers 10 GB. It also
+  removes the single-instance constraint: disks cannot be shared between
+  instances, object storage can.
+- **Migrating files already on a disk** is a copy into the bucket under the
+  same keys (`rclone`, or `aws s3 sync` against the R2 endpoint) and then
+  setting the four variables. Keys and ciphertext are unchanged, so the
+  database needs no edit — and there is nothing to migrate if the current store
+  is ephemeral, because there is nothing in it.
 
 - **It must survive a restart.** On Render, Railway or Fly this means a mounted
   volume — a container's own filesystem is discarded on every deploy, and with
