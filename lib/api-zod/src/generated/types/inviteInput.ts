@@ -8,7 +8,10 @@
 import type { InviteInputRole } from './inviteInputRole';
 
 export interface InviteInput {
-  email: string;
+  /** The address to invite. Exactly one of email or phone must be given; the server rejects both and neither, and validates the shape of whichever was supplied. */
+  email?: string;
+  /** The mobile number to invite, in any readable form — "+91 98765 43210", "098765 43210" and "9876543210" all normalise to the same E.164 value. For the clerk or client who has a phone and no work address. */
+  phone?: string;
   /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
   /** Required when role is "client" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field's value, which JSON Schema expresses badly; see routes/invites.ts for the actual rule. */

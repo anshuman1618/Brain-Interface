@@ -127,6 +127,71 @@ is a failure nobody fixes. Both are `audit.read` — admin only, because
 
 ---
 
+## A mobile number is a full identity, not a second factor (2026-08-21)
+
+**Decided:** `users.phone`, a `kind:"phone"` access-list entry, invites by
+number, and a founder who can create a chamber with no email address at all.
+
+**Why it was more than a login button.** Email was the single bridge from
+_authenticated_ to _authorized_: `workspace_access_list.value` compared by
+equality against a Clerk-verified address, `reconcileAccessList` returning early
+without one, and `foundChamber` writing the founder's address as their own
+self-admitting row. Adding a phone sign-in without widening that seam produces a
+user who authenticates perfectly and reaches nothing — and a founder who creates
+a chamber and is locked out of it on their next request. That last one is the
+single most important line in `phone-admission.mjs`.
+
+**Why at all.** An Indian chamber's clerks, interns and most of its clients have
+a mobile and no work email. Requiring an address to be admitted excluded exactly
+the people a practice needs on the system.
+
+**Verified-only, exactly as for email.** `identityFromClerk` takes the number
+only when Clerk reports it verified. An unverified number is attacker-supplied
+text, and matching it against the access list would let anyone claim a
+colleague's mobile and inherit their role — the same sentence that already
+governed addresses, now governing both.
+
+**`normalisePhone` is the phone half of normalise-on-write.** Every comparison
+is a plain equality check, so `+91 98765 43210`, `098765 43210` and
+`9876543210` must collapse to one string before storage. The default country
+code is `DEFAULT_COUNTRY_CODE`, not a hardcoded `+91`: the product should be
+wrong in one configurable place rather than in a regex somebody has to find.
+
+**Email beats phone beats domain**, per workspace. Exact identifiers beat a
+blanket domain rule for the reason they always did. Email beats phone because an
+address is never reassigned to a stranger and an Indian mobile is — so where a
+chamber has recorded both for one person, the more durable identifier decides
+their role.
+
+### Number reassignment: accepted, and written down three times
+
+Indian telcos reassign a disconnected mobile after roughly ninety days. A
+standing `kind:"phone"` entry can therefore admit a **different person** later.
+Email has no equivalent failure.
+
+This was accepted deliberately rather than mitigated in code — no expiry, no
+role ceiling — because the friction of either would fall hardest on the small
+chamber this feature exists for. Accepting a risk is only honest if it is
+visible, so it is stated in the schema comment on `ACCESS_LIST_KINDS`, in the
+admin UI at the moment somebody adds a number, and in the privacy policy. The
+`lastUsedAt` column already records when an entry last admitted anybody, and the
+access-list table surfaces it, which is the signal for spotting a number that
+has gone quiet.
+
+**What phone deliberately cannot do:** the operator allowlist stays email-only.
+It is an environment variable rather than an access-list row, and a recycled
+number must never be able to reach a cross-tenant surface.
+
+### One asymmetry closed on the way past
+
+`POST /invites` applied **no** email-format validation while
+`POST /workspace/access-list` applied a regex — so garbage could be written
+through one of the two admission doors and not the other, and would then sit on
+the access list matching nothing forever. Both doors now validate the shape of
+whichever identifier they were given.
+
+---
+
 ## Case files go to object storage, and the SDK does not come with them (2026-08-20)
 
 **Found:** the live service runs on Render's free plan, which cannot mount a

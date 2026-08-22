@@ -9,10 +9,15 @@ import { useSession } from "@/lib/session";
 /**
  * The sign-in layer, reached from "Chamber Portal" on the landing page.
  *
- * All three routes end in the same place: an email address the provider has
- * verified. That address is then checked server-side against the workspace
- * access list, which is the only thing that admits anyone. Choosing Google over
- * Zoho changes nothing about what you can reach.
+ * Every route ends in the same place: an identifier the provider has verified —
+ * an email address, or a mobile number. That identifier is then checked
+ * server-side against the workspace access list, which is the only thing that
+ * admits anyone. Choosing Google over Zoho, or SMS over email, changes nothing
+ * about what you can reach.
+ *
+ * The mobile route exists because a chamber's clerks and most of its clients
+ * have a phone and no work address. Requiring an address to be admitted
+ * excluded exactly the people a practice needs on the system.
  */
 /**
  * Same shape the API applies to access-list entries, so an address this screen
@@ -22,8 +27,17 @@ import { useSession } from "@/lib/session";
  */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Clerk's emailed one-time codes are six digits. */
+/** Clerk's one-time codes are six digits, emailed or texted alike. */
 const CODE_LENGTH = 6;
+
+/**
+ * Loose on purpose: seven to fifteen digits, optionally with a leading +.
+ *
+ * The server normalises to E.164 and is the authority on what is usable. A
+ * stricter rule here would be a second answer to the same question, and the
+ * one people meet first — so it checks only for what is obviously not a number.
+ */
+const PHONE_PATTERN = /^\+?[\d\s\-().]{7,20}$/;
 
 export default function PortalSignInPage() {
   const {
@@ -43,13 +57,17 @@ export default function PortalSignInPage() {
 
   const [chosen, setChosen] = useState<ProviderId | null>(null);
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
 
   // After a refresh the provider knows the address but this component does not,
   // so the code screen reads from the persisted value first.
-  const codeSentTo = pendingEmail || email;
+  const codeSentTo = pendingEmail || (chosen === "phone" ? phone : email);
+
+  const byPhone = chosen === "phone";
+  const identifier = byPhone ? phone : email;
 
   const validateEmail = (value: string): string | null => {
     const trimmed = value.trim();
@@ -58,10 +76,22 @@ export default function PortalSignInPage() {
     return null;
   };
 
+  const validatePhone = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return "Enter your mobile number.";
+    if (!/\d/.test(trimmed) || !PHONE_PATTERN.test(trimmed)) {
+      return "That doesn't look like a mobile number.";
+    }
+    return null;
+  };
+
+  const validateIdentifier = (value: string): string | null =>
+    byPhone ? validatePhone(value) : validateEmail(value);
+
   const startProvider = (id: ProviderId) => {
     // Outside preview, Google and Zoho hand off to the identity provider
     // immediately; only the email route needs an address typed here first.
-    if (!previewMode && id !== "email") {
+    if (!previewMode && id !== "email" && id !== "phone") {
       void signInWithProvider(id, "");
       return;
     }
@@ -69,16 +99,16 @@ export default function PortalSignInPage() {
     setChosen(id);
   };
 
-  const submitEmail = (e: React.FormEvent) => {
+  const submitIdentifier = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chosen) return;
     // Checked here rather than left to the browser: the submit button was
     // enabled by any non-empty string, so "abc" reached Clerk and came back as
     // a red banner about a failed request instead of a note under the field.
-    const problem = validateEmail(email);
+    const problem = validateIdentifier(identifier);
     setEmailError(problem);
     if (problem) return;
-    void signInWithProvider(chosen, email.trim(), name.trim());
+    void signInWithProvider(chosen, identifier.trim(), name.trim());
   };
 
   return (
@@ -111,7 +141,7 @@ export default function PortalSignInPage() {
           <p className="text-muted-foreground mb-8 leading-relaxed">
             {isSetup
               ? "Sign in first, then name your chamber and choose whether you run it as Firm Admin or Senior Advocate. You'll invite everyone else afterwards."
-              : "Sign in with the address your chamber admin invited. A different address will be turned away."}
+              : "Sign in with the address or mobile number your chamber admin invited. A different one will be turned away."}
           </p>
 
           <p className="text-xs text-muted-foreground mb-6 flex items-center gap-1.5">
@@ -165,7 +195,7 @@ export default function PortalSignInPage() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  {CODE_LENGTH} digits, from the email just sent.
+                  {CODE_LENGTH} digits, from the {byPhone ? "text message" : "email"} just sent.
                 </p>
               </div>
 
@@ -186,7 +216,7 @@ export default function PortalSignInPage() {
                   }}
                   className="text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Use a different address
+                  {byPhone ? "Use a different number" : "Use a different address"}
                 </button>
                 <button
                   type="button"
@@ -218,7 +248,7 @@ export default function PortalSignInPage() {
               ))}
             </div>
           ) : (
-            <form onSubmit={submitEmail} className="flex flex-col gap-4">
+            <form onSubmit={submitIdentifier} className="flex flex-col gap-4">
               <button
                 type="button"
                 onClick={() => setChosen(null)}
@@ -241,26 +271,34 @@ export default function PortalSignInPage() {
                   htmlFor="signin-email"
                   className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider"
                 >
-                  Email address
+                  {byPhone ? "Mobile number" : "Email address"}
                 </label>
                 <Input
                   id="signin-email"
-                  type="email"
-                  value={email}
+                  type={byPhone ? "tel" : "email"}
+                  value={identifier}
                   onChange={(e) => {
-                    setEmail(e.target.value);
+                    if (byPhone) setPhone(e.target.value);
+                    else setEmail(e.target.value);
                     // Clear as soon as they start fixing it; re-checked on blur
                     // and again on submit.
                     if (emailError) setEmailError(null);
                   }}
-                  onBlur={() => email.trim() && setEmailError(validateEmail(email))}
+                  onBlur={() => identifier.trim() && setEmailError(validateIdentifier(identifier))}
                   aria-invalid={emailError ? true : undefined}
                   aria-describedby={emailError ? "signin-email-error" : undefined}
                   className="rounded-lg bg-background"
-                  placeholder="you@yourchamber.in"
+                  placeholder={byPhone ? "+91 98765 43210" : "you@yourchamber.in"}
+                  autoComplete={byPhone ? "tel" : "email"}
+                  inputMode={byPhone ? "tel" : undefined}
                   autoFocus
                   required
                 />
+                {byPhone && !emailError && (
+                  <p className="text-xs text-muted-foreground">
+                    With or without +91 — both work. Standard SMS charges apply.
+                  </p>
+                )}
                 {emailError && (
                   <p
                     id="signin-email-error"
@@ -290,7 +328,7 @@ export default function PortalSignInPage() {
               <Button
                 type="submit"
                 className="rounded-lg w-full"
-                disabled={isSigningIn || !email.trim()}
+                disabled={isSigningIn || !identifier.trim()}
               >
                 {isSigningIn ? "Signing in..." : "Continue"}
               </Button>

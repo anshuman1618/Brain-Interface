@@ -90,6 +90,7 @@ export const GetSessionResponse = zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
   "email": zod.string(),
+  "phone": zod.string().nullish().describe('The verified mobile in E.164, or null. The Access Denied screen needs it to name the identifier the caller actually holds — telling somebody who signed in by phone to \"ask your admin to add <blank>\" is the failure this replaces.\n'),
   "accessStatus": zod.enum(['not_recognised', 'pending_approval', 'active']).describe('active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.\n'),
   "authProvider": zod.string().nullish().describe('How the caller signed in (google | zoho | email). Display only.'),
   "memberships": zod.array(zod.object({
@@ -132,6 +133,7 @@ export const SwitchWorkspaceResponse = zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
   "email": zod.string(),
+  "phone": zod.string().nullish().describe('The verified mobile in E.164, or null. The Access Denied screen needs it to name the identifier the caller actually holds — telling somebody who signed in by phone to \"ask your admin to add <blank>\" is the failure this replaces.\n'),
   "accessStatus": zod.enum(['not_recognised', 'pending_approval', 'active']).describe('active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.\n'),
   "authProvider": zod.string().nullish().describe('How the caller signed in (google | zoho | email). Display only.'),
   "memberships": zod.array(zod.object({
@@ -179,6 +181,7 @@ export const CreateWorkspaceResponse = zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
   "email": zod.string(),
+  "phone": zod.string().nullish().describe('The verified mobile in E.164, or null. The Access Denied screen needs it to name the identifier the caller actually holds — telling somebody who signed in by phone to \"ask your admin to add <blank>\" is the failure this replaces.\n'),
   "accessStatus": zod.enum(['not_recognised', 'pending_approval', 'active']).describe('active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.\n'),
   "authProvider": zod.string().nullish().describe('How the caller signed in (google | zoho | email). Display only.'),
   "memberships": zod.array(zod.object({
@@ -945,7 +948,7 @@ export const TriggerCauseListSyncResponse = zod.object({
 export const ListAccessListResponseItem = zod.object({
   "id": zod.number(),
   "workspaceId": zod.number(),
-  "kind": zod.enum(['email', 'domain']),
+  "kind": zod.enum(['email', 'domain', 'phone']),
   "value": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "caseId": zod.number().nullish().describe('Set only when role is \"client\". Copied onto the membership on first sign-in.'),
@@ -966,8 +969,8 @@ export const createAccessListEntryBodyValueMin = 3;
 
 
 export const CreateAccessListEntryBody = zod.object({
-  "kind": zod.enum(['email', 'domain']),
-  "value": zod.string().min(createAccessListEntryBodyValueMin).describe('An exact email address, or a bare domain such as \"chambers.in\".'),
+  "kind": zod.enum(['email', 'domain', 'phone']),
+  "value": zod.string().min(createAccessListEntryBodyValueMin).describe('An exact email address, a bare domain such as \"chambers.in\", or a mobile number. A number is normalised to E.164 on write, so any readable form is accepted and matching stays an equality check. A phone entry carries a risk the others do not: telcos reassign a disconnected number after about ninety days.\n'),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role granted on first sign-in. Chosen by the admin.'),
   "caseId": zod.number().optional().describe('Required when role is \"client\" — the server rejects a client entry with no caseId, and rejects a caseId on any other role. Same rule as InviteInput.caseId; this is the other of the two paths that can create a client membership.\n'),
   "note": zod.string().optional()
@@ -976,7 +979,7 @@ export const CreateAccessListEntryBody = zod.object({
 export const CreateAccessListEntryResponse = zod.object({
   "id": zod.number(),
   "workspaceId": zod.number(),
-  "kind": zod.enum(['email', 'domain']),
+  "kind": zod.enum(['email', 'domain', 'phone']),
   "value": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "caseId": zod.number().nullish().describe('Set only when role is \"client\". Copied onto the membership on first sign-in.'),
@@ -1878,7 +1881,8 @@ export const GlobalSearchResponse = zod.object({
  */
 export const ListInvitesResponseItem = zod.object({
   "id": zod.number(),
-  "email": zod.string(),
+  "email": zod.string().nullish().describe('Null when the invite named a mobile number instead.'),
+  "phone": zod.string().nullish().describe('E.164. Null when the invite named an address.'),
   "token": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "caseId": zod.number().nullish(),
@@ -1893,14 +1897,16 @@ export const ListInvitesResponse = zod.array(ListInvitesResponseItem)
  * @summary Generate an invite link for a client
  */
 export const CreateInviteBody = zod.object({
-  "email": zod.string(),
+  "email": zod.string().optional().describe('The address to invite. Exactly one of email or phone must be given; the server rejects both and neither, and validates the shape of whichever was supplied.\n'),
+  "phone": zod.string().optional().describe('The mobile number to invite, in any readable form — \"+91 98765 43210\", \"098765 43210\" and \"9876543210\" all normalise to the same E.164 value. For the clerk or client who has a phone and no work address.\n'),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role the invited person is admitted at. Chosen by the admin.'),
   "caseId": zod.number().optional().describe('Required when role is \"client\" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field\'s value, which JSON Schema expresses badly; see routes\/invites.ts for the actual rule.\n')
 })
 
 export const CreateInviteResponse = zod.object({
   "id": zod.number(),
-  "email": zod.string(),
+  "email": zod.string().nullish().describe('Null when the invite named a mobile number instead.'),
+  "phone": zod.string().nullish().describe('E.164. Null when the invite named an address.'),
   "token": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "caseId": zod.number().nullish(),

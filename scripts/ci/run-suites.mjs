@@ -27,6 +27,8 @@ const SUITES = [
   ["cause-list", "Court cause lists: fetch, match, propose, accept"],
   ["operator", "Operator metrics: the allowlist, and the numbers"],
   ["blob-storage", "File storage: the R2 signer and the backend choice"],
+  ["phone-identity", "Mobile numbers: normalisation to E.164"],
+  ["phone-admission", "Mobile numbers: founding, inviting and being admitted"],
   ["gov", "Files, audit, quota, privacy, conflicts"],
 ];
 

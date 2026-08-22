@@ -12,4 +12,5 @@ export type AccessListEntryInputKind = typeof AccessListEntryInputKind[keyof typ
 export const AccessListEntryInputKind = {
   email: 'email',
   domain: 'domain',
+  phone: 'phone',
 } as const;

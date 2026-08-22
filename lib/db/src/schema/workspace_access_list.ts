@@ -21,8 +21,15 @@ import { z } from "zod/v4";
  *            firm's own Google Workspace / Zoho Mail tenant, and deliberately
  *            more dangerous: anyone who can get an address at that domain gets
  *            in, so the UI says so.
+ *   phone  — one mobile number, in E.164. For the clerk, intern or client who
+ *            has a phone and no work address, which in an Indian chamber is
+ *            most of them. Carries a risk email does not: telcos reassign a
+ *            disconnected number after about ninety days, so an entry left
+ *            standing can one day admit a stranger. Accepted deliberately —
+ *            see DECISIONS.md — which is why `lastUsedAt` is surfaced in the
+ *            admin UI and why email wins when both match.
  */
-export const ACCESS_LIST_KINDS = ["email", "domain"] as const;
+export const ACCESS_LIST_KINDS = ["email", "domain", "phone"] as const;
 export type AccessListKind = (typeof ACCESS_LIST_KINDS)[number];
 
 export const workspaceAccessListTable = pgTable(
@@ -86,4 +93,57 @@ export function normaliseDomain(domain: string): string {
 export function domainOf(email: string): string {
   const at = normaliseEmail(email).lastIndexOf("@");
   return at === -1 ? "" : normaliseEmail(email).slice(at + 1);
+}
+
+/**
+ * The country code assumed when a number is typed without one.
+ *
+ * Read from the environment rather than hardcoded to +91. An advocate typing
+ * "9876543210" means their own country, and the product should be wrong in one
+ * configurable place rather than wrong in a regex somebody has to find.
+ */
+function defaultCountryCode(): string {
+  const raw = process.env["DEFAULT_COUNTRY_CODE"]?.trim() || "+91";
+  return raw.startsWith("+") ? raw : `+${raw}`;
+}
+
+/**
+ * Normalises a mobile number to E.164 for storage and comparison.
+ *
+ * The phone counterpart of `normaliseEmail`, and it exists for the same reason:
+ * matching is a plain equality check, so every path must agree on the stored
+ * form. People type "+91 98765 43210", "098765 43210" and "9876543210" for the
+ * same number, and all three have to collapse.
+ *
+ * Returns `""` for anything that is not a usable number — the same "empty means
+ * no identifier" convention `identityFromClerk` already uses for an unverified
+ * address, so callers have one shape to check rather than two.
+ */
+export function normalisePhone(raw: string): string {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return "";
+
+  // A "+" anywhere ahead of the first digit counts as one — people write
+  // "(+91) 98765 43210" and testing only index 0 would miss it, then prepend
+  // the country code a second time and store a number that matches nothing.
+  const firstDigit = trimmed.search(/\d/);
+  const hasPlus = firstDigit > 0 && trimmed.slice(0, firstDigit).includes("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return "";
+
+  let e164: string;
+  if (hasPlus) {
+    e164 = `+${digits}`;
+  } else if (digits.startsWith("00")) {
+    // The other international prefix. "0091..." is the same as "+91...".
+    e164 = `+${digits.slice(2)}`;
+  } else if (digits.startsWith("0")) {
+    // A national trunk prefix: drop it and apply the default country code.
+    e164 = `${defaultCountryCode()}${digits.replace(/^0+/, "")}`;
+  } else {
+    e164 = `${defaultCountryCode()}${digits}`;
+  }
+
+  // E.164: a leading digit of 1-9 and eight to fifteen digits in total.
+  return /^\+[1-9]\d{7,14}$/.test(e164) ? e164 : "";
 }

@@ -55,6 +55,18 @@ export const usersTable = pgTable("users", {
    * from it and nothing shows it to another chamber.
    */
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  /**
+   * A verified mobile number in E.164, or null.
+   *
+   * The second identifier this platform admits people by. Written only from a
+   * Clerk-**verified** number, exactly like `email` — an unverified one is
+   * attacker-supplied text, and matching it against the access list would let
+   * anyone claim a colleague's number and inherit their role.
+   *
+   * Not unique, matching `email`. Normalised on write by `normalisePhone()` so
+   * access-list matching stays a plain equality check.
+   */
+  phone: text("phone"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

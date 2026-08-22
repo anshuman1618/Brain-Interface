@@ -23,15 +23,24 @@ import CreateChamberPage from "@/pages/create-chamber";
  * new one is the self-serve path.
  */
 export default function AccessDeniedPage() {
-  const { displayName, email, authProvider, signOut } = useSession();
+  const { displayName, email, phone, authProvider, signOut } = useSession();
 
   const [founding, setFounding] = useState(false);
 
   const provider = providerLabel(authProvider);
-  // No verified address reached us: the account exists but there is nothing to
-  // match against a list. Without this the screen said "you signed in as" and
-  // then named nobody, which reads like a bug rather than a thing to act on.
-  const addressMissing = !email;
+  /**
+   * Whichever identifier the caller actually holds.
+   *
+   * Somebody who signed in by SMS has no address, and telling them to "ask your
+   * admin to add <blank>" is the failure this replaces — the screen would name
+   * nobody while asking them to act on it.
+   */
+  const identifier = email || phone;
+  const isPhone = !email && Boolean(phone);
+  const identifierWord = isPhone ? "mobile number" : "email address";
+  // Nothing verified reached us at all: the account exists but there is nothing
+  // to match against a list.
+  const addressMissing = !identifier;
 
   if (founding) {
     return <CreateChamberPage onCancel={() => setFounding(false)} />;
@@ -59,12 +68,12 @@ export default function AccessDeniedPage() {
               {addressMissing ? (
                 <>
                   <h1 className="text-2xl font-bold tracking-tight mb-3">
-                    We didn't get a verified email address
+                    We didn't get a verified email address or mobile number
                   </h1>
                   <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                     You signed in{provider ? ` with ${provider}` : ""}, but the provider did not
-                    give us an address it has confirmed belongs to you. Access is granted per
-                    address, so there is nothing here to match yet.
+                    give us an address or a number it has confirmed belongs to you. Access is
+                    granted per identifier, so there is nothing here to match yet.
                   </p>
                   <div className="rounded-lg bg-card shadow-sm p-4">
                     <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
@@ -72,11 +81,13 @@ export default function AccessDeniedPage() {
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-4">
                       <li>
-                        Verify your email address with{provider ? ` ${provider}` : " your provider"}
-                        , then sign out and sign in again.
+                        Verify your email address or mobile number with
+                        {provider ? ` ${provider}` : " your provider"}, then sign out and sign in
+                        again.
                       </li>
                       <li>
-                        Or sign in with the email option, which verifies the address directly.
+                        Or sign in with the email or mobile option, which verifies the identifier
+                        directly.
                       </li>
                     </ul>
                   </div>
@@ -84,27 +95,37 @@ export default function AccessDeniedPage() {
               ) : (
                 <>
                   <h1 className="text-2xl font-bold tracking-tight mb-3">
-                    This email isn't on the chamber's access list
+                    This {identifierWord} isn't on the chamber's access list
                   </h1>
                   <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                     You signed in successfully{provider ? ` with ${provider}` : ""} as{" "}
-                    <span className="font-mono font-medium text-foreground break-all">{email}</span>
+                    <span className="font-mono font-medium text-foreground break-all">
+                      {identifier}
+                    </span>
                     {displayName ? ` (${displayName})` : ""}. That proves who you are, but a chamber
-                    admin has not admitted this address, so there is nothing here for you yet.
+                    admin has not admitted it, so there is nothing here for you yet.
                   </p>
                   <div className="rounded-lg bg-card shadow-sm p-4">
                     <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
                       What to do
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-4">
-                      <li>
-                        If your chamber uses a work address, sign out and sign in with that one
-                        instead — a personal Gmail or Zoho account won't match.
-                      </li>
+                      {!isPhone && (
+                        <li>
+                          If your chamber uses a work address, sign out and sign in with that one
+                          instead — a personal Gmail or Zoho account won't match.
+                        </li>
+                      )}
+                      {isPhone && (
+                        <li>
+                          If your chamber admitted you by email instead, sign out and sign in with
+                          that address.
+                        </li>
+                      )}
                       <li>
                         Otherwise ask your chamber admin to add{" "}
-                        <span className="font-mono text-foreground break-all">{email}</span> to the
-                        access list, then sign in again.
+                        <span className="font-mono text-foreground break-all">{identifier}</span> to
+                        the access list, then sign in again.
                       </li>
                       <li>Setting up a new practice? Create your own chamber instead.</li>
                     </ul>

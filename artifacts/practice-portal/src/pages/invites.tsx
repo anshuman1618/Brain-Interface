@@ -35,7 +35,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Copy, Plus, Mail, ShieldCheck, Check } from "lucide-react";
+import { Copy, Plus, Mail, Smartphone, ShieldCheck, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTime } from "@/lib/utils";
 import { AccessRequestQueue } from "@/components/access-request-queue";
@@ -52,6 +52,11 @@ export default function InvitesPage() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [email, setEmail] = useState("");
+  // An invite names one identifier. A chamber's clerks and most of its clients
+  // have a mobile and no work address, so refusing to invite a number would
+  // exclude exactly the people the chamber needs on the system.
+  const [inviteBy, setInviteBy] = useState<"email" | "phone">("email");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState<InviteInputRole>("client");
   const [caseId, setCaseId] = useState("");
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -61,10 +66,15 @@ export default function InvitesPage() {
   // role, so this mirrors that rule rather than letting the request round-trip
   // to learn it.
   const caseIdRequired = role === "client";
-  const canSubmit = !!email && !!role && (!caseIdRequired || !!caseId) && !createInvite.isPending;
+  const identifier = inviteBy === "phone" ? phone : email;
+  const canSubmit =
+    !!identifier.trim() && !!role && (!caseIdRequired || !!caseId) && !createInvite.isPending;
 
   const handleCreate = () => {
-    const payload: InviteInput = { email, role };
+    // Exactly one, never both — the server refuses the pair, and sending an
+    // empty string for the other would be sending both.
+    const payload: InviteInput =
+      inviteBy === "phone" ? { phone: phone.trim(), role } : { email: email.trim(), role };
     if (role === "client") {
       payload.caseId = parseInt(caseId, 10);
     }
@@ -116,13 +126,33 @@ export default function InvitesPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label>Email Address</Label>
+                <Label>Invite by</Label>
+                <Select value={inviteBy} onValueChange={(v) => setInviteBy(v as "email" | "phone")}>
+                  <SelectTrigger className="rounded-lg">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email address</SelectItem>
+                    <SelectItem value="phone">Mobile number</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>{inviteBy === "phone" ? "Mobile number" : "Email Address"}</Label>
                 <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="client@example.com"
+                  type={inviteBy === "phone" ? "tel" : "email"}
+                  value={identifier}
+                  onChange={(e) =>
+                    inviteBy === "phone" ? setPhone(e.target.value) : setEmail(e.target.value)
+                  }
+                  placeholder={inviteBy === "phone" ? "+91 98765 43210" : "client@example.com"}
                 />
+                {inviteBy === "phone" && (
+                  <p className="text-2xs leading-relaxed text-muted-foreground">
+                    They sign in by SMS to this number. Indian telcos reassign a disconnected number
+                    after about ninety days — revoke the entry when somebody leaves.
+                  </p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label>Assigned Role</Label>
@@ -227,8 +257,12 @@ export default function InvitesPage() {
                   <TableRow key={inv.id} className={isExpired || isUsed ? "opacity-50" : ""}>
                     <TableCell>
                       <div className="font-medium text-sm flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        {inv.email}
+                        {inv.phone ? (
+                          <Smartphone className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        {inv.phone || inv.email}
                       </div>
                       {inv.caseId && (
                         <div className="text-xs text-muted-foreground font-mono mt-1">

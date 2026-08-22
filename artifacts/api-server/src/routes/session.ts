@@ -8,6 +8,7 @@ import {
   workspaceAccessListTable,
   normaliseDomain,
   normaliseEmail,
+  normalisePhone,
   type Workspace,
 } from "@workspace/db";
 import {
@@ -119,6 +120,7 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
     clerkId: user.clerkId,
     displayName: user.displayName,
     email: user.email,
+    phone: user.phone ?? null,
     accessStatus,
     authProvider: user.authProvider || null,
     memberships,
@@ -228,13 +230,27 @@ async function foundChamber(
           decidedAt: new Date(),
         });
 
-        // Admit the founder's own address so they can sign back in without
+        // Admit the founder's own identifiers so they can sign back in without
         // needing somebody else to let them in.
-        if (user.email) {
+        //
+        // Both when they have both, deliberately: a founder who signed up by
+        // mobile and later verifies an address must not lose their own chamber
+        // because the row was keyed on the one identifier they stopped using.
+        // Founding by phone alone is the whole point of the feature — before
+        // this took the phone into account, such a founder created a chamber
+        // and was locked out of it on their next sign-in.
+        const founderIdentifiers: { kind: "email" | "phone"; value: string }[] = [];
+        if (user.email)
+          founderIdentifiers.push({ kind: "email", value: normaliseEmail(user.email) });
+        if (user.phone)
+          founderIdentifiers.push({ kind: "phone", value: normalisePhone(user.phone) });
+
+        for (const identifier of founderIdentifiers) {
+          if (!identifier.value) continue;
           await tx.insert(workspaceAccessListTable).values({
             workspaceId: workspace.id,
-            kind: "email",
-            value: normaliseEmail(user.email),
+            kind: identifier.kind,
+            value: identifier.value,
             role,
             note: "Chamber founder",
             addedBy: user.displayName,
@@ -630,7 +646,9 @@ router.post(
     const value =
       parsed.data.kind === "domain"
         ? normaliseDomain(parsed.data.value)
-        : normaliseEmail(parsed.data.value);
+        : parsed.data.kind === "phone"
+          ? normalisePhone(parsed.data.value)
+          : normaliseEmail(parsed.data.value);
 
     if (parsed.data.kind === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
       res.status(400).json({ error: "That does not look like an email address." });
@@ -638,6 +656,15 @@ router.post(
     }
     if (parsed.data.kind === "domain" && !/^[^\s@]+\.[^\s@]+$/.test(value)) {
       res.status(400).json({ error: "That does not look like a domain, e.g. chambers.in" });
+      return;
+    }
+    // normalisePhone returns "" for anything it cannot put in E.164, so the
+    // empty check is the whole validation — there is no second-guessing a
+    // number it accepted.
+    if (parsed.data.kind === "phone" && !value) {
+      res.status(400).json({
+        error: "That does not look like a mobile number, e.g. +91 98765 43210",
+      });
       return;
     }
 

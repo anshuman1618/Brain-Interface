@@ -136,6 +136,7 @@ Environment:
 | `RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET`                       | to take payment      | All three, or the plan screen records selections and charges nothing (section 4c)                                                |
 | `ERROR_WEBHOOK_URL`                                                         | strongly advised     | Where faults are reported. Unset, you find out from a customer (section 4d)                                                      |
 | `MAX_UPLOAD_BYTES`                                                          | no                   | Per-file cap. Defaults to 25 MB                                                                                                  |
+| `DEFAULT_COUNTRY_CODE`                                                      | no                   | Assumed when a mobile is typed without one. Defaults to `+91` (section 4f)                                                       |
 | `OPERATOR_EMAILS`                                                           | no                   | Comma-separated. Who may read `/operator` — the platform across every chamber. Unset means the route does not exist (section 4e) |
 | `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `MAIL_FROM`                     | for email            | Unset, reminders are recorded but never delivered (section 4b)                                                                   |
 
@@ -342,6 +343,32 @@ Activity figures come from `users.last_seen_at`, written at most once an hour
 per person. It has no backfill, so for the first weeks after deploying it
 "never seen" means "not seen since this shipped" rather than "never signed in".
 The screen says so; do not read the early numbers as churn.
+
+### 4f. Sign-in by mobile number
+
+A number is a full identity here: somebody with no email address can be
+invited, sign in by SMS, and found a chamber. Nothing extra is needed in this
+repository — but two things outside it are.
+
+**In the Clerk dashboard**, under User & Authentication, enable **Phone number**
+as an identifier and **SMS verification code** as a strategy. Leave password
+off, as it already is. Until that is enabled, the mobile option on the sign-in
+screen will reach Clerk and be refused.
+
+**Confirm with Clerk before you rely on it in India**, because it is the part
+this repository cannot test:
+
+- that SMS actually **delivers to `+91` numbers** on your plan — international
+  routes into India are heavily filtered;
+- **who holds the TRAI/DLT registration** for the sender ID and template, Clerk
+  or you as the principal entity;
+- the **per-message price**, and whether it bills to your Clerk plan.
+
+`DEFAULT_COUNTRY_CODE` (default `+91`) is the code assumed when somebody types a
+number without one. Set it if your chambers are not in India.
+
+Preview mode needs none of this: it accepts a `preview:phone:` token with no SMS
+at all, so the whole flow can be demonstrated and tested at zero cost.
 
 ### 4b. Email
 

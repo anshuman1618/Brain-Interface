@@ -2207,6 +2207,13 @@ components:
           type: string
         email:
           type: string
+        phone:
+          type: ["string", "null"]
+          description: >
+            The verified mobile in E.164, or null. The Access Denied screen
+            needs it to name the identifier the caller actually holds — telling
+            somebody who signed in by phone to "ask your admin to add
+            <blank>" is the failure this replaces.
         accessStatus:
           type: string
           enum: [not_recognised, pending_approval, active]
@@ -2460,7 +2467,7 @@ components:
           type: integer
         kind:
           type: string
-          enum: [email, domain]
+          enum: [email, domain, phone]
         value:
           type: string
         role:
@@ -2489,11 +2496,16 @@ components:
       properties:
         kind:
           type: string
-          enum: [email, domain]
+          enum: [email, domain, phone]
         value:
           type: string
           minLength: 3
-          description: An exact email address, or a bare domain such as "chambers.in".
+          description: >
+            An exact email address, a bare domain such as "chambers.in", or a
+            mobile number. A number is normalised to E.164 on write, so any
+            readable form is accepted and matching stays an equality check.
+            A phone entry carries a risk the others do not: telcos reassign a
+            disconnected number after about ninety days.
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
@@ -3859,12 +3871,16 @@ components:
     # ── Invite ────────────────────────────────────────────────────────────
     Invite:
       type: object
-      required: [id, email, token, role, createdAt, expiresAt]
+      required: [id, token, role, createdAt, expiresAt]
       properties:
         id:
           type: integer
         email:
-          type: string
+          type: ["string", "null"]
+          description: Null when the invite named a mobile number instead.
+        phone:
+          type: ["string", "null"]
+          description: E.164. Null when the invite named an address.
         token:
           type: string
         role:
@@ -3884,10 +3900,21 @@ components:
 
     InviteInput:
       type: object
-      required: [email, role]
+      required: [role]
       properties:
         email:
           type: string
+          description: >
+            The address to invite. Exactly one of email or phone must be given;
+            the server rejects both and neither, and validates the shape of
+            whichever was supplied.
+        phone:
+          type: string
+          description: >
+            The mobile number to invite, in any readable form — "+91 98765
+            43210", "098765 43210" and "9876543210" all normalise to the same
+            E.164 value. For the clerk or client who has a phone and no work
+            address.
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]

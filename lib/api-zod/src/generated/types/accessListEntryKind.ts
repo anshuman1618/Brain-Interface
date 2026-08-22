@@ -12,4 +12,5 @@ export type AccessListEntryKind = typeof AccessListEntryKind[keyof typeof Access
 export const AccessListEntryKind = {
   email: 'email',
   domain: 'domain',
+  phone: 'phone',
 } as const;

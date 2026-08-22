@@ -11,7 +11,7 @@ import type { AccessListEntryInputRole } from './accessListEntryInputRole';
 export interface AccessListEntryInput {
   kind: AccessListEntryInputKind;
   /**
-     * An exact email address, or a bare domain such as "chambers.in".
+     * An exact email address, a bare domain such as "chambers.in", or a mobile number. A number is normalised to E.164 on write, so any readable form is accepted and matching stays an equality check. A phone entry carries a risk the others do not: telcos reassign a disconnected number after about ninety days.
      * @minLength 3
      */
   value: string;

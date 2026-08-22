@@ -182,6 +182,11 @@ export interface SessionClaims {
   clerkId: string;
   displayName: string;
   email: string;
+  /**
+     * The verified mobile in E.164, or null. The Access Denied screen needs it to name the identifier the caller actually holds — telling somebody who signed in by phone to "ask your admin to add <blank>" is the failure this replaces.
+     * @nullable
+     */
+  phone?: string | null;
   /** active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address. */
   accessStatus: SessionClaimsAccessStatus;
   /**
@@ -423,6 +428,7 @@ export type AccessListEntryKind = typeof AccessListEntryKind[keyof typeof Access
 export const AccessListEntryKind = {
   email: 'email',
   domain: 'domain',
+  phone: 'phone',
 } as const;
 
 export type AccessListEntryRole = typeof AccessListEntryRole[keyof typeof AccessListEntryRole];
@@ -464,6 +470,7 @@ export type AccessListEntryInputKind = typeof AccessListEntryInputKind[keyof typ
 export const AccessListEntryInputKind = {
   email: 'email',
   domain: 'domain',
+  phone: 'phone',
 } as const;
 
 /**
@@ -483,7 +490,7 @@ export const AccessListEntryInputRole = {
 export interface AccessListEntryInput {
   kind: AccessListEntryInputKind;
   /**
-     * An exact email address, or a bare domain such as "chambers.in".
+     * An exact email address, a bare domain such as "chambers.in", or a mobile number. A number is normalised to E.164 on write, so any readable form is accepted and matching stays an equality check. A phone entry carries a risk the others do not: telcos reassign a disconnected number after about ninety days.
      * @minLength 3
      */
   value: string;
@@ -1917,7 +1924,16 @@ export const InviteRole = {
 
 export interface Invite {
   id: number;
-  email: string;
+  /**
+     * Null when the invite named a mobile number instead.
+     * @nullable
+     */
+  email?: string | null;
+  /**
+     * E.164. Null when the invite named an address.
+     * @nullable
+     */
+  phone?: string | null;
   token: string;
   role: InviteRole;
   /** @nullable */
@@ -1943,7 +1959,10 @@ export const InviteInputRole = {
 } as const;
 
 export interface InviteInput {
-  email: string;
+  /** The address to invite. Exactly one of email or phone must be given; the server rejects both and neither, and validates the shape of whichever was supplied. */
+  email?: string;
+  /** The mobile number to invite, in any readable form — "+91 98765 43210", "098765 43210" and "9876543210" all normalise to the same E.164 value. For the clerk or client who has a phone and no work address. */
+  phone?: string;
   /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
   /** Required when role is "client" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field's value, which JSON Schema expresses badly; see routes/invites.ts for the actual rule. */

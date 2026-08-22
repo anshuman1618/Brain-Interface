@@ -503,6 +503,46 @@ also means a lapsed plan can see its proposals and cannot act on them, for
 free. The ops surface (`/runs`, manual `/sync`) is `audit.read` — admin only,
 because it reaches out to third-party servers on demand.
 
+### Two identifiers, one seam
+
+```
+  sign-in                     Clerk (OAuth · email code · SMS code)
+        │                     preview: preview:email:… | preview:phone:…
+        ▼
+  identityFromClerk           lib/jit.ts
+        │  VERIFIED email and/or VERIFIED phone, or "" / null
+        ▼
+  users.email / users.phone   normalised on write
+        │
+        ▼
+  reconcileAccessList(user)   lib/access-list.ts
+        │  returns 0 only when BOTH are absent
+        ▼
+  findAccessListMatches({email, phone})
+        │  kind='email' = address   ┐
+        │  kind='phone' = E.164     ├─ exact
+        │  kind='domain' = @host    ┘  blanket
+        │  precedence: email > phone > domain, per workspace
+        ▼
+  workspace_memberships       email and phone disappear here;
+                              (workspace_id, user_id) takes over
+```
+
+| File                                         | Role                                                                                                                         |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/workspace_access_list.ts` | `ACCESS_LIST_KINDS` gains `phone`; `normalisePhone()` lives beside `normaliseEmail()`.                                       |
+| `lib/db/drizzle/0012_phone_identity.sql`     | `users.phone`, `invites.phone`, and `invites.email` relaxed to nullable. Both `preview.ts` blocks too.                       |
+| `api-server/src/lib/jit.ts`                  | `identityFromClerk` reads a verified number; `resyncIdentity` fills either blank and overwrites neither.                     |
+| `api-server/src/lib/access-list.ts`          | The matcher takes `{email, phone}` and only ORs the arms it has an identifier for.                                           |
+| `api-server/src/routes/session.ts`           | `foundChamber` self-admits every identifier the founder holds — the fix that stops a phone founder losing their own chamber. |
+| `api-server/src/routes/invites.ts`           | Exactly one identifier, shape-checked. Previously this door checked nothing.                                                 |
+| `api-server/src/lib/preview-mode.ts`         | `preview:phone:…` beside the byte-identical `preview:email:…`.                                                               |
+| `practice-portal/.../portal-sign-in.tsx`     | "Continue with mobile number", via Clerk `phoneCode.sendCode` / `verifyCode`.                                                |
+| `practice-portal/.../access-denied.tsx`      | Names the identifier the caller actually holds.                                                                              |
+
+**The operator allowlist stays email-only.** It is an environment variable, not
+an access-list row, and a reassigned number must not reach a cross-tenant view.
+
 ### Where case files go
 
 ```
@@ -880,7 +920,21 @@ implementation — and key, body and method are each shown to change it. The
 other half asserts that a partly configured R2 **throws** instead of quietly
 falling back to a disk the next deploy will wipe.
 
-Last run: **442 checks green with `RAZORPAY_*` unset**, each suite against a
+**Mobile identity has two committed suites.** `phone-identity.mjs` is 19
+offline checks on `normalisePhone` — every readable form of one number
+collapsing to one E.164 string, everything unusable coming back empty rather
+than half-parsed, and the country code being configuration rather than a
+hardcoded `+91`. `phone-admission.mjs` is 29 checks against a live server: a
+chamber founded by somebody with no address **and signed back into**, a
+colleague invited by number and admitted at that role, both admission doors
+refusing a half-formed identifier, and — the control — an emailed colleague
+still admitted exactly as before.
+
+That last point is the design claim, and the evidence for it is that **all
+eleven pre-existing suites pass untouched**. The email path was extended, not
+altered.
+
+Last run: **490 checks green with `RAZORPAY_*` unset**, each suite against a
 fresh server and a fresh database. The banner was checked
 separately in a browser across all five of its states (17 assertions), which is
 what caught the `daysLeft` rounding.

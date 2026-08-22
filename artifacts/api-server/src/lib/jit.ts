@@ -1,8 +1,8 @@
 import { getAuth, clerkClient } from "@clerk/express";
 import type { Request } from "express";
-import { db, usersTable, normaliseEmail } from "@workspace/db";
+import { db, usersTable, normaliseEmail, normalisePhone } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { isPreviewAuth, previewClerkIdForEmail, previewIdentityFromRequest } from "./preview-mode";
+import { isPreviewAuth, previewClerkId, previewIdentityFromRequest } from "./preview-mode";
 
 export type AppUser = {
   id: number;
@@ -10,6 +10,8 @@ export type AppUser = {
   roleSelected: boolean;
   displayName: string;
   email: string;
+  /** A verified mobile in E.164, or null. The second admissible identifier. */
+  phone: string | null;
   authProvider: string;
   clerkId: string;
   /** Self-declared, see `needsBarRegistration()` in lib/permissions.ts. */
@@ -27,13 +29,13 @@ export type AppUser = {
 function resolveClerkId(req: Request): string | null {
   if (isPreviewAuth()) {
     const identity = previewIdentityFromRequest(req.headers.authorization);
-    return identity ? previewClerkIdForEmail(identity.email) : null;
+    return identity ? previewClerkId(identity) : null;
   }
   return getAuth(req)?.userId ?? null;
 }
 
 /**
- * Which provider vouched for this identity: google | zoho | email.
+ * Which provider vouched for this identity: google | zoho | phone | email.
  *
  * Display only. It is recorded so the UI can say "signed in with Zoho", and it
  * is never consulted for authorization — an address admitted by the access list
@@ -45,6 +47,10 @@ function providerFromClerk(req: Request): string {
   if (typeof strategy === "string") {
     if (strategy.includes("google")) return "google";
     if (strategy.includes("zoho")) return "zoho";
+    // Before this existed a phone sign-in fell through to the "email" catch-all
+    // and the UI told people they had signed in with an address they may not
+    // have. Display only, like the rest of this function.
+    if (strategy.includes("phone")) return "phone";
   }
   return "email";
 }
@@ -67,13 +73,14 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
   if (existing.length > 0) {
-    // A row with an address is the common case and answers from the database
-    // alone — no Clerk round trip on the hot path.
-    if (existing[0].email) return existing[0];
-    // An empty address means the first sign-in happened before the provider had
-    // a verified one. Nothing re-read it afterwards, so the user stayed on the
-    // access-denied screen for good even once they had verified. Try again now.
-    return (await resyncEmail(req, existing[0])) ?? existing[0];
+    // A row already carrying an identifier is the common case and answers from
+    // the database alone — no Clerk round trip on the hot path. Either one will
+    // do: the access list matches on whichever the person actually has.
+    if (existing[0].email || existing[0].phone) return existing[0];
+    // Neither means the first sign-in happened before the provider had a
+    // verified anything. Nothing re-read it afterwards, so the user stayed on
+    // the access-denied screen for good even once they had verified. Try again.
+    return (await resyncIdentity(req, existing[0])) ?? existing[0];
   }
 
   if (isPreviewAuth()) {
@@ -81,11 +88,15 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
     if (!identity) return null;
 
     // Mirrors a real first-time federated sign-in: the provider vouched for an
-    // address, so a user record exists. It still reaches nothing until they
-    // create a chamber, or the access list / an admin admits them.
+    // address or a number, so a user record exists. It still reaches nothing
+    // until they create a chamber, or the access list / an admin admits them.
     return insertUser(clerkId, {
-      displayName: identity.displayName || identity.email.split("@")[0],
+      displayName:
+        identity.displayName ||
+        (identity.email ? identity.email.split("@")[0] : identity.phone) ||
+        "User",
       email: identity.email,
+      phone: identity.phone,
       authProvider: identity.provider,
     });
   }
@@ -94,20 +105,26 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
   return insertUser(clerkId, { ...identity, authProvider: providerFromClerk(req) });
 }
 
-type Identity = { displayName: string; email: string };
+type Identity = { displayName: string; email: string; phone: string | null };
 
-/** The verified address and name Clerk holds for this id, normalised. */
+/** The verified address, number and name Clerk holds for this id, normalised. */
 async function identityFromClerk(clerkId: string): Promise<Identity> {
   const clerkUser = await clerkClient.users.getUser(clerkId);
   const nameFromClerk = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim();
-  // Only a *verified* address is trusted. An unverified one is attacker-supplied
-  // text, and matching it against the access list would let anyone claim a
-  // colleague's address and inherit their role.
+  // Only a *verified* identifier is trusted, address or number alike. An
+  // unverified one is attacker-supplied text, and matching it against the
+  // access list would let anyone claim a colleague's address — or their mobile
+  // — and inherit their role.
   const verified = clerkUser.emailAddresses.find((e) => e.verification?.status === "verified");
+  const verifiedPhone = clerkUser.phoneNumbers?.find((p) => p.verification?.status === "verified");
+  const phone = verifiedPhone ? normalisePhone(verifiedPhone.phoneNumber) : "";
 
   return {
     displayName: nameFromClerk || "User",
     email: verified ? normaliseEmail(verified.emailAddress) : "",
+    // Null rather than "" so the column reads as absent in the database; the
+    // access-list matcher treats both as no-identifier either way.
+    phone: phone || null,
   };
 }
 
@@ -136,25 +153,30 @@ async function insertUser(
   return winner ?? null;
 }
 
-/** Fills in an address that was empty at first sign-in. No-op when still empty. */
-async function resyncEmail(req: Request, user: AppUser): Promise<AppUser | null> {
-  if (isPreviewAuth()) {
-    const identity = previewIdentityFromRequest(req.headers.authorization);
-    if (!identity?.email) return null;
-    const [updated] = await db
-      .update(usersTable)
-      .set({ email: identity.email, displayName: user.displayName || identity.displayName })
-      .where(eq(usersTable.id, user.id))
-      .returning();
-    return updated ?? null;
-  }
+/**
+ * Fills in an identifier that was empty at first sign-in. No-op when still empty.
+ *
+ * Repairs either field: somebody who signed up by phone and later verified an
+ * address, or the original case of an address that was not yet verified when
+ * they first arrived. Only ever fills a blank — it never overwrites an
+ * identifier that is already stored, because that identifier is what the access
+ * list matched to admit them.
+ */
+async function resyncIdentity(req: Request, user: AppUser): Promise<AppUser | null> {
+  const identity = isPreviewAuth()
+    ? previewIdentityFromRequest(req.headers.authorization)
+    : await identityFromClerk(user.clerkId);
+  if (!identity) return null;
 
-  const identity = await identityFromClerk(user.clerkId);
-  if (!identity.email) return null;
+  const fills: { email?: string; phone?: string; displayName?: string } = {};
+  if (!user.email && identity.email) fills.email = identity.email;
+  if (!user.phone && identity.phone) fills.phone = identity.phone;
+  if (!user.displayName && identity.displayName) fills.displayName = identity.displayName;
+  if (Object.keys(fills).length === 0) return null;
 
   const [updated] = await db
     .update(usersTable)
-    .set({ email: identity.email, displayName: user.displayName || identity.displayName })
+    .set(fills)
     .where(eq(usersTable.id, user.id))
     .returning();
 

@@ -48,6 +48,8 @@ export type Session = {
   isSignedIn: boolean;
   displayName: string;
   email: string;
+  /** The verified mobile in E.164, or "". Exactly one of email / phone is set. */
+  phone: string;
   initial: string;
   signOut: () => void;
 
@@ -214,7 +216,13 @@ const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
  * with nowhere to type it. sessionStorage rather than localStorage: this is a
  * half-finished sign-in, and it should not outlive the tab.
  */
-type PendingCode = { email: string; leg: "signIn" | "signUp" };
+type PendingCode = {
+  /** The address or number the code went to; shown back on the code screen. */
+  email: string;
+  leg: "signIn" | "signUp";
+  /** Which strategy issued it. Absent on a value written by an older build. */
+  kind?: "email" | "phone";
+};
 
 const PENDING_CODE_KEY = "lex.signin.pending-code";
 
@@ -290,6 +298,25 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       setSignInError(null);
       setIsSigningIn(true);
       try {
+        if (provider === "phone") {
+          // The exact mirror of the email leg below, including the fall-through
+          // to sign-up: a number Clerk has never seen cannot be *signed in*, so
+          // the first person to reach a deployment by SMS has to be created.
+          const { error } = await signIn.phoneCode.sendCode({ phoneNumber: emailAddress });
+          if (!error) {
+            setPendingCode({ email: emailAddress, leg: "signIn", kind: "phone" });
+            return;
+          }
+
+          if (!signUp) throw error;
+          const created = await signUp.create({ phoneNumber: emailAddress });
+          if (created.error) throw error;
+          const sent = await signUp.verifications.sendPhoneCode();
+          if (sent.error) throw sent.error;
+          setPendingCode({ email: emailAddress, leg: "signUp", kind: "phone" });
+          return;
+        }
+
         if (provider === "email") {
           // Passwordless: a one-time code to the inbox. There is no password
           // field anywhere in this app and no password strategy is attempted.
@@ -302,7 +329,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
           // sign-in needs a user, and nothing here was creating one.
           const { error } = await signIn.emailCode.sendCode({ emailAddress });
           if (!error) {
-            setPendingCode({ email: emailAddress, leg: "signIn" });
+            setPendingCode({ email: emailAddress, leg: "signIn", kind: "email" });
             return;
           }
 
@@ -313,7 +340,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
           if (created.error) throw error;
           const sent = await signUp.verifications.sendEmailCode();
           if (sent.error) throw sent.error;
-          setPendingCode({ email: emailAddress, leg: "signUp" });
+          setPendingCode({ email: emailAddress, leg: "signUp", kind: "email" });
           return;
         }
 
@@ -366,13 +393,18 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
     setSignInError(null);
     setIsSigningIn(true);
     try {
+      const byPhone = pendingCode.kind === "phone";
       if (pendingCode.leg === "signUp") {
         if (!signUp) throw new Error("Sign-up is not available. Start again.");
-        const { error } = await signUp.verifications.sendEmailCode();
+        const { error } = byPhone
+          ? await signUp.verifications.sendPhoneCode()
+          : await signUp.verifications.sendEmailCode();
         if (error) throw error;
       } else {
         if (!signIn) throw new Error("Sign-in is not available. Start again.");
-        const { error } = await signIn.emailCode.sendCode({ emailAddress: pendingCode.email });
+        const { error } = byPhone
+          ? await signIn.phoneCode.sendCode({ phoneNumber: pendingCode.email })
+          : await signIn.emailCode.sendCode({ emailAddress: pendingCode.email });
         if (error) throw error;
       }
     } catch (err) {
@@ -392,10 +424,15 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
         const trimmed = code.trim();
         // Verified against whichever leg issued it — see `pendingCode`.
         const usingSignUp = pendingCode?.leg === "signUp" && Boolean(signUp);
+        const byPhone = pendingCode?.kind === "phone";
         const { error } =
           usingSignUp && signUp
-            ? await signUp.verifications.verifyEmailCode({ code: trimmed })
-            : await signIn.emailCode.verifyCode({ code: trimmed });
+            ? byPhone
+              ? await signUp.verifications.verifyPhoneCode({ code: trimmed })
+              : await signUp.verifications.verifyEmailCode({ code: trimmed })
+            : byPhone
+              ? await signIn.phoneCode.verifyCode({ code: trimmed })
+              : await signIn.emailCode.verifyCode({ code: trimmed });
         if (error) throw error;
 
         // A verified code leaves the attempt `complete` but NOT signed in —
@@ -447,6 +484,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Session>(() => {
     const email = user?.emailAddresses?.[0]?.emailAddress ?? "";
+    const phone = user?.phoneNumbers?.[0]?.phoneNumber ?? "";
     return {
       isLoaded: isLoaded && !backend.claimsLoading,
       isSignedIn: Boolean(isSignedIn),
@@ -454,7 +492,8 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       // the app is authorized against.
       displayName: backend.claims?.displayName || user?.fullName || email,
       email: backend.claims?.email || email,
-      initial: firstChar(backend.claims?.displayName, user?.firstName, email),
+      phone: backend.claims?.phone || phone,
+      initial: firstChar(backend.claims?.displayName, user?.firstName, email, phone),
       signOut: () => {
         clearWorkspaceContext();
         void signOut();
@@ -522,10 +561,19 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
    * is not on one.
    */
   const signInWithProvider = useCallback(
-    async (provider: ProviderId, emailAddress: string, name?: string) => {
-      const trimmed = emailAddress.trim().toLowerCase();
-      if (!trimmed.includes("@")) return;
-      adopt({ provider, email: trimmed, name: name?.trim() ?? "" });
+    async (provider: ProviderId, identifier: string, name?: string) => {
+      const trimmed = identifier.trim();
+      if (provider === "phone") {
+        // Shape only — the server normalises to E.164 and is the authority on
+        // what a usable number is. Refusing more here would put two different
+        // answers to the same question in two places.
+        if (!/\d/.test(trimmed)) return;
+        adopt({ provider, email: "", phone: trimmed, name: name?.trim() ?? "" });
+        return;
+      }
+      const lowered = trimmed.toLowerCase();
+      if (!lowered.includes("@")) return;
+      adopt({ provider, email: lowered, name: name?.trim() ?? "" });
     },
     [adopt],
   );
@@ -539,6 +587,7 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
       isSignedIn: session !== null,
       displayName: claims?.displayName ?? session?.name ?? "",
       email: claims?.email ?? session?.email ?? "",
+      phone: claims?.phone ?? session?.phone ?? "",
       initial: firstChar(claims?.displayName, session?.email),
       signOut,
       ...baseSessionFields(claims),
