@@ -9,6 +9,20 @@ export const usersTable = pgTable("users", {
   roleSelected: boolean("role_selected").notNull().default(false), // true once user has picked a role at sign-up
   displayName: text("display_name").notNull().default(""),
   email: text("email").notNull().default(""),
+  /**
+   * Verified mobile number in E.164, or "" — the same shape as `email` above,
+   * and for the same reason: a provider may vouch for one, the other, or both.
+   *
+   * A person can now be admitted to a chamber by number alone
+   * (`workspace_access_list.kind = "phone"`), so this is an identity column,
+   * not a contact detail. Only a number Clerk reports as VERIFIED is ever
+   * written here; an unverified one is attacker-supplied text and matching it
+   * against the access list would let anybody claim a colleague's grant.
+   *
+   * Deliberately not unique, exactly like `email`. The identity anchor is
+   * `clerk_id`; these two are what the access list matches on.
+   */
+  phone: text("phone").notNull().default(""),
   /** How they last signed in: google | zoho | email. Display only — never authorization. */
   authProvider: text("auth_provider").notNull().default(""),
   /**

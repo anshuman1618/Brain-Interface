@@ -2115,7 +2115,7 @@ components:
     # ── User ──────────────────────────────────────────────────────────────
     UserProfile:
       type: object
-      required: [id, clerkId, role, roleSelected, displayName, email, createdAt]
+      required: [id, clerkId, role, roleSelected, displayName, email, phone, createdAt]
       properties:
         id:
           type: integer
@@ -2131,6 +2131,9 @@ components:
           type: string
         email:
           type: string
+        phone:
+          type: string
+          description: Verified mobile in E.164, or "".
         authProvider:
           type: ["string", "null"]
         barCouncilState:
@@ -2192,6 +2195,7 @@ components:
           clerkId,
           displayName,
           email,
+          phone,
           accessStatus,
           memberships,
           capabilities,
@@ -2207,6 +2211,11 @@ components:
           type: string
         email:
           type: string
+        phone:
+          type: string
+          description: >
+            Verified mobile in E.164, or "". Somebody who signed up by SMS has
+            this and no email; the two are alternatives, not a pair.
         accessStatus:
           type: string
           enum: [not_recognised, pending_approval, active]
@@ -2460,7 +2469,7 @@ components:
           type: integer
         kind:
           type: string
-          enum: [email, domain]
+          enum: [email, domain, phone]
         value:
           type: string
         role:
@@ -2489,11 +2498,15 @@ components:
       properties:
         kind:
           type: string
-          enum: [email, domain]
+          enum: [email, domain, phone]
         value:
           type: string
           minLength: 3
-          description: An exact email address, or a bare domain such as "chambers.in".
+          description: >
+            An exact email address, a bare domain such as "chambers.in", or a
+            mobile number in E.164 ("+919876543210"). A ten-digit number is
+            read as Indian. There is deliberately no domain equivalent for
+            phone — a numbering range is not an organisation.
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
@@ -3859,12 +3872,16 @@ components:
     # ── Invite ────────────────────────────────────────────────────────────
     Invite:
       type: object
-      required: [id, email, token, role, createdAt, expiresAt]
+      required: [id, email, phone, token, role, createdAt, expiresAt]
       properties:
         id:
           type: integer
         email:
           type: string
+          description: The address invited, or "" when the invite names a number instead.
+        phone:
+          type: string
+          description: The mobile number invited in E.164, or "" when it names an address.
         token:
           type: string
         role:
@@ -3884,10 +3901,19 @@ components:
 
     InviteInput:
       type: object
-      required: [email, role]
+      required: [role]
+      description: >
+        Addressed to exactly one of email or phone. Supplying both, or neither,
+        is refused — not modelled here because JSON Schema expresses
+        "exactly one of" badly; see routes/invites.ts for the actual rule.
       properties:
         email:
           type: string
+        phone:
+          type: string
+          description: >
+            Mobile number. Ten digits is read as Indian; any other country
+            needs the full +code form. Stored normalised to E.164.
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]

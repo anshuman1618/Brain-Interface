@@ -35,7 +35,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Copy, Plus, Mail, ShieldCheck, Check } from "lucide-react";
+import { Copy, Plus, Mail, ShieldCheck, Check, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTime } from "@/lib/utils";
 import { AccessRequestQueue } from "@/components/access-request-queue";
@@ -51,7 +51,11 @@ export default function InvitesPage() {
   const { toast } = useToast();
 
   const [isOpen, setIsOpen] = useState(false);
-  const [email, setEmail] = useState("");
+  // An invite names exactly one identifier, so the dialog offers a choice
+  // rather than two fields somebody could fill in both of — which the server
+  // refuses anyway.
+  const [channel, setChannel] = useState<"email" | "phone">("email");
+  const [identifier, setIdentifier] = useState("");
   const [role, setRole] = useState<InviteInputRole>("client");
   const [caseId, setCaseId] = useState("");
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -61,10 +65,12 @@ export default function InvitesPage() {
   // role, so this mirrors that rule rather than letting the request round-trip
   // to learn it.
   const caseIdRequired = role === "client";
-  const canSubmit = !!email && !!role && (!caseIdRequired || !!caseId) && !createInvite.isPending;
+  const canSubmit =
+    !!identifier.trim() && !!role && (!caseIdRequired || !!caseId) && !createInvite.isPending;
 
   const handleCreate = () => {
-    const payload: InviteInput = { email, role };
+    const payload: InviteInput =
+      channel === "phone" ? { phone: identifier.trim(), role } : { email: identifier.trim(), role };
     if (role === "client") {
       payload.caseId = parseInt(caseId, 10);
     }
@@ -74,7 +80,7 @@ export default function InvitesPage() {
       {
         onSuccess: () => {
           setIsOpen(false);
-          setEmail("");
+          setIdentifier("");
           setRole("client");
           setCaseId("");
           queryClient.invalidateQueries({ queryKey: getListInvitesQueryKey() });
@@ -116,12 +122,34 @@ export default function InvitesPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label>Email Address</Label>
+                <Label>Invite by</Label>
+                <Select
+                  value={channel}
+                  onValueChange={(v) => {
+                    setChannel(v as "email" | "phone");
+                    // Clearing matters: an address left in the box after
+                    // switching to mobile would be sent as a phone number and
+                    // refused by the server for no visible reason.
+                    setIdentifier("");
+                  }}
+                >
+                  <SelectTrigger className="rounded-lg">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email address</SelectItem>
+                    <SelectItem value="phone">Mobile number</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>{channel === "phone" ? "Mobile Number" : "Email Address"}</Label>
                 <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="client@example.com"
+                  type={channel === "phone" ? "tel" : "email"}
+                  inputMode={channel === "phone" ? "tel" : "email"}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder={channel === "phone" ? "98765 43210" : "client@example.com"}
                 />
               </div>
               <div className="grid gap-2">
@@ -226,9 +254,13 @@ export default function InvitesPage() {
                 return (
                   <TableRow key={inv.id} className={isExpired || isUsed ? "opacity-50" : ""}>
                     <TableCell>
-                      <div className="font-medium text-sm flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        {inv.email}
+                      <div className="font-medium text-sm flex items-center gap-2 break-all">
+                        {inv.phone ? (
+                          <Smartphone className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        {inv.phone || inv.email}
                       </div>
                       {inv.caseId && (
                         <div className="text-xs text-muted-foreground font-mono mt-1">

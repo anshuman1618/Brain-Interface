@@ -22,17 +22,29 @@ import { useSession } from "@/lib/session";
  */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Clerk's emailed one-time codes are six digits. */
+/** Clerk's one-time codes are six digits, by email and by SMS alike. */
 const CODE_LENGTH = 6;
+
+/**
+ * Loose on purpose, and NOT the canonical form.
+ *
+ * The server owns canonicalisation (`normalisePhone` in lib/db) and will refuse
+ * anything it cannot resolve. This only catches the obvious typo before a round
+ * trip, so it accepts the shapes a person actually types — ten digits, a
+ * leading zero, or a full +country form, with spaces, dashes or brackets
+ * anywhere. Tightening it here would reject numbers the server accepts.
+ */
+const PHONE_PATTERN = /^\+?[\d\s()./-]{8,20}$/;
 
 export default function PortalSignInPage() {
   const {
     previewMode,
     signInWithProvider,
-    verifyEmailCode,
+    verifyCode,
     resendCode,
     awaitingCode,
-    pendingEmail,
+    pendingIdentifier,
+    pendingChannel,
     cancelCodeEntry,
     signInError,
     isSigningIn,
@@ -42,17 +54,27 @@ export default function PortalSignInPage() {
   const isSetup = new URLSearchParams(useSearch()).get("new") === "1";
 
   const [chosen, setChosen] = useState<ProviderId | null>(null);
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
-  const [emailError, setEmailError] = useState<string | null>(null);
+  const [identifierError, setIdentifierError] = useState<string | null>(null);
 
-  // After a refresh the provider knows the address but this component does not,
-  // so the code screen reads from the persisted value first.
-  const codeSentTo = pendingEmail || email;
+  /** Which kind of identifier the chosen route collects. */
+  const channel: "email" | "phone" = chosen === "phone" ? "phone" : "email";
+  const onPhone = channel === "phone";
 
-  const validateEmail = (value: string): string | null => {
+  // After a refresh the provider knows the identifier but this component does
+  // not, so the code screen reads from the persisted value first.
+  const codeSentTo = pendingIdentifier || identifier;
+  const codeChannel = pendingIdentifier ? pendingChannel : channel;
+
+  const validateIdentifier = (value: string): string | null => {
     const trimmed = value.trim();
+    if (onPhone) {
+      if (!trimmed) return "Enter your mobile number.";
+      if (!PHONE_PATTERN.test(trimmed)) return "That doesn't look like a mobile number.";
+      return null;
+    }
     if (!trimmed) return "Enter your email address.";
     if (!EMAIL_PATTERN.test(trimmed)) return "That doesn't look like an email address.";
     return null;
@@ -60,25 +82,28 @@ export default function PortalSignInPage() {
 
   const startProvider = (id: ProviderId) => {
     // Outside preview, Google and Zoho hand off to the identity provider
-    // immediately; only the email route needs an address typed here first.
-    if (!previewMode && id !== "email") {
+    // immediately; the email and mobile routes need an identifier typed here
+    // first. In preview every route uses the form, since no provider is
+    // contacted at all.
+    if (!previewMode && id !== "email" && id !== "phone") {
       void signInWithProvider(id, "");
       return;
     }
-    setEmailError(null);
+    setIdentifierError(null);
+    setIdentifier("");
     setChosen(id);
   };
 
-  const submitEmail = (e: React.FormEvent) => {
+  const submitIdentifier = (e: React.FormEvent) => {
     e.preventDefault();
     if (!chosen) return;
     // Checked here rather than left to the browser: the submit button was
     // enabled by any non-empty string, so "abc" reached Clerk and came back as
     // a red banner about a failed request instead of a note under the field.
-    const problem = validateEmail(email);
-    setEmailError(problem);
+    const problem = validateIdentifier(identifier);
+    setIdentifierError(problem);
     if (problem) return;
-    void signInWithProvider(chosen, email.trim(), name.trim());
+    void signInWithProvider(chosen, identifier.trim(), name.trim());
   };
 
   return (
@@ -132,13 +157,13 @@ export default function PortalSignInPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                void verifyEmailCode(code);
+                void verifyCode(code);
               }}
               className="flex flex-col gap-4"
             >
               <div className="rounded-lg bg-background shadow-[var(--press-sm)] px-4 py-3">
                 <p className="text-sm">
-                  We sent a one-time code to{" "}
+                  We sent a one-time code {codeChannel === "phone" ? "by SMS to" : "to"}{" "}
                   <span className="font-mono font-medium break-all">{codeSentTo}</span>.
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -218,7 +243,7 @@ export default function PortalSignInPage() {
               ))}
             </div>
           ) : (
-            <form onSubmit={submitEmail} className="flex flex-col gap-4">
+            <form onSubmit={submitIdentifier} className="flex flex-col gap-4">
               <button
                 type="button"
                 onClick={() => setChosen(null)}
@@ -238,37 +263,48 @@ export default function PortalSignInPage() {
 
               <div className="space-y-2">
                 <label
-                  htmlFor="signin-email"
+                  htmlFor="signin-identifier"
                   className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider"
                 >
-                  Email address
+                  {onPhone ? "Mobile number" : "Email address"}
                 </label>
                 <Input
-                  id="signin-email"
-                  type="email"
-                  value={email}
+                  id="signin-identifier"
+                  // `type="tel"` brings up the phone keypad rather than a full
+                  // keyboard, which is most of the difference on a handset.
+                  type={onPhone ? "tel" : "email"}
+                  inputMode={onPhone ? "tel" : "email"}
+                  autoComplete={onPhone ? "tel" : "email"}
+                  value={identifier}
                   onChange={(e) => {
-                    setEmail(e.target.value);
+                    setIdentifier(e.target.value);
                     // Clear as soon as they start fixing it; re-checked on blur
                     // and again on submit.
-                    if (emailError) setEmailError(null);
+                    if (identifierError) setIdentifierError(null);
                   }}
-                  onBlur={() => email.trim() && setEmailError(validateEmail(email))}
-                  aria-invalid={emailError ? true : undefined}
-                  aria-describedby={emailError ? "signin-email-error" : undefined}
+                  onBlur={() =>
+                    identifier.trim() && setIdentifierError(validateIdentifier(identifier))
+                  }
+                  aria-invalid={identifierError ? true : undefined}
+                  aria-describedby={identifierError ? "signin-identifier-error" : undefined}
                   className="rounded-lg bg-background"
-                  placeholder="you@yourchamber.in"
+                  placeholder={onPhone ? "98765 43210" : "you@yourchamber.in"}
                   autoFocus
                   required
                 />
-                {emailError && (
+                {onPhone && (
+                  <p className="text-xs text-muted-foreground">
+                    Ten digits for an Indian number, or the full +country form.
+                  </p>
+                )}
+                {identifierError && (
                   <p
-                    id="signin-email-error"
+                    id="signin-identifier-error"
                     role="alert"
                     className="text-xs text-destructive flex items-center gap-1.5"
                   >
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    {emailError}
+                    {identifierError}
                   </p>
                 )}
               </div>
@@ -290,7 +326,7 @@ export default function PortalSignInPage() {
               <Button
                 type="submit"
                 className="rounded-lg w-full"
-                disabled={isSigningIn || !email.trim()}
+                disabled={isSigningIn || !identifier.trim()}
               >
                 {isSigningIn ? "Signing in..." : "Continue"}
               </Button>

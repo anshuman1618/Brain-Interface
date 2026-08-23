@@ -1,5 +1,5 @@
 import type { Response, NextFunction } from "express";
-import { normaliseEmail } from "@workspace/db";
+import { normaliseEmail, normalisePhone } from "@workspace/db";
 import type { AuthRequest } from "../middlewares/requireAuth";
 import { getOrCreateUser } from "./jit";
 
@@ -26,6 +26,7 @@ import { getOrCreateUser } from "./jit";
 
 /** Normalised on read, once per process — the same normalise-on-write rule the access list uses. */
 let cached: { raw: string; emails: Set<string> } | null = null;
+let cachedPhones: { raw: string; phones: Set<string> } | null = null;
 
 export function operatorEmails(): Set<string> {
   const raw = process.env["OPERATOR_EMAILS"] ?? "";
@@ -40,13 +41,44 @@ export function operatorEmails(): Set<string> {
   return emails;
 }
 
+/**
+ * The same allowlist, for operators who sign in by SMS.
+ *
+ * Separate variable rather than a mixed one, so a malformed entry cannot be
+ * mistaken for the other kind: anything that fails to normalise is dropped
+ * here, exactly as an empty string is dropped above.
+ */
+export function operatorPhones(): Set<string> {
+  const raw = process.env["OPERATOR_PHONES"] ?? "";
+  if (cachedPhones && cachedPhones.raw === raw) return cachedPhones.phones;
+  const phones = new Set(
+    raw
+      .split(",")
+      .map((p) => normalisePhone(p.trim()))
+      .filter((p) => p.length > 0),
+  );
+  cachedPhones = { raw, phones };
+  return phones;
+}
+
 export function operatorViewEnabled(): boolean {
-  return operatorEmails().size > 0;
+  return operatorEmails().size > 0 || operatorPhones().size > 0;
 }
 
 export function isOperatorEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   return operatorEmails().has(normaliseEmail(email));
+}
+
+export function isOperatorPhone(phone: string | null | undefined): boolean {
+  if (!phone) return false;
+  const normalised = normalisePhone(phone);
+  return normalised.length > 0 && operatorPhones().has(normalised);
+}
+
+/** Either identifier admits an operator — they are one allowlist in two forms. */
+export function isOperator(user: { email?: string | null; phone?: string | null }): boolean {
+  return isOperatorEmail(user.email) || isOperatorPhone(user.phone);
 }
 
 /**
@@ -74,7 +106,7 @@ export async function requireOperator(
   }
 
   const user = await getOrCreateUser(req);
-  if (!user || !isOperatorEmail(user.email)) {
+  if (!user || !isOperator(user)) {
     res.status(404).json({ error: "not_found" });
     return;
   }

@@ -46,7 +46,7 @@ export function AccessListManager() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [kind, setKind] = useState<"email" | "domain">("email");
+  const [kind, setKind] = useState<"email" | "domain" | "phone">("email");
   const [value, setValue] = useState("");
   const [role, setRole] = useState("client");
   const [caseId, setCaseId] = useState("");
@@ -139,12 +139,13 @@ export function AccessListManager() {
             <label className="block text-3xs font-mono uppercase tracking-wider text-muted-foreground">
               Match
             </label>
-            <Select value={kind} onValueChange={(v) => setKind(v as "email" | "domain")}>
+            <Select value={kind} onValueChange={(v) => setKind(v as "email" | "domain" | "phone")}>
               <SelectTrigger className="rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="email">Email</SelectItem>
+                <SelectItem value="phone">Mobile number</SelectItem>
                 <SelectItem value="domain">Whole domain</SelectItem>
               </SelectContent>
             </Select>
@@ -152,15 +153,32 @@ export function AccessListManager() {
 
           <div className="space-y-1.5">
             <label className="block text-3xs font-mono uppercase tracking-wider text-muted-foreground">
-              {kind === "email" ? "Email address" : "Domain"}
+              {kind === "email" ? "Email address" : kind === "phone" ? "Mobile number" : "Domain"}
             </label>
             <Input
               value={value}
+              // Whatever is typed is normalised server-side before it is
+              // stored, so "98765 43210" and "+919876543210" write one row.
+              // A number the server cannot canonicalise is refused rather than
+              // stored in a form no sign-in could ever match.
+              type={kind === "phone" ? "tel" : "text"}
+              inputMode={kind === "phone" ? "tel" : "text"}
               onChange={(e) => setValue(e.target.value)}
               className="rounded-lg font-mono text-sm"
-              placeholder={kind === "email" ? "krishnan@yourchamber.in" : "yourchamber.in"}
+              placeholder={
+                kind === "email"
+                  ? "krishnan@yourchamber.in"
+                  : kind === "phone"
+                    ? "98765 43210"
+                    : "yourchamber.in"
+              }
               required
             />
+            {kind === "phone" && (
+              <p className="text-3xs text-muted-foreground">
+                Admits exactly this number. Ten digits is read as Indian.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">

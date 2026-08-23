@@ -114,7 +114,14 @@ router.get("/search", requireWorkspace, async (req: AuthRequest, res): Promise<v
           and(
             eq(workspaceMembershipsTable.workspaceId, c.workspaceId),
             eq(workspaceMembershipsTable.status, "active"),
-            or(ilike(usersTable.displayName, pattern), ilike(usersTable.email, pattern)),
+            or(
+              ilike(usersTable.displayName, pattern),
+              ilike(usersTable.email, pattern),
+              // Colleagues who signed up by SMS have no address at all. Without
+              // this they exist, hold a membership, and cannot be found by anyone
+              // trying to assign them work.
+              ilike(usersTable.phone, pattern),
+            ),
           ),
         )
         .limit(6)

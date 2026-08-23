@@ -15,6 +15,8 @@ export interface UserProfile {
   roleSelected: boolean;
   displayName: string;
   email: string;
+  /** Verified mobile in E.164, or "". */
+  phone: string;
   /** @nullable */
   authProvider?: string | null;
   /** @nullable */

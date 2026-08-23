@@ -5,6 +5,7 @@ import {
   auditEventsTable,
   deletionRequestsTable,
   usersTable,
+  normalisePhone,
   workspacesTable,
   workspaceMembershipsTable,
   workspaceAccessListTable,
@@ -269,9 +270,16 @@ router.patch(
 
     if (complete) {
       const anonName = `Erased user #${row.userId}`;
+      // Read the identifiers BEFORE clearing them: the access-list rows keyed
+      // on the number are revoked below, and once the column is blank there is
+      // nothing left to look them up by.
+      const [erasedUser] = await db
+        .select({ phone: usersTable.phone })
+        .from(usersTable)
+        .where(eq(usersTable.id, row.userId));
       await db
         .update(usersTable)
-        .set({ displayName: anonName, email: "" })
+        .set({ displayName: anonName, email: "", phone: "" })
         .where(eq(usersTable.id, row.userId));
       await db
         .update(workspaceMembershipsTable)
@@ -282,15 +290,29 @@ router.patch(
             eq(workspaceMembershipsTable.userId, row.userId),
           ),
         );
-      // Also stop the address being re-admitted by a standing access-list rule.
-      if (row.requestedEmail) {
+      // Also stop the person being re-admitted by a standing access-list rule.
+      //
+      // Filtered on `kind`, which it was not before: matching on `value` alone
+      // would also revoke a DOMAIN row that happened to equal the address, and
+      // silently cut off everybody else at that domain. Now that a third kind
+      // exists the same slip would reach across identifier types entirely.
+      //
+      // Their phone grant goes too. Erasure that left a number admitted would
+      // let the same person walk back in by SMS, which is not erasure.
+      const erasedGrants = [
+        row.requestedEmail ? { kind: "email", value: row.requestedEmail } : null,
+        erasedUser?.phone ? { kind: "phone", value: normalisePhone(erasedUser.phone) } : null,
+      ].filter((g): g is { kind: string; value: string } => g !== null && g.value !== "");
+
+      for (const grant of erasedGrants) {
         await db
           .update(workspaceAccessListTable)
           .set({ revokedAt: new Date() })
           .where(
             and(
               eq(workspaceAccessListTable.workspaceId, c.workspaceId),
-              eq(workspaceAccessListTable.value, row.requestedEmail),
+              eq(workspaceAccessListTable.kind, grant.kind),
+              eq(workspaceAccessListTable.value, grant.value),
             ),
           );
       }

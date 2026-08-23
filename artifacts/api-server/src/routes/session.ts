@@ -8,6 +8,7 @@ import {
   workspaceAccessListTable,
   normaliseDomain,
   normaliseEmail,
+  normalisePhone,
   type Workspace,
 } from "@workspace/db";
 import {
@@ -119,6 +120,7 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
     clerkId: user.clerkId,
     displayName: user.displayName,
     email: user.email,
+    phone: user.phone,
     accessStatus,
     authProvider: user.authProvider || null,
     memberships,
@@ -228,13 +230,23 @@ async function foundChamber(
           decidedAt: new Date(),
         });
 
-        // Admit the founder's own address so they can sign back in without
+        // Admit the founder's own identifiers so they can sign back in without
         // needing somebody else to let them in.
-        if (user.email) {
+        //
+        // Whichever they hold, not just the address: a founder who signed up by
+        // SMS has no email at all, and guarding this on `user.email` alone let
+        // them create a chamber they could never re-enter. Both are written
+        // when both are known, so signing in either way still works.
+        const founderGrants = [
+          user.email ? { kind: "email", value: normaliseEmail(user.email) } : null,
+          user.phone ? { kind: "phone", value: normalisePhone(user.phone) } : null,
+        ].filter((g): g is { kind: string; value: string } => g !== null && g.value !== "");
+
+        for (const grant of founderGrants) {
           await tx.insert(workspaceAccessListTable).values({
             workspaceId: workspace.id,
-            kind: "email",
-            value: normaliseEmail(user.email),
+            kind: grant.kind,
+            value: grant.value,
             role,
             note: "Chamber founder",
             addedBy: user.displayName,
@@ -630,7 +642,9 @@ router.post(
     const value =
       parsed.data.kind === "domain"
         ? normaliseDomain(parsed.data.value)
-        : normaliseEmail(parsed.data.value);
+        : parsed.data.kind === "phone"
+          ? normalisePhone(parsed.data.value)
+          : normaliseEmail(parsed.data.value);
 
     if (parsed.data.kind === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
       res.status(400).json({ error: "That does not look like an email address." });
@@ -638,6 +652,16 @@ router.post(
     }
     if (parsed.data.kind === "domain" && !/^[^\s@]+\.[^\s@]+$/.test(value)) {
       res.status(400).json({ error: "That does not look like a domain, e.g. chambers.in" });
+      return;
+    }
+    // normalisePhone returns "" for anything it cannot canonicalise. Refusing
+    // here rather than storing the raw string is the point: a row held in a
+    // form no sign-in could ever match is a grant that silently does nothing,
+    // and the admin who wrote it would have no way to tell.
+    if (parsed.data.kind === "phone" && !value) {
+      res.status(400).json({
+        error: "That does not look like a mobile number. Use 10 digits, or +country code.",
+      });
       return;
     }
 

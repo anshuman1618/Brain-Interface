@@ -1,6 +1,12 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import { db, invitesTable, workspaceAccessListTable, normaliseEmail } from "@workspace/db";
+import {
+  db,
+  invitesTable,
+  workspaceAccessListTable,
+  normaliseEmail,
+  normalisePhone,
+} from "@workspace/db";
 import { randomBytes } from "crypto";
 import { ListInvitesResponse, CreateInviteBody, CreateInviteResponse } from "@workspace/api-zod";
 import {
@@ -73,10 +79,57 @@ router.post(
       return;
     }
 
+    /*
+     * Addressed to exactly one identifier.
+     *
+     * Both would be ambiguous — it would have to mean "admit whoever holds
+     * either", which is two grants wearing one invite and impossible to revoke
+     * as a unit. Neither is simply an invite to nobody. The unused column is
+     * stored as "" rather than NULL, matching how users.email already spells
+     * "no address".
+     */
+    const email = normaliseEmail(parsed.data.email ?? "");
+    const phone = normalisePhone(parsed.data.phone ?? "");
+    const rawPhone = (parsed.data.phone ?? "").trim();
+
+    if (rawPhone && !phone) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "That does not look like a mobile number. Use 10 digits, or +country code.",
+      });
+      return;
+    }
+    if (email && phone) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "Invite an address or a mobile number, not both.",
+      });
+      return;
+    }
+    if (!email && !phone) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "An invite needs an email address or a mobile number.",
+      });
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "That does not look like an email address.",
+      });
+      return;
+    }
+
+    // Which access-list row this invite writes. One name for both branches so
+    // the lookup, the un-revoke and the insert below cannot disagree about
+    // which grant they are talking about.
+    const grantKind = phone ? "phone" : "email";
+    const grantValue = phone || email;
+
     const token = randomBytes(24).toString("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    const email = normaliseEmail(parsed.data.email);
     const caseId = parsed.data.caseId ?? null;
 
     const [invite] = await db
@@ -84,6 +137,7 @@ router.post(
       .values({
         workspaceId: c.workspaceId,
         email,
+        phone,
         token,
         role: parsed.data.role,
         caseId,
@@ -107,8 +161,8 @@ router.post(
       .where(
         and(
           eq(workspaceAccessListTable.workspaceId, c.workspaceId),
-          eq(workspaceAccessListTable.kind, "email"),
-          eq(workspaceAccessListTable.value, email),
+          eq(workspaceAccessListTable.kind, grantKind),
+          eq(workspaceAccessListTable.value, grantValue),
         ),
       );
 
@@ -125,8 +179,8 @@ router.post(
     } else {
       await db.insert(workspaceAccessListTable).values({
         workspaceId: c.workspaceId,
-        kind: "email",
-        value: email,
+        kind: grantKind,
+        value: grantValue,
         role: parsed.data.role,
         caseId,
         note: "Invited",

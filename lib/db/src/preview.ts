@@ -563,6 +563,12 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_enrolment_no TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS aor_no TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_declared_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
+-- Sign-in by SMS code. Both mirror the users.email idiom: NOT NULL, defaulting
+-- to the empty string, so a row that has one identifier and not the other needs
+-- no special case anywhere.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+ALTER TABLE invites ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+ALTER TABLE invites ALTER COLUMN email SET DEFAULT '';
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS court_id INTEGER;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_type TEXT;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_type_norm TEXT;

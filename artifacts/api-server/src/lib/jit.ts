@@ -1,8 +1,8 @@
 import { getAuth, clerkClient } from "@clerk/express";
 import type { Request } from "express";
-import { db, usersTable, normaliseEmail } from "@workspace/db";
+import { db, usersTable, normaliseEmail, normalisePhone } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { isPreviewAuth, previewClerkIdForEmail, previewIdentityFromRequest } from "./preview-mode";
+import { isPreviewAuth, previewClerkId, previewIdentityFromRequest } from "./preview-mode";
 
 export type AppUser = {
   id: number;
@@ -10,6 +10,8 @@ export type AppUser = {
   roleSelected: boolean;
   displayName: string;
   email: string;
+  /** Verified mobile in E.164, or "". Admits by itself — see lib/access-list.ts. */
+  phone: string;
   authProvider: string;
   clerkId: string;
   /** Self-declared, see `needsBarRegistration()` in lib/permissions.ts. */
@@ -27,9 +29,31 @@ export type AppUser = {
 function resolveClerkId(req: Request): string | null {
   if (isPreviewAuth()) {
     const identity = previewIdentityFromRequest(req.headers.authorization);
-    return identity ? previewClerkIdForEmail(identity.email) : null;
+    return identity ? previewClerkId(identity) : null;
   }
   return getAuth(req)?.userId ?? null;
+}
+
+/**
+ * The preview bearer token, as an Identity.
+ *
+ * Preview tokens carry one identifier — an address or a number — so the other
+ * side is always "". A display name is derived from whichever was given, since
+ * a phone identity has no local part to fall back on and
+ * `identity.email.split("@")[0]` would have produced "" for it.
+ */
+function identityFromPreview(req: Request): Identity | null {
+  const identity = previewIdentityFromRequest(req.headers.authorization);
+  if (!identity) return null;
+  return {
+    displayName: identity.displayName || identity.email.split("@")[0] || identity.phone || "User",
+    email: identity.email,
+    phone: identity.phone,
+  };
+}
+
+function previewProvider(req: Request): string {
+  return previewIdentityFromRequest(req.headers.authorization)?.provider ?? "email";
 }
 
 /**
@@ -45,6 +69,8 @@ function providerFromClerk(req: Request): string {
   if (typeof strategy === "string") {
     if (strategy.includes("google")) return "google";
     if (strategy.includes("zoho")) return "zoho";
+    // phone_code — signed in with an SMS one-time code.
+    if (strategy.includes("phone")) return "phone";
   }
   return "email";
 }
@@ -67,47 +93,55 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
 
   const existing = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
   if (existing.length > 0) {
-    // A row with an address is the common case and answers from the database
-    // alone — no Clerk round trip on the hot path.
-    if (existing[0].email) return existing[0];
-    // An empty address means the first sign-in happened before the provider had
-    // a verified one. Nothing re-read it afterwards, so the user stayed on the
-    // access-denied screen for good even once they had verified. Try again now.
-    return (await resyncEmail(req, existing[0])) ?? existing[0];
+    // A row with EITHER identifier is the common case and answers from the
+    // database alone — no Clerk round trip on the hot path.
+    //
+    // Testing `email` alone was correct while an address was the only way to be
+    // somebody. It is not any more: a phone-only account has email = "" as its
+    // finished state, so that test sent it down the resync path on every single
+    // request, fetching from Clerk each time and never succeeding.
+    if (existing[0].email || existing[0].phone) return existing[0];
+    // Neither identifier means the first sign-in happened before the provider
+    // had verified anything. Nothing re-read it afterwards, so the user stayed
+    // on the access-denied screen for good even once they had verified. Try
+    // again now.
+    return (await resyncIdentity(req, existing[0])) ?? existing[0];
   }
 
   if (isPreviewAuth()) {
-    const identity = previewIdentityFromRequest(req.headers.authorization);
+    const identity = identityFromPreview(req);
     if (!identity) return null;
 
     // Mirrors a real first-time federated sign-in: the provider vouched for an
-    // address, so a user record exists. It still reaches nothing until they
+    // identifier, so a user record exists. It still reaches nothing until they
     // create a chamber, or the access list / an admin admits them.
-    return insertUser(clerkId, {
-      displayName: identity.displayName || identity.email.split("@")[0],
-      email: identity.email,
-      authProvider: identity.provider,
-    });
+    return insertUser(clerkId, { ...identity, authProvider: previewProvider(req) });
   }
 
   const identity = await identityFromClerk(clerkId);
   return insertUser(clerkId, { ...identity, authProvider: providerFromClerk(req) });
 }
 
-type Identity = { displayName: string; email: string };
+type Identity = { displayName: string; email: string; phone: string };
 
-/** The verified address and name Clerk holds for this id, normalised. */
+/** The verified address, number and name Clerk holds for this id, normalised. */
 async function identityFromClerk(clerkId: string): Promise<Identity> {
   const clerkUser = await clerkClient.users.getUser(clerkId);
   const nameFromClerk = [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(" ").trim();
-  // Only a *verified* address is trusted. An unverified one is attacker-supplied
-  // text, and matching it against the access list would let anyone claim a
-  // colleague's address and inherit their role.
-  const verified = clerkUser.emailAddresses.find((e) => e.verification?.status === "verified");
+  // Only a *verified* identifier is trusted, for both of these. An unverified
+  // one is attacker-supplied text, and matching it against the access list
+  // would let anyone claim a colleague's address or number and inherit their
+  // role. Clerk marks each one it has actually challenged.
+  const verifiedEmail = clerkUser.emailAddresses.find((e) => e.verification?.status === "verified");
+  const verifiedPhone = clerkUser.phoneNumbers.find((p) => p.verification?.status === "verified");
 
   return {
     displayName: nameFromClerk || "User",
-    email: verified ? normaliseEmail(verified.emailAddress) : "",
+    email: verifiedEmail ? normaliseEmail(verifiedEmail.emailAddress) : "",
+    // Re-normalised rather than trusted: Clerk stores E.164 already, but this
+    // value is about to become an authorization key and the canonical form has
+    // exactly one definition in this codebase.
+    phone: verifiedPhone ? normalisePhone(verifiedPhone.phoneNumber) : "",
   };
 }
 
@@ -136,25 +170,29 @@ async function insertUser(
   return winner ?? null;
 }
 
-/** Fills in an address that was empty at first sign-in. No-op when still empty. */
-async function resyncEmail(req: Request, user: AppUser): Promise<AppUser | null> {
-  if (isPreviewAuth()) {
-    const identity = previewIdentityFromRequest(req.headers.authorization);
-    if (!identity?.email) return null;
-    const [updated] = await db
-      .update(usersTable)
-      .set({ email: identity.email, displayName: user.displayName || identity.displayName })
-      .where(eq(usersTable.id, user.id))
-      .returning();
-    return updated ?? null;
-  }
+/**
+ * Fills in an identifier that was empty at first sign-in. No-op when still empty.
+ *
+ * Called only for a row holding NEITHER an address nor a number, which is the
+ * state left by a provider that had not verified anything yet. It must not run
+ * for a user who legitimately has only one of the two — a phone-only account is
+ * complete, and treating it as unfinished would re-read it from Clerk on every
+ * single request forever.
+ */
+async function resyncIdentity(req: Request, user: AppUser): Promise<AppUser | null> {
+  const identity = isPreviewAuth()
+    ? identityFromPreview(req)
+    : await identityFromClerk(user.clerkId);
 
-  const identity = await identityFromClerk(user.clerkId);
-  if (!identity.email) return null;
+  if (!identity || (!identity.email && !identity.phone)) return null;
 
   const [updated] = await db
     .update(usersTable)
-    .set({ email: identity.email, displayName: user.displayName || identity.displayName })
+    .set({
+      email: identity.email,
+      phone: identity.phone,
+      displayName: user.displayName || identity.displayName,
+    })
     .where(eq(usersTable.id, user.id))
     .returning();
 

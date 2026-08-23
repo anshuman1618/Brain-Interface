@@ -104,6 +104,8 @@ export interface UserProfile {
   roleSelected: boolean;
   displayName: string;
   email: string;
+  /** Verified mobile in E.164, or "". */
+  phone: string;
   /** @nullable */
   authProvider?: string | null;
   /** @nullable */
@@ -182,6 +184,8 @@ export interface SessionClaims {
   clerkId: string;
   displayName: string;
   email: string;
+  /** Verified mobile in E.164, or "". Somebody who signed up by SMS has this and no email; the two are alternatives, not a pair. */
+  phone: string;
   /** active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address. */
   accessStatus: SessionClaimsAccessStatus;
   /**
@@ -423,6 +427,7 @@ export type AccessListEntryKind = typeof AccessListEntryKind[keyof typeof Access
 export const AccessListEntryKind = {
   email: 'email',
   domain: 'domain',
+  phone: 'phone',
 } as const;
 
 export type AccessListEntryRole = typeof AccessListEntryRole[keyof typeof AccessListEntryRole];
@@ -464,6 +469,7 @@ export type AccessListEntryInputKind = typeof AccessListEntryInputKind[keyof typ
 export const AccessListEntryInputKind = {
   email: 'email',
   domain: 'domain',
+  phone: 'phone',
 } as const;
 
 /**
@@ -483,7 +489,7 @@ export const AccessListEntryInputRole = {
 export interface AccessListEntryInput {
   kind: AccessListEntryInputKind;
   /**
-     * An exact email address, or a bare domain such as "chambers.in".
+     * An exact email address, a bare domain such as "chambers.in", or a mobile number in E.164 ("+919876543210"). A ten-digit number is read as Indian. There is deliberately no domain equivalent for phone — a numbering range is not an organisation.
      * @minLength 3
      */
   value: string;
@@ -1917,7 +1923,10 @@ export const InviteRole = {
 
 export interface Invite {
   id: number;
+  /** The address invited, or "" when the invite names a number instead. */
   email: string;
+  /** The mobile number invited in E.164, or "" when it names an address. */
+  phone: string;
   token: string;
   role: InviteRole;
   /** @nullable */
@@ -1942,8 +1951,13 @@ export const InviteInputRole = {
   client: 'client',
 } as const;
 
+/**
+ * Addressed to exactly one of email or phone. Supplying both, or neither, is refused — not modelled here because JSON Schema expresses "exactly one of" badly; see routes/invites.ts for the actual rule.
+ */
 export interface InviteInput {
-  email: string;
+  email?: string;
+  /** Mobile number. Ten digits is read as Indian; any other country needs the full +code form. Stored normalised to E.164. */
+  phone?: string;
   /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
   /** Required when role is "client" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field's value, which JSON Schema expresses badly; see routes/invites.ts for the actual rule. */

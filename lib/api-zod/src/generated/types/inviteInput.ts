@@ -7,8 +7,13 @@
  */
 import type { InviteInputRole } from './inviteInputRole';
 
+/**
+ * Addressed to exactly one of email or phone. Supplying both, or neither, is refused — not modelled here because JSON Schema expresses "exactly one of" badly; see routes/invites.ts for the actual rule.
+ */
 export interface InviteInput {
-  email: string;
+  email?: string;
+  /** Mobile number. Ten digits is read as Indian; any other country needs the full +code form. Stored normalised to E.164. */
+  phone?: string;
   /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
   /** Required when role is "client" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field's value, which JSON Schema expresses badly; see routes/invites.ts for the actual rule. */

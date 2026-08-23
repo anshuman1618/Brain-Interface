@@ -23,15 +23,26 @@ import CreateChamberPage from "@/pages/create-chamber";
  * new one is the self-serve path.
  */
 export default function AccessDeniedPage() {
-  const { displayName, email, authProvider, signOut } = useSession();
+  const { displayName, email, phone, authProvider, signOut } = useSession();
 
   const [founding, setFounding] = useState(false);
 
   const provider = providerLabel(authProvider);
-  // No verified address reached us: the account exists but there is nothing to
-  // match against a list. Without this the screen said "you signed in as" and
-  // then named nobody, which reads like a bug rather than a thing to act on.
-  const addressMissing = !email;
+  /*
+   * Which identifier this person actually holds decides the whole screen.
+   *
+   * Somebody who signed in by SMS has no address at all, and that is their
+   * finished state, not a failure — telling them "we didn't get a verified
+   * email address" would send them off to fix something that is not broken.
+   * So the copy below names whichever identifier they have, and only the
+   * genuinely empty case gets the "nothing was verified" wording.
+   */
+  const identifier = email || phone;
+  const identifierNoun = email ? "email address" : "mobile number";
+  // Nothing verified at all: the account exists but there is nothing to match
+  // against a list. Without this the screen said "you signed in as" and then
+  // named nobody, which reads like a bug rather than a thing to act on.
+  const identifierMissing = !identifier;
 
   if (founding) {
     return <CreateChamberPage onCancel={() => setFounding(false)} />;
@@ -45,7 +56,7 @@ export default function AccessDeniedPage() {
         <div className="border border-destructive/40 bg-destructive/5 p-8">
           <div className="flex items-start gap-4">
             <div className="h-10 w-10 bg-destructive/10 flex items-center justify-center shrink-0">
-              {addressMissing ? (
+              {identifierMissing ? (
                 <ShieldAlert className="h-5 w-5 text-destructive" />
               ) : (
                 <MailX className="h-5 w-5 text-destructive" />
@@ -53,18 +64,18 @@ export default function AccessDeniedPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-mono text-xs uppercase tracking-widest text-destructive mb-1">
-                {addressMissing ? "Address not verified" : "Access denied"}
+                {identifierMissing ? "Identity not verified" : "Access denied"}
               </p>
 
-              {addressMissing ? (
+              {identifierMissing ? (
                 <>
                   <h1 className="text-2xl font-bold tracking-tight mb-3">
-                    We didn't get a verified email address
+                    We didn't get a verified email address or mobile number
                   </h1>
                   <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                     You signed in{provider ? ` with ${provider}` : ""}, but the provider did not
-                    give us an address it has confirmed belongs to you. Access is granted per
-                    address, so there is nothing here to match yet.
+                    give us an address or a number it has confirmed belongs to you. Access is
+                    granted per identifier, so there is nothing here to match yet.
                   </p>
                   <div className="rounded-lg bg-card shadow-sm p-4">
                     <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
@@ -76,7 +87,8 @@ export default function AccessDeniedPage() {
                         , then sign out and sign in again.
                       </li>
                       <li>
-                        Or sign in with the email option, which verifies the address directly.
+                        Or sign in with the email or mobile option, which verifies the identifier
+                        directly with a one-time code.
                       </li>
                     </ul>
                   </div>
@@ -84,27 +96,32 @@ export default function AccessDeniedPage() {
               ) : (
                 <>
                   <h1 className="text-2xl font-bold tracking-tight mb-3">
-                    This email isn't on the chamber's access list
+                    This {identifierNoun} isn't on the chamber's access list
                   </h1>
                   <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                     You signed in successfully{provider ? ` with ${provider}` : ""} as{" "}
-                    <span className="font-mono font-medium text-foreground break-all">{email}</span>
+                    <span className="font-mono font-medium text-foreground break-all">
+                      {identifier}
+                    </span>
                     {displayName ? ` (${displayName})` : ""}. That proves who you are, but a chamber
-                    admin has not admitted this address, so there is nothing here for you yet.
+                    admin has not admitted this {identifierNoun}, so there is nothing here for you
+                    yet.
                   </p>
                   <div className="rounded-lg bg-card shadow-sm p-4">
                     <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
                       What to do
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-4">
-                      <li>
-                        If your chamber uses a work address, sign out and sign in with that one
-                        instead — a personal Gmail or Zoho account won't match.
-                      </li>
+                      {email && (
+                        <li>
+                          If your chamber uses a work address, sign out and sign in with that one
+                          instead — a personal Gmail or Zoho account won't match.
+                        </li>
+                      )}
                       <li>
                         Otherwise ask your chamber admin to add{" "}
-                        <span className="font-mono text-foreground break-all">{email}</span> to the
-                        access list, then sign in again.
+                        <span className="font-mono text-foreground break-all">{identifier}</span> to
+                        the access list, then sign in again.
                       </li>
                       <li>Setting up a new practice? Create your own chamber instead.</li>
                     </ul>

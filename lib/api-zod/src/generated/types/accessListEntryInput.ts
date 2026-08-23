@@ -11,7 +11,7 @@ import type { AccessListEntryInputRole } from './accessListEntryInputRole';
 export interface AccessListEntryInput {
   kind: AccessListEntryInputKind;
   /**
-     * An exact email address, or a bare domain such as "chambers.in".
+     * An exact email address, a bare domain such as "chambers.in", or a mobile number in E.164 ("+919876543210"). A ten-digit number is read as Indian. There is deliberately no domain equivalent for phone — a numbering range is not an organisation.
      * @minLength 3
      */
   value: string;

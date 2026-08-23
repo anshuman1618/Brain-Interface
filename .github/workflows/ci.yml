@@ -171,3 +171,11 @@ jobs:
         run: node scripts/ci/browser/portal.mjs
         env:
           BASE_URL: http://localhost:5000
+
+      # Its own run rather than a section of the above: this one signs in as a
+      # different identity, and folding it in would leave portal.mjs measuring
+      # whichever chamber happened to be active last.
+      - name: Signing in with a mobile number
+        run: node scripts/ci/browser/phone-signin.mjs
+        env:
+          BASE_URL: http://localhost:5000

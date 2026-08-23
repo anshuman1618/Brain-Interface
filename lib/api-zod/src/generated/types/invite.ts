@@ -9,7 +9,10 @@ import type { InviteRole } from './inviteRole';
 
 export interface Invite {
   id: number;
+  /** The address invited, or "" when the invite names a number instead. */
   email: string;
+  /** The mobile number invited in E.164, or "" when it names an address. */
+  phone: string;
   token: string;
   role: InviteRole;
   /** @nullable */

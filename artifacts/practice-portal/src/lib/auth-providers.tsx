@@ -13,15 +13,17 @@ import type { ReactNode } from "react";
  * the slug `zoho` (see README → Sign-in providers).
  */
 
-export type ProviderId = "google" | "zoho" | "email";
+export type ProviderId = "google" | "zoho" | "email" | "phone";
 
 export type AuthProvider = {
   id: ProviderId;
   label: string;
-  /** Clerk `authenticateWithRedirect` strategy. Null for the email route. */
+  /** Clerk SSO strategy. Null for the one-time-code routes (email and phone). */
   strategy: string | null;
   hint: string;
   icon: ReactNode;
+  /** What the identifier field collects. Absent for the redirect providers. */
+  channel?: "email" | "phone";
 };
 
 // Inlined marks rather than remote images: the artifact/CSP rules block external
@@ -93,6 +95,22 @@ const EmailMark = (
   </svg>
 );
 
+const PhoneMark = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+    <rect
+      x="6"
+      y="2"
+      width="12"
+      height="20"
+      rx="2.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+    />
+    <path d="M10.5 18.5h3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+  </svg>
+);
+
 export const AUTH_PROVIDERS: AuthProvider[] = [
   {
     id: "google",
@@ -114,6 +132,15 @@ export const AUTH_PROVIDERS: AuthProvider[] = [
     strategy: null,
     hint: "One-time code to your inbox",
     icon: EmailMark,
+    channel: "email",
+  },
+  {
+    id: "phone",
+    label: "Continue with mobile",
+    strategy: null,
+    hint: "One-time code by SMS",
+    icon: PhoneMark,
+    channel: "phone",
   },
 ];
 
@@ -125,6 +152,8 @@ export function providerLabel(id: string | null | undefined): string {
       return "Zoho Mail";
     case "email":
       return "email";
+    case "phone":
+      return "a mobile number";
     default:
       return "";
   }
