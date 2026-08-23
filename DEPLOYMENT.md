@@ -823,6 +823,19 @@ first.
 bundle the **same** built SPA the web deployment serves — there is one frontend,
 and `webDir` reaches into `artifacts/practice-portal/dist/public`.
 
+### Where the code lives
+
+| Branch                          | Contents                                                                          |
+| ------------------------------- | --------------------------------------------------------------------------------- |
+| `claude/android-ios-app-lmx9g4` | Everything shared, plus both native projects so `cap sync` works while developing |
+| `claude/android-app-lmx9g4`     | The Android project alone, plus the CI job that builds it                         |
+| `claude/ios-app-lmx9g4`         | The iOS project alone, plus the Xcode runbook                                     |
+
+Both platform branches start from the shared one and drop the other platform, so
+each reviews as its own delta. `artifacts/mobile-app/PLATFORM.md` on each branch
+records what that platform needs and what is deliberately absent from the
+repository — the Firebase files, the signing material, the keystore.
+
 ### 11a. Build the bundle the apps will ship
 
 The apps talk to the API cross-origin, so the SPA must be built with the API's
