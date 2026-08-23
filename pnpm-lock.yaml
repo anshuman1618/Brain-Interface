@@ -276,9 +276,6 @@ importers:
       '@aparajita/capacitor-biometric-auth':
         specifier: 10.0.0
         version: 10.0.0
-      '@capacitor/android':
-        specifier: 8.5.0
-        version: 8.5.0(@capacitor/core@8.5.0)
       '@capacitor/app':
         specifier: 8.1.1
         version: 8.1.1(@capacitor/core@8.5.0)
