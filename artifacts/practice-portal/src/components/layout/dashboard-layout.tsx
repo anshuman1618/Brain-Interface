@@ -186,25 +186,40 @@ function DashboardLayoutContent() {
       <PreviewBar />
       <div className="flex min-h-screen bg-background text-foreground">
         {/*
-          Navigation lives behind the three-dot button on this rail rather than
-          in a permanently expanded list. The rail keeps the menu anchored to a
-          fixed spot on the left, so the destination list is always one click
-          from the same place no matter which page is open.
+          Two shapes, one nav.
+
+          Below `lg` the rail is a 48/64px strip and the destinations live
+          behind the three-dot button: on a phone the screen is the scarce
+          resource, and a permanent list would eat a third of it. From `lg` up
+          the same list is simply shown — a laptop has the room, and making
+          somebody open a menu to see where they can go is a phone compromise
+          that should not follow them to a desk.
+
+          `navItems` is built once above and consumed by both, so the two can
+          never offer different destinations.
         */}
         {/* Sticky and exactly one viewport tall: the menu button and the
             signed-in identity must both stay reachable on a long page, which
             they would not be if the rail grew with the content and pushed the
             avatar below the fold. */}
-        <aside className="w-12 sm:w-16 border-r border-border bg-sidebar shrink-0 flex flex-col items-center sticky top-0 h-dvh z-20">
-          <div className="h-14 sm:h-16 flex items-center justify-center border-b border-sidebar-border w-full">
-            <Link href="/dashboard" title="LEX Practice">
-              <div className="h-8 w-8 sm:h-9 sm:w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-3xs sm:text-xs">
+        <aside className="w-12 sm:w-16 lg:w-56 border-r border-border bg-sidebar shrink-0 flex flex-col items-center lg:items-stretch sticky top-0 h-dvh z-20 rail-safe">
+          <div className="h-14 sm:h-16 flex items-center justify-center lg:justify-start lg:px-4 border-b border-sidebar-border w-full shrink-0">
+            <Link
+              href="/dashboard"
+              title="LEX Practice"
+              className="flex items-center gap-2 min-h-11"
+            >
+              <div className="h-8 w-8 sm:h-9 sm:w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-3xs sm:text-xs shrink-0">
                 LEX
               </div>
+              <span className="hidden lg:inline font-mono text-xs uppercase tracking-widest text-sidebar-foreground">
+                Practice
+              </span>
             </Link>
           </div>
 
-          <div className="py-4">
+          {/* ── Compact: the menu button, below lg ─────────────────────────── */}
+          <div className="py-4 lg:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -267,15 +282,70 @@ function DashboardLayoutContent() {
             </DropdownMenu>
           </div>
 
+          {/* ── Expanded: the list itself, lg and up ───────────────────────── */}
+          {/* `overflow-y-auto` because a chamber admin sees every destination
+              and a short laptop window cannot hold them all. */}
+          <nav
+            aria-label="Main"
+            className="hidden lg:flex flex-col gap-0.5 px-2 py-4 overflow-y-auto"
+          >
+            <p className="px-2 pb-2 font-mono text-3xs uppercase tracking-widest text-muted-foreground">
+              Go to
+            </p>
+            {navItems.map((item) => {
+              const isActive = item.href === activeItem?.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`flex items-center gap-3 rounded-lg px-2 min-h-11 text-sm transition-colors ${
+                    isActive
+                      ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`}
+                >
+                  <item.icon className="h-4 w-4 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            })}
+
+            {can("billing.manage") && (
+              <button
+                onClick={() => setPricingModalOpen(true)}
+                className="flex items-center gap-3 rounded-lg px-2 min-h-11 text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors"
+              >
+                <CreditCard className="h-4 w-4 shrink-0" />
+                Subscription
+              </button>
+            )}
+          </nav>
+
           {/* Identity stays visible on the rail: which account you are signed in
               as should never require opening a menu to discover. */}
-          <div className="mt-auto pb-4 flex flex-col items-center gap-2">
-            <div
-              className="h-9 w-9 bg-muted flex items-center justify-center text-xs font-medium uppercase"
-              title={`${displayName} - ${displayRole}`}
-            >
-              {initial}
+          <div className="mt-auto pb-4 flex flex-col items-center lg:items-stretch gap-2 lg:px-2 shrink-0">
+            <div className="flex items-center gap-2 lg:px-2">
+              <div
+                className="h-9 w-9 bg-muted flex items-center justify-center text-xs font-medium uppercase shrink-0"
+                title={`${displayName} - ${displayRole}`}
+              >
+                {initial}
+              </div>
+              <div className="hidden lg:block min-w-0">
+                <p className="text-xs font-medium truncate">{displayName}</p>
+                <p className="font-mono text-3xs uppercase tracking-wider text-muted-foreground truncate">
+                  {displayRole}
+                </p>
+              </div>
             </div>
+            <button
+              onClick={() => signOut()}
+              className="hidden lg:flex items-center gap-3 rounded-lg px-2 min-h-11 text-sm text-destructive hover:bg-sidebar-accent transition-colors"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              Sign out
+            </button>
           </div>
         </aside>
 
@@ -297,7 +367,7 @@ function DashboardLayoutContent() {
             is therefore relative to this element, not to the page, so it could
             never rise above content that was drawing over the header itself.
           */}
-          <header className="min-h-14 sm:h-16 border-b border-border bg-background flex items-center gap-2 sm:gap-4 px-3 sm:px-6 z-30 sticky top-0 justify-between">
+          <header className="min-h-14 sm:h-16 border-b border-border bg-background flex items-center gap-2 sm:gap-4 px-3 sm:px-6 z-30 sticky top-0 justify-between pt-safe">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               {/* The switcher moves up here now that the sidebar is a rail. It
                   is a tenant boundary, not a nav item, so it stays in sight. */}
@@ -320,7 +390,7 @@ function DashboardLayoutContent() {
           {/* `isolate` keeps every z-index inside the page from being measured
               against the chrome around it. Without it, any page that raises an
               element re-opens the bug the header comment above describes. */}
-          <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative isolate">
+          <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative isolate pr-safe">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.2] pointer-events-none z-0" />
             <div className="relative z-10 max-w-6xl mx-auto animate-in fade-in duration-500">
               {/*
@@ -452,7 +522,9 @@ function DashboardLayoutContent() {
  */
 function LegalFooter() {
   return (
-    <footer className="border-t border-border px-4 sm:px-6 py-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-2xs font-mono uppercase tracking-widest text-muted-foreground">
+    // `pb-safe` on top of `py-4`: on a phone with a home indicator these links
+    // would otherwise sit underneath it and be untappable.
+    <footer className="border-t border-border px-4 sm:px-6 py-4 pb-safe flex flex-wrap items-center gap-x-5 gap-y-2 text-2xs font-mono uppercase tracking-widest text-muted-foreground">
       <a href="/legal/terms" className="hover:text-foreground py-2.5 px-1">
         Terms
       </a>

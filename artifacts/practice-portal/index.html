@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <!-- `maximum-scale=1` used to sit on the end of this line. It disabled
+         pinch-zoom, which is an accessibility failure on the web and a review
+         risk in both app stores; someone who needs to magnify a cause list now
+         can. `viewport-fit=cover` lets the page paint into the notch and home
+         indicator area, which is only safe because the shell reads
+         env(safe-area-inset-*) — see the `*-safe` utilities in index.css. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Practice Management Portal</title>
     <meta
       name="description"
@@ -32,7 +38,22 @@
       nothing leaves the browser and there is no render-blocking request.
     -->
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#e6ded2" />
+    <!-- Two colours, one per scheme, so the browser and the native status bar
+         match the ground the app actually paints. These are the light and dark
+         `--background` values from index.css; keep them in step. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#e6ded2" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#241708" />
+
+    <!-- iOS standalone/webview chrome. `black-translucent` is what puts the
+         page under the status bar, which is the other half of the
+         viewport-fit=cover bargain above. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LEX Practice" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- Phone numbers are data here (a client's contact), not tap targets, and
+         iOS restyling them mid-table breaks the type scale. -->
+    <meta name="format-detection" content="telephone=no" />
   </head>
   <body>
     <div id="root"></div>

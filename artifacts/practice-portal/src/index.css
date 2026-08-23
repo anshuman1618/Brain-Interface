@@ -88,6 +88,18 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
+  /* Tailwind 4 ships sm..2xl and nothing below 40rem, but the narrow end is
+     where the phone work happens: 360px and 414px are the same `sm` to every
+     stock utility, so a rail that fits one crushes the other. `xs` is the step
+     between them.
+
+     This is not a new idea in the codebase — `dashboard-layout.tsx` was already
+     written against `xs:block`. Tailwind emitted no such rule, so the class did
+     nothing and the workspace switcher it guarded was invisible at EVERY width,
+     laptop included. Defining the breakpoint is what makes that markup mean
+     what it always said. */
+  --breakpoint-xs: 26rem; /* 416px — above a large phone, below a small tablet */
+
   /* Neumorphic relief, wired into Tailwind's shadow scale.
      `inline` matters here: it emits `box-shadow: var(--raise-sm)` into the
      utility instead of freezing today's value, so the light/dark relief defined
@@ -319,6 +331,42 @@
 }
 
 @layer utilities {
+  /* Safe areas.
+     `viewport-fit=cover` in index.html lets the document paint edge to edge,
+     which on a notched phone puts the sticky header under the clock and the
+     footer under the home indicator. These add the inset back, and only the
+     inset — on a laptop, on the web, and on a phone without cutouts every
+     env() below resolves to 0px, so the same class is inert there.
+
+     Named for the edge rather than the element so the shell, the rail and the
+     footer each take only the side they actually touch. Written as max() with
+     an existing value where the element already had padding, so applying one
+     never REMOVES spacing on a device with no inset. */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pl-safe {
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  /* For the sticky header: it keeps its own px-3/sm:px-6 and gains the inset on
+     top, so the bar grows into the notch instead of hiding beneath it. */
+  .inset-safe-x {
+    padding-left: max(env(safe-area-inset-left, 0px), 0px);
+    padding-right: max(env(safe-area-inset-right, 0px), 0px);
+  }
+  /* The nav rail is `h-dvh` and sticky; without this its last item sits under
+     the home indicator on iOS. */
+  .rail-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
   input[type="search"]::-webkit-search-cancel-button {
     @apply hidden;
   }

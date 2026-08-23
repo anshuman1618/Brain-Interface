@@ -8,16 +8,8 @@ import {
   type ConsultationInputCategory,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { AdaptiveTable } from "@/components/ui/adaptive-table";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -140,115 +132,121 @@ export default function ConsultationsPage() {
         </Button>
       </div>
 
-      <div className="rounded-lg bg-card shadow-sm">
-        <Table>
-          <TableHeader className="bg-muted/30">
-            <TableRow>
-              <TableHead className="font-mono uppercase tracking-wider text-xs">Date</TableHead>
-              <TableHead className="font-mono uppercase tracking-wider text-xs">Subject</TableHead>
-              <TableHead className="font-mono uppercase tracking-wider text-xs">Category</TableHead>
-              <TableHead className="font-mono uppercase tracking-wider text-xs">Case</TableHead>
-              <TableHead className="font-mono uppercase tracking-wider text-xs">Status</TableHead>
-              <TableHead className="font-mono uppercase tracking-wider text-xs text-right">
-                Action
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              [...Array(5)].map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell>
-                    <Skeleton className="h-4 w-24" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-48" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-32" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-4 w-16" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-5 w-20 rounded-full" />
-                  </TableCell>
-                  <TableCell>
-                    <Skeleton className="h-8 w-24 ml-auto" />
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : consultations.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center">
-                  <p className="font-medium text-sm">No consultations recorded</p>
-                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
-                    Log a consultation to keep a record of what was advised, when, and to whom.
-                  </p>
-                </TableCell>
-              </TableRow>
-            ) : (
-              consultations.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-mono text-sm whitespace-nowrap">
-                    {c.scheduledAt ? formatDateTime(c.scheduledAt) : "N/A"}
-                  </TableCell>
-                  <TableCell className="font-medium">{c.title}</TableCell>
-                  <TableCell>
-                    <span
-                      className={`px-2 py-1 text-3xs uppercase font-mono tracking-wider whitespace-nowrap rounded-lg ${getCategoryBadgeClass(c.category as string)}`}
+      <div className="rounded-lg bg-card shadow-sm overflow-hidden">
+        <AdaptiveTable
+          label="Consultations"
+          rows={consultations}
+          rowKey={(c) => c.id}
+          isLoading={isLoading}
+          empty={
+            <>
+              <p className="font-medium text-sm">No consultations recorded</p>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
+                Log a consultation to keep a record of what was advised, when, and to whom.
+              </p>
+            </>
+          }
+          columns={[
+            {
+              key: "title",
+              header: <span className="font-mono uppercase tracking-wider text-xs">Subject</span>,
+              card: "title",
+              cellClassName: "font-medium",
+              skeletonClassName: "h-4 w-48",
+              cell: (c) => c.title,
+            },
+            {
+              key: "category",
+              header: <span className="font-mono uppercase tracking-wider text-xs">Category</span>,
+              card: "subtitle",
+              skeletonClassName: "h-4 w-32",
+              cell: (c) => (
+                <span
+                  className={`px-2 py-1 text-3xs uppercase font-mono tracking-wider whitespace-nowrap rounded-lg ${getCategoryBadgeClass(c.category as string)}`}
+                >
+                  {getCategoryLabel(c.category as string)}
+                </span>
+              ),
+            },
+            {
+              key: "date",
+              header: <span className="font-mono uppercase tracking-wider text-xs">Date</span>,
+              // `whitespace-nowrap` is what kept this table wide even after
+              // columns were dropped. It stays in the TABLE, where a wrapped
+              // timestamp would misalign the column, and is dropped in the card,
+              // where there is nothing to align against.
+              cellClassName: "font-mono text-sm whitespace-nowrap",
+              skeletonClassName: "h-4 w-24",
+              cell: (c) => (
+                <span className="font-mono text-sm">
+                  {c.scheduledAt ? formatDateTime(c.scheduledAt) : "N/A"}
+                </span>
+              ),
+            },
+            {
+              key: "case",
+              header: <span className="font-mono uppercase tracking-wider text-xs">Case</span>,
+              skeletonClassName: "h-4 w-16",
+              cell: (c) =>
+                c.caseId ? (
+                  <Link
+                    href={`/cases/${c.caseId}`}
+                    className="text-sm font-mono text-primary hover:underline"
+                  >
+                    {c.caseId}
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground text-xs italic">Unassigned</span>
+                ),
+            },
+            {
+              key: "status",
+              header: <span className="font-mono uppercase tracking-wider text-xs">Status</span>,
+              skeletonClassName: "h-5 w-20 rounded-full",
+              cell: (c) => (
+                <span
+                  className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-semibold font-mono uppercase tracking-wider ${
+                    c.status === "scheduled"
+                      ? "bg-secondary text-secondary-foreground"
+                      : c.status === "completed"
+                        ? "bg-success text-success-foreground"
+                        : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {c.status}
+                </span>
+              ),
+            },
+            {
+              key: "action",
+              header: <span className="font-mono uppercase tracking-wider text-xs">Action</span>,
+              card: "action",
+              headClassName: "text-right",
+              cellClassName: "text-right",
+              skeletonClassName: "h-8 w-24 ml-auto",
+              cell: (c) => (
+                <>
+                  {c.status === "scheduled" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="font-mono uppercase tracking-wider"
+                      onClick={() => handleMarkCompleted(c.id)}
+                      disabled={updateConsultation.isPending}
                     >
-                      {getCategoryLabel(c.category as string)}
+                      <CheckCircle2 className="mr-2 h-4 w-4" /> Mark Held
+                    </Button>
+                  )}
+                  {c.status === "completed" && (
+                    <span className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
+                      Held
                     </span>
-                  </TableCell>
-                  <TableCell>
-                    {c.caseId ? (
-                      <Link
-                        href={`/cases/${c.caseId}`}
-                        className="text-sm font-mono text-primary hover:underline"
-                      >
-                        {c.caseId}
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground text-xs italic">Unassigned</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-semibold font-mono uppercase tracking-wider ${
-                        c.status === "scheduled"
-                          ? "bg-secondary text-secondary-foreground"
-                          : c.status === "completed"
-                            ? "bg-success text-success-foreground"
-                            : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {c.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {c.status === "scheduled" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="font-mono uppercase tracking-wider"
-                        onClick={() => handleMarkCompleted(c.id)}
-                        disabled={updateConsultation.isPending}
-                      >
-                        <CheckCircle2 className="mr-2 h-4 w-4" /> Mark Held
-                      </Button>
-                    )}
-                    {c.status === "completed" && (
-                      <span className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
-                        Held
-                      </span>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+                  )}
+                </>
+              ),
+            },
+          ]}
+        />
       </div>
 
       <Dialog open={newModalOpen} onOpenChange={setNewModalOpen}>

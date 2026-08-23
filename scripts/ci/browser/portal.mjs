@@ -320,29 +320,39 @@ if (/bar council|enrolment/i.test(await text())) {
 }
 
 const inApp = await text();
+
+/*
+ * The navigation has two shapes, so the suite must know both.
+ *
+ * Below `lg` it is the three-dot button on the rail; from `lg` up it is a
+ * permanently visible list in the sidebar. Keying on the button alone made
+ * every check below viewport-dependent — and silently skipped the whole
+ * signed-in section at laptop widths once the sidebar landed.
+ */
+const menuButton = () => page.getByRole("button", { name: /Open navigation menu/i });
+const sidebarNav = () => page.getByRole("navigation", { name: /^Main$/i });
+const navPresent = async () => (await menuButton().count()) > 0 || (await sidebarNav().count()) > 0;
+
+/** Opens a destination whichever shape the nav is currently in. */
+async function gotoSection(name) {
+  if (await menuButton().count()) {
+    await menuButton().click();
+    await page.waitForTimeout(300);
+    await page.getByRole("menuitem", { name }).click();
+  } else {
+    await sidebarNav().getByRole("link", { name }).click();
+  }
+  await page.waitForTimeout(1200);
+}
+
 // Positive, not negative: "does not say sign in" was also true of the Access
 // Denied screen, which is how a chamber that was never founded passed as a
-// dashboard and every viewport check below measured the wrong page. The nav
-// button exists only inside the application shell.
-const signedIn = (await page.getByRole("button", { name: /Open navigation menu/i }).count()) > 0;
+// dashboard and every viewport check below measured the wrong page. A nav
+// affordance exists only inside the application shell.
+const signedIn = await navPresent();
 check("reached the application", signedIn, `${page.url()} — ${inApp.slice(0, 220)}`);
 
 if (signedIn) {
-  for (const { w, h, label } of VIEWPORTS) {
-    await page.setViewportSize({ width: w, height: h });
-    await page.waitForTimeout(250);
-    const o = await overflow();
-    if (o > 1) {
-      check(
-        `dashboard @ ${w}px (${label}) has no horizontal scroll`,
-        false,
-        `overflow ${o}px — ${(await widest()).join(" ; ")}`,
-      );
-    } else {
-      check(`dashboard @ ${w}px (${label}) has no horizontal scroll`, true);
-    }
-  }
-
   /*
    * A route two levels deep, which is a class of its own.
    *
@@ -352,10 +362,7 @@ if (signedIn) {
    * The only way to catch it is to open one and look, so this opens one.
    */
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.getByRole("button", { name: /Open navigation menu/i }).click();
-  await page.waitForTimeout(300);
-  await page.getByRole("menuitem", { name: /^Cases$/i }).click();
-  await page.waitForTimeout(1200);
+  await gotoSection(/^Cases$/i);
   await page
     .getByRole("button", { name: /new case file|open new case|new case/i })
     .first()
@@ -380,6 +387,81 @@ if (signedIn) {
     /Deep Route Matter/.test(detail) && /CV-DEEP-1/.test(detail),
     `${page.url()} — ${detail.slice(0, 200)}`,
   );
+
+  /*
+   * Every signed-in route, at every width.
+   *
+   * This used to measure /dashboard alone — which is a stat grid, the one
+   * layout in the application that was never going to overflow. The pages that
+   * actually broke on a phone (invoices at seven columns, tasks, consultations,
+   * the case detail tab strip, the operator table) were opened by this suite
+   * and never sized. Sweeping them here is what makes the responsive work
+   * self-verifying rather than self-reported.
+   *
+   * `caseHref` is the matter created just above, so /cases/:id is covered too.
+   */
+  const caseHref = new URL(page.url()).pathname;
+  const ROUTES = [
+    ["/dashboard", "dashboard"],
+    ["/cases", "cases"],
+    [caseHref, "case detail"],
+    ["/tasks", "tasks"],
+    ["/consultations", "consultations"],
+    ["/invoices", "invoices"],
+    ["/documents", "documents"],
+    ["/calendar", "calendar"],
+    ["/cause-list", "court listings"],
+    ["/invites", "access control"],
+    ["/team", "team roles"],
+    ["/activity", "activity"],
+    ["/kpi", "kpi"],
+  ];
+
+  for (const [href, name] of ROUTES) {
+    await page.goto(`${BASE}${href}`, { waitUntil: "networkidle" });
+    // Lazy routes resolve a chunk before they paint; measuring the Suspense
+    // spinner would pass every time and prove nothing.
+    await page.waitForTimeout(900);
+    for (const { w, h, label } of VIEWPORTS) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.waitForTimeout(220);
+      const o = await overflow();
+      check(
+        `${name} @ ${w}px (${label}) has no horizontal scroll`,
+        o <= 1,
+        o > 1 ? `overflow ${o}px — ${(await widest()).join(" ; ")}` : "",
+      );
+    }
+  }
+
+  /*
+   * Touch targets and type size, on the pages that grew a card layout.
+   *
+   * Section 6 checks this on the signed-out /portal. These are the screens
+   * where a row became a stack of fields, which is exactly where a 28px button
+   * or an 8px label slips in unnoticed.
+   */
+  await page.setViewportSize({ width: 360, height: 740 });
+  for (const href of ["/tasks", "/invoices", "/consultations"]) {
+    await page.goto(`${BASE}${href}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(900);
+    const small = await page.evaluate(() => {
+      const bad = [];
+      for (const el of document.querySelectorAll("button, a[href], input, select")) {
+        const st = getComputedStyle(el);
+        if (st.display === "none" || st.visibility === "hidden") continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;
+        if (r.height < 36) bad.push(`${el.tagName}.${el.className}`.slice(0, 70));
+      }
+      return bad;
+    });
+    check(
+      `${href} targets are at least 36px tall on a phone`,
+      small.length === 0,
+      small.join(" ; "),
+    );
+  }
 
   /*
    * The operator view fails closed.

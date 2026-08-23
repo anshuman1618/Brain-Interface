@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dialog";
 import { CalendarSkeleton } from "@/components/module-skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Plus, Trash2, CalendarDays } from "lucide-react";
 
 const localizer = dateFnsLocalizer({
@@ -129,7 +130,18 @@ export default function CalendarPage() {
   const canWrite = can("calendar.write");
   const canReschedule = can("tasks.write");
 
-  const [view, setView] = useState<View>("month");
+  /**
+   * A month grid needs roughly seven readable columns. At 360px each would be
+   * 45px wide, which fits a date number and nothing else — so a hearing on a
+   * phone becomes an unlabelled dot. The agenda is the same data as a list, and
+   * is what a phone can actually show.
+   *
+   * `useIsMobile` is the app's existing 768px probe. Only the INITIAL view is
+   * chosen from it: once somebody switches view deliberately, rotating the
+   * device must not throw their choice away.
+   */
+  const isMobile = useIsMobile();
+  const [view, setView] = useState<View>(() => (isMobile ? "agenda" : "month"));
   const [date, setDate] = useState(new Date());
   const [editing, setEditing] = useState<CauseEvent | null>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -362,7 +374,7 @@ export default function CalendarPage() {
           onNavigate={(d) => setDate(d)}
           views={["month", "week", "day", "agenda"]}
           popup
-          style={{ height: 620 }}
+          style={{ height: isMobile ? 520 : 620 }}
           selectable={canWrite}
           onSelectSlot={(slot: { start: Date }) => canWrite && openNew(slot.start)}
           onSelectEvent={(ev: object) => openExisting(ev as CauseEvent)}
