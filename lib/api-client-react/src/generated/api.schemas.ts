@@ -1964,6 +1964,29 @@ export interface InviteInput {
   caseId?: number;
 }
 
+export type DeviceRegistrationPlatform = typeof DeviceRegistrationPlatform[keyof typeof DeviceRegistrationPlatform];
+
+
+export const DeviceRegistrationPlatform = {
+  ios: 'ios',
+  android: 'android',
+} as const;
+
+export interface DeviceRegistration {
+  /**
+     * The FCM registration token. Opaque.
+     * @minLength 16
+     * @maxLength 4096
+     */
+  token: string;
+  platform: DeviceRegistrationPlatform;
+}
+
+export interface RegisteredDevice {
+  id: number;
+  platform: string;
+}
+
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];
 
 

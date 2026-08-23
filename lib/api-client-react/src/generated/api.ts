@@ -55,6 +55,7 @@ import type {
   DataExport,
   DelayLog,
   DelayLogInput,
+  DeviceRegistration,
   Document,
   DocumentInput,
   DocumentRequest,
@@ -90,6 +91,7 @@ import type {
   MembershipUpdateInput,
   Notification,
   OperatorMetrics,
+  RegisteredDevice,
   RunningTimer,
   SearchResults,
   ServiceEnquiryAck,
@@ -5395,6 +5397,151 @@ export const useMarkAllNotificationsRead = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getMarkAllNotificationsReadMutationOptions(options));
+    }
+
+export const getRegisterDeviceUrl = () => {
+
+
+
+
+  return `/api/devices`
+}
+
+/**
+ * Registers an FCM token against the caller's ACTIVE workspace. The workspace is taken from the session, never from the body, so a device cannot be registered against a chamber the caller does not belong to.
+ * Upserts on (workspace, token): the OS reissues the token on reinstall and on restore to a new handset, so the app re-registers every launch and this must update rather than accumulate.
+ * @summary Register this device for push notifications
+ */
+export const registerDevice = async (deviceRegistration: DeviceRegistration, options?: RequestInit): Promise<RegisteredDevice> => {
+
+  return customFetch<RegisteredDevice>(getRegisterDeviceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(deviceRegistration)
+  }
+);}
+
+
+
+
+
+export const getRegisterDeviceMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerDevice>>, TError,{data: BodyType<DeviceRegistration>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof registerDevice>>, TError,{data: BodyType<DeviceRegistration>}, TContext> => {
+
+const mutationKey = ['registerDevice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof registerDevice>>, {data: BodyType<DeviceRegistration>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  registerDevice(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RegisterDeviceMutationResult = NonNullable<Awaited<ReturnType<typeof registerDevice>>>
+    export type RegisterDeviceMutationBody = BodyType<DeviceRegistration>
+    export type RegisterDeviceMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Register this device for push notifications
+ */
+export const useRegisterDevice = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof registerDevice>>, TError,{data: BodyType<DeviceRegistration>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof registerDevice>>,
+        TError,
+        {data: BodyType<DeviceRegistration>},
+        TContext
+      > => {
+      return useMutation(getRegisterDeviceMutationOptions(options));
+    }
+
+export const getRevokeDeviceUrl = (id: number,) => {
+
+
+
+
+  return `/api/devices/${id}`
+}
+
+/**
+ * Revoked rather than deleted, so "notifications were switched off" stays answerable afterwards.
+ * @summary Stop sending notifications to this device
+ */
+export const revokeDevice = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRevokeDeviceUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeDeviceMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeDevice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeDevice>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['revokeDevice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeDevice>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  revokeDevice(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeDeviceMutationResult = NonNullable<Awaited<ReturnType<typeof revokeDevice>>>
+
+    export type RevokeDeviceMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Stop sending notifications to this device
+ */
+export const useRevokeDevice = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeDevice>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof revokeDevice>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRevokeDeviceMutationOptions(options));
     }
 
 export const getListDocumentRequestsUrl = () => {

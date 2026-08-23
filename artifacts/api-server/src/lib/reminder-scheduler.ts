@@ -1,31 +1,28 @@
 import cron from "node-cron";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, inArray } from "drizzle-orm";
 import {
   db,
+  calendarEntriesTable,
+  workspaceMembershipsTable,
+  audienceIncludes,
   tasksTable,
   consultationsTable,
-  notificationsTable,
-  usersTable,
   casesTable,
 } from "@workspace/db";
 import { logger } from "./logger";
-import { sendMail, drainOutbox } from "./mailer";
+import { drainOutbox } from "./mailer";
+import { drainPushOutbox } from "./push";
+import { notify } from "./notify";
 
 /**
  * Reminders reach people, not just the log.
  *
- * Each reminder writes an in-app notification AND emails the assignee. The
- * in-app record is what deduplicates: if a notification with this exact text
- * already exists for this person, neither is sent again, so a scheduler tick
- * that overlaps a previous one cannot double-send.
+ * Each reminder writes an in-app notification, emails the recipient where they
+ * have a verified address, and pushes to any device they have registered in
+ * that chamber. All three go through `notify()` — see lib/notify.ts for why
+ * that is one call rather than three at every site, and for the dedup rule
+ * that makes an overlapping tick harmless.
  */
-async function emailRecipient(clerkId: string, subject: string, body: string): Promise<void> {
-  const [u] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
-  // An empty email means the address was never verified, or was erased on
-  // request. Either way there is nowhere to send it.
-  if (!u?.email) return;
-  await sendMail({ to: u.email, subject, body, kind: "reminder" });
-}
 
 // Runs every 30 minutes; inserts T-24h and T-2h reminders for tasks and consultations,
 // and emails each recipient through the mailer (see lib/mailer.ts).
@@ -52,8 +49,11 @@ export function startReminderScheduler(): void {
     try {
       const r = await drainOutbox();
       if (r.attempted > 0) logger.info(r, "Drained the mail outbox");
+      // Same schedule, same reasoning: a retry that starts at one minute is
+      // pointless if nothing looks for due messages until the half hour.
+      await drainPushOutbox();
     } catch (err) {
-      logger.error({ err }, "Mail outbox drain failed");
+      logger.error({ err }, "Outbox drain failed");
     } finally {
       draining = false;
     }
@@ -62,16 +62,7 @@ export function startReminderScheduler(): void {
   logger.info("Reminder scheduler started (every 30 min), mail retry every minute");
 }
 
-async function alreadyNotified(userId: string, message: string): Promise<boolean> {
-  const rows = await db
-    .select()
-    .from(notificationsTable)
-    .where(and(eq(notificationsTable.userId, userId), eq(notificationsTable.message, message)))
-    .limit(1);
-  return rows.length > 0;
-}
-
-async function emitReminders(): Promise<void> {
+export async function emitReminders(): Promise<void> {
   const now = new Date();
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   const in2h = new Date(now.getTime() + 2 * 60 * 60 * 1000);
@@ -89,19 +80,20 @@ async function emitReminders(): Promise<void> {
     for (const w of windows) {
       if (!w.inWindow) continue;
       const message = `Reminder (${w.label}): task "${task.title}" is due ${task.deadline}.`;
-      if (await alreadyNotified(task.assigneeId, message)) continue;
-      await db.insert(notificationsTable).values({
-        userId: task.assigneeId,
+      // A task is scoped through its matter, not directly — `tasks` has no
+      // workspace column. The matter is also what the email names, so it is
+      // one lookup, not two.
+      const [matter] = await db.select().from(casesTable).where(eq(casesTable.id, task.caseId));
+      if (!matter) continue;
+      await notify({
+        clerkId: task.assigneeId,
+        workspaceId: matter.workspaceId,
         type: "reminder",
+        title: `Deadline ${w.label === "T-2h" ? "in 2 hours" : "tomorrow"}: ${task.title}`,
         message,
         link: "/tasks",
+        emailBody: `${message}\n\nMatter: ${matter?.title ?? "-"}\n\nOpen LEX Practice to complete or reschedule it.`,
       });
-      const [matter] = await db.select().from(casesTable).where(eq(casesTable.id, task.caseId));
-      await emailRecipient(
-        task.assigneeId,
-        `Deadline ${w.label === "T-2h" ? "in 2 hours" : "tomorrow"}: ${task.title}`,
-        `${message}\n\nMatter: ${matter?.title ?? "-"}\n\nOpen LEX Practice to complete or reschedule it.`,
-      );
     }
   }
 
@@ -119,6 +111,13 @@ async function emitReminders(): Promise<void> {
     ];
     // Broadcast to all staff assignees — we store consultation reminders per-case; notify via a wildcard is not
     // supported, so consultations notify task assignees of the same case when present.
+    // Same reason as tasks: a consultation is scoped through its matter.
+    const [consultMatter] = await db
+      .select()
+      .from(casesTable)
+      .where(eq(casesTable.id, consult.caseId));
+    if (!consultMatter) continue;
+
     const relatedTasks = await db
       .select()
       .from(tasksTable)
@@ -130,19 +129,71 @@ async function emitReminders(): Promise<void> {
       for (const w of windows) {
         if (!w.inWindow) continue;
         const message = `Reminder (${w.label}): consultation "${consult.title}" at ${scheduled.toISOString()}.`;
-        if (await alreadyNotified(recipient, message)) continue;
-        await db.insert(notificationsTable).values({
-          userId: recipient,
+        await notify({
+          clerkId: recipient,
+          workspaceId: consultMatter.workspaceId,
           type: "reminder",
+          title: `Consultation ${w.label === "T-2h" ? "in 2 hours" : "tomorrow"}: ${consult.title}`,
           message,
           link: "/consultations",
         });
-        await emailRecipient(
-          recipient,
-          `Consultation ${w.label === "T-2h" ? "in 2 hours" : "tomorrow"}: ${consult.title}`,
-          message,
-        );
       }
+    }
+  }
+
+  /*
+   * Hearings, filings and meetings from the master calendar.
+   *
+   * This table was not read here at all, which meant the single most important
+   * thing in an advocate's week — a hearing tomorrow — was the one event the
+   * chamber was never reminded about. Task deadlines and consultations were,
+   * because they happen to have an assignee column.
+   *
+   * Recipients come from the entry's own `audience`, which already models
+   * exactly this: "all", "staff", "role:<role>", "user:<clerkId>". So the fan-out
+   * is a membership query and the resolver that routes/calendar.ts already uses
+   * — not a new notion of who should hear about what.
+   */
+  const today = now.toISOString().slice(0, 10);
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+  const entries = await db
+    .select()
+    .from(calendarEntriesTable)
+    .where(inArray(calendarEntriesTable.entryDate, [today, tomorrow]));
+
+  for (const entry of entries) {
+    // A note is a note. Reminding somebody of one at 6am is how an app teaches
+    // people to switch its notifications off.
+    if (entry.kind === "note") continue;
+
+    const when = entry.entryDate === today ? "today" : "tomorrow";
+    const at = entry.entryTime ? ` at ${entry.entryTime}` : "";
+    const label =
+      entry.kind === "hearing" ? "Hearing" : entry.kind === "filing" ? "Filing" : "Meeting";
+    const message = `${label} ${when}${at}: ${entry.title}`;
+
+    const members = await db
+      .select()
+      .from(workspaceMembershipsTable)
+      .where(
+        and(
+          eq(workspaceMembershipsTable.workspaceId, entry.workspaceId),
+          eq(workspaceMembershipsTable.status, "active"),
+        ),
+      );
+
+    for (const member of members) {
+      if (!audienceIncludes(entry.audience, member.role, member.clerkId)) continue;
+      await notify({
+        clerkId: member.clerkId,
+        workspaceId: entry.workspaceId,
+        type: "reminder",
+        title: `${label} ${when}: ${entry.title}`,
+        message,
+        link: "/calendar",
+        emailBody: entry.notes ? `${message}\n\n${entry.notes}` : message,
+      });
     }
   }
 }

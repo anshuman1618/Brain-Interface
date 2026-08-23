@@ -5,6 +5,7 @@ import { db } from "@workspace/db";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import { resolveClientDist } from "../middlewares/staticClient";
 import { encryptionKey } from "../lib/blob-store";
+import { pushConfigured } from "../lib/push";
 import { paymentsEnabled } from "../lib/razorpay";
 import { logger } from "../lib/logger";
 import { describeBlobBackend } from "../lib/blob-backends";
@@ -113,6 +114,10 @@ router.get("/readyz", async (_req, res) => {
     fileStorage: describeBlobBackend().backend,
     paymentsConfigured: paymentsEnabled(),
     emailConfigured: Boolean(process.env["SMTP_HOST"]?.trim()),
+    // Reported, but deliberately NOT part of `ready` — same as email. A
+    // deployment with no Firebase project still serves the whole application;
+    // it simply records notifications as suppressed instead of delivering them.
+    pushConfigured: pushConfigured(),
     errorReportingConfigured: Boolean(process.env["ERROR_WEBHOOK_URL"]?.trim()),
     /** Unset in production means every restart signs everyone out. */
     workspaceTokenSecretSet: Boolean(process.env["WORKSPACE_TOKEN_SECRET"]?.trim()),

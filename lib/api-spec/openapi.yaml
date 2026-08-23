@@ -1529,6 +1529,49 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MarkAllReadResult"
+  /devices:
+    post:
+      operationId: registerDevice
+      tags: [notifications]
+      summary: Register this device for push notifications
+      description: >
+        Registers an FCM token against the caller's ACTIVE workspace. The
+        workspace is taken from the session, never from the body, so a device
+        cannot be registered against a chamber the caller does not belong to.
+
+        Upserts on (workspace, token): the OS reissues the token on reinstall
+        and on restore to a new handset, so the app re-registers every launch
+        and this must update rather than accumulate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceRegistration"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisteredDevice"
+  /devices/{id}:
+    delete:
+      operationId: revokeDevice
+      tags: [notifications]
+      summary: Stop sending notifications to this device
+      description: >
+        Revoked rather than deleted, so "notifications were switched off" stays
+        answerable afterwards.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Revoked
   /document-requests:
     get:
       operationId: listDocumentRequests
@@ -3928,6 +3971,28 @@ components:
             routes/invites.ts for the actual rule.
 
     # ── Notifications ───────────────────────────────────────────────────────
+    DeviceRegistration:
+      type: object
+      required: [token, platform]
+      properties:
+        token:
+          type: string
+          minLength: 16
+          maxLength: 4096
+          description: The FCM registration token. Opaque.
+        platform:
+          type: string
+          enum: [ios, android]
+
+    RegisteredDevice:
+      type: object
+      required: [id, platform]
+      properties:
+        id:
+          type: integer
+        platform:
+          type: string
+
     Notification:
       type: object
       required: [id, userId, type, message, read, createdAt]

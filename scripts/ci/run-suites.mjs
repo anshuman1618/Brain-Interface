@@ -27,6 +27,7 @@ const SUITES = [
   ["cause-list", "Court cause lists: fetch, match, propose, accept"],
   ["operator", "Operator metrics: the allowlist, and the numbers"],
   ["phone-identity", "Signing in and being admitted by mobile number"],
+  ["push", "Push notifications: registration and the tenant boundary"],
   ["blob-storage", "File storage: the R2 signer and the backend choice"],
   ["gov", "Files, audit, quota, privacy, conflicts"],
 ];

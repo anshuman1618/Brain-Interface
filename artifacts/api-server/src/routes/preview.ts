@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, subscriptionsTable, isPreviewDatabase } from "@workspace/db";
 import { isPreviewAuth } from "../lib/preview-mode";
+import { emitReminders } from "../lib/reminder-scheduler";
 import { requireWorkspace, ctx, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
@@ -67,6 +68,32 @@ router.post(
     }
 
     res.json({ workspaceId: c.workspaceId, currentPeriodEnd: when.toISOString() });
+  },
+);
+
+/**
+ * Run the reminder sweep now, instead of waiting for the half-hour cron.
+ *
+ * The sweep is the only place hearing, deadline and consultation reminders are
+ * produced, and it is driven entirely by wall-clock time — which makes it the
+ * one behaviour a test cannot reach by calling the public API. Everything it
+ * does is idempotent (`notify()` refuses a message it has already sent), so
+ * running it early only ever brings work forward.
+ *
+ * Guarded exactly like `set-period-end` above: 404 outside preview, behind
+ * `requireWorkspace`, and it creates nothing a caller could not have caused by
+ * waiting thirty minutes.
+ */
+router.post(
+  "/preview/run-reminders",
+  requireWorkspace,
+  async (_req: AuthRequest, res): Promise<void> => {
+    if (!isPreviewAuth() || !isPreviewDatabase()) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    await emitReminders();
+    res.json({ ran: true });
   },
 );
 

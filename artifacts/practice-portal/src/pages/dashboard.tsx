@@ -14,6 +14,7 @@ import {
 } from "@workspace/api-client-react";
 import { useUserRole } from "@/hooks/use-user-role";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { MobileSettings } from "@/components/mobile-settings";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
@@ -656,6 +657,12 @@ function StaffDashboard() {
       {/* Same component the Case Registry uses, so conflict screening and the
           plan limit behave identically from either entry point. */}
       <CaseFormModal open={caseFormOpen} onOpenChange={setCaseFormOpen} />
+
+      {/*
+        Only renders in the app. On the web it is null, so this is not a row of
+        greyed-out promises about a mobile app the reader may not want.
+      */}
+      <MobileSettings />
     </div>
   );
 }

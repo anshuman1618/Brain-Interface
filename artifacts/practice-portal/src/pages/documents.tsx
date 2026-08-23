@@ -45,7 +45,11 @@ import {
   Clock,
   Plus,
   Download,
+  Camera as CameraIcon,
+  Image as ImageIcon,
 } from "lucide-react";
+import { isNative } from "@/lib/platform";
+import { canCapture, captureDocument, saveAndShare } from "@/lib/native-files";
 
 function bytes(n: number | null | undefined): string {
   if (!n) return "—";
@@ -134,6 +138,9 @@ export default function DocumentsPage() {
       await customFetch(`/api/cases/${caseId}/documents/content`, {
         method: "POST",
         headers: {
+          // A camera capture carries an explicit image/jpeg; the server sniffs
+          // the magic bytes and refuses a body that disagrees with this, so it
+          // must never be guessed at.
           "content-type": file.type || "application/octet-stream",
           "x-document-name": encodeURIComponent(form.name.trim() || file.name),
           "x-document-visibility": isStaff ? form.visibility : "shared",
@@ -159,12 +166,46 @@ export default function DocumentsPage() {
     }
   };
 
-  /** Fetch the bytes, then hand the browser a blob to save. */
+  /**
+   * Capture a document with the camera, or pick one from the photo library.
+   *
+   * Wrapped as a `File` so everything downstream — the size line, the name
+   * prefill, the upload itself — is the same code the picker feeds. The one
+   * thing that must survive is the MIME type: the server compares it against
+   * the magic bytes and 415s on a mismatch.
+   */
+  const pickFromDevice = async (source: "camera" | "library") => {
+    try {
+      const captured = await captureDocument(source);
+      if (!captured) return; // Backed out; not an error.
+      const asFile = new File([captured.blob], captured.fileName, { type: captured.mimeType });
+      setFile(asFile);
+      if (!form.name.trim()) setForm((prev) => ({ ...prev, name: asFile.name }));
+    } catch (err) {
+      toast({
+        title: "Could not use the camera",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    }
+  };
+
+  /**
+   * Fetch the bytes, then hand them to the browser — or, in the app, to the OS.
+   *
+   * The object-URL anchor click below is a no-op inside a webview: there is no
+   * download manager behind it and nothing appears afterwards, so on native the
+   * file is written to the cache and offered through the share sheet instead.
+   */
   const download = async (id: number, name: string) => {
     try {
       const blob = await customFetch<Blob>(`/api/documents/${id}/content`, {
         responseType: "blob",
       });
+      if (isNative()) {
+        await saveAndShare(blob, name, name);
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -445,8 +486,39 @@ export default function DocumentsPage() {
                   if (f && !form.name.trim()) setForm((prev) => ({ ...prev, name: f.name }));
                 }}
                 className="rounded-lg font-mono text-xs bg-background file:mr-3 file:border-0 file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-mono file:uppercase"
-                required
+                // Not `required` on native: the camera buttons below satisfy
+                // this field without the picker ever being touched, and the
+                // browser would block the submit anyway.
+                required={!canCapture()}
               />
+
+              {/* The reason the app exists for a client: a chamber asks for a
+                  document, and it is photographed on the spot rather than
+                  scanned at a desk later. Only rendered in the app — the web
+                  picker already reaches a webcam if there is one. */}
+              {canCapture() && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg"
+                    onClick={() => void pickFromDevice("camera")}
+                  >
+                    <CameraIcon className="h-4 w-4 mr-1.5" /> Photograph
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg"
+                    onClick={() => void pickFromDevice("library")}
+                  >
+                    <ImageIcon className="h-4 w-4 mr-1.5" /> From photos
+                  </Button>
+                </div>
+              )}
+
               {file && (
                 <p className="text-2xs font-mono text-muted-foreground">
                   {(file.size / 1024).toFixed(0)} KB · {file.type || "unknown type"}

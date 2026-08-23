@@ -567,6 +567,40 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
 -- to the empty string, so a row that has one identifier and not the other needs
 -- no special case anywhere.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+
+-- Push notifications. Mirrors lib/db/src/schema/push.ts; see the migration in
+-- lib/db/drizzle for why the shape matches mail_outbox so exactly.
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  clerk_id TEXT NOT NULL DEFAULT '',
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT '',
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT device_tokens_ws_token_key UNIQUE (workspace_id, token)
+);
+
+CREATE TABLE IF NOT EXISTS push_outbox (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER,
+  device_token_id INTEGER NOT NULL,
+  token TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  link TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT 'notice',
+  status TEXT NOT NULL DEFAULT 'queued',
+  transport TEXT NOT NULL DEFAULT '',
+  error TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMPTZ,
+  last_attempt_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sent_at TIMESTAMPTZ
+);
 ALTER TABLE invites ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
 ALTER TABLE invites ALTER COLUMN email SET DEFAULT '';
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS court_id INTEGER;

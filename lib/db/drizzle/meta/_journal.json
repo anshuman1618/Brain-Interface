@@ -92,6 +92,13 @@
       "when": 1787090000002,
       "tag": "0012_phone_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787090000003,
+      "tag": "0013_push_notifications",
+      "breakpoints": true
     }
   ]
 }

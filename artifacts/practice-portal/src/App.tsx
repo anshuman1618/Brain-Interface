@@ -18,8 +18,11 @@ import { useClerkApiAuthBridge } from "@/hooks/use-api-auth-bridge";
 import { isPreviewMode } from "@/lib/preview";
 import { ClerkSessionProvider, PreviewSessionProvider, useSession } from "@/lib/session";
 import PortalSignInPage from "@/pages/portal-sign-in";
-import { ThemeProvider } from "@/lib/theme";
+import { ThemeProvider, useTheme } from "@/lib/theme";
 import { RootErrorBoundary } from "@/components/error-boundary";
+import { AppLockGate } from "@/components/app-lock";
+import { applyNativeTheme, dismissSplash, initNativeShell } from "@/lib/native";
+import { onPushOpened } from "@/lib/native-push";
 import { BetaFeedbackWidget } from "@/components/beta-feedback-widget";
 // Registers the API base URL (no-op when frontend and API share an origin).
 import "@/lib/api-config";
@@ -231,7 +234,10 @@ function PreviewApp() {
       <QueryClientProvider client={queryClient}>
         <PreviewSessionProvider>
           <TooltipProvider>
-            <PreviewRoutes />
+            <NativeShell />
+            <AppLockGate>
+              <PreviewRoutes />
+            </AppLockGate>
             <Toaster />
             {/* Mounted here rather than in the dashboard shell: the two screens
                 that most need a way to report a problem — access denied and
@@ -241,6 +247,39 @@ function PreviewApp() {
         </PreviewSessionProvider>
       </QueryClientProvider>
     </WouterRouter>
+  );
+}
+
+/**
+ * Extracted so the lock overlay can wrap the routes without wrapping the
+ * providers: `AppLockGate` reads the session, which ClerkSessionProvider
+ * supplies, so it has to sit inside that provider and outside the pages.
+ */
+function ClerkRoutes() {
+  return (
+    <Switch>
+      <Route path="/" component={HomeRedirect} />
+      <Route path="/portal" component={PortalSignInPage} />
+      {/* Where Google and Zoho land after the provider round trip. Clerk
+          finishes the handshake, then the app decides what this identity may
+          reach. In the native shell the provider redirects to the app's custom
+          scheme instead, and lib/native.ts routes it to this same path. */}
+      <Route path="/portal/callback">
+        <AuthenticateWithRedirectCallback
+          signInFallbackRedirectUrl={`${basePath}/dashboard`}
+          signUpFallbackRedirectUrl={`${basePath}/dashboard`}
+        />
+      </Route>
+      {/* Legacy entry points — both are the same passwordless door now. */}
+      <Route path="/sign-in/*?">
+        <Redirect to="/portal" />
+      </Route>
+      <Route path="/sign-up/*?">
+        <Redirect to="/portal?new=1" />
+      </Route>
+      {/* "/*", not "/:rest*" — see the preview tree above. */}
+      <Route path="/*" component={DashboardLayout} />
+    </Switch>
   );
 }
 
@@ -262,28 +301,10 @@ function ClerkApp() {
           <ClerkSessionProvider>
             <TooltipProvider>
               <ClerkQueryClientCacheInvalidator />
-              <Switch>
-                <Route path="/" component={HomeRedirect} />
-                <Route path="/portal" component={PortalSignInPage} />
-                {/* Where Google and Zoho land after the provider round trip.
-                    Clerk finishes the handshake, then the app decides what this
-                    identity may reach. */}
-                <Route path="/portal/callback">
-                  <AuthenticateWithRedirectCallback
-                    signInFallbackRedirectUrl={`${basePath}/dashboard`}
-                    signUpFallbackRedirectUrl={`${basePath}/dashboard`}
-                  />
-                </Route>
-                {/* Legacy entry points — both are the same passwordless door now. */}
-                <Route path="/sign-in/*?">
-                  <Redirect to="/portal" />
-                </Route>
-                <Route path="/sign-up/*?">
-                  <Redirect to="/portal?new=1" />
-                </Route>
-                {/* "/*", not "/:rest*" — see the preview tree above. */}
-                <Route path="/*" component={DashboardLayout} />
-              </Switch>
+              <NativeShell />
+              <AppLockGate>
+                <ClerkRoutes />
+              </AppLockGate>
               <Toaster />
               <BetaFeedbackWidget />
             </TooltipProvider>
@@ -292,6 +313,44 @@ function ClerkApp() {
       </ClerkProvider>
     </WouterRouter>
   );
+}
+
+/**
+ * The native shell's lifecycle, and nothing else.
+ *
+ * Renders no UI. It lives inside ThemeProvider because the status bar has to
+ * follow the resolved theme, and inside the router because a deep link has to
+ * become a navigation.
+ *
+ * Every call it makes is a no-op on the web.
+ */
+function NativeShell() {
+  const [, setLocation] = useLocation();
+  const { resolvedTheme } = useTheme();
+
+  useEffect(() => {
+    // The OAuth round trip returns here, as in.lexpractice.app://portal/callback.
+    // A client-side navigation, not a reload: the Clerk client in memory is
+    // mid-handshake, and reloading would restart from whatever had reached
+    // storage and lose it.
+    const teardown = initNativeShell((path) => setLocation(stripBase(path)));
+    // Tapping a "hearing tomorrow" notification should land on the calendar,
+    // not on whatever screen the app was last showing.
+    const teardownPush = onPushOpened((path) => setLocation(stripBase(path)));
+    // The splash is held until React has actually painted — see
+    // `launchAutoHide: false` in capacitor.config.ts.
+    void dismissSplash();
+    return () => {
+      teardown();
+      teardownPush();
+    };
+  }, [setLocation]);
+
+  useEffect(() => {
+    void applyNativeTheme(resolvedTheme === "dark" ? "dark" : "light");
+  }, [resolvedTheme]);
+
+  return null;
 }
 
 function App() {
