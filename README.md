@@ -105,17 +105,40 @@ password strategy is ever attempted, and `/sign-in` and `/sign-up` redirect to
 routes; they render whatever the Clerk dashboard enables, including a password
 field, so they were removed rather than configured around.)
 
-The chamber portal (`/portal`) offers three ways in:
+The chamber portal (`/portal`) offers four ways in:
 
 | Provider  | Clerk strategy      | Notes                                                                                    |
 | --------- | ------------------- | ---------------------------------------------------------------------------------------- |
 | Google    | `oauth_google`      | Built into Clerk. Enable under **SSO connections**.                                      |
 | Zoho Mail | `oauth_custom_zoho` | **Not** a Clerk built-in — add a _custom OAuth connection_ with the slug `zoho` (below). |
 | Email     | one-time code       | Clerk's `emailCode` strategy — send, then verify, in the app's own UI.                   |
+| Mobile    | one-time code       | Clerk's `phoneCode` strategy — an SMS code, verified in the app's own UI.                |
 
-All three do the same job and nothing more: they establish a **verified email
-address**. Which chamber that address may enter, and as what, is decided
-afterwards by the access list. Adding a provider therefore cannot widen access.
+All four do the same job and nothing more: they establish a **verified
+identifier** — an email address, or a mobile number. Which chamber that
+identifier may enter, and as what, is decided afterwards by the access list.
+Adding a provider therefore cannot widen access.
+
+### Enabling mobile sign-in
+
+In the Clerk dashboard → **User & Authentication**, add **Phone number** as an
+identifier and enable the **SMS code** strategy.
+
+Add it as an _optional_ identifier, not a required one. Marking phone required
+makes Clerk refuse to complete every EXISTING email sign-in until a number is
+supplied — the app reports this accurately (`session.tsx` names the missing
+attribute) but the flow is broken until the dashboard is corrected.
+
+A mobile number is a **standalone identity**: somebody can sign up, be admitted
+and found a chamber holding only a number and no email address at all. The
+access list has a matching `phone` kind, and an invite can be addressed to a
+number instead of an address. Numbers are canonicalised to E.164 before they are
+stored or matched — ten digits is read as Indian; anything else needs the full
+`+country` form — so "+91 98765 43210" and "09876543210" are one person, and
+nothing that fails to canonicalise is ever stored.
+
+There is deliberately no domain-equivalent for phone. A numbering range is not
+an organisation and nobody should be able to admit one.
 
 ### Configuring Zoho
 
@@ -370,9 +393,17 @@ See `.env.example`. In short:
 | `CLIENT_DIST_PATH`           | no            | Override where the API reads the built SPA from                                                                                                       |
 | `PREVIEW_DATA_DIR`           | no            | Where the file-backed preview database lives. Default `.preview-data`; delete it to start over                                                        |
 | `WORKSPACE_TOKEN_SECRET`     | recommended   | Signs scoped workspace tokens. Unset → a random per-process secret, so tokens die on restart and clients re-switch (fine in dev, not across replicas) |
+| `OPERATOR_EMAILS`            | no            | Comma-separated addresses admitted to `/operator`. Unset → the view does not exist for anyone                                                         |
+| `OPERATOR_PHONES`            | no            | The same allowlist for operators who sign in by SMS                                                                                                   |
+| `FCM_SERVICE_ACCOUNT_JSON`   | mobile push   | The whole Firebase service-account key file. Unset → notifications are recorded as `suppressed`, never delivered                                      |
+| `FCM_PROJECT_ID`             | no            | Only needed if the key file omits `project_id`                                                                                                        |
 
-Google, Zoho and email sign-in are configured in the Clerk dashboard, not by
-environment variable — see [Sign-in providers](#sign-in-providers).
+Google, Zoho, email and mobile sign-in are configured in the Clerk dashboard,
+not by environment variable — see [Sign-in providers](#sign-in-providers).
+
+Push notifications need a Firebase project; one FCM configuration covers both
+Android and iOS once the APNs key is uploaded to it. See
+[DEPLOYMENT.md](DEPLOYMENT.md) §11.
 
 ## Theming
 

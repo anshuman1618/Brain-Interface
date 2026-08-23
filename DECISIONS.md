@@ -2020,6 +2020,144 @@ Full working in `docs/UNIT-ECONOMICS.md`.
 
 ---
 
+## Mobile
+
+### Capacitor around the existing SPA, not a second frontend
+
+**Decided:** the Android and iOS apps bundle the same built SPA the web
+deployment serves and point it at the same API. `artifacts/mobile-app` holds
+`capacitor.config.ts` and the two native projects; `webDir` reaches into
+`artifacts/practice-portal/dist/public`.
+
+**Why:** the brief was every feature of the website, on a phone. A React Native
+rebuild re-implements 24 pages, every capability guard and every route — and
+then has to be kept in step with the web forever. Wrapping the SPA gets parity
+by construction: there is one frontend, and a page added to it is in the apps
+the next time they are built.
+
+**The cost, stated plainly:** the UI is a webview, not native controls. It will
+never feel like a platform app, and a screen that is slow on the web is slow
+here. That is the trade accepted for parity and one codebase.
+
+**Revisit when:** a feature needs sustained native performance (offline sync of
+a whole matter, live document editing), or the webview's feel becomes the
+complaint people actually make.
+
+### Bundled assets, not a webview pointed at the site
+
+**Decided:** the SPA ships inside the binary. UI changes need an app release.
+
+**Why:** it paints instantly, works with no signal up to the first API call, and
+— the practical reason — Apple rejects apps that are a webview wrapped around a
+website. Loading the live site would make every UI change instant and every
+review a gamble.
+
+### The localhost CORS origins are safe here, and only here
+
+**Decided:** `CORS_ALLOWED_ORIGINS` includes `https://localhost` and
+`capacitor://localhost` for the mobile deployment.
+
+**Why this is not the hole it looks like:** those origins are shared by _any_
+Capacitor app on the device, so `cors({ credentials: true })` against them would
+normally be alarming. It is acceptable because the apps authenticate with a
+**bearer token another app cannot read**, not with an ambient cookie the browser
+would attach for them. This is the existing Topology B path — setting
+`VITE_API_BASE_URL` already switches the client to bearer tokens, because a
+cross-origin cookie would never be sent anyway.
+
+DEPLOYMENT.md's rule stands unchanged: never `*`, never reflect the request
+origin.
+
+### Google sign-in works because `allowNavigation` is empty
+
+**Decided:** `server.allowNavigation: []` in `capacitor.config.ts`, and the
+OAuth round trip returns through the `in.lexpractice.app://` scheme.
+
+**Why:** Google refuses OAuth inside an embedded webview outright
+(`disallowed_useragent`), so the flow has to leave the app. Because no provider
+host is listed, Capacitor hands any non-local navigation to a Custom Tab /
+SFSafariViewController automatically — the documented behaviour, doing real work
+here rather than being incidental config.
+
+**The trap:** adding `accounts.google.com` or a Clerk domain to that list, which
+looks like making sign-in work, pulls the flow back inside the webview and
+breaks it.
+
+### The app lock is a UX control, not a security boundary
+
+**Decided:** Face ID / fingerprint on returning to the app, off by default, with
+a device-passcode fallback.
+
+**Why it exists:** a phone left face-up on a table between hearings. Client files
+are not something to leave scrollable, and signing out a dozen times a day is not
+a real option.
+
+**What it is not:** encryption. The session token still lives in the webview, the
+API cannot tell a locked app from an unlocked one, and anybody who can read the
+device's storage can read it either way. The code says so, and so does the
+user-facing copy — describing it as protection at rest would be false.
+
+**Also:** this is the one non-official Capacitor plugin in the tree
+(`@aparajita/capacitor-biometric-auth`). Capacitor ships no biometric plugin, so
+it is a deliberate supply-chain acceptance under the `minimumReleaseAge` rule
+rather than an oversight.
+
+---
+
+## Identity
+
+### A mobile number is an identity, not a contact detail
+
+**Decided:** phone joins the access list as a third `kind`, alongside `email` and
+`domain`. Somebody can sign up, be admitted, and found a chamber holding only a
+number.
+
+**Why it stayed small:** only four surfaces decided authorization from an email
+string — the access-list matcher, `jit.ts`, the grant writers in `session.ts`,
+and the operator allowlist. Memberships, `requireWorkspace`, `capabilitiesFor`,
+`lib/scope.ts`, `billableClient()` and the access-request flow are all keyed on
+`users.id` or `clerk_id` already. And because `workspace_access_list`'s unique
+key is already `(workspace_id, kind, value)`, the new kind needed no migration.
+
+**Why `normalisePhone` is strict and total:** it is an authorization primitive.
+Two spellings of one number that resolve differently lock out somebody who was
+admitted; two different numbers that collide let one person sign in against
+another's grant. It returns `""` for anything it cannot canonicalise and callers
+refuse rather than store — a grant held in a form no sign-in could match is a row
+that silently does nothing, and the admin who wrote it has no way to tell.
+
+**No `domain` equivalent for phone.** A numbering range is not an organisation.
+
+### Push is a third channel on the machinery that already existed
+
+**Decided:** `notify()` writes the in-app row, sends the email, and queues the
+push. `push_outbox` mirrors `mail_outbox` down to the retry ladder and the
+five statuses.
+
+**Why:** there were eight hand-written `notifications` inserts, only two of which
+also emailed. Adding push at each site would have been eight chances to forget
+one. One helper means the three channels cannot disagree about who was told what.
+
+**Why an outbox rather than fire-and-forget:** the same reason mail has one. The
+things this system notifies about are filing deadlines and hearing dates; a
+message that failed to send has to stay visible instead of becoming a log line.
+
+**One transport for two platforms:** FCM HTTP v1 delivers to iOS too, once the
+APNs key is uploaded to Firebase. Hand-rolled service-account JWT and one POST,
+matching how `lib/r2.ts` speaks SigV4 without an AWS SDK.
+
+### Hearings were the reminder nobody was getting
+
+**Decided:** the reminder sweep now reads `calendar_entries`.
+
+**Why:** it never had. Task deadlines and consultations were covered only because
+those tables happen to carry an assignee — so the most important thing in an
+advocate's week was the one event the chamber was never reminded about. The
+entry's own `audience` (`all` / `staff` / `role:` / `user:`) already modelled the
+fan-out exactly, so this is a new loop over an existing model, not new plumbing.
+
+---
+
 ## Things deliberately not done
 
 Recorded so they are not mistaken for oversights.
@@ -2034,3 +2172,17 @@ Recorded so they are not mistaken for oversights.
   does, which is the hard part, but they are not signed off.
 - **An end-to-end Razorpay test against live keys.** The signature verification
   and idempotency are tested; a real payment has not been taken.
+- **A push delivered to a real handset.** The queue, the retry ladder, the tenant
+  boundary and the hearing fan-out are all tested; nothing has been sent, because
+  that needs a Firebase project and an APNs key.
+- **A compiled APK or IPA.** Both native projects are generated, committed and
+  `cap sync`-clean. CI builds the Android debug APK; an iOS archive needs Xcode
+  on a Mac and has not been produced.
+- **Designed app icons.** Generated from `logo.svg` and serviceable. A designer
+  should replace them before either store submission.
+- **Android App Links.** The OAuth return uses a custom URL scheme. A verified
+  `https://` deep link is strictly nicer and needs an `assetlinks.json` served
+  from the API; not done.
+- **Per-page mobile redesign beyond the tables.** `AdaptiveTable` covers the six
+  table-heavy screens. The dashboard, KPI charts and the calendar fit, but were
+  not redrawn for a phone.

@@ -894,6 +894,106 @@ what caught the `daysLeft` rounding.
   four promise filtered views that do not exist. Information architecture, left
   alone deliberately.
 - **`/invites` still renders a 529px table at 375px.** It scrolls in place.
+  _Superseded_ — see the mobile work below: `/invites` and the other five
+  table-heavy screens now render as cards below `md`, and the browser suite
+  measures every signed-in route at every viewport.
+
+---
+
+## 5a. The mobile apps, and what they moved
+
+Three changes, layered. Each is verifiable on its own.
+
+### The frontend became responsive from 360px to 1440px
+
+`AdaptiveTable` (`components/ui/adaptive-table.tsx`) takes ONE column spec and
+renders a real `<table>` from `md` up, stacked cards below. `cell` renders in
+both, so the two layouts cannot show different data — which is what went wrong
+when this was solved page by page. Applied to tasks, consultations, invoices and
+the operator view.
+
+The nav gained a second shape in the other direction: an icon rail with a
+dropdown below `lg`, a permanently visible sidebar above it. `navItems` is built
+once and consumed by both.
+
+Two latent bugs surfaced. `hidden xs:block` guarded the workspace switcher, but
+Tailwind 4 has no `xs` and none was defined — the class never compiled, so the
+tenant switcher was invisible at **every** width. And `useIsMobile` initialised
+to `undefined` and corrected itself from an effect, which is invisible for
+styling but wrong for anything seeding state from it: the calendar picked its
+initial view that way, so every phone got the month grid.
+
+### Sign-in gained a fourth door, and the identity model widened
+
+```
+Clerk verifies …                       … and the app resolves it
+─────────────────────────────────────────────────────────────────────
+oauth_google / oauth_custom_zoho   →   verified EMAIL
+emailCode                          →   verified EMAIL
+phoneCode                          →   verified PHONE   ← new
+                                        │
+                                        ▼
+                        jit.ts: users.email / users.phone
+                                        │
+                                        ▼
+              access-list.ts: findAccessListMatches({ email, phone })
+                 kind=email  → exact address
+                 kind=domain → domain-of(address)
+                 kind=phone  → exact E.164          ← new
+                                        │
+                                        ▼
+                          workspace_memberships (unchanged)
+```
+
+Everything below the membership row is untouched: `requireWorkspace`,
+`capabilitiesFor`, `lib/scope.ts` and `billableClient()` were already keyed on
+`users.id`.
+
+The hot-path detail worth knowing: `getOrCreateUser` used to return early only
+when `email` was set. A phone-only user's finished state is `email = ""`, so
+that test sent them down the Clerk resync path on **every request**, forever.
+
+### The native shells sit ahead of the SPA boot
+
+```
+app launch
+  └─ Capacitor loads the bundled SPA from https://localhost (Android)
+                                       or capacitor://localhost (iOS)
+      └─ App.tsx → ThemeProvider → NativeShell        ← no-op on the web
+          ├─ back button   → wouter history, exit at root
+          ├─ appUrlOpen    → in.lexpractice.app://… → router
+          ├─ status bar    → follows the resolved theme
+          └─ splash hidden once React has painted
+      └─ AppLockGate wraps the routes (inside the session provider,
+         outside the pages — so nothing renders behind the lock)
+```
+
+The OAuth round trip leaves the app entirely: `allowNavigation: []` means
+Capacitor hands the provider to a Custom Tab / SFSafariViewController, and it
+returns through the custom scheme. Email and SMS codes never leave the webview.
+
+### Push, as a third channel
+
+```
+reminder-scheduler.ts  (node-cron, every 30 min)
+  ├─ task deadlines        T-24h / T-2h
+  ├─ consultations         T-24h / T-2h
+  └─ calendar entries      today / tomorrow   ← new; hearings, filings, meetings
+        │                                        fanned out over `audience`
+        ▼
+   notify()  ── in-app notifications row   (always; also the dedup key)
+             ├─ sendMail()                 (when they have a verified address)
+             └─ sendPush()                 (devices registered IN THIS workspace)
+                    │
+                    ▼
+              push_outbox → FCM HTTP v1 → Android + iOS
+              (drained every minute beside the mail outbox)
+```
+
+`notify()` replaced eight hand-written `notifications` inserts. The workspace
+filter on `sendPush` is the tenant boundary: someone in two chambers holds a
+device row per chamber, and a matter from one cannot surface while they are in
+the other.
 
 ---
 

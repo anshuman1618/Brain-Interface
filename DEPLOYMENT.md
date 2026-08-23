@@ -817,6 +817,109 @@ first.
 
 ---
 
+## 11. The mobile apps
+
+`artifacts/mobile-app` holds the Capacitor config and both native projects. They
+bundle the **same** built SPA the web deployment serves — there is one frontend,
+and `webDir` reaches into `artifacts/practice-portal/dist/public`.
+
+### 11a. Build the bundle the apps will ship
+
+The apps talk to the API cross-origin, so the SPA must be built with the API's
+absolute URL. Without it the bundle uses relative paths, which inside the webview
+resolve to `https://localhost` and reach nothing.
+
+```bash
+VITE_CLERK_PUBLISHABLE_KEY=pk_live_... \
+VITE_API_BASE_URL=https://lex-practice.onrender.com \
+  pnpm --filter @workspace/practice-portal run build
+
+pnpm --filter @workspace/mobile-app run sync
+```
+
+`VITE_API_BASE_URL` is what flips the client to **bearer tokens** — a
+cross-origin cookie would never be sent, so this is not optional.
+
+### 11b. Let the apps reach the API
+
+On the **API**, add the two webview origins:
+
+```
+CORS_ALLOWED_ORIGINS=https://chambers.example.com,https://localhost,capacitor://localhost
+```
+
+Those two are shared by any Capacitor app on the device. That is acceptable here
+**only** because the apps authenticate with a bearer token another app cannot
+read, rather than an ambient cookie — see DECISIONS.md. The rule against `*` and
+against reflecting the request origin is unchanged.
+
+### 11c. Clerk
+
+Add `in.lexpractice.app://portal/callback` to Clerk's allowed redirect URLs, or
+the OAuth round trip is refused before the provider is ever reached.
+
+To offer SMS sign-in, enable **Phone number** as an identifier and the **SMS
+code** strategy — as an _optional_ identifier. Marking it required makes Clerk
+refuse to complete every existing email sign-in until a number is supplied.
+
+### 11d. Push notifications
+
+One Firebase project covers both platforms.
+
+1. Create a Firebase project and add an Android app with the id
+   `in.lexpractice.app`. Download `google-services.json` into
+   `artifacts/mobile-app/android/app/`.
+2. Add an iOS app with the same bundle id; download `GoogleService-Info.plist`
+   into `artifacts/mobile-app/ios/App/App/`.
+3. Upload your **APNs auth key** (`.p8`) to Firebase → Project settings → Cloud
+   Messaging. This is the step that makes one FCM integration deliver to iOS.
+4. Create a service-account key (Project settings → Service accounts) and set the
+   whole JSON file as `FCM_SERVICE_ACCOUNT_JSON` on the API.
+
+Unset, notifications are still **recorded** — as `suppressed` in `push_outbox` —
+and never delivered. `/api/readyz` reports `pushConfigured`, and like
+`emailConfigured` it does not gate readiness.
+
+> Neither Google file is in this repository. They are per-project and belong to
+> your Firebase account.
+
+### 11e. Android
+
+```bash
+cd artifacts/mobile-app
+pnpm run open:android        # or: cd android && ./gradlew assembleDebug
+```
+
+CI builds the debug APK on every push (`.github/workflows/ci.yml`, `android`
+job), which is where "does it compile" is answered. A **release** build needs an
+upload keystore and `android/keystore.properties`; neither is in the repository.
+
+### 11f. iOS — needs a Mac
+
+There is no way around this: `pod install` and `xcodebuild` require macOS and
+Xcode.
+
+```bash
+cd artifacts/mobile-app/ios/App && pod install
+cd ../.. && pnpm run open:ios
+```
+
+Then in Xcode: set the team, enable **Push Notifications** and **Background
+Modes → Remote notifications** under Signing & Capabilities, and archive.
+
+### 11g. Before either store submission
+
+- **Confirm the app id.** `in.lexpractice.app` is permanent once published.
+- **Replace the icons.** Generated from `logo.svg` and serviceable, not designed.
+- **Privacy declarations.** Both stores ask what the app collects. It handles
+  client-confidential legal files, uses the camera for document capture, and
+  registers a device token for notifications; the answers are in
+  `docs/legal/privacy.md`.
+- **Have a test account ready.** Review will need one that reaches a populated
+  chamber, and this platform is invite-only.
+
+---
+
 ## Local development
 
 ```bash
