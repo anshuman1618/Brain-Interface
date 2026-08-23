@@ -180,54 +180,10 @@ jobs:
         env:
           BASE_URL: http://localhost:5000
 
-  android:
-    name: Android app compiles
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      # Capacitor's Android project targets JDK 21.
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: gradle
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      # A PREVIEW bundle: this job answers "does the native project compile",
-      # not "is the release build correct". Building with real Clerk and API
-      # values would need production secrets in a job that only runs a compiler.
-      - name: Build the web bundle
-        run: pnpm --filter @workspace/practice-portal run build
-
-      # Copies the bundle into android/ and reconciles the plugin list. Fails
-      # loudly if the committed native project has drifted from package.json.
-      - name: Sync the native project
-        run: pnpm --filter @workspace/mobile-app run sync:android
-
-      - name: Assemble the debug APK
-        run: ./gradlew --no-daemon assembleDebug
-        working-directory: artifacts/mobile-app/android
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lex-practice-debug-apk
-          path: artifacts/mobile-app/android/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-
-  # iOS is deliberately absent. `pod install` and `xcodebuild` need macOS, and a
-  # macOS runner costs roughly ten times a Linux one for a job that would only
-  # tell us the same thing this one does. The archive is a documented step on a
-  # Mac — see DEPLOYMENT.md §11f.
+  # The Android job lives on `claude/android-app-lmx9g4`, with the Android
+  # project it builds.
+  #
+  # There is no iOS equivalent and there cannot be a useful one here: `pod
+  # install` and `xcodebuild` require macOS, and a macOS runner costs roughly
+  # ten times a Linux one. The archive is a documented step on a Mac —
+  # DEPLOYMENT.md §11f.
