@@ -76,7 +76,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "@clerk/react": "^6.12.8",
+    "@clerk/react": "^6.14.5",
     "@clerk/themes": "^2.4.57",
     "moment": "^2.30.1",
     "react-big-calendar": "^1.20.0",
