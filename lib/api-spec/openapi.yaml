@@ -45,6 +45,7 @@ tags:
   - name: invoices
     description: Invoice generation (firm admin only)
   - name: cause-list
+  - name: drafting
     description: Court cause lists, and the listings proposed against a chamber's matters
 
 paths:
@@ -871,6 +872,369 @@ paths:
           description: Forbidden
         "404":
           description: No such court
+
+  /ai/budget:
+    get:
+      operationId: getAiBudget
+      tags: [drafting]
+      summary: What is left of this chamber's drafting budget
+      description: >
+        Visible from the first day of the period rather than at the moment of
+        refusal. A hard limit nobody could see coming is an outage; the same
+        limit with a meter beside it is a budget.
+      responses:
+        "200":
+          description: The budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiBudget"
+        "403":
+          description: Forbidden
+
+  /workspace/drafting:
+    post:
+      operationId: setDraftingEnabled
+      tags: [drafting]
+      summary: Turn AI drafting on or off for this chamber (admin only)
+      description: >
+        Off until an admin turns it on, having read what leaves the server.
+        Drafting sends matter facts — and whichever documents an advocate ticks
+        — to a third party. That is a decision a practice makes deliberately,
+        and this records who made it and when.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftingToggleInput"
+      responses:
+        "200":
+          description: The new state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftingSettings"
+        "403":
+          description: Forbidden
+
+  /insights:
+    get:
+      operationId: listInsights
+      tags: [drafting]
+      summary: What this chamber's advocates have learned
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Full-text filter. Omit for the most recent.
+      responses:
+        "200":
+          description: Insights, most relevant or most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Insight"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createInsight
+      tags: [drafting]
+      summary: Record an observation from practice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsightInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Insight"
+        "400":
+          description: Invalid
+        "403":
+          description: Forbidden
+
+  /insights/{id}:
+    patch:
+      operationId: updateInsight
+      tags: [drafting]
+      summary: Correct an observation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsightInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Insight"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such insight in this chamber
+    delete:
+      operationId: deleteInsight
+      tags: [drafting]
+      summary: Remove an observation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+        "404":
+          description: No such insight in this chamber
+
+  /exemplars:
+    get:
+      operationId: listExemplars
+      tags: [drafting]
+      summary: Past filings kept as examples of how this chamber writes
+      responses:
+        "200":
+          description: Exemplars
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Exemplar"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createExemplar
+      tags: [drafting]
+      summary: Promote a matter document to a style exemplar
+      description: >
+        Extracts the text, then runs a redaction pass over it. The result is NOT
+        usable until a person has read and accepted it — an exemplar rides in
+        the cached prefix of every future draft of its kind, so an unreviewed
+        one would put another client's facts in front of unrelated work.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExemplarInput"
+      responses:
+        "201":
+          description: Created, awaiting review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exemplar"
+        "400":
+          description: Invalid, or nothing readable in the document
+        "403":
+          description: Forbidden
+        "404":
+          description: No such document in this chamber
+
+  /exemplars/{id}:
+    patch:
+      operationId: updateExemplar
+      tags: [drafting]
+      summary: Accept or correct the redacted copy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExemplarPatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exemplar"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such exemplar in this chamber
+    delete:
+      operationId: deleteExemplar
+      tags: [drafting]
+      summary: Remove an exemplar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+        "404":
+          description: No such exemplar in this chamber
+
+  /cases/{id}/drafts:
+    get:
+      operationId: listDrafts
+      tags: [drafting]
+      summary: Drafts and reviews prepared for this matter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Drafts, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Draft"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such matter in this chamber
+    post:
+      operationId: createDraft
+      tags: [drafting]
+      summary: Draft a document, or review the matter
+      description: >
+        Returns immediately with a draft in `generating`; the work continues on
+        the server and the client polls `GET /drafts/{id}`. A petition takes a
+        minute or more to write, which is past the point where an HTTP request
+        survives a proxy — and this way a browser that navigates away does not
+        lose work the chamber has already paid for.
+
+
+        Only the documents named in `documentIds` are sent, and each is
+        re-checked against this matter and this chamber before it is read.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftInput"
+      responses:
+        "202":
+          description: Accepted, and being written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draft"
+        "400":
+          description: Invalid
+        "402":
+          description: The drafting budget for this period is used up
+        "403":
+          description: Forbidden, or drafting is not switched on for this chamber
+        "404":
+          description: No such matter in this chamber
+
+  /drafts/{id}:
+    get:
+      operationId: getDraft
+      tags: [drafting]
+      summary: One draft, including its progress while it is being written
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draft"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such draft in this chamber
+    patch:
+      operationId: updateDraft
+      tags: [drafting]
+      summary: Edit a draft, or mark it kept
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftPatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draft"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such draft in this chamber
+    delete:
+      operationId: deleteDraft
+      tags: [drafting]
+      summary: Discard a draft
+      description: >
+        Removes the draft. The spend it caused stays on the record — the tokens
+        were used whether or not the output was kept, and a budget derived from
+        rows a chamber can delete would not be a budget.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+        "404":
+          description: No such draft in this chamber
 
   /workspace/access-list:
     get:
@@ -3419,6 +3783,285 @@ components:
           type: integer
         error:
           type: string
+
+    AiBudget:
+      type: object
+      required:
+        [plan, allowanceMinor, topupMinor, spentMinor, remainingMinor, tier, draftingEnabled]
+      properties:
+        plan:
+          type: string
+        allowanceMinor:
+          type: integer
+          description: What the plan grants for this period, in paise.
+        topupMinor:
+          type: integer
+          description: Unexpired top-up grants, in paise. These carry forward; the allowance does not.
+        spentMinor:
+          type: integer
+        remainingMinor:
+          type: integer
+        resetsAt:
+          type: ["string", "null"]
+          format: date-time
+        tier:
+          type: string
+          enum: [full, economy]
+          description: >
+            `economy` routes everything to the lighter model. It is what the
+            trial runs on, so an evaluation cannot spend a plan's worth of
+            tokens on one petition.
+        draftingEnabled:
+          type: boolean
+          description: Whether an admin has switched drafting on for this chamber.
+        configured:
+          type: boolean
+          description: >
+            Whether the deployment has an API key at all. False means every
+            draft is served by the preview stub — useful to know before
+            wondering why the output reads oddly.
+
+    DraftingToggleInput:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+        acknowledgement:
+          type: string
+          description: The disclosure text the admin accepted, recorded verbatim.
+
+    DraftingSettings:
+      type: object
+      required: [draftingEnabled]
+      properties:
+        draftingEnabled:
+          type: boolean
+        draftingEnabledBy:
+          type: ["string", "null"]
+        draftingEnabledAt:
+          type: ["string", "null"]
+          format: date-time
+
+    Insight:
+      type: object
+      required: [id, title, body, tags, authorName, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        tags:
+          type: string
+        courtId:
+          type: ["integer", "null"]
+        courtName:
+          type: ["string", "null"]
+        caseTypeNorm:
+          type: ["string", "null"]
+        authorName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    InsightInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        body:
+          type: string
+          maxLength: 8000
+        tags:
+          type: string
+          maxLength: 300
+        courtId:
+          type: ["integer", "null"]
+        caseType:
+          type: ["string", "null"]
+          description: As typed. Normalised on write so retrieval compares as equality.
+
+    Exemplar:
+      type: object
+      required: [id, kind, title, body, active, createdAt]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [petition, written_statement, appeal, application, reply, notice, letter]
+        title:
+          type: string
+        body:
+          type: string
+          description: The redacted copy. This, and only this, is what reaches a prompt.
+        sourceDocumentId:
+          type: ["integer", "null"]
+        anonymisedAt:
+          type: ["string", "null"]
+          format: date-time
+        reviewedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: >
+            Null means unusable. An exemplar is not assembled into any prompt
+            until a person has read the redacted copy and accepted it.
+        reviewedBy:
+          type: ["string", "null"]
+        active:
+          type: boolean
+        addedByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ExemplarInput:
+      type: object
+      required: [kind, title]
+      properties:
+        kind:
+          type: string
+          enum: [petition, written_statement, appeal, application, reply, notice, letter]
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        documentId:
+          type: ["integer", "null"]
+          description: A document on one of this chamber's matters, to promote.
+        text:
+          type: string
+          maxLength: 200000
+          description: Pasted text, when the example is not already a stored document.
+
+    ExemplarPatch:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        body:
+          type: string
+          maxLength: 200000
+          description: The corrected redaction.
+        approve:
+          type: boolean
+          description: Accept the redacted copy and make the exemplar usable.
+        active:
+          type: boolean
+
+    Draft:
+      type: object
+      required: [id, caseId, kind, title, status, body, createdByName, createdAt]
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        kind:
+          type: string
+          enum: [petition, written_statement, appeal, application, reply, notice, letter, review]
+        title:
+          type: string
+        instruction:
+          type: string
+        body:
+          type: string
+        status:
+          type: string
+          enum: [generating, ready, failed, kept]
+        error:
+          type: ["string", "null"]
+        model:
+          type: string
+        parentDraftId:
+          type: ["integer", "null"]
+        createdByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        sources:
+          type: array
+          description: Exactly what was sent to produce this. The record of what left the server.
+          items:
+            $ref: "#/components/schemas/DraftSource"
+        unreadable:
+          type: array
+          description: >
+            Documents the advocate selected that yielded no text — almost always
+            scans. Surfaced because a document that contributed nothing must not
+            be silently counted as context.
+          items:
+            type: object
+            required: [name, note]
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              note:
+                type: string
+
+    DraftSource:
+      type: object
+      required: [kind, label]
+      properties:
+        kind:
+          type: string
+          enum: [document, insight, exemplar, matter]
+        sourceId:
+          type: ["integer", "null"]
+        label:
+          type: string
+        tokens:
+          type: integer
+
+    DraftInput:
+      type: object
+      required: [kind, instruction]
+      properties:
+        kind:
+          type: string
+          enum: [petition, written_statement, appeal, application, reply, notice, letter, review]
+        instruction:
+          type: string
+          minLength: 5
+          maxLength: 4000
+        documentIds:
+          type: array
+          maxItems: 20
+          items:
+            type: integer
+          description: >
+            The ONLY documents that will be sent. Each is re-checked against
+            this matter and this chamber before it is read.
+        parentDraftId:
+          type: ["integer", "null"]
+          description: Set when revising, so versions chain rather than overwrite.
+
+    DraftPatch:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 400000
+        title:
+          type: string
+          maxLength: 200
+        keep:
+          type: boolean
+          description: Mark the draft as one the chamber is keeping.
 
     ServiceEnquiryInput:
       type: object

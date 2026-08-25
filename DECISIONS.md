@@ -2085,6 +2085,107 @@ Full working in `docs/UNIT-ECONOMICS.md`.
 
 ---
 
+## AI drafting
+
+### The chamber's own knowledge is the product; the model is not
+
+**Decided:** drafting assembles a prompt from the matter, the chamber's recorded
+observations, and past filings kept as style examples. Insights and examples are
+**workspace-scoped** and never pooled across chambers.
+
+**Why:** a general model given the same instruction writes a generic petition.
+What makes this worth paying for is that it knows the Lucknow registry returns
+an unstamped vakalatnama, because an advocate here wrote that down. Pooling
+those observations across the platform would be worth more to everyone and is
+**irreversible**, so it is not done — `chamber_insights.shared_at` exists so
+consent can be added later without moving rows across a tenant boundary.
+
+### Only what the advocate ticks leaves the server
+
+**Decided:** documents reach the model by explicit id, per draft, and every id
+is re-checked against the caller's workspace _and_ the matter it claims to be
+on. There is no "use all documents" option. What was sent is recorded in
+`draft_sources`.
+
+**Why:** this is the whole basis on which sending privileged client material to
+a third party is defensible. A choice with no record of what was chosen is not a
+control — `draft_sources` is what makes "the advocate chose" checkable, and it is
+the answer when a client asks what of theirs was used.
+
+### Retrieval is full text, not embeddings
+
+**Decided:** `to_tsvector('simple', …)` with a GIN index, ranked in SQL, with
+the forum preference applied in JavaScript.
+
+**Why:** `pg_trgm` and `pgvector` are unavailable in PGlite, which is what
+preview mode and every CI suite run on — verified, not assumed. An embedding
+retriever would be a production-only path no test could execute, the same trap
+the cause-list search avoided. At the volume one chamber writes, full text finds
+the right note and costs nothing per query.
+
+_Also:_ bound parameters inside an `ORDER BY` came back from PGlite as
+`invalid byte sequence for encoding "UTF8": 0x00`. The ordering expression is
+kept parameter-free for that reason, which is noted in `lib/ai/context.ts`.
+
+### A style example is inert until a person has checked the redaction
+
+**Decided:** an uploaded filing gets an automatic redaction pass (Haiku), and is
+excluded from every prompt until `reviewed_at` is set by a named person.
+
+**Why:** an example rides in the **cached prefix of every draft of its kind**,
+so an unreviewed one puts another client's facts in front of unrelated work
+indefinitely. The model catches every name and misses "the Kanpur consignment".
+The automatic pass makes reviewing a two-minute job; it is not the control.
+
+### The budget is derived, pessimistic, and hard
+
+**Decided:** the remaining allowance is a SUM over `ai_usage_events`, checked
+against a **worst-case** estimate before the call. Over budget is a 402, not a
+warning. Deleting a draft does not refund its spend.
+
+**Why:** there is no way to un-spend tokens, so the only place a limit can be
+enforced is in front of the call. The estimate assumes output runs to its cap,
+which sometimes refuses a draft that would have fitted — that is the right way
+round to be wrong. A budget derived from rows a chamber can delete would not be
+a budget.
+
+### Every draft carries a verification banner, prepended by the server
+
+**Decided:** the "verify before filing" line is added in `drafting.ts`, not left
+to the model's instructions.
+
+**Why:** an instruction the model usually follows is not a guarantee, and this
+is the line that stands between a first draft and a filing nobody read.
+
+### Case law is web-search verified, and unconfirmed citations say so
+
+**Decided:** the review prompt enables the `web_search` server tool and requires
+each authority to be confirmed before it is given; anything unconfirmed is
+labelled.
+
+**Why:** Claude has no Indian case-law database. Unaided it produces citations
+that look real and sometimes are not, and advocates in several countries have
+been sanctioned for filing exactly that. Search adds roughly ₹12 to a review —
+cheap against the alternative.
+
+### Pricing, and what the AI allowance costs
+
+**Decided:** Pro ₹2,499/month with a ₹600 drafting budget; Firm ₹7,999 with
+₹3,000; Trial ₹40 for the pack, routed to the light model only. Per chamber,
+flat — not per seat. Top-ups (₹500/₹1,000/₹2,500) are sold **at cost** and carry
+forward while the subscription is live.
+
+**Why:** a working Pro chamber drafting 25 petitions and 60 applications a month
+costs roughly ₹1,110 in tokens — over half of a ₹1,999 plan, which is why the
+old prices could not carry this feature. Firm's ₹3,000 is 37% of its price and
+deliberately generous: it is the plan drafting is sold on. Both are constants in
+`plans.ts`; set them from a month of `ai_usage_events`, not from this estimate.
+
+The trade taken knowingly: at-cost top-ups mean the heaviest chambers are the
+least profitable. Halving `grantMinor` is a one-line 2× markup if that matters.
+
+---
+
 ## Things deliberately not done
 
 Recorded so they are not mistaken for oversights.
@@ -2099,3 +2200,12 @@ Recorded so they are not mistaken for oversights.
   does, which is the hard part, but they are not signed off.
 - **An end-to-end Razorpay test against live keys.** The signature verification
   and idempotency are tested; a real payment has not been taken.
+- **Streaming drafts token by token.** A draft is written server-side and the
+  page polls. It survives a browser that navigates away, works through any
+  proxy, and is testable in CI; SSE would look better and do none of those.
+- **OCR for scanned filings.** A scanned order yields no text and says so.
+  Claude reads images directly, so the cheap path in is page images rather than
+  an OCR stack — worth doing, not done here.
+- **A shared cross-chamber insight library.** See above: irreversible.
+- **Auto-filing anything.** Drafting a petition and lodging one are different
+  categories of act. The platform does not file, serve, or send to a client.

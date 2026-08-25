@@ -25,6 +25,7 @@ import type {
   AccessListEntryInput,
   AccessRequest,
   AccessRequestInput,
+  AiBudget,
   AuditEvent,
   BarRegistration,
   BarRegistrationInput,
@@ -60,9 +61,17 @@ import type {
   DocumentRequest,
   DocumentRequestInput,
   DocumentRequestUpdate,
+  Draft,
+  DraftInput,
+  DraftPatch,
+  DraftingSettings,
+  DraftingToggleInput,
   ErasureDecisionInput,
   ErasureRequest,
   ErasureRequestInput,
+  Exemplar,
+  ExemplarInput,
+  ExemplarPatch,
   Feedback,
   FeedbackInput,
   FeedbackResponseInput,
@@ -70,6 +79,8 @@ import type {
   GetSlaReportParams,
   GlobalSearchParams,
   HealthStatus,
+  Insight,
+  InsightInput,
   Invite,
   InviteInput,
   Invoice,
@@ -81,6 +92,7 @@ import type {
   ListCasesParams,
   ListCauseListProposalsParams,
   ListConsultationsParams,
+  ListInsightsParams,
   ListInvoicesParams,
   ListTasksParams,
   ListTimeEntriesParams,
@@ -2912,6 +2924,1119 @@ export const useTriggerCauseListSync = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getTriggerCauseListSyncMutationOptions(options));
+    }
+
+export const getGetAiBudgetUrl = () => {
+
+
+
+
+  return `/api/ai/budget`
+}
+
+/**
+ * Visible from the first day of the period rather than at the moment of refusal. A hard limit nobody could see coming is an outage; the same limit with a meter beside it is a budget.
+ * @summary What is left of this chamber's drafting budget
+ */
+export const getAiBudget = async ( options?: RequestInit): Promise<AiBudget> => {
+
+  return customFetch<AiBudget>(getGetAiBudgetUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAiBudgetQueryKey = () => {
+    return [
+    `/api/ai/budget`
+    ] as const;
+    }
+
+
+export const getGetAiBudgetQueryOptions = <TData = Awaited<ReturnType<typeof getAiBudget>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAiBudget>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAiBudgetQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAiBudget>>> = ({ signal }) => getAiBudget({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAiBudget>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetAiBudgetQueryResult = NonNullable<Awaited<ReturnType<typeof getAiBudget>>>
+export type GetAiBudgetQueryError = ErrorType<void>
+
+
+/**
+ * @summary What is left of this chamber's drafting budget
+ */
+
+export function useGetAiBudget<TData = Awaited<ReturnType<typeof getAiBudget>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getAiBudget>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetAiBudgetQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetDraftingEnabledUrl = () => {
+
+
+
+
+  return `/api/workspace/drafting`
+}
+
+/**
+ * Off until an admin turns it on, having read what leaves the server. Drafting sends matter facts — and whichever documents an advocate ticks — to a third party. That is a decision a practice makes deliberately, and this records who made it and when.
+ * @summary Turn AI drafting on or off for this chamber (admin only)
+ */
+export const setDraftingEnabled = async (draftingToggleInput: DraftingToggleInput, options?: RequestInit): Promise<DraftingSettings> => {
+
+  return customFetch<DraftingSettings>(getSetDraftingEnabledUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(draftingToggleInput)
+  }
+);}
+
+
+
+
+
+export const getSetDraftingEnabledMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setDraftingEnabled>>, TError,{data: BodyType<DraftingToggleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setDraftingEnabled>>, TError,{data: BodyType<DraftingToggleInput>}, TContext> => {
+
+const mutationKey = ['setDraftingEnabled'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setDraftingEnabled>>, {data: BodyType<DraftingToggleInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setDraftingEnabled(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetDraftingEnabledMutationResult = NonNullable<Awaited<ReturnType<typeof setDraftingEnabled>>>
+    export type SetDraftingEnabledMutationBody = BodyType<DraftingToggleInput>
+    export type SetDraftingEnabledMutationError = ErrorType<void>
+
+    /**
+ * @summary Turn AI drafting on or off for this chamber (admin only)
+ */
+export const useSetDraftingEnabled = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setDraftingEnabled>>, TError,{data: BodyType<DraftingToggleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setDraftingEnabled>>,
+        TError,
+        {data: BodyType<DraftingToggleInput>},
+        TContext
+      > => {
+      return useMutation(getSetDraftingEnabledMutationOptions(options));
+    }
+
+export const getListInsightsUrl = (params?: ListInsightsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/insights?${stringifiedParams}` : `/api/insights`
+}
+
+/**
+ * @summary What this chamber's advocates have learned
+ */
+export const listInsights = async (params?: ListInsightsParams, options?: RequestInit): Promise<Insight[]> => {
+
+  return customFetch<Insight[]>(getListInsightsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListInsightsQueryKey = (params?: ListInsightsParams,) => {
+    return [
+    `/api/insights`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListInsightsQueryOptions = <TData = Awaited<ReturnType<typeof listInsights>>, TError = ErrorType<void>>(params?: ListInsightsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInsights>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListInsightsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listInsights>>> = ({ signal }) => listInsights(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listInsights>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListInsightsQueryResult = NonNullable<Awaited<ReturnType<typeof listInsights>>>
+export type ListInsightsQueryError = ErrorType<void>
+
+
+/**
+ * @summary What this chamber's advocates have learned
+ */
+
+export function useListInsights<TData = Awaited<ReturnType<typeof listInsights>>, TError = ErrorType<void>>(
+ params?: ListInsightsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listInsights>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListInsightsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateInsightUrl = () => {
+
+
+
+
+  return `/api/insights`
+}
+
+/**
+ * @summary Record an observation from practice
+ */
+export const createInsight = async (insightInput: InsightInput, options?: RequestInit): Promise<Insight> => {
+
+  return customFetch<Insight>(getCreateInsightUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(insightInput)
+  }
+);}
+
+
+
+
+
+export const getCreateInsightMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInsight>>, TError,{data: BodyType<InsightInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createInsight>>, TError,{data: BodyType<InsightInput>}, TContext> => {
+
+const mutationKey = ['createInsight'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createInsight>>, {data: BodyType<InsightInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createInsight(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateInsightMutationResult = NonNullable<Awaited<ReturnType<typeof createInsight>>>
+    export type CreateInsightMutationBody = BodyType<InsightInput>
+    export type CreateInsightMutationError = ErrorType<void>
+
+    /**
+ * @summary Record an observation from practice
+ */
+export const useCreateInsight = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createInsight>>, TError,{data: BodyType<InsightInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createInsight>>,
+        TError,
+        {data: BodyType<InsightInput>},
+        TContext
+      > => {
+      return useMutation(getCreateInsightMutationOptions(options));
+    }
+
+export const getUpdateInsightUrl = (id: number,) => {
+
+
+
+
+  return `/api/insights/${id}`
+}
+
+/**
+ * @summary Correct an observation
+ */
+export const updateInsight = async (id: number,
+    insightInput: InsightInput, options?: RequestInit): Promise<Insight> => {
+
+  return customFetch<Insight>(getUpdateInsightUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(insightInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateInsightMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInsight>>, TError,{id: number;data: BodyType<InsightInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateInsight>>, TError,{id: number;data: BodyType<InsightInput>}, TContext> => {
+
+const mutationKey = ['updateInsight'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateInsight>>, {id: number;data: BodyType<InsightInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateInsight(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateInsightMutationResult = NonNullable<Awaited<ReturnType<typeof updateInsight>>>
+    export type UpdateInsightMutationBody = BodyType<InsightInput>
+    export type UpdateInsightMutationError = ErrorType<void>
+
+    /**
+ * @summary Correct an observation
+ */
+export const useUpdateInsight = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateInsight>>, TError,{id: number;data: BodyType<InsightInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateInsight>>,
+        TError,
+        {id: number;data: BodyType<InsightInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateInsightMutationOptions(options));
+    }
+
+export const getDeleteInsightUrl = (id: number,) => {
+
+
+
+
+  return `/api/insights/${id}`
+}
+
+/**
+ * @summary Remove an observation
+ */
+export const deleteInsight = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteInsightUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteInsightMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteInsight>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteInsight>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteInsight'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteInsight>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteInsight(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteInsightMutationResult = NonNullable<Awaited<ReturnType<typeof deleteInsight>>>
+
+    export type DeleteInsightMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove an observation
+ */
+export const useDeleteInsight = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteInsight>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteInsight>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteInsightMutationOptions(options));
+    }
+
+export const getListExemplarsUrl = () => {
+
+
+
+
+  return `/api/exemplars`
+}
+
+/**
+ * @summary Past filings kept as examples of how this chamber writes
+ */
+export const listExemplars = async ( options?: RequestInit): Promise<Exemplar[]> => {
+
+  return customFetch<Exemplar[]>(getListExemplarsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListExemplarsQueryKey = () => {
+    return [
+    `/api/exemplars`
+    ] as const;
+    }
+
+
+export const getListExemplarsQueryOptions = <TData = Awaited<ReturnType<typeof listExemplars>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExemplars>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListExemplarsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listExemplars>>> = ({ signal }) => listExemplars({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listExemplars>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListExemplarsQueryResult = NonNullable<Awaited<ReturnType<typeof listExemplars>>>
+export type ListExemplarsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Past filings kept as examples of how this chamber writes
+ */
+
+export function useListExemplars<TData = Awaited<ReturnType<typeof listExemplars>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listExemplars>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListExemplarsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateExemplarUrl = () => {
+
+
+
+
+  return `/api/exemplars`
+}
+
+/**
+ * Extracts the text, then runs a redaction pass over it. The result is NOT usable until a person has read and accepted it — an exemplar rides in the cached prefix of every future draft of its kind, so an unreviewed one would put another client's facts in front of unrelated work.
+ * @summary Promote a matter document to a style exemplar
+ */
+export const createExemplar = async (exemplarInput: ExemplarInput, options?: RequestInit): Promise<Exemplar> => {
+
+  return customFetch<Exemplar>(getCreateExemplarUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(exemplarInput)
+  }
+);}
+
+
+
+
+
+export const getCreateExemplarMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createExemplar>>, TError,{data: BodyType<ExemplarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createExemplar>>, TError,{data: BodyType<ExemplarInput>}, TContext> => {
+
+const mutationKey = ['createExemplar'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createExemplar>>, {data: BodyType<ExemplarInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createExemplar(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateExemplarMutationResult = NonNullable<Awaited<ReturnType<typeof createExemplar>>>
+    export type CreateExemplarMutationBody = BodyType<ExemplarInput>
+    export type CreateExemplarMutationError = ErrorType<void>
+
+    /**
+ * @summary Promote a matter document to a style exemplar
+ */
+export const useCreateExemplar = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createExemplar>>, TError,{data: BodyType<ExemplarInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createExemplar>>,
+        TError,
+        {data: BodyType<ExemplarInput>},
+        TContext
+      > => {
+      return useMutation(getCreateExemplarMutationOptions(options));
+    }
+
+export const getUpdateExemplarUrl = (id: number,) => {
+
+
+
+
+  return `/api/exemplars/${id}`
+}
+
+/**
+ * @summary Accept or correct the redacted copy
+ */
+export const updateExemplar = async (id: number,
+    exemplarPatch: ExemplarPatch, options?: RequestInit): Promise<Exemplar> => {
+
+  return customFetch<Exemplar>(getUpdateExemplarUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(exemplarPatch)
+  }
+);}
+
+
+
+
+
+export const getUpdateExemplarMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateExemplar>>, TError,{id: number;data: BodyType<ExemplarPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateExemplar>>, TError,{id: number;data: BodyType<ExemplarPatch>}, TContext> => {
+
+const mutationKey = ['updateExemplar'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateExemplar>>, {id: number;data: BodyType<ExemplarPatch>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateExemplar(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateExemplarMutationResult = NonNullable<Awaited<ReturnType<typeof updateExemplar>>>
+    export type UpdateExemplarMutationBody = BodyType<ExemplarPatch>
+    export type UpdateExemplarMutationError = ErrorType<void>
+
+    /**
+ * @summary Accept or correct the redacted copy
+ */
+export const useUpdateExemplar = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateExemplar>>, TError,{id: number;data: BodyType<ExemplarPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateExemplar>>,
+        TError,
+        {id: number;data: BodyType<ExemplarPatch>},
+        TContext
+      > => {
+      return useMutation(getUpdateExemplarMutationOptions(options));
+    }
+
+export const getDeleteExemplarUrl = (id: number,) => {
+
+
+
+
+  return `/api/exemplars/${id}`
+}
+
+/**
+ * @summary Remove an exemplar
+ */
+export const deleteExemplar = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteExemplarUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteExemplarMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteExemplar>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteExemplar>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteExemplar'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteExemplar>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteExemplar(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteExemplarMutationResult = NonNullable<Awaited<ReturnType<typeof deleteExemplar>>>
+
+    export type DeleteExemplarMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove an exemplar
+ */
+export const useDeleteExemplar = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteExemplar>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteExemplar>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteExemplarMutationOptions(options));
+    }
+
+export const getListDraftsUrl = (id: number,) => {
+
+
+
+
+  return `/api/cases/${id}/drafts`
+}
+
+/**
+ * @summary Drafts and reviews prepared for this matter
+ */
+export const listDrafts = async (id: number, options?: RequestInit): Promise<Draft[]> => {
+
+  return customFetch<Draft[]>(getListDraftsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDraftsQueryKey = (id: number,) => {
+    return [
+    `/api/cases/${id}/drafts`
+    ] as const;
+    }
+
+
+export const getListDraftsQueryOptions = <TData = Awaited<ReturnType<typeof listDrafts>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDrafts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDraftsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDrafts>>> = ({ signal }) => listDrafts(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDrafts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDraftsQueryResult = NonNullable<Awaited<ReturnType<typeof listDrafts>>>
+export type ListDraftsQueryError = ErrorType<void>
+
+
+/**
+ * @summary Drafts and reviews prepared for this matter
+ */
+
+export function useListDrafts<TData = Awaited<ReturnType<typeof listDrafts>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDrafts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDraftsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateDraftUrl = (id: number,) => {
+
+
+
+
+  return `/api/cases/${id}/drafts`
+}
+
+/**
+ * Returns immediately with a draft in `generating`; the work continues on the server and the client polls `GET /drafts/{id}`. A petition takes a minute or more to write, which is past the point where an HTTP request survives a proxy — and this way a browser that navigates away does not lose work the chamber has already paid for.
+ *
+ * Only the documents named in `documentIds` are sent, and each is re-checked against this matter and this chamber before it is read.
+ * @summary Draft a document, or review the matter
+ */
+export const createDraft = async (id: number,
+    draftInput: DraftInput, options?: RequestInit): Promise<Draft> => {
+
+  return customFetch<Draft>(getCreateDraftUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(draftInput)
+  }
+);}
+
+
+
+
+
+export const getCreateDraftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDraft>>, TError,{id: number;data: BodyType<DraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDraft>>, TError,{id: number;data: BodyType<DraftInput>}, TContext> => {
+
+const mutationKey = ['createDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDraft>>, {id: number;data: BodyType<DraftInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createDraft(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDraftMutationResult = NonNullable<Awaited<ReturnType<typeof createDraft>>>
+    export type CreateDraftMutationBody = BodyType<DraftInput>
+    export type CreateDraftMutationError = ErrorType<void>
+
+    /**
+ * @summary Draft a document, or review the matter
+ */
+export const useCreateDraft = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDraft>>, TError,{id: number;data: BodyType<DraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDraft>>,
+        TError,
+        {id: number;data: BodyType<DraftInput>},
+        TContext
+      > => {
+      return useMutation(getCreateDraftMutationOptions(options));
+    }
+
+export const getGetDraftUrl = (id: number,) => {
+
+
+
+
+  return `/api/drafts/${id}`
+}
+
+/**
+ * @summary One draft, including its progress while it is being written
+ */
+export const getDraft = async (id: number, options?: RequestInit): Promise<Draft> => {
+
+  return customFetch<Draft>(getGetDraftUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDraftQueryKey = (id: number,) => {
+    return [
+    `/api/drafts/${id}`
+    ] as const;
+    }
+
+
+export const getGetDraftQueryOptions = <TData = Awaited<ReturnType<typeof getDraft>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraft>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDraftQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDraft>>> = ({ signal }) => getDraft(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDraft>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDraftQueryResult = NonNullable<Awaited<ReturnType<typeof getDraft>>>
+export type GetDraftQueryError = ErrorType<void>
+
+
+/**
+ * @summary One draft, including its progress while it is being written
+ */
+
+export function useGetDraft<TData = Awaited<ReturnType<typeof getDraft>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDraft>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDraftQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateDraftUrl = (id: number,) => {
+
+
+
+
+  return `/api/drafts/${id}`
+}
+
+/**
+ * @summary Edit a draft, or mark it kept
+ */
+export const updateDraft = async (id: number,
+    draftPatch: DraftPatch, options?: RequestInit): Promise<Draft> => {
+
+  return customFetch<Draft>(getUpdateDraftUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(draftPatch)
+  }
+);}
+
+
+
+
+
+export const getUpdateDraftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDraft>>, TError,{id: number;data: BodyType<DraftPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDraft>>, TError,{id: number;data: BodyType<DraftPatch>}, TContext> => {
+
+const mutationKey = ['updateDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDraft>>, {id: number;data: BodyType<DraftPatch>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateDraft(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDraftMutationResult = NonNullable<Awaited<ReturnType<typeof updateDraft>>>
+    export type UpdateDraftMutationBody = BodyType<DraftPatch>
+    export type UpdateDraftMutationError = ErrorType<void>
+
+    /**
+ * @summary Edit a draft, or mark it kept
+ */
+export const useUpdateDraft = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDraft>>, TError,{id: number;data: BodyType<DraftPatch>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDraft>>,
+        TError,
+        {id: number;data: BodyType<DraftPatch>},
+        TContext
+      > => {
+      return useMutation(getUpdateDraftMutationOptions(options));
+    }
+
+export const getDeleteDraftUrl = (id: number,) => {
+
+
+
+
+  return `/api/drafts/${id}`
+}
+
+/**
+ * Removes the draft. The spend it caused stays on the record — the tokens were used whether or not the output was kept, and a budget derived from rows a chamber can delete would not be a budget.
+ * @summary Discard a draft
+ */
+export const deleteDraft = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteDraftUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteDraftMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteDraft>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteDraft'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteDraft>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteDraft(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteDraftMutationResult = NonNullable<Awaited<ReturnType<typeof deleteDraft>>>
+
+    export type DeleteDraftMutationError = ErrorType<void>
+
+    /**
+ * @summary Discard a draft
+ */
+export const useDeleteDraft = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteDraft>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteDraft>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteDraftMutationOptions(options));
     }
 
 export const getListAccessListUrl = () => {

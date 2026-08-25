@@ -943,6 +943,417 @@ export const TriggerCauseListSyncResponse = zod.object({
 
 
 /**
+ * Visible from the first day of the period rather than at the moment of refusal. A hard limit nobody could see coming is an outage; the same limit with a meter beside it is a budget.
+ * @summary What is left of this chamber's drafting budget
+ */
+export const GetAiBudgetResponse = zod.object({
+  "plan": zod.string(),
+  "allowanceMinor": zod.number().describe('What the plan grants for this period, in paise.'),
+  "topupMinor": zod.number().describe('Unexpired top-up grants, in paise. These carry forward; the allowance does not.'),
+  "spentMinor": zod.number(),
+  "remainingMinor": zod.number(),
+  "resetsAt": zod.coerce.date().nullish(),
+  "tier": zod.enum(['full', 'economy']).describe('`economy` routes everything to the lighter model. It is what the trial runs on, so an evaluation cannot spend a plan\'s worth of tokens on one petition.\n'),
+  "draftingEnabled": zod.boolean().describe('Whether an admin has switched drafting on for this chamber.'),
+  "configured": zod.boolean().optional().describe('Whether the deployment has an API key at all. False means every draft is served by the preview stub — useful to know before wondering why the output reads oddly.\n')
+})
+
+
+/**
+ * Off until an admin turns it on, having read what leaves the server. Drafting sends matter facts — and whichever documents an advocate ticks — to a third party. That is a decision a practice makes deliberately, and this records who made it and when.
+ * @summary Turn AI drafting on or off for this chamber (admin only)
+ */
+export const SetDraftingEnabledBody = zod.object({
+  "enabled": zod.boolean(),
+  "acknowledgement": zod.string().optional().describe('The disclosure text the admin accepted, recorded verbatim.')
+})
+
+export const SetDraftingEnabledResponse = zod.object({
+  "draftingEnabled": zod.boolean(),
+  "draftingEnabledBy": zod.string().nullish(),
+  "draftingEnabledAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary What this chamber's advocates have learned
+ */
+export const ListInsightsQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Full-text filter. Omit for the most recent.')
+})
+
+export const ListInsightsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "tags": zod.string(),
+  "courtId": zod.number().nullish(),
+  "courtName": zod.string().nullish(),
+  "caseTypeNorm": zod.string().nullish(),
+  "authorName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+})
+export const ListInsightsResponse = zod.array(ListInsightsResponseItem)
+
+
+/**
+ * @summary Record an observation from practice
+ */
+export const createInsightBodyTitleMin = 3;
+export const createInsightBodyTitleMax = 200;
+
+export const createInsightBodyBodyMax = 8000;
+
+export const createInsightBodyTagsMax = 300;
+
+
+
+export const CreateInsightBody = zod.object({
+  "title": zod.string().min(createInsightBodyTitleMin).max(createInsightBodyTitleMax),
+  "body": zod.string().max(createInsightBodyBodyMax).optional(),
+  "tags": zod.string().max(createInsightBodyTagsMax).optional(),
+  "courtId": zod.number().nullish(),
+  "caseType": zod.string().nullish().describe('As typed. Normalised on write so retrieval compares as equality.')
+})
+
+export const CreateInsightResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "tags": zod.string(),
+  "courtId": zod.number().nullish(),
+  "courtName": zod.string().nullish(),
+  "caseTypeNorm": zod.string().nullish(),
+  "authorName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Correct an observation
+ */
+export const UpdateInsightParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateInsightBodyTitleMin = 3;
+export const updateInsightBodyTitleMax = 200;
+
+export const updateInsightBodyBodyMax = 8000;
+
+export const updateInsightBodyTagsMax = 300;
+
+
+
+export const UpdateInsightBody = zod.object({
+  "title": zod.string().min(updateInsightBodyTitleMin).max(updateInsightBodyTitleMax),
+  "body": zod.string().max(updateInsightBodyBodyMax).optional(),
+  "tags": zod.string().max(updateInsightBodyTagsMax).optional(),
+  "courtId": zod.number().nullish(),
+  "caseType": zod.string().nullish().describe('As typed. Normalised on write so retrieval compares as equality.')
+})
+
+export const UpdateInsightResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "tags": zod.string(),
+  "courtId": zod.number().nullish(),
+  "courtName": zod.string().nullish(),
+  "caseTypeNorm": zod.string().nullish(),
+  "authorName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Remove an observation
+ */
+export const DeleteInsightParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteInsightResponse = zod.void()
+
+
+/**
+ * @summary Past filings kept as examples of how this chamber writes
+ */
+export const ListExemplarsResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter']),
+  "title": zod.string(),
+  "body": zod.string().describe('The redacted copy. This, and only this, is what reaches a prompt.'),
+  "sourceDocumentId": zod.number().nullish(),
+  "anonymisedAt": zod.coerce.date().nullish(),
+  "reviewedAt": zod.coerce.date().nullish().describe('Null means unusable. An exemplar is not assembled into any prompt until a person has read the redacted copy and accepted it.\n'),
+  "reviewedBy": zod.string().nullish(),
+  "active": zod.boolean(),
+  "addedByName": zod.string().optional(),
+  "createdAt": zod.coerce.date()
+})
+export const ListExemplarsResponse = zod.array(ListExemplarsResponseItem)
+
+
+/**
+ * Extracts the text, then runs a redaction pass over it. The result is NOT usable until a person has read and accepted it — an exemplar rides in the cached prefix of every future draft of its kind, so an unreviewed one would put another client's facts in front of unrelated work.
+ * @summary Promote a matter document to a style exemplar
+ */
+export const createExemplarBodyTitleMin = 3;
+export const createExemplarBodyTitleMax = 200;
+
+export const createExemplarBodyTextMax = 200000;
+
+
+
+export const CreateExemplarBody = zod.object({
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter']),
+  "title": zod.string().min(createExemplarBodyTitleMin).max(createExemplarBodyTitleMax),
+  "documentId": zod.number().nullish().describe('A document on one of this chamber\'s matters, to promote.'),
+  "text": zod.string().max(createExemplarBodyTextMax).optional().describe('Pasted text, when the example is not already a stored document.')
+})
+
+export const CreateExemplarResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter']),
+  "title": zod.string(),
+  "body": zod.string().describe('The redacted copy. This, and only this, is what reaches a prompt.'),
+  "sourceDocumentId": zod.number().nullish(),
+  "anonymisedAt": zod.coerce.date().nullish(),
+  "reviewedAt": zod.coerce.date().nullish().describe('Null means unusable. An exemplar is not assembled into any prompt until a person has read the redacted copy and accepted it.\n'),
+  "reviewedBy": zod.string().nullish(),
+  "active": zod.boolean(),
+  "addedByName": zod.string().optional(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Accept or correct the redacted copy
+ */
+export const UpdateExemplarParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateExemplarBodyTitleMax = 200;
+
+export const updateExemplarBodyBodyMax = 200000;
+
+
+
+export const UpdateExemplarBody = zod.object({
+  "title": zod.string().max(updateExemplarBodyTitleMax).optional(),
+  "body": zod.string().max(updateExemplarBodyBodyMax).optional().describe('The corrected redaction.'),
+  "approve": zod.boolean().optional().describe('Accept the redacted copy and make the exemplar usable.'),
+  "active": zod.boolean().optional()
+})
+
+export const UpdateExemplarResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter']),
+  "title": zod.string(),
+  "body": zod.string().describe('The redacted copy. This, and only this, is what reaches a prompt.'),
+  "sourceDocumentId": zod.number().nullish(),
+  "anonymisedAt": zod.coerce.date().nullish(),
+  "reviewedAt": zod.coerce.date().nullish().describe('Null means unusable. An exemplar is not assembled into any prompt until a person has read the redacted copy and accepted it.\n'),
+  "reviewedBy": zod.string().nullish(),
+  "active": zod.boolean(),
+  "addedByName": zod.string().optional(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove an exemplar
+ */
+export const DeleteExemplarParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteExemplarResponse = zod.void()
+
+
+/**
+ * @summary Drafts and reviews prepared for this matter
+ */
+export const ListDraftsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListDraftsResponseItem = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'review']),
+  "title": zod.string(),
+  "instruction": zod.string().optional(),
+  "body": zod.string(),
+  "status": zod.enum(['generating', 'ready', 'failed', 'kept']),
+  "error": zod.string().nullish(),
+  "model": zod.string().optional(),
+  "parentDraftId": zod.number().nullish(),
+  "createdByName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "sources": zod.array(zod.object({
+  "kind": zod.enum(['document', 'insight', 'exemplar', 'matter']),
+  "sourceId": zod.number().nullish(),
+  "label": zod.string(),
+  "tokens": zod.number().optional()
+})).optional().describe('Exactly what was sent to produce this. The record of what left the server.'),
+  "unreadable": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string(),
+  "note": zod.string()
+})).optional().describe('Documents the advocate selected that yielded no text — almost always scans. Surfaced because a document that contributed nothing must not be silently counted as context.\n')
+})
+export const ListDraftsResponse = zod.array(ListDraftsResponseItem)
+
+
+/**
+ * Returns immediately with a draft in `generating`; the work continues on the server and the client polls `GET /drafts/{id}`. A petition takes a minute or more to write, which is past the point where an HTTP request survives a proxy — and this way a browser that navigates away does not lose work the chamber has already paid for.
+ *
+ * Only the documents named in `documentIds` are sent, and each is re-checked against this matter and this chamber before it is read.
+ * @summary Draft a document, or review the matter
+ */
+export const CreateDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createDraftBodyInstructionMin = 5;
+export const createDraftBodyInstructionMax = 4000;
+
+export const createDraftBodyDocumentIdsMax = 20;
+
+
+
+export const CreateDraftBody = zod.object({
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'review']),
+  "instruction": zod.string().min(createDraftBodyInstructionMin).max(createDraftBodyInstructionMax),
+  "documentIds": zod.array(zod.number()).max(createDraftBodyDocumentIdsMax).optional().describe('The ONLY documents that will be sent. Each is re-checked against this matter and this chamber before it is read.\n'),
+  "parentDraftId": zod.number().nullish().describe('Set when revising, so versions chain rather than overwrite.')
+})
+
+export const CreateDraftResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'review']),
+  "title": zod.string(),
+  "instruction": zod.string().optional(),
+  "body": zod.string(),
+  "status": zod.enum(['generating', 'ready', 'failed', 'kept']),
+  "error": zod.string().nullish(),
+  "model": zod.string().optional(),
+  "parentDraftId": zod.number().nullish(),
+  "createdByName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "sources": zod.array(zod.object({
+  "kind": zod.enum(['document', 'insight', 'exemplar', 'matter']),
+  "sourceId": zod.number().nullish(),
+  "label": zod.string(),
+  "tokens": zod.number().optional()
+})).optional().describe('Exactly what was sent to produce this. The record of what left the server.'),
+  "unreadable": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string(),
+  "note": zod.string()
+})).optional().describe('Documents the advocate selected that yielded no text — almost always scans. Surfaced because a document that contributed nothing must not be silently counted as context.\n')
+})
+
+
+/**
+ * @summary One draft, including its progress while it is being written
+ */
+export const GetDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetDraftResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'review']),
+  "title": zod.string(),
+  "instruction": zod.string().optional(),
+  "body": zod.string(),
+  "status": zod.enum(['generating', 'ready', 'failed', 'kept']),
+  "error": zod.string().nullish(),
+  "model": zod.string().optional(),
+  "parentDraftId": zod.number().nullish(),
+  "createdByName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "sources": zod.array(zod.object({
+  "kind": zod.enum(['document', 'insight', 'exemplar', 'matter']),
+  "sourceId": zod.number().nullish(),
+  "label": zod.string(),
+  "tokens": zod.number().optional()
+})).optional().describe('Exactly what was sent to produce this. The record of what left the server.'),
+  "unreadable": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string(),
+  "note": zod.string()
+})).optional().describe('Documents the advocate selected that yielded no text — almost always scans. Surfaced because a document that contributed nothing must not be silently counted as context.\n')
+})
+
+
+/**
+ * @summary Edit a draft, or mark it kept
+ */
+export const UpdateDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateDraftBodyBodyMax = 400000;
+
+export const updateDraftBodyTitleMax = 200;
+
+
+
+export const UpdateDraftBody = zod.object({
+  "body": zod.string().max(updateDraftBodyBodyMax).optional(),
+  "title": zod.string().max(updateDraftBodyTitleMax).optional(),
+  "keep": zod.boolean().optional().describe('Mark the draft as one the chamber is keeping.')
+})
+
+export const UpdateDraftResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'review']),
+  "title": zod.string(),
+  "instruction": zod.string().optional(),
+  "body": zod.string(),
+  "status": zod.enum(['generating', 'ready', 'failed', 'kept']),
+  "error": zod.string().nullish(),
+  "model": zod.string().optional(),
+  "parentDraftId": zod.number().nullish(),
+  "createdByName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "sources": zod.array(zod.object({
+  "kind": zod.enum(['document', 'insight', 'exemplar', 'matter']),
+  "sourceId": zod.number().nullish(),
+  "label": zod.string(),
+  "tokens": zod.number().optional()
+})).optional().describe('Exactly what was sent to produce this. The record of what left the server.'),
+  "unreadable": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string(),
+  "note": zod.string()
+})).optional().describe('Documents the advocate selected that yielded no text — almost always scans. Surfaced because a document that contributed nothing must not be silently counted as context.\n')
+})
+
+
+/**
+ * Removes the draft. The spend it caused stays on the record — the tokens were used whether or not the output was kept, and a budget derived from rows a chamber can delete would not be a budget.
+ * @summary Discard a draft
+ */
+export const DeleteDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteDraftResponse = zod.void()
+
+
+/**
  * @summary Email addresses and domains admitted to this workspace (admin only)
  */
 export const ListAccessListResponseItem = zod.object({

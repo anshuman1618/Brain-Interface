@@ -64,6 +64,27 @@ export const CAPABILITIES = [
   "audit.read",
   /** Decide erasure requests. Sits with access control, not billing. */
   "privacy.manage",
+  /**
+   * Draft and review documents with AI, and write chamber insights.
+   *
+   * A practice capability, held by admin and both advocate tiers. Deliberately
+   * NOT held by clerk_intern: settling a pleading is not clerical work, and a
+   * drafting request spends the chamber's money — a clerk who can burn the
+   * month's budget on Tuesday is a support call, not a feature.
+   *
+   * Never held by a client. It reads across the whole matter file.
+   */
+  "drafting.use",
+  /**
+   * Buy more drafting budget when the allowance runs out.
+   *
+   * A SEPARATE capability rather than `billing.manage`, and that is the point.
+   * `billing.manage` is admin-only on purpose — senior_advocate is a practice
+   * tier, not a management one, and handing it billing to enable a top-up would
+   * also hand it the plan, the payment methods and the subscription. This grants
+   * exactly one power: spend a bounded amount on drafting for this chamber.
+   */
+  "ai_topup.purchase",
 ] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 
@@ -102,6 +123,10 @@ const ADVOCATE_CAPABILITIES = [
   "calendar.read",
   "time.write",
   "time.read",
+  // Drafting is practice work, so both advocate tiers hold it. A junior who
+  // cannot produce a first draft is a junior who cannot do the job they were
+  // hired for; the budget is what bounds the cost, not the role.
+  "drafting.use",
 ] as const satisfies readonly Capability[];
 
 /**
@@ -136,6 +161,11 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
       // it — you cannot sensibly reply to a review you were never shown.
       "feedback.read",
       "feedback.respond",
+      // Buying drafting budget, and nothing else billing-shaped. See the note
+      // on the capability itself: this exists precisely so a senior advocate
+      // can keep the chamber drafting mid-month without being handed the plan
+      // and the payment methods along with it.
+      "ai_topup.purchase",
     ],
     caseScope: "all",
     taskScope: "all",

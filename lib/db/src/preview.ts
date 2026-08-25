@@ -493,6 +493,101 @@ CREATE TABLE IF NOT EXISTS service_enquiries (
   status TEXT NOT NULL DEFAULT 'new',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS chamber_insights (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  tags TEXT NOT NULL DEFAULT '',
+  court_id INTEGER,
+  case_type_norm TEXT,
+  author_clerk_id TEXT NOT NULL DEFAULT '',
+  author_name TEXT NOT NULL DEFAULT '',
+  author_role TEXT NOT NULL DEFAULT '',
+  shared_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS style_exemplars (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'petition',
+  title TEXT NOT NULL,
+  source_document_id INTEGER,
+  source_text TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  anonymised_at TIMESTAMPTZ,
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  added_by_clerk_id TEXT NOT NULL DEFAULT '',
+  added_by_name TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS drafts (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'petition',
+  title TEXT NOT NULL DEFAULT '',
+  instruction TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'generating',
+  error TEXT,
+  model TEXT NOT NULL DEFAULT '',
+  parent_draft_id INTEGER,
+  created_by_clerk_id TEXT NOT NULL DEFAULT '',
+  created_by_name TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS draft_sources (
+  id SERIAL PRIMARY KEY,
+  draft_id INTEGER NOT NULL,
+  workspace_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  source_id INTEGER,
+  label TEXT NOT NULL DEFAULT '',
+  tokens INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ai_usage_events (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  draft_id INTEGER,
+  purpose TEXT NOT NULL DEFAULT 'draft',
+  model TEXT NOT NULL DEFAULT '',
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+  web_searches INTEGER NOT NULL DEFAULT 0,
+  cost_minor INTEGER NOT NULL DEFAULT 0,
+  dedupe_key TEXT NOT NULL,
+  actor_clerk_id TEXT NOT NULL DEFAULT '',
+  at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT ai_usage_events_dedupe_key UNIQUE (dedupe_key)
+);
+
+CREATE TABLE IF NOT EXISTS ai_topups (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  pack TEXT NOT NULL,
+  price_minor INTEGER NOT NULL DEFAULT 0,
+  grant_minor INTEGER NOT NULL DEFAULT 0,
+  order_id TEXT,
+  payment_id TEXT,
+  expires_at TIMESTAMPTZ,
+  bought_by_clerk_id TEXT NOT NULL DEFAULT '',
+  bought_by_name TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 /**
@@ -574,6 +669,24 @@ ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_number INTEGER;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_year INTEGER;
 ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
 ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS cause_list_entry_id INTEGER;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled_by TEXT;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled_at TIMESTAMPTZ;
+-- Insight retrieval. Full text rather than trigram or vector: neither pg_trgm
+-- nor pgvector exists in PGlite, so an embedding retriever would be a
+-- production-only path no suite here could ever exercise.
+CREATE INDEX IF NOT EXISTS chamber_insights_workspace_idx
+  ON chamber_insights (workspace_id);
+CREATE INDEX IF NOT EXISTS chamber_insights_fts_idx ON chamber_insights
+  USING GIN (to_tsvector('simple',
+    coalesce(title, '') || ' ' || coalesce(body, '') || ' ' || coalesce(tags, '')));
+CREATE INDEX IF NOT EXISTS style_exemplars_workspace_kind_idx
+  ON style_exemplars (workspace_id, kind);
+CREATE INDEX IF NOT EXISTS drafts_workspace_case_idx ON drafts (workspace_id, case_id);
+CREATE INDEX IF NOT EXISTS draft_sources_draft_idx ON draft_sources (draft_id);
+CREATE INDEX IF NOT EXISTS ai_usage_events_workspace_at_idx
+  ON ai_usage_events (workspace_id, at);
+CREATE INDEX IF NOT EXISTS ai_topups_workspace_idx ON ai_topups (workspace_id);
 `;
 
 /** Where the preview database lives on disk. */

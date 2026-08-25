@@ -15,8 +15,8 @@ import type { BillingPeriod, SubscriptionPlan } from "@workspace/db";
  *
  *   trial   a fixed two-month pack at Rs 99 TOTAL. Not a monthly rate, and not
  *           renewable — you buy it once to evaluate the product.
- *   pro     Rs 1,999 a month, billed monthly, half-yearly or yearly.
- *   firm    Rs 4,999 a month, same three terms.
+ *   pro     Rs 2,499 a month, billed monthly, half-yearly or yearly.
+ *   firm    Rs 7,999 a month, same three terms.
  *   custom  no price at all. A curated deployment is scoped and quoted by a
  *           person, so the app records an ENQUIRY and never a plan that is in
  *           force. See `activatesOnSelection` below — this is a security
@@ -27,8 +27,8 @@ export const CURRENCY = "INR";
 
 /** Monthly list price, in paise, for the plans that have one. */
 const MONTHLY_MINOR: Partial<Record<SubscriptionPlan, number>> = {
-  pro: 199_900, // Rs 1,999
-  firm: 499_900, // Rs 4,999
+  pro: 249_900, // Rs 2,499
+  firm: 799_900, // Rs 7,999
 };
 
 /** The trial pack: a total, not a rate. Two months of service for Rs 99. */
@@ -225,21 +225,115 @@ export function periodLabel(billingPeriod: BillingPeriod): string {
  * custom plan must not be a free upgrade to unlimited. It tracks trial rather
  * than holding its own numbers so the two cannot drift apart.
  */
-export type PlanLimits = { matters: number | null; seats: number | null };
+export type PlanLimits = {
+  matters: number | null;
+  seats: number | null;
+  /**
+   * What the chamber may spend on AI drafting per billing period, in paise.
+   *
+   * **Per chamber, flat** — not per seat. A ten-seat Firm and a two-seat Firm
+   * share the same allowance, which makes the platform's total exposure exactly
+   * `chambers × budget` and knowable in advance. The alternative, scaling with
+   * headcount, prices bigger chambers more fairly and makes the bill
+   * unforecastable, which is the wrong trade while the feature is new.
+   *
+   * Never null. `null` here would mean an unlimited spend of somebody else's
+   * money, and there is no plan expensive enough to make that safe: a single
+   * chamber running long petitions all month can outspend any subscription.
+   * Firm is the most generous and it is still a number.
+   */
+  aiBudgetMinor: number;
+  /**
+   * Which models this plan may reach.
+   *
+   * `full` routes by document kind — Opus 5 for petitions, Sonnet 5 for short
+   * applications. `economy` sends everything to Sonnet 5 regardless. The trial
+   * is `economy` so a ₹99 evaluation cannot spend ₹30 a draft; it sees the
+   * feature work end to end, at roughly a third of the cost.
+   */
+  aiTier: "full" | "economy";
+};
 
 export const FALLBACK_PLAN: SubscriptionPlan = "trial";
 
-const TRIAL_LIMITS: PlanLimits = { matters: 10, seats: 5 };
+/**
+ * The trial's AI allowance: ₹40 for the whole two months, Sonnet only.
+ *
+ * Sold at a loss on purpose and capped tightly. Drafting is what will sell this
+ * product, so a trial that cannot demonstrate it is not an evaluation — but the
+ * pack costs ₹99 in total, so the allowance has to stay a fraction of that.
+ * At `economy` rates ₹40 is roughly eight short applications.
+ */
+const TRIAL_LIMITS: PlanLimits = {
+  matters: 10,
+  seats: 5,
+  aiBudgetMinor: 4_000, // ₹40, for the two-month pack rather than per month
+  aiTier: "economy",
+};
 
+/*
+ * The paid budgets, as a share of what the plan costs:
+ *
+ *   Pro    ₹600 of ₹2,499     24%
+ *   Firm   ₹3,000 of ₹7,999   37%
+ *
+ * Firm's share is high, and deliberately so — it is the plan drafting is sold
+ * on. Watch `ai_usage_events` for a month before deciding whether it holds:
+ * these are two constants, and the honest way to set them is from what chambers
+ * actually spend rather than from an estimate made before anyone had used it.
+ */
 const LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   trial: TRIAL_LIMITS,
-  pro: { matters: null, seats: 10 },
-  firm: { matters: null, seats: null },
+  pro: { matters: null, seats: 10, aiBudgetMinor: 60_000, aiTier: "full" },
+  firm: { matters: null, seats: null, aiBudgetMinor: 300_000, aiTier: "full" },
   custom: TRIAL_LIMITS,
 };
 
 export function limitsFor(plan: SubscriptionPlan): PlanLimits {
   return LIMITS[plan] ?? LIMITS[FALLBACK_PLAN];
+}
+
+/* ── Top-up packs ────────────────────────────────────────────────────────
+ *
+ * What an admin or senior advocate buys when the month's drafting budget is
+ * gone.
+ *
+ * `grantMinor` is what lands in the chamber's drafting balance; `priceMinor` is
+ * what they pay. They are kept as two fields, and set EQUAL, so the margin is a
+ * number somebody can change rather than an assumption baked into one figure.
+ *
+ * Equal means top-ups are sold **at cost**: a chamber paying ₹500 gets ₹500 of
+ * real token spend. That is the literal reading of "₹600 dedicated budget for
+ * AI" — the budget is measured in what the tokens actually cost, so it
+ * self-adjusts if model prices move and nothing here has to be recalculated.
+ *
+ * The trade, stated plainly because it is easy to miss: the heaviest chambers
+ * are then the least profitable, since every rupee past the plan allowance
+ * earns nothing. If that turns out to matter, halving `grantMinor` here is a
+ * one-line 2× markup — but do it by changing this constant, not by quietly
+ * denominating the customer-facing meter in some other unit.
+ *
+ * These ROLL OVER while the subscription stays live, unlike the monthly plan
+ * budget, which resets. That is a deliberate customer-friendly choice and it
+ * creates a real liability: unspent top-up balance is drafting you owe. It is
+ * small at this scale, it is visible in `ai_topups`, and it is worth knowing it
+ * exists rather than discovering it.
+ */
+export type TopupPack = {
+  code: "small" | "medium" | "large";
+  label: string;
+  priceMinor: number;
+  grantMinor: number;
+};
+
+export const TOPUP_PACKS: readonly TopupPack[] = [
+  { code: "small", label: "₹500 drafting top-up", priceMinor: 50_000, grantMinor: 50_000 },
+  { code: "medium", label: "₹1,000 drafting top-up", priceMinor: 100_000, grantMinor: 100_000 },
+  { code: "large", label: "₹2,500 drafting top-up", priceMinor: 250_000, grantMinor: 250_000 },
+] as const;
+
+export function topupPack(code: string): TopupPack | null {
+  return TOPUP_PACKS.find((p) => p.code === code) ?? null;
 }
 
 /** Every plan's allowance, for the pricing screen and the quota display. */

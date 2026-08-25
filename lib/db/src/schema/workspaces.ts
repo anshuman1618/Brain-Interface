@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -43,6 +43,21 @@ export const workspacesTable = pgTable("workspaces", {
   defaultPaymentTerms: text("default_payment_terms").notNull().default(""),
   /** Days from issue to due date. */
   defaultPaymentDays: integer("default_payment_days").notNull().default(30),
+  /**
+   * Whether this chamber has switched AI drafting on. Off until an admin says so.
+   *
+   * Not a feature flag and not a convenience. Drafting sends matter facts — and
+   * whichever documents an advocate ticks — to a third party's servers. That is
+   * a decision a practice makes deliberately, once, having read what leaves and
+   * where it goes. A default of `true` would make it a decision nobody made.
+   *
+   * Checked server-side on every drafting request, not merely used to hide a
+   * button: the button is cosmetic and the column is the control.
+   */
+  draftingEnabled: boolean("drafting_enabled").notNull().default(false),
+  /** Who turned it on, and when. The record that the disclosure was accepted. */
+  draftingEnabledBy: text("drafting_enabled_by"),
+  draftingEnabledAt: timestamp("drafting_enabled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

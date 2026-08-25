@@ -159,6 +159,24 @@ const expensiveRead = rateLimit({ name: "expensive", max: 20, windowMs: 60_000, 
 app.use("/api/kpi/performance", expensiveRead);
 app.use("/api/invoices/:id/pdf", expensiveRead);
 
+/*
+ * Drafting is the most expensive thing this server does, in real money.
+ *
+ * The budget in `lib/ai/budget.ts` bounds the monthly SPEND; this bounds the
+ * RATE, which is a different failure. A loop firing drafting requests as fast
+ * as it can would burn a chamber's whole month in under a minute — the budget
+ * would stop it eventually, having already spent it. Six a minute is more than
+ * any person drafts and far less than a script.
+ */
+app.use(
+  "/api/cases/:id/drafts",
+  rateLimit({ name: "drafting", max: 6, windowMs: 60_000, perUser: true }),
+);
+app.use(
+  "/api/exemplars",
+  rateLimit({ name: "drafting-exemplar", max: 10, windowMs: 60_000, perUser: true }),
+);
+
 app.use("/api", (req, res, next) =>
   req.method === "GET" || req.method === "HEAD"
     ? rateLimit({ name: "read", max: 300, windowMs: 60_000, perUser: true })(req, res, next)

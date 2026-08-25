@@ -25,6 +25,7 @@ const SUITES = [
   ["case-restriction", "Restrict to Case ID, via both grant paths"],
   ["bar-registration", "Bar enrolment gate for practice roles"],
   ["cause-list", "Court cause lists: fetch, match, propose, accept"],
+  ["drafting", "AI drafting: the gates, the budget, and what leaves the server"],
   ["operator", "Operator metrics: the allowlist, and the numbers"],
   ["blob-storage", "File storage: the R2 signer and the backend choice"],
   ["phone-identity", "Mobile numbers: normalisation to E.164"],

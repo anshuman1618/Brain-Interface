@@ -810,6 +810,42 @@ Two additions to §3's picture:
   `requireCapability("billing.manage")` — admin alone. The PDF route is on the
   same gate, so a link to it leaks nothing to a non-member.
 
+### AI drafting: the path a draft actually takes
+
+`/api/insights*`, `/api/exemplars*`, `/api/drafts*`, `/api/cases/:id/drafts` and
+`/api/ai/budget` all run `requireWorkspace` → `requireCapability("drafting.use")`.
+Anything that can reach a model then passes a **third** gate that is not a
+middleware: `workspaces.drafting_enabled`, the chamber's own opt-in, checked
+inside the handler. `/api/workspace/drafting` (which sets it) is
+`access_control.manage` — admin alone. `/api/ai/topups` is `ai_topup.purchase`,
+held by admin and senior advocate and deliberately **not** `billing.manage`.
+
+`app.ts` rate-limits `/api/cases/:id/drafts` at 6/min and `/api/exemplars` at
+10/min, on top of the budget. The budget bounds the monthly spend; the limiter
+bounds the rate, which is a different failure.
+
+Inside `lib/ai/drafting.ts` the order is load-bearing:
+
+```
+assemble context  →  estimate cost  →  check budget  →  write draft row
+      ↓                                                       ↓
+  404 if the matter                                    write draft_sources
+  is not the caller's            402 if over budget    (what left the server)
+                                                              ↓
+                                                        call the model
+                                                              ↓
+                                              record spend  →  update draft row
+```
+
+The draft row is written **before** the call so a request that dies mid-stream
+leaves visible evidence that tokens were spent; spend is recorded on the failure
+path too, so a failing loop is not free to run.
+
+`lib/ai/` is the only place the Anthropic SDK is imported, and it is server-side
+only. `usingStubModel()` — true whenever `isPreviewDatabase()` or no
+`ANTHROPIC_API_KEY` — swaps in a deterministic stand-in, which is what lets all
+fifteen suites run without spending anything.
+
 ### Verification
 
 Each phase was driven in a real browser (Playwright, Chromium) against the app

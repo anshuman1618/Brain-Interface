@@ -33,6 +33,13 @@ async function buildAll() {
       // which dynamic-imports it. Bundling would pull the WASM payload into
       // every production build and break at load time.
       "@electric-sql/pglite",
+      // Bundles a copy of pdf.js that evaluates `new DOMMatrix()` at module
+      // scope. Node has no DOMMatrix, so bundling it crashes the server at
+      // IMPORT time — before a line of application code runs, and whether or
+      // not anything ever reads a PDF. Left external it resolves from
+      // node_modules at runtime and works; `lib/ai/extract.ts` also imports it
+      // lazily, so a deployment that never extracts a document never loads it.
+      "pdf-parse",
       "sharp",
       "better-sqlite3",
       "sqlite3",

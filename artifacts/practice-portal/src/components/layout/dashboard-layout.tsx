@@ -23,6 +23,8 @@ const InvitesPage = lazy(() => import("@/pages/invites"));
 const ClientPortalPage = lazy(() => import("@/pages/client-portal"));
 const CalendarPage = lazy(() => import("@/pages/calendar"));
 const CauseListPage = lazy(() => import("@/pages/cause-list"));
+const DraftingPage = lazy(() => import("@/pages/drafting"));
+const ChamberKnowledgePage = lazy(() => import("@/pages/chamber-knowledge"));
 const DocumentsPage = lazy(() => import("@/pages/documents"));
 const FeedbackPage = lazy(() => import("@/pages/feedback"));
 const TeamPage = lazy(() => import("@/pages/team"));
@@ -52,6 +54,8 @@ import {
   MoreVertical,
   History,
   Receipt,
+  PenLine,
+  Lightbulb,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -145,6 +149,13 @@ function DashboardLayoutContent() {
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: can("calendar.read") },
     { href: "/cause-list", label: "Court Listings", icon: Gavel, show: can("calendar.read") },
+    { href: "/drafting", label: "Drafting", icon: PenLine, show: can("drafting.use") },
+    {
+      href: "/chamber-knowledge",
+      label: "Chamber Knowledge",
+      icon: Lightbulb,
+      show: can("drafting.use"),
+    },
     {
       href: "/client-portal",
       label: "My Portal",
@@ -358,6 +369,30 @@ function DashboardLayoutContent() {
                     <RequireCapability capability="calendar.read">
                       <ErrorBoundary label="Court Listings">
                         <CauseListPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  {/* Both behind drafting.use — practice roles only. A clerk
+                      keeps the diary but does not settle pleadings, and a
+                      drafting request spends the chamber's money. */}
+                  <Route path="/drafting/:caseId">
+                    <RequireCapability capability="drafting.use">
+                      <ErrorBoundary label="Drafting">
+                        <DraftingPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/drafting">
+                    <RequireCapability capability="drafting.use">
+                      <ErrorBoundary label="Drafting">
+                        <DraftingPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/chamber-knowledge">
+                    <RequireCapability capability="drafting.use">
+                      <ErrorBoundary label="Chamber Knowledge">
+                        <ChamberKnowledgePage />
                       </ErrorBoundary>
                     </RequireCapability>
                   </Route>

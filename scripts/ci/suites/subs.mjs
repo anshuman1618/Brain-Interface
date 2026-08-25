@@ -129,10 +129,10 @@ check(
   "...and the saving is the 2 free months",
   yearlyPro.savingsMinor === monthlyPro.amountMinor * 2,
 );
-check("Pro is Rs 1,999 a month", monthlyPro.amountMinor === 199900, String(monthlyPro.amountMinor));
+check("Pro is Rs 2,499 a month", monthlyPro.amountMinor === 249900, String(monthlyPro.amountMinor));
 check(
-  "Firm is Rs 4,999 a month",
-  monthlyFirm.amountMinor === 499900,
+  "Firm is Rs 7,999 a month",
+  monthlyFirm.amountMinor === 799900,
   String(monthlyFirm.amountMinor),
 );
 check("half-yearly gives one month free", halfPro.freeMonths === 1 && halfPro.paidMonths === 5);
