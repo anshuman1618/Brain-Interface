@@ -4,6 +4,8 @@ import {
   db,
   subscriptionsTable,
   paymentEventsTable,
+  aiTopupsTable,
+  usersTable,
   isSubscriptionPlan,
   isBillingPeriod,
 } from "@workspace/db";
@@ -13,7 +15,14 @@ import {
   ctx,
   type AuthRequest,
 } from "../middlewares/requireAuth";
-import { activatesOnSelection, normalisePeriod, periodEnd, quote } from "../lib/plans";
+import {
+  activatesOnSelection,
+  normalisePeriod,
+  periodEnd,
+  quote,
+  topupPack,
+  TOPUP_PACKS,
+} from "../lib/plans";
 import { createOrder, paymentsEnabled, razorpayConfig } from "../lib/razorpay";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
@@ -77,6 +86,19 @@ router.post(
       return;
     }
 
+    // One trial per person, ever. Checked against the buyer rather than the
+    // chamber, because founding a second chamber is the obvious way to try for
+    // a second trial and it costs nothing to do.
+    if (body.plan === "trial" && c.user.trialClaimedAt) {
+      res.status(409).json({
+        error: "trial_already_used",
+        message:
+          "The two-month trial pack can be taken once. Choose Pro or Firm to continue, " +
+          "or talk to us about a custom plan.",
+      });
+      return;
+    }
+
     // A quote-only plan has nothing to charge for, and charging for it would be
     // charging a price nobody has agreed.
     if (!activatesOnSelection(body.plan)) {
@@ -100,6 +122,9 @@ router.post(
           workspaceId: String(c.workspaceId),
           plan: body.plan,
           billingPeriod: period,
+          // Who bought it, so the webhook can record a trial against the person
+          // rather than only against the chamber.
+          boughtBy: c.user.clerkId,
         },
       });
 
@@ -122,6 +147,95 @@ router.post(
       });
     } catch (err) {
       logger.error({ err, workspaceId: c.workspaceId }, "Could not create payment order");
+      res.status(502).json({
+        error: "Payment provider error",
+        message: "The payment provider could not be reached. Nothing has been charged.",
+      });
+    }
+  },
+);
+
+/* ── Drafting top-ups ──────────────────────────────────────────────────── */
+
+/**
+ * Buy more drafting budget when the month's allowance is gone.
+ *
+ * Held to `ai_topup.purchase` rather than `billing.manage`, which is admin
+ * only. A senior advocate running the practice's work should be able to keep
+ * the chamber drafting on a Friday afternoon without also being handed the
+ * plan, the payment methods and the subscription — see the note on the
+ * capability in `lib/permissions.ts`.
+ *
+ * Nothing is granted here. The order is created; the GRANT is written by the
+ * webhook, from Razorpay's own confirmation, because a browser saying a payment
+ * succeeded is not evidence that it did.
+ */
+router.get(
+  "/ai/topups",
+  requireWorkspace,
+  requireCapability("ai_topup.purchase"),
+  async (_req: AuthRequest, res): Promise<void> => {
+    res.json({
+      packs: TOPUP_PACKS.map((p) => ({
+        code: p.code,
+        label: p.label,
+        priceMinor: p.priceMinor,
+        grantMinor: p.grantMinor,
+      })),
+      currency: "INR",
+      paymentsEnabled: paymentsEnabled(),
+    });
+  },
+);
+
+router.post(
+  "/ai/topups",
+  requireWorkspace,
+  requireCapability("ai_topup.purchase"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    const pack = topupPack(String((req.body as { pack?: string })?.pack ?? ""));
+    if (!pack) {
+      res.status(400).json({ error: "invalid_request", message: "Unknown top-up pack." });
+      return;
+    }
+    if (!paymentsEnabled()) {
+      res.status(503).json({
+        error: "payments_unavailable",
+        message: "Payments are not configured on this deployment.",
+      });
+      return;
+    }
+
+    try {
+      const order = await createOrder({
+        amountMinor: pack.priceMinor,
+        currency: "INR",
+        receipt: `ws${c.workspaceId}-ai-${Date.now()}`,
+        // `aiTopup` is what the webhook forks on. The name and clerk id are
+        // carried so the grant records who bought it; neither is trusted for
+        // anything but display.
+        notes: {
+          workspaceId: String(c.workspaceId),
+          aiTopup: pack.code,
+          boughtBy: c.user.clerkId,
+          boughtByName: c.user.displayName,
+        },
+      });
+
+      await recordAudit(req, c, {
+        action: "billing.checkout_started",
+        summary: `Started payment for a drafting top-up (${pack.label})`,
+      });
+
+      res.json({
+        orderId: order.id,
+        amountMinor: order.amountMinor,
+        currency: order.currency,
+        pack: pack.code,
+      });
+    } catch (err) {
+      logger.error({ err, workspaceId: c.workspaceId }, "Could not create a top-up order");
       res.status(502).json({
         error: "Payment provider error",
         message: "The payment provider could not be reached. Nothing has been charged.",
@@ -316,6 +430,61 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
     return;
   }
 
+  /*
+   * A top-up is a different kind of paid order, so it forks before the plan
+   * checks below — it has no plan and no billing period, and running it through
+   * `isSubscriptionPlan` would reject it as malformed.
+   *
+   * The same discipline applies: the pack is trusted only as a LABEL, and the
+   * amount is recomputed from `TOPUP_PACKS` and compared. An order paid for less
+   * than the pack costs grants nothing.
+   */
+  const packCode = notes["aiTopup"];
+  if (packCode) {
+    const pack = topupPack(packCode);
+    if (!Number.isInteger(workspaceId) || !pack) {
+      await recordEvent({
+        ...base,
+        workspaceId: null,
+        outcome: "rejected",
+        detail: "top-up order notes did not identify a workspace and a pack",
+      });
+      res.json({ received: true });
+      return;
+    }
+    if (paidMinor !== pack.priceMinor) {
+      await recordEvent({
+        ...base,
+        workspaceId,
+        outcome: "rejected",
+        detail: `paid ${paidMinor} but the ${pack.code} top-up costs ${pack.priceMinor}`,
+      });
+      res.json({ received: true });
+      return;
+    }
+
+    await db.insert(aiTopupsTable).values({
+      workspaceId,
+      pack: pack.code,
+      priceMinor: pack.priceMinor,
+      grantMinor: pack.grantMinor,
+      orderId,
+      paymentId: base.paymentId,
+      boughtByClerkId: notes["boughtBy"] ?? "",
+      boughtByName: notes["boughtByName"] ?? "",
+    });
+
+    await recordEvent({
+      ...base,
+      workspaceId,
+      outcome: "applied",
+      detail: `drafting top-up: ${pack.label}`,
+    });
+    logger.info({ workspaceId, pack: pack.code }, "Drafting budget topped up");
+    res.json({ received: true });
+    return;
+  }
+
   const plan = notes["plan"];
   const period = notes["billingPeriod"];
   if (!Number.isInteger(workspaceId) || !isSubscriptionPlan(plan) || !isBillingPeriod(period)) {
@@ -378,6 +547,36 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
       updatedAt: now,
     })
     .where(eq(subscriptionsTable.workspaceId, workspaceId));
+
+  /*
+   * The trial is one per person, ever — recorded here rather than at checkout.
+   *
+   * On the USER, not the subscription: a founder who used the trial and then
+   * creates a second chamber must not get another, and a per-workspace record
+   * resets every time somebody founds one. `subscriptions.trialUsedAt` still
+   * marks the chamber; this marks the human.
+   *
+   * Written from the webhook so it records a payment that actually completed.
+   * Recording it at checkout would burn somebody's one trial on an order they
+   * abandoned at the card form.
+   */
+  if (plan === "trial") {
+    const claimant = notes["boughtBy"];
+    if (claimant) {
+      await db
+        .update(usersTable)
+        .set({ trialClaimedAt: now })
+        .where(eq(usersTable.clerkId, claimant));
+    } else {
+      // The order predates the note, or was created by hand. Worth knowing:
+      // the chamber gets its trial and the person's one-per-lifetime record
+      // was not written, so they could take another elsewhere.
+      logger.warn(
+        { workspaceId, eventId },
+        "A trial payment carried no buyer note; the per-person trial claim was not recorded",
+      );
+    }
+  }
 
   logger.info({ workspaceId, plan, eventId }, "Subscription activated by payment");
   res.json({ received: true });

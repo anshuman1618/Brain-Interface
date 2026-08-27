@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AtSign, Globe, Plus, ShieldCheck, Trash2, AlertTriangle } from "lucide-react";
+import { AtSign, Globe, Plus, ShieldCheck, Trash2, AlertTriangle, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/session";
 import { ROLE_OPTIONS, roleLabel } from "@/lib/role-options";
@@ -34,9 +34,10 @@ import { ROLE_OPTIONS, roleLabel } from "@/lib/role-options";
 /**
  * The access list — the control that decides who may sign in at all.
  *
- * Federated sign-in means Google and Zoho will authenticate anyone; this table
- * is what keeps "only an admin grants access" true anyway. Adding an address
- * here is a standing grant, so the role is chosen at the same time.
+ * Federated sign-in means Google, Zoho and an SMS code will authenticate
+ * anyone; this table is what keeps "only an admin grants access" true anyway.
+ * Adding an address or a number here is a standing grant, so the role is chosen
+ * at the same time.
  */
 export function AccessListManager() {
   const { activeWorkspace } = useSession();
@@ -126,7 +127,8 @@ export function AccessListManager() {
 
       <div className="p-6 border-b border-border">
         <p className="text-sm text-muted-foreground mb-4">
-          Google and Zoho will authenticate anyone. Only the addresses below are let into{" "}
+          Google, Zoho and an SMS code will authenticate anyone. Only the addresses and numbers
+          below are let into{" "}
           <span className="font-medium text-foreground">{activeWorkspace?.name}</span> — everyone
           else is shown an error and turned away.
         </p>
@@ -157,28 +159,17 @@ export function AccessListManager() {
             </label>
             <Input
               value={value}
-              // Whatever is typed is normalised server-side before it is
-              // stored, so "98765 43210" and "+919876543210" write one row.
-              // A number the server cannot canonicalise is refused rather than
-              // stored in a form no sign-in could ever match.
-              type={kind === "phone" ? "tel" : "text"}
-              inputMode={kind === "phone" ? "tel" : "text"}
               onChange={(e) => setValue(e.target.value)}
               className="rounded-lg font-mono text-sm"
               placeholder={
                 kind === "email"
                   ? "krishnan@yourchamber.in"
                   : kind === "phone"
-                    ? "98765 43210"
+                    ? "+91 98765 43210"
                     : "yourchamber.in"
               }
               required
             />
-            {kind === "phone" && (
-              <p className="text-3xs text-muted-foreground">
-                Admits exactly this number. Ten digits is read as Indian.
-              </p>
-            )}
           </div>
 
           <div className="space-y-1.5">
@@ -229,6 +220,17 @@ export function AccessListManager() {
           </div>
         </form>
 
+        {kind === "phone" && (
+          <div className="rounded-lg bg-card p-3 shadow-sm">
+            <p className="text-2xs leading-relaxed text-muted-foreground">
+              A number admits whoever can receive its SMS. Indian telcos reassign a disconnected
+              mobile after about <strong>ninety days</strong>, so an entry left standing can one day
+              admit somebody else entirely — an email address is never reused this way. Revoke the
+              entry when the person leaves, and check &ldquo;last used&rdquo; below for numbers that
+              have gone quiet.
+            </p>
+          </div>
+        )}
         {kind === "domain" && (
           <div className="mt-4 flex gap-2 rounded-lg bg-warning px-3 py-2">
             <AlertTriangle className="h-4 w-4 text-warning-foreground shrink-0 mt-0.5" />
@@ -254,7 +256,7 @@ export function AccessListManager() {
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent bg-muted/30">
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Address</TableHead>
+              <TableHead className="font-mono text-xs uppercase tracking-wider">Admitted</TableHead>
               <TableHead className="font-mono text-xs uppercase tracking-wider">
                 Signs in as
               </TableHead>
@@ -271,6 +273,8 @@ export function AccessListManager() {
                   <div className="flex items-center gap-2 font-mono text-sm">
                     {entry.kind === "domain" ? (
                       <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    ) : entry.kind === "phone" ? (
+                      <Smartphone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     ) : (
                       <AtSign className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     )}

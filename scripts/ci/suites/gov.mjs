@@ -1,5 +1,6 @@
 // Files, audit, quota, rate limits, privacy, conflicts.
 import { paymentsConfigured, activatePlan } from "../lib/billing.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
@@ -57,6 +58,10 @@ await declareBarRegistration(call, as(owner));
 // A deployment with payments configured will not activate a chargeable plan
 // until the money arrives, so the upgrade below has to actually pay for it.
 const paymentsOn = await paymentsConfigured(call, as(owner), ws);
+
+// A chamber that has never paid may read its own shell and nothing else, and
+// everything below needs a matter. See lib/preview-plan.mjs.
+await grantPreviewPlan(call, as(owner), ws);
 
 await call("/invites", {
   token: as(owner),

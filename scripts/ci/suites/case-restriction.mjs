@@ -2,6 +2,7 @@
 // security.mjs already covers the invite path; this covers the second door —
 // POST /workspace/access-list — which reconcileAccessList also feeds into.
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -45,6 +46,8 @@ check("chamber founded", founded.status === 201, `got ${founded.status}`);
 
 // admin needs bar registration before touching anything workspace-scoped.
 await declareBarRegistration(call, as(owner));
+// …and a plan in force before opening a matter. See lib/preview-plan.mjs.
+await grantPreviewPlan(call, as(owner), ws);
 
 // User row exists from the first authenticated call regardless of admission.
 const clientPre = (await call("/session", { token: as(clientEmail, "Client") })).data;

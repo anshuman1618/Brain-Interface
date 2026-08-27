@@ -36,6 +36,7 @@ This is the most important thing on the page.
 | Data                                              | Why                                         | Kept for                                    |
 | ------------------------------------------------- | ------------------------------------------- | ------------------------------------------- |
 | Name, email address, authentication provider      | To identify you and admit you to a chamber  | Life of the account                         |
+| Mobile number, where you sign in by SMS           | To identify you and admit you to a chamber  | Life of the account                         |
 | Chamber name, your role, membership status        | To decide what you may see and do           | Life of the account                         |
 | Sign-in events                                    | Security, and answering "who accessed this" | [12] months                                 |
 | Audit records of privileged actions               | Accountability within the chamber           | [24] months                                 |
@@ -48,6 +49,15 @@ octets (`203.0.113.x`); an IPv6 address keeps its /48. That is enough to notice
 an anomaly and not enough to be a record of where you were.
 
 **We do not store card details.** Payments go directly to our processor.
+
+**If you sign in by mobile number**, we store that number and it is what admits
+you to a chamber, in place of an address. Two consequences worth stating
+plainly. Your number is disclosed to our authentication provider, which sends
+the one-time code by SMS; standard message charges from your operator apply. And
+because Indian operators reassign a disconnected number after around ninety
+days, a chamber that has admitted a number and not revoked it could later admit
+whoever receives that number next — tell your chamber admin when you change
+numbers, and ask them to remove the old one.
 
 ### Chamber content (your chamber is the Fiduciary)
 

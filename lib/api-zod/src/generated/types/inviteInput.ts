@@ -7,12 +7,10 @@
  */
 import type { InviteInputRole } from './inviteInputRole';
 
-/**
- * Addressed to exactly one of email or phone. Supplying both, or neither, is refused — not modelled here because JSON Schema expresses "exactly one of" badly; see routes/invites.ts for the actual rule.
- */
 export interface InviteInput {
+  /** The address to invite. Exactly one of email or phone must be given; the server rejects both and neither, and validates the shape of whichever was supplied. */
   email?: string;
-  /** Mobile number. Ten digits is read as Indian; any other country needs the full +code form. Stored normalised to E.164. */
+  /** The mobile number to invite, in any readable form — "+91 98765 43210", "098765 43210" and "9876543210" all normalise to the same E.164 value. For the clerk or client who has a phone and no work address. */
   phone?: string;
   /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;

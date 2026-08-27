@@ -21,11 +21,13 @@ import { z } from "zod/v4";
  *            firm's own Google Workspace / Zoho Mail tenant, and deliberately
  *            more dangerous: anyone who can get an address at that domain gets
  *            in, so the UI says so.
- *   phone  — one exact mobile number in E.164, e.g. "+919876543210". Admits
- *            somebody who signs in by SMS code and may hold no verified email
- *            at all. There is deliberately NO domain-equivalent for phone:
- *            a numbering range is not an organisation and nobody should be
- *            able to admit one.
+ *   phone  — one mobile number, in E.164. For the clerk, intern or client who
+ *            has a phone and no work address, which in an Indian chamber is
+ *            most of them. Carries a risk email does not: telcos reassign a
+ *            disconnected number after about ninety days, so an entry left
+ *            standing can one day admit a stranger. Accepted deliberately —
+ *            see DECISIONS.md — which is why `lastUsedAt` is surfaced in the
+ *            admin UI and why email wins when both match.
  */
 export const ACCESS_LIST_KINDS = ["email", "domain", "phone"] as const;
 export type AccessListKind = (typeof ACCESS_LIST_KINDS)[number];
@@ -94,50 +96,54 @@ export function domainOf(email: string): string {
 }
 
 /**
- * Canonicalises a mobile number to E.164, or returns "" if it cannot.
+ * The country code assumed when a number is typed without one.
  *
- * This is an authorization primitive, not a formatter, and both directions of
- * failure are security bugs:
+ * Read from the environment rather than hardcoded to +91. An advocate typing
+ * "9876543210" means their own country, and the product should be wrong in one
+ * configurable place rather than wrong in a regex somebody has to find.
+ */
+function defaultCountryCode(): string {
+  const raw = process.env["DEFAULT_COUNTRY_CODE"]?.trim() || "+91";
+  return raw.startsWith("+") ? raw : `+${raw}`;
+}
+
+/**
+ * Normalises a mobile number to E.164 for storage and comparison.
  *
- *   - Two spellings of ONE number that normalise differently lock a person out
- *     of a chamber they were admitted to. "+91 98765 43210", "09876543210" and
- *     "919876543210" are the same phone and must produce the same string.
- *   - Two DIFFERENT numbers that normalise to the same string would let one
- *     person sign in against another's grant. That is why every rule below is
- *     exact-length: nothing is padded, truncated, or guessed at.
+ * The phone counterpart of `normaliseEmail`, and it exists for the same reason:
+ * matching is a plain equality check, so every path must agree on the stored
+ * form. People type "+91 98765 43210", "098765 43210" and "9876543210" for the
+ * same number, and all three have to collapse.
  *
- * So it is deliberately strict and total. Anything not matching a rule returns
- * "" and is refused at the callers — an access-list row that cannot be written
- * is a visible failure, where a row stored in a form nothing will ever match is
- * a silent one.
- *
- * India (+91) is the default country because that is where the practice is:
- * the rest of the app is in paise, GSTIN and bar-council enrolments. A number
- * given in full international form is honoured whatever its country.
+ * Returns `""` for anything that is not a usable number — the same "empty means
+ * no identifier" convention `identityFromClerk` already uses for an unverified
+ * address, so callers have one shape to check rather than two.
  */
 export function normalisePhone(raw: string): string {
-  if (!raw) return "";
-  // Strip only true formatting characters. Letters are NOT stripped — a
-  // vanity string is not a number, and quietly discarding them would let
-  // "+91-98765-4321O" (letter O) normalise to a real subscriber's number.
-  const trimmed = raw.trim().replace(/[\s()./-]/g, "");
-  if (!/^\+?\d+$/.test(trimmed)) return "";
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return "";
 
-  if (trimmed.startsWith("+")) {
-    const digits = trimmed.slice(1);
-    // E.164 caps the whole number at 15 digits; below 8 is no national number
-    // anywhere and is far more likely to be a truncated paste.
-    return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : "";
+  // A "+" anywhere ahead of the first digit counts as one — people write
+  // "(+91) 98765 43210" and testing only index 0 would miss it, then prepend
+  // the country code a second time and store a number that matches nothing.
+  const firstDigit = trimmed.search(/\d/);
+  const hasPlus = firstDigit > 0 && trimmed.slice(0, firstDigit).includes("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) return "";
+
+  let e164: string;
+  if (hasPlus) {
+    e164 = `+${digits}`;
+  } else if (digits.startsWith("00")) {
+    // The other international prefix. "0091..." is the same as "+91...".
+    e164 = `+${digits.slice(2)}`;
+  } else if (digits.startsWith("0")) {
+    // A national trunk prefix: drop it and apply the default country code.
+    e164 = `${defaultCountryCode()}${digits.replace(/^0+/, "")}`;
+  } else {
+    e164 = `${defaultCountryCode()}${digits}`;
   }
 
-  // Bare national forms, India only. Mobile ranges start 6-9; landlines and
-  // service codes are deliberately not accepted, because nothing here can send
-  // an SMS to one.
-  if (/^[6-9]\d{9}$/.test(trimmed)) return `+91${trimmed}`;
-  // Trunk prefix, as dialled domestically.
-  if (/^0[6-9]\d{9}$/.test(trimmed)) return `+91${trimmed.slice(1)}`;
-  // Country code without the plus.
-  if (/^91[6-9]\d{9}$/.test(trimmed)) return `+${trimmed}`;
-
-  return "";
+  // E.164: a leading digit of 1-9 and eight to fifteen digits in total.
+  return /^\+[1-9]\d{7,14}$/.test(e164) ? e164 : "";
 }

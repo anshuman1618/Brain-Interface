@@ -23,12 +23,16 @@ const SUITES = [
   ["subs", "Subscription and billing RBAC"],
   ["plan", "Plan enforcement: payment, seats, expiry"],
   ["case-restriction", "Restrict to Case ID, via both grant paths"],
+  ["case-access", "Narrowing a junior or a clerk to named matters"],
   ["bar-registration", "Bar enrolment gate for practice roles"],
   ["cause-list", "Court cause lists: fetch, match, propose, accept"],
+  ["ai-untrusted", "AI: a party's document cannot escape its envelope"],
+  ["drafting", "AI drafting: the gates, the budget, and what leaves the server"],
   ["operator", "Operator metrics: the allowlist, and the numbers"],
-  ["phone-identity", "Signing in and being admitted by mobile number"],
   ["push", "Push notifications: registration and the tenant boundary"],
   ["blob-storage", "File storage: the R2 signer and the backend choice"],
+  ["phone-identity", "Mobile numbers: normalisation to E.164"],
+  ["phone-admission", "Mobile numbers: founding, inviting and being admitted"],
   ["gov", "Files, audit, quota, privacy, conflicts"],
 ];
 

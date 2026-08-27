@@ -30,6 +30,8 @@ export interface Subscription {
      * @nullable
      */
   daysLeft?: number | null;
+  /** This chamber has never had a plan in force. Distinct from `lapsed`, which means one WAS in force and ran out — "your plan expired" is a bewildering thing to read on the day you signed up. Enforcement uses the same flag, so a client that gates on it shows the subscription screen exactly when the API would answer 402 `payment_required`. Derived, never stored: `status` may read `trialing` on a chamber that abandoned a checkout, and `startedAt` is the honest test. */
+  neverPaid?: boolean;
   /** @nullable */
   updatedBy?: string | null;
 }

@@ -503,6 +503,46 @@ also means a lapsed plan can see its proposals and cannot act on them, for
 free. The ops surface (`/runs`, manual `/sync`) is `audit.read` — admin only,
 because it reaches out to third-party servers on demand.
 
+### Two identifiers, one seam
+
+```
+  sign-in                     Clerk (OAuth · email code · SMS code)
+        │                     preview: preview:email:… | preview:phone:…
+        ▼
+  identityFromClerk           lib/jit.ts
+        │  VERIFIED email and/or VERIFIED phone, or "" / null
+        ▼
+  users.email / users.phone   normalised on write
+        │
+        ▼
+  reconcileAccessList(user)   lib/access-list.ts
+        │  returns 0 only when BOTH are absent
+        ▼
+  findAccessListMatches({email, phone})
+        │  kind='email' = address   ┐
+        │  kind='phone' = E.164     ├─ exact
+        │  kind='domain' = @host    ┘  blanket
+        │  precedence: email > phone > domain, per workspace
+        ▼
+  workspace_memberships       email and phone disappear here;
+                              (workspace_id, user_id) takes over
+```
+
+| File                                         | Role                                                                                                                         |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `lib/db/src/schema/workspace_access_list.ts` | `ACCESS_LIST_KINDS` gains `phone`; `normalisePhone()` lives beside `normaliseEmail()`.                                       |
+| `lib/db/drizzle/0012_phone_identity.sql`     | `users.phone`, `invites.phone`, and `invites.email` relaxed to nullable. Both `preview.ts` blocks too.                       |
+| `api-server/src/lib/jit.ts`                  | `identityFromClerk` reads a verified number; `resyncIdentity` fills either blank and overwrites neither.                     |
+| `api-server/src/lib/access-list.ts`          | The matcher takes `{email, phone}` and only ORs the arms it has an identifier for.                                           |
+| `api-server/src/routes/session.ts`           | `foundChamber` self-admits every identifier the founder holds — the fix that stops a phone founder losing their own chamber. |
+| `api-server/src/routes/invites.ts`           | Exactly one identifier, shape-checked. Previously this door checked nothing.                                                 |
+| `api-server/src/lib/preview-mode.ts`         | `preview:phone:…` beside the byte-identical `preview:email:…`.                                                               |
+| `practice-portal/.../portal-sign-in.tsx`     | "Continue with mobile number", via Clerk `phoneCode.sendCode` / `verifyCode`.                                                |
+| `practice-portal/.../access-denied.tsx`      | Names the identifier the caller actually holds.                                                                              |
+
+**The operator allowlist stays email-only.** It is an environment variable, not
+an access-list row, and a reassigned number must not reach a cross-tenant view.
+
 ### Where case files go
 
 ```
@@ -770,6 +810,49 @@ Two additions to §3's picture:
   `requireCapability("billing.manage")` — admin alone. The PDF route is on the
   same gate, so a link to it leaks nothing to a non-member.
 
+### AI drafting: the path a draft actually takes
+
+`/api/insights*`, `/api/exemplars*`, `/api/drafts*`, `/api/cases/:id/drafts` and
+`/api/ai/budget` all run `requireWorkspace` → `requireCapability("drafting.use")`.
+Anything that can reach a model then passes a **third** gate that is not a
+middleware: `workspaces.drafting_enabled`, the chamber's own opt-in, checked
+inside the handler. `/api/workspace/drafting` (which sets it) is
+`access_control.manage` — admin alone. `/api/ai/topups` is `ai_topup.purchase`,
+held by admin and senior advocate and deliberately **not** `billing.manage`.
+
+`app.ts` rate-limits `/api/cases/:id/drafts` at 6/min and `/api/exemplars` at
+10/min, on top of the budget. The budget bounds the monthly spend; the limiter
+bounds the rate, which is a different failure.
+
+Inside `lib/ai/drafting.ts` the order is load-bearing:
+
+```
+assemble context  →  estimate cost  →  check budget  →  write draft row
+      ↓                                                       ↓
+  404 if the matter                                    write draft_sources
+  is not the caller's            402 if over budget    (what left the server)
+                                                              ↓
+                                                        call the model
+                                                              ↓
+                                              record spend  →  update draft row
+```
+
+The draft row is written **before** the call so a request that dies mid-stream
+leaves visible evidence that tokens were spent; spend is recorded on the failure
+path too, so a failing loop is not free to run.
+
+Two controls added by the 2026-08-25 security review sit on this path:
+`POST /exemplars` runs the same `checkBudget` as drafting before its redaction
+call, and every ticked document is wrapped by `wrapUntrusted()`
+(`lib/ai/untrusted.ts`) before it reaches the prompt, with `web_search` bounded
+by `allowed_domains`. The full readiness object moved from the public
+`/api/readyz` to `/api/operator/readiness`.
+
+`lib/ai/` is the only place the Anthropic SDK is imported, and it is server-side
+only. `usingStubModel()` — true whenever `isPreviewDatabase()` or no
+`ANTHROPIC_API_KEY` — swaps in a deterministic stand-in, which is what lets all
+fifteen suites run without spending anything.
+
 ### Verification
 
 Each phase was driven in a real browser (Playwright, Chromium) against the app
@@ -880,10 +963,136 @@ implementation — and key, body and method are each shown to change it. The
 other half asserts that a partly configured R2 **throws** instead of quietly
 falling back to a disk the next deploy will wipe.
 
-Last run: **442 checks green with `RAZORPAY_*` unset**, each suite against a
-fresh server and a fresh database. The banner was checked
+**Mobile identity has two committed suites.** `phone-identity.mjs` is 19
+offline checks on `normalisePhone` — every readable form of one number
+collapsing to one E.164 string, everything unusable coming back empty rather
+than half-parsed, and the country code being configuration rather than a
+hardcoded `+91`. `phone-admission.mjs` is 29 checks against a live server: a
+chamber founded by somebody with no address **and signed back into**, a
+colleague invited by number and admitted at that role, both admission doors
+refusing a half-formed identifier, and — the control — an emailed colleague
+still admitted exactly as before.
+
+That last point is the design claim, and the evidence for it is that **all
+eleven pre-existing suites pass untouched**. The email path was extended, not
+altered.
+
+Last run: **596 checks green across sixteen API suites with `RAZORPAY_*`
+unset**, each suite against a fresh server, plus 57 browser checks and 13
+startup guards. The banner was checked
 separately in a browser across all five of its states (17 assertions), which is
 what caught the `daysLeft` rounding.
+
+### The paid gate, and the screen that answers it
+
+Two gates now stand between a new chamber and its first matter, and they are
+different in kind:
+
+```
+found chamber
+     ↓
+requireWorkspace  ── bar enrolment not declared? ──→ 403 profile_incomplete
+     ↓                                                (CompleteProfilePage)
+requireCapability ── planState.neverPaid? ─────────→ 402 payment_required
+     ↓                                                (ChoosePlanPage)
+   the work
+```
+
+`neverPaid` (`lib/quota.ts`) is `!row || (status !== "active" && startedAt ===
+null)`. It is **not** `lapsed`: lapsed means a plan was in force and ran out,
+and "your plan expired" said to somebody who signed up ten minutes ago sends
+them looking for a renewal button that does not apply. It rides the same
+allowlist a lapsed chamber gets (`CAPABILITIES_WHEN_LAPSED`), so an unpaid
+chamber still reads its own shell, its plan screen and its billing — the
+chamber is never locked, only its features.
+
+`GET /workspace/subscription` carries `neverPaid` back so the SPA gates on the
+server's own answer rather than re-deriving it. `dashboard-layout.tsx` shows
+`ChoosePlanPage` when it is true, **after** the bar gate — every
+workspace-scoped read, that one included, is refused until enrolment is
+declared, so there is nothing to render before it. "Skip for now" is component
+state, not persisted: the offer returns next session and `PlanBanner` keeps it
+standing meanwhile.
+
+Preview has no payment provider, so `POST /preview/activate-plan` puts a trial
+in force for the suites. It 404s unless `isPreviewAuth() && isPreviewDatabase()`,
+grants a trial and nothing else, and writes **neither** once-only marker
+(`users.trial_claimed_at`, `subscriptions.trial_used_at`) — which is what lets
+`plan.mjs` §4 and `subs.mjs` still reach a genuinely unclaimed trial after
+calling it. It inserts when there is no row to update: a chamber has no
+subscription row until it selects something, and an UPDATE-only version looks
+like it works and silently does nothing.
+
+### Case access — narrowing a junior or a clerk
+
+`GET`/`PUT /memberships/:id/case-access`, behind `access_control.manage`. The
+`caseAccessRestricted` flag on the membership plus rows in `case_access_grants`.
+
+In `lib/scope.ts` the restricted branch sits **before** the `assigned` branch
+and **replaces** the role's row scope rather than filtering it. A restricted
+junior's role scope is `all`; intersecting with `all` would be a no-op and the
+restriction would do nothing — which is the obvious way to write it and the
+reason it is written the other way. What a restricted member sees is: the
+matters they hold a task on, plus the ones granted explicitly. Assigned work is
+never revocable through this screen, because a person handed a task must be
+able to open the file it is on.
+
+`PUT` replaces the whole grant set rather than adding and removing, so a stale
+tab cannot re-grant a matter an admin just took away. Every id is checked
+against `cases.workspace_id` before it is written — a grant naming another
+chamber's matter writes no row at all rather than a row that means nothing.
+`senior_advocate` and `client` are refused with a 400: the first directs the
+chamber's work, the second is already confined by row scope.
+
+### Advocate credentials, and the six-month window
+
+`users` gained `aor_high_court_no`, `cop_no`, `all_india_bar_no` and
+`all_india_bar_due_at`. `barCredentialsComplete()` (`lib/permissions.ts`) is
+two tiers: state bar council and enrolment number **now**, the All India Bar
+Examination number **within six months**. The deadline is stamped once, on the
+first declaration (`user.allIndiaBarDueAt ?? …+6 months`) — a deadline that
+resets each time the form is saved is not a deadline.
+
+`GET /users/me` returns `allIndiaBarDaysLeft`, computed by the same helper the
+gate uses, so the countdown on the form and the day requests start being
+refused are one calculation. `CredentialsNotice` on the dashboard is the
+warning before it bites; it renders nothing for a clerk, a client, or anyone
+who has supplied the number.
+
+### The Case Brief replaced the Review
+
+`DRAFT_KINDS` lost `review` and gained `brief`. It is not a rename: the review
+covered defects and merits, and the brief covers the matter and a draft
+together — the matter in short, the facts on the record, the chronology, the
+merits, how the other side will run it, the objections to anticipate, the
+defects to cure, the authorities, and what to confirm. `BRIEF_RULES` in
+`lib/ai/prompts.ts` carries those headings; the output ceiling went 10k → 12k
+tokens, which is why a trial's ₹40 buys one fewer call than it did.
+
+`review` now 400s as an unknown kind, which `drafting.mjs` asserts — a stale
+client asking for one is refused outright rather than quietly served something
+else under a name it no longer means. The verify disclaimer is stated three
+times on purpose: on the page before anything is asked for, on every output
+card, and inside the body text itself, because the only copy that follows a
+draft into a filing is the one in the text.
+
+### Row scope is enforced in two helpers, and every route must use one
+
+`lib/scope.ts` has four helpers and they are not interchangeable:
+
+| Helper                     | Answers                                                        |
+| -------------------------- | -------------------------------------------------------------- |
+| `visibleCaseIds(ctx)`      | which matters may this caller see — honours case-access grants |
+| `getVisibleCase(ctx, id)`  | may this caller see THIS matter — same rules, single row       |
+| `caseInWorkspace(ctx, id)` | is this matter in the chamber at all — **ignores row scope**   |
+| `workspaceCaseIds(ctx)`    | every matter in the chamber — **ignores row scope**            |
+
+The bottom two exist for writes that only need tenant validation (attaching a
+calendar entry, validating an access-list `caseId`) and for admin aggregates
+(`kpi.ts`). Using either on a read path is how the four leaks fixed after
+`fe8c902` happened — see DECISIONS.md. A new route that returns anything
+derived from a matter uses one of the top two, and a route that scopes its list
+must scope its `:id` fetch with the same helper.
 
 ### Known, unfixed
 
@@ -1002,11 +1211,37 @@ the other.
 `DEPLOYMENT.md` is the full runbook. This is the short path, in order, with the
 things that actually block you.
 
-### Step 0 — merge to `main`
+### Step 0 — merge to `main` (done)
 
-Render deploys from `main` (`render.yaml`, `branch: main`). The two commits
-above are on the feature branch, so **nothing above is live**. Merge first, or
-you will deploy the old design and wonder why.
+Render deploys from `main` (`render.yaml`, `branch: main`), so merging IS
+deploying — there is no staging step between the two.
+
+Everything described above is on `main` as of `f33b396`: AI drafting, the three
+security-review fixes, the paid plan gate with its subscription screen, case
+access for juniors and clerks, advocate credentials, the AI case brief, and the
+four routes taught about case access afterwards.
+
+**The one thing to check after a deploy that crosses this point:** the paid gate
+applies to chambers that already exist. A chamber only gets a `subscriptions`
+row when somebody picks a plan, and before this it did not need one — no row
+meant trial limits, free. After it, no row means `neverPaid`: the chamber reads
+normally and cannot open a matter, invite anyone, draft or invoice.
+
+Checked against production after the `f33b396` deploy, and **no chamber was
+gated** — the one workspace that exists already carried an active trial. No
+grandfathering migration was written, deliberately: a data migration that does
+nothing on the database it was written for would still fire on the next one,
+and quietly hand a free plan to chambers the gate is meant to catch.
+
+If this repo is ever deployed onto a database that already has chambers
+without subscription rows, that migration becomes necessary. The query that
+answers it:
+
+```sql
+select count(*) from workspaces w
+left join subscriptions s on s.workspace_id = w.id
+where s.id is null or (s.status <> 'active' and s.started_at is null);
+```
 
 ### Step 1 — get accounts and keys
 

@@ -319,6 +319,59 @@ if (/bar council|enrolment/i.test(await text())) {
   await page.waitForTimeout(2000);
 }
 
+/*
+ * The subscription screen stands between chamber setup and the dashboard.
+ *
+ * A chamber that has never taken a plan can read its own shell and nothing
+ * else, so this is not a screen the suite can navigate around — every module
+ * below would answer 402 and the viewport checks would be sizing a dashboard
+ * of empty error states. The trial is taken through the real pricing modal,
+ * which also puts that modal in front of a browser at every width.
+ */
+const onPlanScreen = /choose how it runs|has not started a plan/i.test(await text());
+check("the subscription screen follows chamber setup", onPlanScreen, (await text()).slice(0, 200));
+
+if (onPlanScreen) {
+  // Measured before it is walked past: it is a full-page screen a founder meets
+  // on whatever device they signed up on, and it is the last one standing
+  // between them and paying.
+  for (const { w, h, label } of VIEWPORTS) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(200);
+    const o = await overflow();
+    check(
+      `subscription screen @ ${w}px (${label}) has no horizontal scroll`,
+      o <= 1,
+      o > 1 ? `overflow ${o}px — ${(await widest()).join(" ; ")}` : "",
+    );
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(200);
+
+  await page.getByRole("button", { name: /see the plans and pay/i }).click();
+  await page.waitForTimeout(1200);
+  // No payment provider is configured in preview, so the tier buttons read
+  // "Choose" and record the selection directly. With one configured they would
+  // read "Subscribe" and open Razorpay, which is not a thing to automate here.
+  await page
+    .getByRole("button", { name: /^Choose$/ })
+    .first()
+    .click();
+  await page.waitForTimeout(2000);
+  // The modal must actually close, not merely be told to. Radix marks the rest
+  // of the app `aria-hidden` while a dialog is open, so a dialog left standing
+  // hides the whole application from `getByRole` and every check below reports
+  // that the shell never rendered. Its own close control, not Escape — Escape
+  // depends on where focus landed after the toast, which is not something to
+  // rely on.
+  await page
+    .locator('[role="dialog"]')
+    .getByRole("button", { name: /^Close$/ })
+    .click();
+  await page.locator('[role="dialog"]').waitFor({ state: "detached", timeout: 10_000 });
+  await page.waitForTimeout(1500);
+}
+
 const inApp = await text();
 
 /*

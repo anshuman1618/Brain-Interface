@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { GetOperatorMetricsResponse } from "@workspace/api-zod";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 import { requireOperator } from "../lib/operator";
+import { readinessDetail } from "./health";
 
 /**
  * The platform, seen from outside every chamber.
@@ -238,6 +239,26 @@ router.get(
         })),
       }),
     );
+  },
+);
+
+/**
+ * Readiness, in full, for whoever runs the service.
+ *
+ * The same object `/api/readyz` used to hand to anonymous callers, including
+ * the database driver's own failure text. It is here because that text names
+ * the database host and, on an auth failure, says so — useful during an
+ * incident, and useful to somebody probing for exactly the same reason.
+ *
+ * `requireOperator` answers 404 rather than 403 when the caller is not on the
+ * allowlist, so this route is indistinguishable from a typo to everyone else.
+ */
+router.get(
+  "/operator/readiness",
+  requireAuth,
+  requireOperator,
+  async (_req: AuthRequest, res): Promise<void> => {
+    res.json(await readinessDetail());
   },
 );
 

@@ -7,17 +7,15 @@ export const invitesTable = pgTable("invites", {
   /** The workspace the invite grants membership of — never firm-wide. */
   workspaceId: integer("workspace_id").notNull(),
   /**
-   * Who the invite is addressed to. Exactly one of `email` / `phone` carries a
-   * value; the other is "".
+   * The address invited, or null when the invite names a number instead.
    *
-   * `email` keeps its NOT NULL and gains a default rather than becoming
-   * nullable, so this stayed an additive migration — a phone invite simply
-   * stores the empty string, which is already how `users.email` represents
-   * "no address".
+   * Nullable since 0012: exactly one of `email` / `phone` is set, enforced in
+   * `routes/invites.ts` rather than by a CHECK, so the message can explain
+   * which one is missing.
    */
-  email: text("email").notNull().default(""),
-  /** E.164, normalised on write. See `normalisePhone` in workspace_access_list.ts. */
-  phone: text("phone").notNull().default(""),
+  email: text("email"),
+  /** A verified-on-sign-in mobile in E.164. Null when the invite names an address. */
+  phone: text("phone"),
   token: text("token").notNull().unique(),
   role: text("role").notNull().default("client"), // admin | clerk | client
   caseId: integer("case_id"),

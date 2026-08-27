@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   db,
   usersTable,
@@ -10,6 +10,8 @@ import {
   normaliseEmail,
   normalisePhone,
   type Workspace,
+  casesTable,
+  caseAccessGrantsTable,
 } from "@workspace/db";
 import {
   GetSessionResponse,
@@ -29,6 +31,8 @@ import {
   CreateAccessListEntryResponse,
   CreateWorkspaceBody,
   CreateWorkspaceResponse,
+  GetCaseAccessResponse,
+  SetCaseAccessBody,
 } from "@workspace/api-zod";
 import {
   requireAuth,
@@ -120,7 +124,7 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
     clerkId: user.clerkId,
     displayName: user.displayName,
     email: user.email,
-    phone: user.phone,
+    phone: user.phone ?? null,
     accessStatus,
     authProvider: user.authProvider || null,
     memberships,
@@ -233,20 +237,24 @@ async function foundChamber(
         // Admit the founder's own identifiers so they can sign back in without
         // needing somebody else to let them in.
         //
-        // Whichever they hold, not just the address: a founder who signed up by
-        // SMS has no email at all, and guarding this on `user.email` alone let
-        // them create a chamber they could never re-enter. Both are written
-        // when both are known, so signing in either way still works.
-        const founderGrants = [
-          user.email ? { kind: "email", value: normaliseEmail(user.email) } : null,
-          user.phone ? { kind: "phone", value: normalisePhone(user.phone) } : null,
-        ].filter((g): g is { kind: string; value: string } => g !== null && g.value !== "");
+        // Both when they have both, deliberately: a founder who signed up by
+        // mobile and later verifies an address must not lose their own chamber
+        // because the row was keyed on the one identifier they stopped using.
+        // Founding by phone alone is the whole point of the feature — before
+        // this took the phone into account, such a founder created a chamber
+        // and was locked out of it on their next sign-in.
+        const founderIdentifiers: { kind: "email" | "phone"; value: string }[] = [];
+        if (user.email)
+          founderIdentifiers.push({ kind: "email", value: normaliseEmail(user.email) });
+        if (user.phone)
+          founderIdentifiers.push({ kind: "phone", value: normalisePhone(user.phone) });
 
-        for (const grant of founderGrants) {
+        for (const identifier of founderIdentifiers) {
+          if (!identifier.value) continue;
           await tx.insert(workspaceAccessListTable).values({
             workspaceId: workspace.id,
-            kind: grant.kind,
-            value: grant.value,
+            kind: identifier.kind,
+            value: identifier.value,
             role,
             note: "Chamber founder",
             addedBy: user.displayName,
@@ -654,13 +662,12 @@ router.post(
       res.status(400).json({ error: "That does not look like a domain, e.g. chambers.in" });
       return;
     }
-    // normalisePhone returns "" for anything it cannot canonicalise. Refusing
-    // here rather than storing the raw string is the point: a row held in a
-    // form no sign-in could ever match is a grant that silently does nothing,
-    // and the admin who wrote it would have no way to tell.
+    // normalisePhone returns "" for anything it cannot put in E.164, so the
+    // empty check is the whole validation — there is no second-guessing a
+    // number it accepted.
     if (parsed.data.kind === "phone" && !value) {
       res.status(400).json({
-        error: "That does not look like a mobile number. Use 10 digits, or +country code.",
+        error: "That does not look like a mobile number, e.g. +91 98765 43210",
       });
       return;
     }
@@ -893,6 +900,162 @@ router.patch(
     }
 
     res.json(UpdateWorkspaceMemberResponse.parse(await membershipView(updated, c.workspace.name)));
+  },
+);
+
+/* ── Case access for a junior or a clerk ─────────────────────────────────── */
+
+/**
+ * Which matters one member may see.
+ *
+ * `access_control.manage` — admin, and the founder of the chamber. The same
+ * boundary as the access list, because this is the same kind of decision:
+ * who inside this chamber may see which of its files.
+ *
+ * Applies to `junior_advocate` and `clerk_intern` only. A senior advocate
+ * directs the chamber's work and cannot be narrowed out of it; a client is
+ * already confined to their own matter by row scope, and a second mechanism on
+ * top would give two places to look when somebody cannot see something.
+ */
+const RESTRICTABLE_ROLES = ["junior_advocate", "clerk_intern"];
+
+async function caseAccessFor(workspaceId: number, membershipId: number) {
+  const [membership] = await db
+    .select()
+    .from(workspaceMembershipsTable)
+    .where(
+      and(
+        eq(workspaceMembershipsTable.id, membershipId),
+        eq(workspaceMembershipsTable.workspaceId, workspaceId),
+      ),
+    );
+  if (!membership) return null;
+
+  const grants = await db
+    .select({ grant: caseAccessGrantsTable, matter: casesTable })
+    .from(caseAccessGrantsTable)
+    .innerJoin(casesTable, eq(casesTable.id, caseAccessGrantsTable.caseId))
+    .where(
+      and(
+        eq(caseAccessGrantsTable.membershipId, membershipId),
+        eq(caseAccessGrantsTable.workspaceId, workspaceId),
+      ),
+    );
+
+  return {
+    membershipId: membership.id,
+    role: membership.role,
+    restricted: membership.caseAccessRestricted,
+    grantedCaseIds: grants.map((g) => g.grant.caseId),
+    grants: grants.map(({ grant, matter }) => ({
+      caseId: grant.caseId,
+      caseTitle: matter.title,
+      grantedBy: grant.grantedBy,
+      createdAt: grant.createdAt.toISOString(),
+    })),
+  };
+}
+
+router.get(
+  "/memberships/:id/case-access",
+  requireWorkspace,
+  requireCapability("access_control.manage"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    const access = await caseAccessFor(c.workspaceId, Number(req.params["id"]));
+    if (!access) {
+      res.status(404).json({ error: "No such member in this chamber." });
+      return;
+    }
+    res.json(GetCaseAccessResponse.parse(access));
+  },
+);
+
+router.put(
+  "/memberships/:id/case-access",
+  requireWorkspace,
+  requireCapability("access_control.manage"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const body = SetCaseAccessBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "invalid_request", message: zodMessage(body.error) });
+      return;
+    }
+    const c = ctx(req);
+    const membershipId = Number(req.params["id"]);
+
+    const [membership] = await db
+      .select()
+      .from(workspaceMembershipsTable)
+      .where(
+        and(
+          eq(workspaceMembershipsTable.id, membershipId),
+          eq(workspaceMembershipsTable.workspaceId, c.workspaceId),
+        ),
+      );
+    if (!membership) {
+      res.status(404).json({ error: "No such member in this chamber." });
+      return;
+    }
+
+    if (!RESTRICTABLE_ROLES.includes(membership.role)) {
+      res.status(400).json({
+        error: "invalid_request",
+        message:
+          "Case access can only be narrowed for a junior advocate or a clerk. A senior " +
+          "advocate directs the chamber's work, and a client already sees only their own matter.",
+      });
+      return;
+    }
+
+    // Every id is checked to be a matter of THIS chamber before it is written.
+    // An id from another chamber would otherwise sit in the table looking like
+    // a grant — it would resolve to nothing at read time, but a row that means
+    // nothing is worse than no row, because somebody will read it as access.
+    const requested = [...new Set(body.data.caseIds ?? [])];
+    const valid = requested.length
+      ? await db
+          .select({ id: casesTable.id })
+          .from(casesTable)
+          .where(and(inArray(casesTable.id, requested), eq(casesTable.workspaceId, c.workspaceId)))
+      : [];
+    const validIds = valid.map((r) => r.id);
+
+    await db
+      .update(workspaceMembershipsTable)
+      .set({ caseAccessRestricted: body.data.restricted, updatedAt: new Date() })
+      .where(eq(workspaceMembershipsTable.id, membershipId));
+
+    // Sent as a complete set, not as add/remove: a stale client cannot silently
+    // re-grant a matter an admin has just taken away. So the write is a replace.
+    await db
+      .delete(caseAccessGrantsTable)
+      .where(eq(caseAccessGrantsTable.membershipId, membershipId));
+
+    if (validIds.length > 0) {
+      await db.insert(caseAccessGrantsTable).values(
+        validIds.map((caseId) => ({
+          workspaceId: c.workspaceId,
+          membershipId,
+          caseId,
+          grantedBy: c.user.displayName,
+          grantedByClerkId: c.user.clerkId,
+          note: body.data.note ?? null,
+        })),
+      );
+    }
+
+    await recordAudit(req, c, {
+      action: "member.case_access_changed",
+      entityType: "workspace_membership",
+      entityId: String(membershipId),
+      summary: body.data.restricted
+        ? `Restricted ${membership.role} to ${validIds.length} matter(s) plus their assigned work`
+        : `Removed the case-access restriction on a ${membership.role}`,
+    });
+
+    const access = await caseAccessFor(c.workspaceId, membershipId);
+    res.json(GetCaseAccessResponse.parse(access));
   },
 );
 

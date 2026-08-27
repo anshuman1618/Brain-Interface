@@ -35,74 +35,74 @@ export type AccessListMatch = {
   caseId: number | null;
 };
 
-/** What a caller proved about themselves. Either half may be absent. */
-export type Identity = {
-  /** Verified email address, or "" — already normalised or raw, both fine. */
-  email: string;
-  /** Verified mobile number, or "". */
-  phone: string;
-};
-
 /**
- * How specific a grant is. A grant naming one person beats a blanket one, so an
- * exact email or phone entry overrides a domain rule for the same workspace.
- */
-function specificity(kind: string): number {
-  return kind === "domain" ? 0 : 1;
-}
-
-/**
- * Finds every workspace whose access list admits this identity.
+ * Finds every workspace whose access list admits this address.
  *
- * An exact entry wins over a domain entry for the same workspace, so a domain
- * rule can set the default role for a firm while individual addresses are
+ * An exact-email entry wins over a domain entry for the same workspace, so a
+ * domain rule can set the default role for a firm while individual addresses are
  * pinned to something else (the founding partner is admin; everyone else at the
  * domain onboards as junior).
- *
- * Both identifiers are matched in ONE query rather than two, because a person
- * holding both may be admitted to one chamber by address and another by number,
- * and the caller wants the union. Where both match the same workspace the more
- * specific grant wins, and email and phone are equally specific — an admin who
- * has written both for one workspace has said the same thing twice.
  */
-export async function findAccessListMatches(identity: Identity): Promise<AccessListMatch[]> {
-  const email = normaliseEmail(identity.email);
-  const phone = normalisePhone(identity.phone);
+export async function findAccessListMatches(identity: {
+  email?: string | null;
+  phone?: string | null;
+}): Promise<AccessListMatch[]> {
+  const normalised = normaliseEmail(identity.email ?? "");
+  const hasEmail = Boolean(normalised) && normalised.includes("@");
+  // Already E.164 on the user row, but normalise again: this is the read side
+  // of normalise-on-write and it must not assume the write side ran.
+  const phone = normalisePhone(identity.phone ?? "");
+  if (!hasEmail && !phone) return [];
 
-  // An address without an "@" cannot match an email or domain row; a number
-  // that failed to normalise must never be matched against anything, because
-  // the stored form is always canonical and a raw string could only collide by
-  // accident. Neither identifier usable means no grants, without a query.
-  const usableEmail = email.includes("@") ? email : "";
-  if (!usableEmail && !phone) return [];
-
-  const domain = usableEmail ? domainOf(usableEmail) : "";
-
-  const clauses = [];
-  if (usableEmail) {
-    clauses.push(
-      and(eq(workspaceAccessListTable.kind, "email"), eq(workspaceAccessListTable.value, email)),
-      and(eq(workspaceAccessListTable.kind, "domain"), eq(workspaceAccessListTable.value, domain)),
-    );
-  }
-  if (phone) {
-    clauses.push(
-      and(eq(workspaceAccessListTable.kind, "phone"), eq(workspaceAccessListTable.value, phone)),
-    );
-  }
+  const domain = hasEmail ? domainOf(normalised) : "";
 
   const rows = await db
     .select({ entry: workspaceAccessListTable, workspace: workspacesTable })
     .from(workspaceAccessListTable)
     .innerJoin(workspacesTable, eq(workspacesTable.id, workspaceAccessListTable.workspaceId))
-    .where(and(isNull(workspaceAccessListTable.revokedAt), or(...clauses)));
+    .where(
+      and(
+        isNull(workspaceAccessListTable.revokedAt),
+        // Only the arms we actually have an identifier for. Including an arm
+        // with an empty value would match any entry somebody managed to store
+        // as "", which is exactly the sort of thing normalisation is meant to
+        // stop rather than rely on.
+        or(
+          ...(hasEmail
+            ? [
+                and(
+                  eq(workspaceAccessListTable.kind, "email"),
+                  eq(workspaceAccessListTable.value, normalised),
+                ),
+                and(
+                  eq(workspaceAccessListTable.kind, "domain"),
+                  eq(workspaceAccessListTable.value, domain),
+                ),
+              ]
+            : []),
+          ...(phone
+            ? [
+                and(
+                  eq(workspaceAccessListTable.kind, "phone"),
+                  eq(workspaceAccessListTable.value, phone),
+                ),
+              ]
+            : []),
+        ),
+      ),
+    );
 
+  // Email beats phone beats domain, per workspace.
+  //
+  // Exact identifiers beat a blanket domain rule for the reason above. Email
+  // beats phone because an address is never reassigned to a stranger and an
+  // Indian mobile is, after about ninety days — so where a chamber has recorded
+  // both for one person, the more durable one decides their role.
+  const PRECEDENCE: Record<string, number> = { email: 3, phone: 2, domain: 1 };
   const bestByWorkspace = new Map<number, AccessListMatch>();
   for (const row of rows) {
     const existing = bestByWorkspace.get(row.workspace.id);
-    // A named grant (email or phone) always replaces a domain grant for the
-    // same workspace; between two named grants the first seen stands.
-    if (existing && specificity(row.entry.kind) <= specificity(existing.kind)) continue;
+    if (existing && (PRECEDENCE[row.entry.kind] ?? 0) <= (PRECEDENCE[existing.kind] ?? 0)) continue;
     bestByWorkspace.set(row.workspace.id, {
       workspace: row.workspace,
       role: isWorkspaceRole(row.entry.role) ? row.entry.role : "client",
@@ -126,12 +126,12 @@ export async function findAccessListMatches(identity: Identity): Promise<AccessL
  * Returns the number of memberships created.
  */
 export async function reconcileAccessList(user: AppUser): Promise<number> {
-  // Neither identifier means nothing to match on. A phone-only user used to
-  // fall out here on the email check alone and was silently granted nothing,
-  // however many phone entries named them.
+  // Either identifier will do. Before phone existed this was `if (!user.email)`
+  // and a phone-only user reached nothing at all, however correctly they had
+  // authenticated.
   if (!user.email && !user.phone) return 0;
 
-  const matches = await findAccessListMatches({ email: user.email, phone: user.phone });
+  const matches = await findAccessListMatches(user);
   if (matches.length === 0) return 0;
 
   const existing = await db

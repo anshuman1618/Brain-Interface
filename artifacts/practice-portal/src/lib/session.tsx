@@ -49,7 +49,7 @@ export type Session = {
   isSignedIn: boolean;
   displayName: string;
   email: string;
-  /** Verified mobile in E.164, or "". Somebody who signed in by SMS has this and no email. */
+  /** The verified mobile in E.164, or "". Exactly one of email / phone is set. */
   phone: string;
   initial: string;
   signOut: () => void;
@@ -79,23 +79,16 @@ export type Session = {
   isSwitchingWorkspace: boolean;
   refreshSession: () => void;
 
-  /**
-   * Begins sign-in with a provider. Establishes identity only — never access.
-   *
-   * `identifier` is an email address or a mobile number depending on the
-   * provider, and is ignored by the redirect providers (Google, Zoho).
-   */
-  signInWithProvider: (provider: ProviderId, identifier: string, name?: string) => Promise<void>;
-  /** Submits the one-time code, from either channel. Passwordless: there is no password path. */
-  verifyCode: (code: string) => Promise<void>;
-  /** Sends another code to the same identifier, on the leg that issued the first. */
+  /** Begins sign-in with a provider. Establishes identity only — never access. */
+  signInWithProvider: (provider: ProviderId, email: string, name?: string) => Promise<void>;
+  /** Submits the one-time code sent to the address. Passwordless: there is no password path. */
+  verifyEmailCode: (code: string) => Promise<void>;
+  /** Sends another code to the same address, on the leg that issued the first. */
   resendCode: () => Promise<void>;
   /** True once a code has been sent and the UI should ask for it. */
   awaitingCode: boolean;
-  /** The address or number a code went to. Survives a refresh; "" when none is outstanding. */
-  pendingIdentifier: string;
-  /** Which channel that code went by, so the UI can say "inbox" or "SMS". */
-  pendingChannel: "email" | "phone";
+  /** The address a code was sent to. Survives a refresh; "" when none is outstanding. */
+  pendingEmail: string;
   cancelCodeEntry: () => void;
   isSigningIn: boolean;
   signInError: string | null;
@@ -225,11 +218,11 @@ const BASE_PATH = import.meta.env.BASE_URL.replace(/\/$/, "");
  * half-finished sign-in, and it should not outlive the tab.
  */
 type PendingCode = {
-  /** The address or number the code went to. */
-  identifier: string;
-  /** Which kind it is — decides `emailCode` vs `phoneCode` on resend and verify. */
-  channel: "email" | "phone";
+  /** The address or number the code went to; shown back on the code screen. */
+  email: string;
   leg: "signIn" | "signUp";
+  /** Which strategy issued it. Absent on a value written by an older build. */
+  kind?: "email" | "phone";
 };
 
 const PENDING_CODE_KEY = "lex.signin.pending-code";
@@ -240,11 +233,9 @@ function readPendingCode(): PendingCode | null {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
-    const { identifier, channel, leg } = parsed as Partial<PendingCode>;
-    if (typeof identifier !== "string" || (leg !== "signIn" && leg !== "signUp")) return null;
-    // A pending code written by an older build has no channel; it can only have
-    // been an email one.
-    return { identifier, channel: channel === "phone" ? "phone" : "email", leg };
+    const { email, leg } = parsed as Partial<PendingCode>;
+    if (typeof email !== "string" || (leg !== "signIn" && leg !== "signUp")) return null;
+    return { email, leg };
   } catch {
     // Private-mode Safari throws on sessionStorage. Losing the resume is a
     // worse experience, not a broken one.
@@ -303,52 +294,54 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
    * README → Sign-in providers.
    */
   const signInWithProvider = useCallback(
-    async (provider: ProviderId, identifier: string) => {
+    async (provider: ProviderId, emailAddress: string) => {
       if (!signIn) return;
       setSignInError(null);
       setIsSigningIn(true);
       try {
-        if (provider === "email" || provider === "phone") {
-          /*
-           * Passwordless: a one-time code, to an inbox or by SMS. There is no
-           * password field anywhere in this app and no password strategy is
-           * attempted.
-           *
-           * The two channels are the same flow against a different Clerk
-           * resource — `emailCode` / `phoneCode` — so they are written once
-           * here rather than twice. Sign-in first, because most callers already
-           * have an account. An identifier Clerk has never seen cannot be
-           * signed in — it has to be signed up — so that failure falls through
-           * to creating the account and sending the code from the sign-up leg
-           * instead. Without this, the very first person to reach a new
-           * deployment could never get in: sign-in needs a user, and nothing
-           * here was creating one.
-           */
-          const channel = provider === "phone" ? "phone" : "email";
-
-          const { error } =
-            channel === "phone"
-              ? await signIn.phoneCode.sendCode({ phoneNumber: identifier })
-              : await signIn.emailCode.sendCode({ emailAddress: identifier });
+        if (provider === "phone") {
+          // The exact mirror of the email leg below, including the fall-through
+          // to sign-up: a number Clerk has never seen cannot be *signed in*, so
+          // the first person to reach a deployment by SMS has to be created.
+          const { error } = await signIn.phoneCode.sendCode({ phoneNumber: emailAddress });
           if (!error) {
-            setPendingCode({ identifier, channel, leg: "signIn" });
+            setPendingCode({ email: emailAddress, leg: "signIn", kind: "phone" });
             return;
           }
 
           if (!signUp) throw error;
-          const created =
-            channel === "phone"
-              ? await signUp.create({ phoneNumber: identifier })
-              : await signUp.create({ emailAddress: identifier });
-          // The identifier is already taken but sign-in refused it — report the
+          const created = await signUp.create({ phoneNumber: emailAddress });
+          if (created.error) throw error;
+          const sent = await signUp.verifications.sendPhoneCode();
+          if (sent.error) throw sent.error;
+          setPendingCode({ email: emailAddress, leg: "signUp", kind: "phone" });
+          return;
+        }
+
+        if (provider === "email") {
+          // Passwordless: a one-time code to the inbox. There is no password
+          // field anywhere in this app and no password strategy is attempted.
+          //
+          // Sign-in first, because most callers already have an account. An
+          // address Clerk has never seen cannot be signed in — it has to be
+          // signed up — so that failure falls through to creating the account
+          // and sending the code from the sign-up leg instead. Without this,
+          // the very first person to reach a new deployment could never get in:
+          // sign-in needs a user, and nothing here was creating one.
+          const { error } = await signIn.emailCode.sendCode({ emailAddress });
+          if (!error) {
+            setPendingCode({ email: emailAddress, leg: "signIn", kind: "email" });
+            return;
+          }
+
+          if (!signUp) throw error;
+          const created = await signUp.create({ emailAddress });
+          // The address is already taken but sign-in refused it — report the
           // original refusal, which is the more informative of the two.
           if (created.error) throw error;
-          const sent =
-            channel === "phone"
-              ? await signUp.verifications.sendPhoneCode()
-              : await signUp.verifications.sendEmailCode();
+          const sent = await signUp.verifications.sendEmailCode();
           if (sent.error) throw sent.error;
-          setPendingCode({ identifier, channel, leg: "signUp" });
+          setPendingCode({ email: emailAddress, leg: "signUp", kind: "email" });
           return;
         }
 
@@ -358,16 +351,18 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
           // over from there and decides — from the backend session — whether
           // this identity sees the portal, a pending notice, or the refusal.
           //
-          // On a native shell these are NOT this origin: the webview is served
-          // from capacitor://localhost, which no OAuth provider will redirect
-          // to. `authRedirectBase()` returns the app's registered custom scheme
-          // there and window.location.origin on the web. See lib/platform.ts.
+          // NOT this origin on a native shell: the webview is served from
+          // capacitor://localhost (iOS) or https://localhost (Android), and no
+          // OAuth provider will redirect to either. `authRedirectBase()`
+          // returns the app's registered custom scheme there and
+          // window.location.origin on the web. See lib/platform.ts, and
+          // lib/native.ts for the appUrlOpen listener that catches the return.
           redirectUrl: `${authRedirectBase()}${BASE_PATH}/dashboard`,
           // Where Clerk sends the handshake when it needs another step first.
           redirectCallbackUrl: `${authRedirectBase()}${BASE_PATH}/portal/callback`,
         };
 
-        // Same shape as the code legs. A successful sso() navigates away, so
+        // Same shape as the email leg. A successful sso() navigates away, so
         // reaching the next line at all means it refused — which is what a
         // provider identity with no account looks like. Retry as a sign-up.
         const { error } = await signIn.sso({ strategy, ...urls });
@@ -406,19 +401,18 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
     setSignInError(null);
     setIsSigningIn(true);
     try {
+      const byPhone = pendingCode.kind === "phone";
       if (pendingCode.leg === "signUp") {
         if (!signUp) throw new Error("Sign-up is not available. Start again.");
-        const { error } =
-          pendingCode.channel === "phone"
-            ? await signUp.verifications.sendPhoneCode()
-            : await signUp.verifications.sendEmailCode();
+        const { error } = byPhone
+          ? await signUp.verifications.sendPhoneCode()
+          : await signUp.verifications.sendEmailCode();
         if (error) throw error;
       } else {
         if (!signIn) throw new Error("Sign-in is not available. Start again.");
-        const { error } =
-          pendingCode.channel === "phone"
-            ? await signIn.phoneCode.sendCode({ phoneNumber: pendingCode.identifier })
-            : await signIn.emailCode.sendCode({ emailAddress: pendingCode.identifier });
+        const { error } = byPhone
+          ? await signIn.phoneCode.sendCode({ phoneNumber: pendingCode.email })
+          : await signIn.emailCode.sendCode({ emailAddress: pendingCode.email });
         if (error) throw error;
       }
     } catch (err) {
@@ -428,8 +422,8 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
     }
   }, [pendingCode, signIn, signUp]);
 
-  /** Second leg of the passwordless flow: verify the code, from either channel. */
-  const verifyCode = useCallback(
+  /** Second leg of the passwordless email flow: verify the emailed code. */
+  const verifyEmailCode = useCallback(
     async (code: string) => {
       if (!signIn) return;
       setSignInError(null);
@@ -438,13 +432,13 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
         const trimmed = code.trim();
         // Verified against whichever leg issued it — see `pendingCode`.
         const usingSignUp = pendingCode?.leg === "signUp" && Boolean(signUp);
-        const onPhone = pendingCode?.channel === "phone";
+        const byPhone = pendingCode?.kind === "phone";
         const { error } =
           usingSignUp && signUp
-            ? onPhone
+            ? byPhone
               ? await signUp.verifications.verifyPhoneCode({ code: trimmed })
               : await signUp.verifications.verifyEmailCode({ code: trimmed })
-            : onPhone
+            : byPhone
               ? await signIn.phoneCode.verifyCode({ code: trimmed })
               : await signIn.emailCode.verifyCode({ code: trimmed });
         if (error) throw error;
@@ -457,21 +451,16 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
 
         if (leg.status !== "complete") {
           // Clerk wants something else before it will issue a session —
-          // typically an attribute still REQUIRED in the dashboard, such as a
-          // username, or an email address on a phone sign-up. Say which,
-          // because the alternative is redirecting into a bounce that reads as
-          // "the code was wrong".
-          //
-          // Note this is the failure mode to watch when enabling phone: if
-          // phone is marked required rather than optional, every existing email
-          // sign-in starts landing here.
+          // typically an attribute still switched on in the dashboard, such as
+          // a phone number or a username. Say which, because the alternative is
+          // redirecting into a bounce that reads as "the code was wrong".
           const missing =
             usingSignUp && signUp
               ? [...signUp.missingFields, ...signUp.unverifiedFields].join(", ")
               : "";
           throw new Error(
             missing
-              ? `You are verified, but this Clerk instance still requires: ${missing}. ` +
+              ? `Your address is verified, but this Clerk instance still requires: ${missing}. ` +
                   `Turn those off under User & Authentication in the Clerk dashboard.`
               : `Verification finished with status "${leg.status}" instead of "complete", ` +
                   `so no session was created. Check the required fields in the Clerk dashboard.`,
@@ -509,12 +498,10 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       isSignedIn: Boolean(isSignedIn),
       // Prefer the backend's copy of the profile — it is the record the rest of
       // the app is authorized against.
-      displayName: backend.claims?.displayName || user?.fullName || email || phone,
+      displayName: backend.claims?.displayName || user?.fullName || email,
       email: backend.claims?.email || email,
-      // The backend's copy is the canonical E.164 form; Clerk's is only a
-      // fallback for the instant before /session answers.
       phone: backend.claims?.phone || phone,
-      initial: firstChar(backend.claims?.displayName, user?.firstName, email || phone),
+      initial: firstChar(backend.claims?.displayName, user?.firstName, email, phone),
       signOut: () => {
         clearWorkspaceContext();
         void signOut();
@@ -527,11 +514,10 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
       createWorkspace: backend.createWorkspace,
       isCreatingWorkspace: backend.isCreatingWorkspace,
       signInWithProvider,
-      verifyCode,
+      verifyEmailCode,
       resendCode,
       awaitingCode: pendingCode !== null,
-      pendingIdentifier: pendingCode?.identifier ?? "",
-      pendingChannel: pendingCode?.channel ?? "email",
+      pendingEmail: pendingCode?.email ?? "",
       cancelCodeEntry,
       isSigningIn,
       signInError,
@@ -544,7 +530,7 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
     signOut,
     backend,
     signInWithProvider,
-    verifyCode,
+    verifyEmailCode,
     resendCode,
     pendingCode,
     cancelCodeEntry,
@@ -574,31 +560,28 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
   );
 
   /**
-   * Stands in for completing Google/Zoho/email/SMS sign-in.
+   * Stands in for completing Google/Zoho/email sign-in.
    *
-   * No provider is contacted — there is none configured — so the identifier is
+   * No provider is contacted — there is none configured — so the address is
    * taken at face value, exactly as a verified claim from a real provider would
    * be. Everything after this point is the real code path: the backend
-   * provisions the user, applies the access list, and refuses the identity if
-   * it is not on one.
-   *
-   * The number is NOT canonicalised here. The server normalises whatever the
-   * preview token carries, and doing it in both places would let the two
-   * definitions drift — at which point preview would admit identities that
-   * production would not.
+   * provisions the user, applies the access list, and refuses the address if it
+   * is not on one.
    */
   const signInWithProvider = useCallback(
     async (provider: ProviderId, identifier: string, name?: string) => {
       const trimmed = identifier.trim();
-      const isPhone = provider === "phone";
-      if (isPhone) {
-        if (!trimmed) return;
+      if (provider === "phone") {
+        // Shape only — the server normalises to E.164 and is the authority on
+        // what a usable number is. Refusing more here would put two different
+        // answers to the same question in two places.
+        if (!/\d/.test(trimmed)) return;
         adopt({ provider, email: "", phone: trimmed, name: name?.trim() ?? "" });
         return;
       }
-      const email = trimmed.toLowerCase();
-      if (!email.includes("@")) return;
-      adopt({ provider, email, phone: "", name: name?.trim() ?? "" });
+      const lowered = trimmed.toLowerCase();
+      if (!lowered.includes("@")) return;
+      adopt({ provider, email: lowered, name: name?.trim() ?? "" });
     },
     [adopt],
   );
@@ -613,7 +596,7 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
       displayName: claims?.displayName ?? session?.name ?? "",
       email: claims?.email ?? session?.email ?? "",
       phone: claims?.phone ?? session?.phone ?? "",
-      initial: firstChar(claims?.displayName, session?.email || session?.phone),
+      initial: firstChar(claims?.displayName, session?.email),
       signOut,
       ...baseSessionFields(claims),
       can: backend.can,
@@ -624,11 +607,10 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
       isCreatingWorkspace: backend.isCreatingWorkspace,
       signInWithProvider,
       // No provider is connected in preview, so there is no code to verify.
-      verifyCode: async () => {},
+      verifyEmailCode: async () => {},
       resendCode: async () => {},
       awaitingCode: false,
-      pendingIdentifier: "",
-      pendingChannel: "email" as const,
+      pendingEmail: "",
       cancelCodeEntry: () => {},
       isSigningIn: false,
       signInError: null,

@@ -135,7 +135,10 @@ Environment:
 | `FILE_ENCRYPTION_KEY`                                                       | **yes in prod**      | 32 bytes of hex. Without it the server refuses to start (section 4a)                                                             |
 | `RAZORPAY_KEY_ID` / `_KEY_SECRET` / `_WEBHOOK_SECRET`                       | to take payment      | All three, or the plan screen records selections and charges nothing (section 4c)                                                |
 | `ERROR_WEBHOOK_URL`                                                         | strongly advised     | Where faults are reported. Unset, you find out from a customer (section 4d)                                                      |
+| `ANTHROPIC_API_KEY`                                                         | for AI drafting      | Unset, drafting is served by a built-in stand-in and the meter says so. The server still starts (section 4g)                     |
+| `AI_PAISE_PER_CENT`                                                         | no                   | Paise per US cent, for costing drafts against a chamber's budget. Defaults to 95                                                 |
 | `MAX_UPLOAD_BYTES`                                                          | no                   | Per-file cap. Defaults to 25 MB                                                                                                  |
+| `DEFAULT_COUNTRY_CODE`                                                      | no                   | Assumed when a mobile is typed without one. Defaults to `+91` (section 4f)                                                       |
 | `OPERATOR_EMAILS`                                                           | no                   | Comma-separated. Who may read `/operator` — the platform across every chamber. Unset means the route does not exist (section 4e) |
 | `SMTP_HOST` / `_PORT` / `_USER` / `_PASS` / `MAIL_FROM`                     | for email            | Unset, reminders are recorded but never delivered (section 4b)                                                                   |
 
@@ -342,6 +345,65 @@ Activity figures come from `users.last_seen_at`, written at most once an hour
 per person. It has no backfill, so for the first weeks after deploying it
 "never seen" means "not seen since this shipped" rather than "never signed in".
 The screen says so; do not read the early numbers as churn.
+
+### 4f. Sign-in by mobile number
+
+A number is a full identity here: somebody with no email address can be
+invited, sign in by SMS, and found a chamber. Nothing extra is needed in this
+repository — but two things outside it are.
+
+**In the Clerk dashboard**, under User & Authentication, enable **Phone number**
+as an identifier and **SMS verification code** as a strategy. Leave password
+off, as it already is. Until that is enabled, the mobile option on the sign-in
+screen will reach Clerk and be refused.
+
+**Confirm with Clerk before you rely on it in India**, because it is the part
+this repository cannot test:
+
+- that SMS actually **delivers to `+91` numbers** on your plan — international
+  routes into India are heavily filtered;
+- **who holds the TRAI/DLT registration** for the sender ID and template, Clerk
+  or you as the principal entity;
+- the **per-message price**, and whether it bills to your Clerk plan.
+
+`DEFAULT_COUNTRY_CODE` (default `+91`) is the code assumed when somebody types a
+number without one. Set it if your chambers are not in India.
+
+Preview mode needs none of this: it accepts a `preview:phone:` token with no SMS
+at all, so the whole flow can be demonstrated and tested at zero cost.
+
+### 4g. AI drafting
+
+**Optional.** With no `ANTHROPIC_API_KEY` the server starts normally, drafting
+is served by a built-in stand-in, and the meter on the drafting screen says so
+in as many words. Nothing else in the product is affected.
+
+To switch it on, set `ANTHROPIC_API_KEY` and redeploy. Then **each chamber must
+still opt in**: an admin turns drafting on from their own screen, having read
+what is sent and where it goes. It is off by default and the server refuses a
+drafting request until it is on — hiding the button would not be a control.
+
+What leaves the server, per draft: the matter's own fields, its chronology, its
+listed dates, the chamber's recorded observations, its style examples, and
+**only the documents the advocate ticked for that draft**. Every draft records
+what it was given in `draft_sources`, which is the answer when a client asks.
+
+Three things to settle before real client work runs through it:
+
+- **Name Anthropic in the subprocessor table** in `docs/legal/`, with what is
+  sent and why. The table already exists; the row does not.
+- **Data retention.** The standard arrangement retains API content for 30 days.
+  Zero-retention is a commercial conversation with Anthropic — have it before a
+  chamber that needs it signs, not after.
+- **The budget.** `plans.ts` grants ₹600 a month on Pro and ₹3,000 on Firm, per
+  chamber. Watch `ai_usage_events` for a month and set them from what chambers
+  actually spend. `AI_PAISE_PER_CENT` (default 95) converts token prices to
+  paise; move it if the rupee does.
+
+Costs, at current list prices: roughly **₹30** for a petition on the heavy
+model, **₹4** for a short application on the light one, and about **₹12** extra
+for a review, which uses web search to check each citation exists. Recording an
+insight costs nothing.
 
 ### 4b. Email
 

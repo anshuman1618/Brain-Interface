@@ -18,13 +18,16 @@ export const isPreviewMode = !import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 /**
  * Who the preview session is signed in as: an identifier a provider vouched for.
  *
- * Exactly one of `email` / `phone` carries a value, mirroring the real model
- * where somebody who signed up by SMS holds no address at all.
+ * Exactly one of `email` / `phone` is set, mirroring the server's
+ * `PreviewIdentity`. A chamber's clerks and most of its clients have a mobile
+ * and no work address, so the preview has to be able to represent them too —
+ * otherwise the one path that can be exercised without Clerk is the one path
+ * that excludes them.
  */
 export type PreviewSession = {
   provider: string;
   email: string;
-  phone: string;
+  phone?: string;
   name: string;
 };
 
@@ -33,17 +36,13 @@ const PREVIEW_SESSION_KEY = "portal:previewSession";
 function parse(raw: string | null): PreviewSession | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as Partial<PreviewSession>;
-    const email = typeof parsed?.email === "string" ? parsed.email : "";
-    // `phone` is absent in sessions stored by an older build; treat it as "".
-    const phone = typeof parsed?.phone === "string" ? parsed.phone : "";
-    if (!email.includes("@") && !phone) return null;
-    return {
-      provider: parsed.provider ?? "email",
-      email,
-      phone,
-      name: parsed.name ?? "",
-    };
+    const parsed = JSON.parse(raw) as PreviewSession;
+    if (typeof parsed?.email === "string" && parsed.email.includes("@")) return parsed;
+    // A phone-only session, stored by a later build than the one that wrote
+    // the email-only shape above.
+    if (typeof parsed?.phone === "string" && parsed.phone.startsWith("+")) {
+      return { ...parsed, email: parsed.email ?? "" };
+    }
   } catch {
     // Corrupt or from an older build — treat as signed out.
   }
@@ -82,10 +81,11 @@ export function clearPreviewSession(): void {
  * to a user whose access is then read from the database like anyone else's.
  */
 export function previewToken(session: PreviewSession): string {
-  // Two channels, one per kind of identifier — see lib/preview-mode.ts on the
-  // server. The `preview:email:` form is unchanged: every integration suite in
-  // scripts/ci builds it by hand.
-  const channel = session.phone ? "phone" : "email";
-  const identifier = session.phone || session.email;
-  return `preview:${channel}:${session.provider}:${encodeURIComponent(identifier)}:${encodeURIComponent(session.name)}`;
+  // Two forms, one per identifier — see `previewIdentityFromRequest` on the
+  // server. The email form is unchanged, deliberately: every CI suite builds
+  // tokens with it and they must keep passing untouched.
+  if (session.phone) {
+    return `preview:phone:phone:${encodeURIComponent(session.phone)}:${encodeURIComponent(session.name)}`;
+  }
+  return `preview:email:${session.provider}:${encodeURIComponent(session.email)}:${encodeURIComponent(session.name)}`;
 }

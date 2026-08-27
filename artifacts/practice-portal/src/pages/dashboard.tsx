@@ -32,9 +32,11 @@ import {
   Plus,
   Send,
   UserRound,
+  PenLine,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { PlanBanner } from "@/components/plan-banner";
+import { CredentialsNotice } from "@/components/credentials-notice";
 import { DocumentRequestModal } from "@/components/document-request-modal";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { CaseFormModal } from "@/components/case-form-modal";
@@ -173,6 +175,7 @@ function StaffDashboard() {
       {/* Renders for everyone, and renders nothing when the plan is healthy.
           Only the CTA inside it is gated on billing.manage. */}
       <PlanBanner canManage={can("billing.manage")} />
+      <CredentialsNotice />
 
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
         <div>
@@ -393,6 +396,21 @@ function StaffDashboard() {
               Interactive Master Calendar
             </span>
           </button>
+
+          {/* Second in the grid on purpose. Drafting is the thing an advocate
+              opens this product to do; burying it at the end would make it look
+              like an extra rather than the point. */}
+          {can("drafting.use") && (
+            <button
+              onClick={() => setLocation("/drafting")}
+              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-75`}
+            >
+              <PenLine className="h-8 w-8" />
+              <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
+                Draft a Document
+              </span>
+            </button>
+          )}
 
           {can("cases.write") && (
             <button

@@ -45,6 +45,7 @@ tags:
   - name: invoices
     description: Invoice generation (firm admin only)
   - name: cause-list
+  - name: drafting
     description: Court cause lists, and the listings proposed against a chamber's matters
 
 paths:
@@ -871,6 +872,426 @@ paths:
           description: Forbidden
         "404":
           description: No such court
+
+  /ai/budget:
+    get:
+      operationId: getAiBudget
+      tags: [drafting]
+      summary: What is left of this chamber's drafting budget
+      description: >
+        Visible from the first day of the period rather than at the moment of
+        refusal. A hard limit nobody could see coming is an outage; the same
+        limit with a meter beside it is a budget.
+      responses:
+        "200":
+          description: The budget
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiBudget"
+        "403":
+          description: Forbidden
+
+  /workspace/drafting:
+    post:
+      operationId: setDraftingEnabled
+      tags: [drafting]
+      summary: Turn AI drafting on or off for this chamber (admin only)
+      description: >
+        Off until an admin turns it on, having read what leaves the server.
+        Drafting sends matter facts — and whichever documents an advocate ticks
+        — to a third party. That is a decision a practice makes deliberately,
+        and this records who made it and when.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftingToggleInput"
+      responses:
+        "200":
+          description: The new state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftingSettings"
+        "403":
+          description: Forbidden
+
+  /insights:
+    get:
+      operationId: listInsights
+      tags: [drafting]
+      summary: What this chamber's advocates have learned
+      parameters:
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Full-text filter. Omit for the most recent.
+      responses:
+        "200":
+          description: Insights, most relevant or most recent first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Insight"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createInsight
+      tags: [drafting]
+      summary: Record an observation from practice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsightInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Insight"
+        "400":
+          description: Invalid
+        "403":
+          description: Forbidden
+
+  /insights/{id}:
+    patch:
+      operationId: updateInsight
+      tags: [drafting]
+      summary: Correct an observation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InsightInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Insight"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such insight in this chamber
+    delete:
+      operationId: deleteInsight
+      tags: [drafting]
+      summary: Remove an observation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+        "404":
+          description: No such insight in this chamber
+
+  /exemplars:
+    get:
+      operationId: listExemplars
+      tags: [drafting]
+      summary: Past filings kept as examples of how this chamber writes
+      responses:
+        "200":
+          description: Exemplars
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Exemplar"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createExemplar
+      tags: [drafting]
+      summary: Promote a matter document to a style exemplar
+      description: >
+        Extracts the text, then runs a redaction pass over it. The result is NOT
+        usable until a person has read and accepted it — an exemplar rides in
+        the cached prefix of every future draft of its kind, so an unreviewed
+        one would put another client's facts in front of unrelated work.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExemplarInput"
+      responses:
+        "201":
+          description: Created, awaiting review
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exemplar"
+        "400":
+          description: Invalid, or nothing readable in the document
+        "403":
+          description: Forbidden
+        "404":
+          description: No such document in this chamber
+
+  /exemplars/{id}:
+    patch:
+      operationId: updateExemplar
+      tags: [drafting]
+      summary: Accept or correct the redacted copy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExemplarPatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exemplar"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such exemplar in this chamber
+    delete:
+      operationId: deleteExemplar
+      tags: [drafting]
+      summary: Remove an exemplar
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+        "404":
+          description: No such exemplar in this chamber
+
+  /cases/{id}/drafts:
+    get:
+      operationId: listDrafts
+      tags: [drafting]
+      summary: Drafts and briefs prepared for this matter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Drafts, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Draft"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such matter in this chamber
+    post:
+      operationId: createDraft
+      tags: [drafting]
+      summary: Draft a document, or prepare a case brief
+      description: >
+        Returns immediately with a draft in `generating`; the work continues on
+        the server and the client polls `GET /drafts/{id}`. A petition takes a
+        minute or more to write, which is past the point where an HTTP request
+        survives a proxy — and this way a browser that navigates away does not
+        lose work the chamber has already paid for.
+
+
+        Only the documents named in `documentIds` are sent, and each is
+        re-checked against this matter and this chamber before it is read.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftInput"
+      responses:
+        "202":
+          description: Accepted, and being written
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draft"
+        "400":
+          description: Invalid
+        "402":
+          description: The drafting budget for this period is used up
+        "403":
+          description: Forbidden, or drafting is not switched on for this chamber
+        "404":
+          description: No such matter in this chamber
+
+  /drafts/{id}:
+    get:
+      operationId: getDraft
+      tags: [drafting]
+      summary: One draft, including its progress while it is being written
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draft"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such draft in this chamber
+    patch:
+      operationId: updateDraft
+      tags: [drafting]
+      summary: Edit a draft, or mark it kept
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftPatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Draft"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such draft in this chamber
+    delete:
+      operationId: deleteDraft
+      tags: [drafting]
+      summary: Discard a draft
+      description: >
+        Removes the draft. The spend it caused stays on the record — the tokens
+        were used whether or not the output was kept, and a budget derived from
+        rows a chamber can delete would not be a budget.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "403":
+          description: Forbidden
+        "404":
+          description: No such draft in this chamber
+
+  /memberships/{id}/case-access:
+    get:
+      operationId: getCaseAccess
+      tags: [session]
+      summary: Which matters this member may see (access_control.manage only)
+      description: >
+        A junior advocate or clerk can be narrowed to the matters they are
+        assigned plus the matters named here. Off by default: an unrestricted
+        member keeps the row scope their role has always had, so switching this
+        on is a deliberate act and shipping it took access from nobody.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The member's case access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseAccess"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such member in this chamber
+    put:
+      operationId: setCaseAccess
+      tags: [session]
+      summary: Restrict a member, and name the matters they may see (access_control.manage only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseAccessInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseAccess"
+        "400":
+          description: Invalid, or a role this cannot apply to
+        "403":
+          description: Forbidden
+        "404":
+          description: No such member in this chamber
 
   /workspace/access-list:
     get:
@@ -2158,7 +2579,7 @@ components:
     # ── User ──────────────────────────────────────────────────────────────
     UserProfile:
       type: object
-      required: [id, clerkId, role, roleSelected, displayName, email, phone, createdAt]
+      required: [id, clerkId, role, roleSelected, displayName, email, createdAt]
       properties:
         id:
           type: integer
@@ -2174,9 +2595,6 @@ components:
           type: string
         email:
           type: string
-        phone:
-          type: string
-          description: Verified mobile in E.164, or "".
         authProvider:
           type: ["string", "null"]
         barCouncilState:
@@ -2185,6 +2603,28 @@ components:
           type: ["string", "null"]
         aorNo:
           type: ["string", "null"]
+          description: Advocate-on-Record, Supreme Court of India.
+        aorHighCourtNo:
+          type: ["string", "null"]
+          description: Advocate-on-Record at a High Court, where that court keeps a roll.
+        copNo:
+          type: ["string", "null"]
+          description: Certificate of Practice number.
+        allIndiaBarNo:
+          type: ["string", "null"]
+          description: All India Bar Examination certificate number.
+        allIndiaBarDueAt:
+          type: ["string", "null"]
+          format: date-time
+          description: >
+            When the All India Bar number stops being optional. Stamped once, on
+            the first declaration, and never moved — a deadline that resets each
+            time the form is saved is not a deadline.
+        allIndiaBarDaysLeft:
+          type: ["integer", "null"]
+          description: >
+            Days until it is required. Null once supplied or when no deadline is
+            set; negative once overdue.
         barDeclaredAt:
           type: ["string", "null"]
           format: date-time
@@ -2238,7 +2678,6 @@ components:
           clerkId,
           displayName,
           email,
-          phone,
           accessStatus,
           memberships,
           capabilities,
@@ -2255,10 +2694,12 @@ components:
         email:
           type: string
         phone:
-          type: string
+          type: ["string", "null"]
           description: >
-            Verified mobile in E.164, or "". Somebody who signed up by SMS has
-            this and no email; the two are alternatives, not a pair.
+            The verified mobile in E.164, or null. The Access Denied screen
+            needs it to name the identifier the caller actually holds — telling
+            somebody who signed in by phone to "ask your admin to add
+            <blank>" is the failure this replaces.
         accessStatus:
           type: string
           enum: [not_recognised, pending_approval, active]
@@ -2321,6 +2762,22 @@ components:
         aorNo:
           type: string
           description: Supreme Court Advocate-on-Record number. Optional — most advocates never hold one.
+        aorHighCourtNo:
+          type: string
+          description: >
+            Advocate-on-Record at a High Court, where that court keeps such a
+            roll. A different roll from the Supreme Court one, so a separate
+            field — an advocate may hold either, both or neither.
+        copNo:
+          type: string
+          description: Certificate of Practice number, issued by the state bar council.
+        allIndiaBarNo:
+          type: string
+          description: >
+            All India Bar Examination certificate number. Optional at
+            declaration and required within six months of it — an advocate
+            enrolled before the examination existed may hold none, and a newly
+            enrolled one has a window in which to sit it.
 
     BarRegistration:
       type: object
@@ -2332,6 +2789,21 @@ components:
           type: string
         aorNo:
           type: ["string", "null"]
+        aorHighCourtNo:
+          type: ["string", "null"]
+        copNo:
+          type: ["string", "null"]
+        allIndiaBarNo:
+          type: ["string", "null"]
+        allIndiaBarDueAt:
+          type: ["string", "null"]
+          format: date-time
+          description: When the All India Bar number stops being optional.
+        allIndiaBarDaysLeft:
+          type: ["integer", "null"]
+          description: >
+            Days until it is required. Null once supplied or when no deadline is
+            set; negative once overdue. Drives the warning before the gate bites.
         barDeclaredAt:
           type: string
           format: date-time
@@ -2547,9 +3019,10 @@ components:
           minLength: 3
           description: >
             An exact email address, a bare domain such as "chambers.in", or a
-            mobile number in E.164 ("+919876543210"). A ten-digit number is
-            read as Indian. There is deliberately no domain equivalent for
-            phone — a numbering range is not an organisation.
+            mobile number. A number is normalised to E.164 on write, so any
+            readable form is accepted and matching stays an equality check.
+            A phone entry carries a risk the others do not: telcos reassign a
+            disconnected number after about ninety days.
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
@@ -3272,6 +3745,16 @@ components:
           description: >
             Whole days until `currentPeriodEnd`, server-computed. Null when no
             period is running, negative once it has elapsed.
+        neverPaid:
+          type: boolean
+          description: >
+            This chamber has never had a plan in force. Distinct from `lapsed`,
+            which means one WAS in force and ran out — "your plan expired" is a
+            bewildering thing to read on the day you signed up. Enforcement uses
+            the same flag, so a client that gates on it shows the subscription
+            screen exactly when the API would answer 402 `payment_required`.
+            Derived, never stored: `status` may read `trialing` on a chamber
+            that abandoned a checkout, and `startedAt` is the honest test.
         updatedBy:
           type: ["string", "null"]
 
@@ -3463,6 +3946,337 @@ components:
           type: integer
         error:
           type: string
+
+    CaseAccess:
+      type: object
+      required: [membershipId, role, restricted, grantedCaseIds]
+      properties:
+        membershipId:
+          type: integer
+        role:
+          type: string
+        restricted:
+          type: boolean
+          description: >
+            When true the member sees assigned matters PLUS the granted ones,
+            and nothing else. When false their role's own scope applies.
+        grantedCaseIds:
+          type: array
+          items:
+            type: integer
+        grants:
+          type: array
+          items:
+            type: object
+            required: [caseId, caseTitle]
+            properties:
+              caseId:
+                type: integer
+              caseTitle:
+                type: string
+              grantedBy:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+
+    CaseAccessInput:
+      type: object
+      required: [restricted]
+      properties:
+        restricted:
+          type: boolean
+        caseIds:
+          type: array
+          maxItems: 500
+          items:
+            type: integer
+          description: >
+            The complete set of explicitly granted matters. Sent whole rather
+            than as add/remove, so a stale client cannot silently re-grant a
+            matter an admin has just taken away.
+        note:
+          type: string
+          maxLength: 500
+
+    AiBudget:
+      type: object
+      required:
+        [plan, allowanceMinor, topupMinor, spentMinor, remainingMinor, tier, draftingEnabled]
+      properties:
+        plan:
+          type: string
+        allowanceMinor:
+          type: integer
+          description: What the plan grants for this period, in paise.
+        topupMinor:
+          type: integer
+          description: Unexpired top-up grants, in paise. These carry forward; the allowance does not.
+        spentMinor:
+          type: integer
+        remainingMinor:
+          type: integer
+        resetsAt:
+          type: ["string", "null"]
+          format: date-time
+        tier:
+          type: string
+          enum: [full, economy]
+          description: >
+            `economy` routes everything to the lighter model. It is what the
+            trial runs on, so an evaluation cannot spend a plan's worth of
+            tokens on one petition.
+        draftingEnabled:
+          type: boolean
+          description: Whether an admin has switched drafting on for this chamber.
+        configured:
+          type: boolean
+          description: >
+            Whether the deployment has an API key at all. False means every
+            draft is served by the preview stub — useful to know before
+            wondering why the output reads oddly.
+
+    DraftingToggleInput:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+        acknowledgement:
+          type: string
+          description: The disclosure text the admin accepted, recorded verbatim.
+
+    DraftingSettings:
+      type: object
+      required: [draftingEnabled]
+      properties:
+        draftingEnabled:
+          type: boolean
+        draftingEnabledBy:
+          type: ["string", "null"]
+        draftingEnabledAt:
+          type: ["string", "null"]
+          format: date-time
+
+    Insight:
+      type: object
+      required: [id, title, body, tags, authorName, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        body:
+          type: string
+        tags:
+          type: string
+        courtId:
+          type: ["integer", "null"]
+        courtName:
+          type: ["string", "null"]
+        caseTypeNorm:
+          type: ["string", "null"]
+        authorName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    InsightInput:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        body:
+          type: string
+          maxLength: 8000
+        tags:
+          type: string
+          maxLength: 300
+        courtId:
+          type: ["integer", "null"]
+        caseType:
+          type: ["string", "null"]
+          description: As typed. Normalised on write so retrieval compares as equality.
+
+    Exemplar:
+      type: object
+      required: [id, kind, title, body, active, createdAt]
+      properties:
+        id:
+          type: integer
+        kind:
+          type: string
+          enum: [petition, written_statement, appeal, application, reply, notice, letter]
+        title:
+          type: string
+        body:
+          type: string
+          description: The redacted copy. This, and only this, is what reaches a prompt.
+        sourceDocumentId:
+          type: ["integer", "null"]
+        anonymisedAt:
+          type: ["string", "null"]
+          format: date-time
+        reviewedAt:
+          type: ["string", "null"]
+          format: date-time
+          description: >
+            Null means unusable. An exemplar is not assembled into any prompt
+            until a person has read the redacted copy and accepted it.
+        reviewedBy:
+          type: ["string", "null"]
+        active:
+          type: boolean
+        addedByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ExemplarInput:
+      type: object
+      required: [kind, title]
+      properties:
+        kind:
+          type: string
+          enum: [petition, written_statement, appeal, application, reply, notice, letter]
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+        documentId:
+          type: ["integer", "null"]
+          description: A document on one of this chamber's matters, to promote.
+        text:
+          type: string
+          maxLength: 200000
+          description: Pasted text, when the example is not already a stored document.
+
+    ExemplarPatch:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        body:
+          type: string
+          maxLength: 200000
+          description: The corrected redaction.
+        approve:
+          type: boolean
+          description: Accept the redacted copy and make the exemplar usable.
+        active:
+          type: boolean
+
+    Draft:
+      type: object
+      required: [id, caseId, kind, title, status, body, createdByName, createdAt]
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        kind:
+          type: string
+          enum: [petition, written_statement, appeal, application, reply, notice, letter, brief]
+        title:
+          type: string
+        instruction:
+          type: string
+        body:
+          type: string
+        status:
+          type: string
+          enum: [generating, ready, failed, kept]
+        error:
+          type: ["string", "null"]
+        model:
+          type: string
+        parentDraftId:
+          type: ["integer", "null"]
+        createdByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        sources:
+          type: array
+          description: Exactly what was sent to produce this. The record of what left the server.
+          items:
+            $ref: "#/components/schemas/DraftSource"
+        unreadable:
+          type: array
+          description: >
+            Documents the advocate selected that yielded no text — almost always
+            scans. Surfaced because a document that contributed nothing must not
+            be silently counted as context.
+          items:
+            type: object
+            required: [name, note]
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              note:
+                type: string
+
+    DraftSource:
+      type: object
+      required: [kind, label]
+      properties:
+        kind:
+          type: string
+          enum: [document, insight, exemplar, matter]
+        sourceId:
+          type: ["integer", "null"]
+        label:
+          type: string
+        tokens:
+          type: integer
+
+    DraftInput:
+      type: object
+      required: [kind, instruction]
+      properties:
+        kind:
+          type: string
+          enum: [petition, written_statement, appeal, application, reply, notice, letter, brief]
+        instruction:
+          type: string
+          minLength: 5
+          maxLength: 4000
+        documentIds:
+          type: array
+          maxItems: 20
+          items:
+            type: integer
+          description: >
+            The ONLY documents that will be sent. Each is re-checked against
+            this matter and this chamber before it is read.
+        parentDraftId:
+          type: ["integer", "null"]
+          description: Set when revising, so versions chain rather than overwrite.
+
+    DraftPatch:
+      type: object
+      properties:
+        body:
+          type: string
+          maxLength: 400000
+        title:
+          type: string
+          maxLength: 200
+        keep:
+          type: boolean
+          description: Mark the draft as one the chamber is keeping.
 
     ServiceEnquiryInput:
       type: object
@@ -3915,16 +4729,16 @@ components:
     # ── Invite ────────────────────────────────────────────────────────────
     Invite:
       type: object
-      required: [id, email, phone, token, role, createdAt, expiresAt]
+      required: [id, token, role, createdAt, expiresAt]
       properties:
         id:
           type: integer
         email:
-          type: string
-          description: The address invited, or "" when the invite names a number instead.
+          type: ["string", "null"]
+          description: Null when the invite named a mobile number instead.
         phone:
-          type: string
-          description: The mobile number invited in E.164, or "" when it names an address.
+          type: ["string", "null"]
+          description: E.164. Null when the invite named an address.
         token:
           type: string
         role:
@@ -3945,18 +4759,20 @@ components:
     InviteInput:
       type: object
       required: [role]
-      description: >
-        Addressed to exactly one of email or phone. Supplying both, or neither,
-        is refused — not modelled here because JSON Schema expresses
-        "exactly one of" badly; see routes/invites.ts for the actual rule.
       properties:
         email:
           type: string
+          description: >
+            The address to invite. Exactly one of email or phone must be given;
+            the server rejects both and neither, and validates the shape of
+            whichever was supplied.
         phone:
           type: string
           description: >
-            Mobile number. Ten digits is read as Indian; any other country
-            needs the full +code form. Stored normalised to E.164.
+            The mobile number to invite, in any readable form — "+91 98765
+            43210", "098765 43210" and "9876543210" all normalise to the same
+            E.164 value. For the clerk or client who has a phone and no work
+            address.
         role:
           type: string
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]

@@ -1,5 +1,6 @@
 // Persistence, documents, feedback and the tightened client scope.
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -57,6 +58,7 @@ if (phase === "setup") {
   check("chamber created", created.status === 201, `got ${created.status}`);
   const wsTok = created.data.workspaceToken;
   await declareBarRegistration(call, as(founder));
+  await grantPreviewPlan(call, as(founder), wsTok);
 
   await call("/invites", {
     token: as(founder),
