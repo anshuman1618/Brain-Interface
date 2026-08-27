@@ -331,6 +331,8 @@ const roleMatter = await call("/cases", {
   body: { title: "Roles matter", filingRef: `WP-ROLE-${suffix}` },
 });
 
+let juniorTok = null;
+let clerkTok = null;
 for (const [email, role, name] of [
   [junior, "junior_advocate", "Junior"],
   [clerk, "clerk_intern", "Clerk"],
@@ -353,7 +355,15 @@ for (const [email, role, name] of [
   });
 
   if (role === "junior_advocate") {
-    check("a junior advocate may draft", attempt.status === 202, `got ${attempt.status}`);
+    // Changed by the per-task grant: holding `drafting.use` is no longer
+    // enough. A junior draws on the chamber's AI budget only where the work
+    // they were handed says so.
+    check(
+      "a junior advocate with no task grant may NOT draft",
+      attempt.status === 403 && attempt.data?.error === "drafting_not_granted",
+      `got ${attempt.status} ${JSON.stringify(attempt.data)}`,
+    );
+    juniorTok = token;
   } else {
     // A clerk keeps the diary; settling a pleading is not clerical work, and a
     // drafting request spends the chamber's money.
@@ -362,8 +372,119 @@ for (const [email, role, name] of [
       attempt.status === 403,
       `got ${attempt.status} ${JSON.stringify(attempt.data)}`,
     );
+    clerkTok = token;
   }
 }
+
+/* ─────────────── The per-task AI grant ─────────────── */
+section("A junior draws on the budget task by task, not by role");
+
+const juniorClerkId = (await call("/session", { token: as(junior, "Junior") })).data?.clerkId;
+
+// A task WITHOUT the tick grants nothing — otherwise the checkbox would be
+// decoration and every assignment would quietly hand out the budget.
+const plainTask = await call("/tasks", {
+  token: as(roleOwner),
+  wsToken: roleWs,
+  method: "POST",
+  body: {
+    caseId: roleMatter.data.id,
+    title: "Ordinary work",
+    assigneeId: juniorClerkId,
+    deadline: new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10),
+  },
+});
+check("a task can be assigned without AI", plainTask.data?.aiAllowed === false);
+check(
+  "...and it grants nothing",
+  (
+    await call(`/cases/${roleMatter.data.id}/drafts`, {
+      token: as(junior),
+      wsToken: juniorTok,
+      method: "POST",
+      body: { kind: "application", instruction: "Draft a short adjournment application." },
+    })
+  ).status === 403,
+);
+
+const grantTask = await call("/tasks", {
+  token: as(roleOwner),
+  wsToken: roleWs,
+  method: "POST",
+  body: {
+    caseId: roleMatter.data.id,
+    title: "Settle the application",
+    assigneeId: juniorClerkId,
+    aiAllowed: true,
+    deadline: new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10),
+  },
+});
+check("a task can be assigned WITH AI", grantTask.data?.aiAllowed === true, `${grantTask.status}`);
+check(
+  "...and the junior can now draft on that matter",
+  (
+    await call(`/cases/${roleMatter.data.id}/drafts`, {
+      token: as(junior),
+      wsToken: juniorTok,
+      method: "POST",
+      body: { kind: "application", instruction: "Draft a short adjournment application." },
+    })
+  ).status === 202,
+);
+
+// Withdrawable, and `false` must not read as "not supplied".
+await call(`/tasks/${grantTask.data.id}`, {
+  token: as(roleOwner),
+  wsToken: roleWs,
+  method: "PATCH",
+  body: { aiAllowed: false },
+});
+check(
+  "withdrawing the grant takes the access away again",
+  (
+    await call(`/cases/${roleMatter.data.id}/drafts`, {
+      token: as(junior),
+      wsToken: juniorTok,
+      method: "POST",
+      body: { kind: "application", instruction: "Draft a short adjournment application." },
+    })
+  ).status === 403,
+);
+
+// A junior cannot hand themselves one: POST /tasks is `tasks.write`, which the
+// junior tier does not hold. This is the escalation the grant would otherwise
+// invite.
+check(
+  "a junior cannot assign themselves an AI-enabled task",
+  (
+    await call("/tasks", {
+      token: as(junior),
+      wsToken: juniorTok,
+      method: "POST",
+      body: {
+        caseId: roleMatter.data.id,
+        title: "self-granted",
+        assigneeId: juniorClerkId,
+        aiAllowed: true,
+        deadline: new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10),
+      },
+    })
+  ).status === 403,
+);
+
+// Style examples set the chamber's voice and cost money to redact, so they are
+// the chamber-wide tier's call even for a junior who holds a task grant.
+check(
+  "a junior may not add a style example",
+  (
+    await call("/exemplars", {
+      token: as(junior),
+      wsToken: juniorTok,
+      method: "POST",
+      body: { kind: "petition", title: "Mine", text: filing },
+    })
+  ).status === 403,
+);
 
 const clientEmail = `dr.client+${suffix}@client.test`;
 await call("/workspace/access-list", {

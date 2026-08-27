@@ -1,5 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db, casesTable, tasksTable, caseAccessGrantsTable } from "@workspace/db";
+import { roleHasCapability } from "./permissions";
 import type { WorkspaceContext } from "../middlewares/requireAuth";
 
 /**
@@ -191,4 +192,51 @@ export async function visibleTasks(
     .select()
     .from(tasksTable)
     .where(conditions.length === 1 ? conditions[0] : and(...conditions));
+}
+
+/**
+ * May this caller use AI drafting on this matter?
+ *
+ * A THIRD gate, on top of `drafting.use` and the chamber's own opt-in, and it
+ * is about money as much as confidentiality: a drafting request spends the
+ * chamber's AI budget, and the budget is per chamber rather than per seat.
+ *
+ *   admin, senior advocate   chamber-wide. They direct the practice and answer
+ *                            for what it spends, so the opt-in is their
+ *                            decision and this adds nothing.
+ *   junior advocate          only on a matter where they hold a task that was
+ *                            assigned WITH drafting — `tasks.ai_allowed`.
+ *                            Whoever hands out the work decides whether it
+ *                            comes with AI, task by task.
+ *   clerk, client            never. Neither holds `drafting.use`, so this is
+ *                            belt and braces rather than the control itself.
+ *
+ * Row scope is checked separately and first: `getVisibleCase` decides whether
+ * the matter is theirs to see at all. This decides only whether they may spend
+ * on it. A restricted junior granted a matter they may READ still cannot draft
+ * on it until a task on it says so.
+ */
+export async function mayDraftOnCase(ctx: WorkspaceContext, caseId: number): Promise<boolean> {
+  if (!roleHasCapability(ctx.role, "drafting.use")) return false;
+
+  // Chamber-wide tiers. Checked by capability rather than by naming the roles,
+  // so a matrix change moves this with it instead of leaving a second list to
+  // keep in step.
+  if (roleHasCapability(ctx.role, "tasks.write")) return true;
+
+  const [granted] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .innerJoin(casesTable, eq(casesTable.id, tasksTable.caseId))
+    .where(
+      and(
+        eq(tasksTable.caseId, caseId),
+        eq(tasksTable.assigneeId, ctx.user.clerkId),
+        eq(tasksTable.aiAllowed, true),
+        // Joined through `cases` so a task naming a matter in another chamber
+        // grants nothing, the same discipline as `grantedCaseIds` above.
+        eq(casesTable.workspaceId, ctx.workspaceId),
+      ),
+    );
+  return Boolean(granted);
 }

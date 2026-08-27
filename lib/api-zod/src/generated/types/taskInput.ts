@@ -15,4 +15,6 @@ export interface TaskInput {
   priority?: TaskInputPriority;
   assigneeId?: string;
   deadline: Date;
+  /** Grant AI drafting on this task's matter to its assignee. */
+  aiAllowed?: boolean;
 }

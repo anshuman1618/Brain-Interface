@@ -23,6 +23,8 @@ export interface Task {
   deadline: Date;
   /** @nullable */
   completedAt?: Date | null;
+  /** Whether the assignee may use AI drafting on this task's matter. The per-task grant: a junior advocate holds `drafting.use` but is not trusted with the chamber's whole AI budget, so whoever assigns the work decides task by task. Admin and senior advocate are chamber-wide and never consult it; a clerk never holds `drafting.use`, so it is inert for them. Settable only by a caller with `tasks.write`. */
+  aiAllowed?: boolean;
   isOverdue?: boolean;
   hasDelayLog?: boolean;
   createdAt: Date;

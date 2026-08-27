@@ -2025,6 +2025,8 @@ export interface Task {
   deadline: string;
   /** @nullable */
   completedAt?: string | null;
+  /** Whether the assignee may use AI drafting on this task's matter. The per-task grant: a junior advocate holds `drafting.use` but is not trusted with the chamber's whole AI budget, so whoever assigns the work decides task by task. Admin and senior advocate are chamber-wide and never consult it; a clerk never holds `drafting.use`, so it is inert for them. Settable only by a caller with `tasks.write`. */
+  aiAllowed?: boolean;
   isOverdue?: boolean;
   hasDelayLog?: boolean;
   createdAt: string;
@@ -2049,6 +2051,8 @@ export interface TaskInput {
   priority?: TaskInputPriority;
   assigneeId?: string;
   deadline: string;
+  /** Grant AI drafting on this task's matter to its assignee. */
+  aiAllowed?: boolean;
 }
 
 export type TaskUpdateStatus = typeof TaskUpdateStatus[keyof typeof TaskUpdateStatus];
@@ -2079,6 +2083,8 @@ export interface TaskUpdate {
   priority?: TaskUpdatePriority;
   assigneeId?: string;
   deadline?: string;
+  /** Grant or withdraw AI drafting on this task's matter. */
+  aiAllowed?: boolean;
 }
 
 export type TaskCompletionDelayReason = typeof TaskCompletionDelayReason[keyof typeof TaskCompletionDelayReason];

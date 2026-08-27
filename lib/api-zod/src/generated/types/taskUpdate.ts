@@ -16,4 +16,6 @@ export interface TaskUpdate {
   priority?: TaskUpdatePriority;
   assigneeId?: string;
   deadline?: Date;
+  /** Grant or withdraw AI drafting on this task's matter. */
+  aiAllowed?: boolean;
 }

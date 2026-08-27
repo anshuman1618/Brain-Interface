@@ -1,0 +1,11 @@
+-- The per-task AI grant.
+--
+-- A junior advocate may draft only on a matter where they hold a task that was
+-- assigned WITH drafting. Admin and senior advocate are chamber-wide and do not
+-- consult this column; a clerk never holds `drafting.use`, so it is inert for
+-- them.
+--
+-- Additive and guarded, like every migration here. Defaulting to false means
+-- every task that already exists grants nothing, which is the safe direction:
+-- nobody silently gains the ability to spend the chamber's AI budget.
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ai_allowed BOOLEAN NOT NULL DEFAULT false;

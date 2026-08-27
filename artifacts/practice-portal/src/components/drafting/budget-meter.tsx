@@ -1,6 +1,10 @@
 import { useGetAiBudget, getGetAiBudgetQueryKey } from "@workspace/api-client-react";
 import { formatMinor } from "@/lib/format";
 import { Progress } from "@/components/ui/progress";
+import { usePricingModal } from "@/components/pricing-modal";
+import { useSession } from "@/lib/session";
+import { Button } from "@/components/ui/button";
+import { Sparkles } from "lucide-react";
 
 /**
  * What is left of the chamber's drafting budget, shown all month.
@@ -17,7 +21,41 @@ import { Progress } from "@/components/ui/progress";
  */
 export function BudgetMeter({ compact = false }: { compact?: boolean }) {
   const { data } = useGetAiBudget({ query: { queryKey: getGetAiBudgetQueryKey() } });
+  const { setOpen } = usePricingModal();
+  const { can } = useSession();
   if (!data) return null;
+
+  /*
+   * The chamber has not switched drafting on.
+   *
+   * A meter showing a full budget on a feature that refuses every request is
+   * worse than no meter: it says the money is there and nothing explains why
+   * the button does not work. `draftingEnabled` was already in this payload
+   * and was being ignored, which is exactly how the off state went unnoticed.
+   */
+  if (!data.draftingEnabled && !compact) {
+    return (
+      <div className="flex flex-col gap-3 rounded-[var(--radius)] bg-secondary p-3 text-secondary-foreground shadow-[var(--raise)] sm:flex-row sm:items-center">
+        <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
+        <p className="flex-1 text-sm font-medium">
+          AI drafting is not switched on for this chamber.{" "}
+          {can("access_control.manage")
+            ? "Switch it on from the plan screen, after reading what is sent and to whom."
+            : "An admin can switch it on from the plan screen."}
+        </p>
+        {can("access_control.manage") && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full shrink-0 font-mono uppercase tracking-wider sm:w-auto"
+            onClick={() => setOpen(true)}
+          >
+            Switch it on
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   const total = data.allowanceMinor + data.topupMinor;
   const used = total > 0 ? Math.min(100, Math.round((data.spentMinor / total) * 100)) : 100;

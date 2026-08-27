@@ -977,8 +977,8 @@ That last point is the design claim, and the evidence for it is that **all
 eleven pre-existing suites pass untouched**. The email path was extended, not
 altered.
 
-Last run: **596 checks green across sixteen API suites with `RAZORPAY_*`
-unset**, each suite against a fresh server, plus 57 browser checks and 13
+Last run: **612 checks green across sixteen API suites with `RAZORPAY_*`
+unset**, each suite against a fresh server, plus 60 browser checks and 13
 startup guards. The banner was checked
 separately in a browser across all five of its states (17 assertions), which is
 what caught the `daysLeft` rounding.
@@ -1093,6 +1093,31 @@ calendar entry, validating an access-list `caseId`) and for admin aggregates
 `fe8c902` happened — see DECISIONS.md. A new route that returns anything
 derived from a matter uses one of the top two, and a route that scopes its list
 must scope its `:id` fetch with the same helper.
+
+### AI drafting: three gates, in order
+
+```
+requireCapability("drafting.use")   role — clerk and client never hold it
+        ↓
+workspaces.drafting_enabled         the chamber's opt-in, admin only, default OFF
+        ↓  403 drafting_not_enabled     → DraftingOptIn on the plan screen
+getVisibleCase(ctx, caseId)         row scope — may they see this matter
+        ↓  404
+mayDraftOnCase(ctx, caseId)         who pays — chamber-wide, or per task
+        ↓  403 drafting_not_granted
+   the model
+```
+
+`mayDraftOnCase` (`lib/scope.ts`) is the per-task grant: `tasks.write` holders
+(admin, senior advocate) are chamber-wide; a junior needs a task on that matter
+with `ai_allowed`. The order matters — row scope answers 404 before the grant
+answers 403, so a refusal never confirms a matter the caller cannot see.
+
+The opt-in lives in `components/drafting/drafting-opt-in.tsx`, rendered in the
+pricing modal because that is what the refusal message names. It existed as a
+route with no caller until 2026-08-27; `portal.mjs` §8 now walks the whole path
+in a browser, which is the only kind of test that can catch a working endpoint
+nobody can reach.
 
 ### Known, unfixed
 

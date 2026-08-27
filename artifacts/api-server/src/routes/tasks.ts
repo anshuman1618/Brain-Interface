@@ -172,6 +172,11 @@ router.post(
         priority: parsed.data.priority ?? "medium",
         assigneeId: parsed.data.assigneeId ?? null,
         deadline: toDateOnly(parsed.data.deadline),
+        // The per-task AI grant. Safe to take from the body without a further
+        // check: this route is already `tasks.write`, which is exactly the
+        // chamber-wide tier allowed to hand it out. A junior cannot reach here
+        // to grant themselves one.
+        aiAllowed: parsed.data.aiAllowed ?? false,
         status: "pending",
       })
       .returning();
@@ -242,6 +247,10 @@ router.patch(
     if (body.data.priority != null) updateData.priority = body.data.priority;
     if (body.data.assigneeId != null) updateData.assigneeId = body.data.assigneeId;
     if (body.data.deadline != null) updateData.deadline = toDateOnly(body.data.deadline);
+    // Withdrawable as well as grantable — `!= null` rather than a truthiness
+    // check, so sending `false` takes the grant away instead of being read as
+    // "not supplied" and silently leaving it on.
+    if (body.data.aiAllowed != null) updateData.aiAllowed = body.data.aiAllowed;
 
     const [updated] = await db
       .update(tasksTable)

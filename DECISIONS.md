@@ -2428,6 +2428,72 @@ nothing.
 
 ---
 
+## AI drafting had no way in, and juniors had too much of it (2026-08-27)
+
+### The feature shipped complete and unreachable
+
+`workspaces.drafting_enabled` defaults to false and only
+`POST /workspace/drafting` can change it. That gate is right — nothing reaches a
+model until the chamber has said yes, and it is the basis on which sending
+privileged client material to a third party is defensible at all.
+
+**The switch was never built.** The pages shipped, the routes shipped, 49
+drafting checks passed, and the refusal an advocate met read _"an admin can
+enable it from the plan screen"_ — where there was nothing to click. Verified
+in production: `drafting_enabled = false`, and zero drafts, insights,
+exemplars or AI calls had ever been recorded.
+
+**Why every test missed it.** The API suites set the flag by calling the
+endpoint directly, which is exactly the thing a human cannot do. They proved
+the backend and never asked whether anyone could reach it. The browser suite
+never opened `/drafting`. Between them they covered the feature completely and
+its reachability not at all — the same list-versus-detail blindness as the
+case-access leaks, one level up.
+
+The fix is a browser assertion, not another API one: open Drafting, find it
+off, switch it on, confirm it took — all through the UI. An API suite cannot
+catch this class of bug, because the endpoint always worked.
+
+### AI is granted to a junior per task, not per role
+
+**The problem with `drafting.use` as a role capability:** the AI budget is per
+chamber, not per seat. A junior advocate holding blanket drafting could spend
+the whole chamber's allowance without anyone deciding they should.
+
+**So the grant rides on the work.** `tasks.ai_allowed`, ticked by whoever
+assigns the task:
+
+| Role                   | AI drafting                                                           |
+| ---------------------- | --------------------------------------------------------------------- |
+| Admin, senior advocate | Chamber-wide. They direct the practice and answer for what it spends. |
+| Junior advocate        | Only on a matter where they hold a task assigned **with** drafting.   |
+| Clerk / intern         | Never — no `drafting.use`, unchanged.                                 |
+| Client                 | Never.                                                                |
+
+Three things that make it a control rather than a gesture:
+
+- **Checked after row scope.** A member who cannot see the matter is told it
+  does not exist, not that they lack a grant on it — the second answer would
+  confirm the matter is there.
+- **`tasks.write` is the proxy for "chamber-wide"**, not a second list of role
+  names. Admin and senior hold it; junior and clerk do not. A change to the
+  matrix moves this with it. It is also why a junior cannot assign themselves
+  an AI-enabled task: they cannot assign tasks at all.
+- **Withdrawable.** `aiAllowed != null` rather than a truthiness check, so
+  sending `false` removes the grant instead of reading as "not supplied".
+
+**Style examples became chamber-wide only.** Adding one runs the redaction
+model, so it spends — and unlike a draft it is not tied to a matter, so the
+per-task grant has nothing to hang on. A junior with a task grant may draft;
+setting the house style every future draft is written in is the chamber's call.
+
+**The checkbox is shown only when the assignee is a junior advocate.** For
+admin and senior it would change nothing (already chamber-wide) and for a clerk
+it would change nothing (no capability) — a control that silently does nothing
+is worse than its absence.
+
+---
+
 ## Things deliberately not done
 
 Recorded so they are not mistaken for oversights.

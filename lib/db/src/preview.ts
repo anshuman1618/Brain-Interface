@@ -307,6 +307,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   priority TEXT NOT NULL DEFAULT 'medium',
   assignee_id TEXT,
   deadline DATE NOT NULL,
+  ai_allowed BOOLEAN NOT NULL DEFAULT false,
   completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -695,6 +696,7 @@ CREATE INDEX IF NOT EXISTS case_access_grants_workspace_idx
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled_by TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled_at TIMESTAMPTZ;
+ALTER TABLE tasks ADD COLUMN IF NOT EXISTS ai_allowed BOOLEAN NOT NULL DEFAULT false;
 -- Insight retrieval. Full text rather than trigram or vector: neither pg_trgm
 -- nor pgvector exists in PGlite, so an embedding retriever would be a
 -- production-only path no suite here could ever exercise.

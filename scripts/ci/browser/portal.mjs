@@ -443,6 +443,50 @@ if (signedIn) {
    * message: a page that rendered its shell and then failed to fetch would
    * still have leaked its existence and its headings.
    */
+  /*
+   * AI drafting has to be reachable from inside the product.
+   *
+   * The whole feature shipped unreachable once: `drafting_enabled` defaults to
+   * false, only an admin can flip it, and no screen called the endpoint. Every
+   * API suite passed, because they all set the flag by calling the route
+   * directly — which is exactly the thing a human cannot do. So this walks the
+   * path a person walks: open Drafting, find it switched off, and get it on
+   * without leaving the UI.
+   */
+  await page.goto(`${BASE}/drafting`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  const draftingOff = await text();
+  check(
+    "an admin who opens Drafting is told it is switched off",
+    /not switched on/i.test(draftingOff),
+    draftingOff.slice(0, 200),
+  );
+
+  const switchItOn = page.getByRole("button", { name: /switch it on/i });
+  check("...and is offered a way to switch it on", (await switchItOn.count()) > 0);
+  if (await switchItOn.count()) {
+    await switchItOn.first().click();
+    await page.waitForTimeout(1200);
+    // The acknowledgement gates the button: it has to be read before the
+    // chamber can start sending client material to a model.
+    await page.getByRole("checkbox", { name: /read what is sent/i }).click();
+    await page.getByRole("button", { name: /switch ai drafting on/i }).click();
+    await page.waitForTimeout(2000);
+    await page
+      .locator('[role="dialog"]')
+      .getByRole("button", { name: /^Close$/ })
+      .click();
+    await page.locator('[role="dialog"]').waitFor({ state: "detached", timeout: 10_000 });
+    await page.goto(`${BASE}/drafting`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(1500);
+    const draftingOn = await text();
+    check(
+      "AI drafting is on, reached entirely through the UI",
+      !/not switched on/i.test(draftingOn),
+      draftingOn.slice(0, 200),
+    );
+  }
+
   expectingRefusal = true;
   await page.goto(`${BASE}/operator`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1500);

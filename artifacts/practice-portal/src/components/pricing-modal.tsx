@@ -28,6 +28,7 @@ import {
   type ServiceEnquiryInputContactPreference,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { DraftingOptIn } from "@/components/drafting/drafting-opt-in";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -496,6 +497,14 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
               })}
             </div>
           )}
+
+          {/* AI drafting's opt-in lives here because the refusal an advocate
+              meets says it does: "an admin can enable it from the plan screen".
+              A message that names a control the product does not have is how
+              the whole feature stayed unreachable after it shipped. */}
+          <div className="px-8 pt-6">
+            <DraftingOptIn />
+          </div>
 
           {/* The migration add-on. Deliberately not a fifth tier: it is a
               service, not a plan, so it sits below the grid in its own small

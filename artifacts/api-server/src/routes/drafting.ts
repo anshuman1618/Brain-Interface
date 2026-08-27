@@ -43,7 +43,8 @@ import { aiConfigured, estimateTokens, usingStubModel } from "../lib/ai/client";
 import { estimateMinor, UTILITY_MODEL } from "../lib/ai/models";
 import { runDraft } from "../lib/ai/drafting";
 import { anonymise, ANONYMISE_MAX_OUTPUT } from "../lib/ai/anonymise";
-import { getVisibleCase } from "../lib/scope";
+import { getVisibleCase, mayDraftOnCase } from "../lib/scope";
+import { roleHasCapability } from "../lib/permissions";
 import { extractText } from "../lib/ai/extract";
 import * as blobStore from "../lib/blob-store";
 
@@ -79,6 +80,28 @@ const NOT_ENABLED = {
   message:
     "AI drafting is not switched on for this chamber. An admin can enable it from " +
     "the plan screen, after reading what is sent and to whom.",
+};
+
+/**
+ * The per-task grant, refused.
+ *
+ * Deliberately names the mechanism rather than saying "forbidden": the person
+ * reading this can have the access, and the sentence tells them how to ask for
+ * it. A 403 that does not say what would change it is a support ticket.
+ */
+const NO_TASK_GRANT = {
+  error: "drafting_not_granted",
+  message:
+    "AI drafting is granted per task for a junior advocate. Ask whoever assigns " +
+    "your work to tick “allow AI drafting” on a task on this matter.",
+};
+
+/** Chamber-level AI writes — setting the chamber's voice, not doing the work. */
+const CHAMBER_WIDE_ONLY = {
+  error: "drafting_not_granted",
+  message:
+    "Style examples set the whole chamber's drafting voice and cost money to " +
+    "redact, so an admin or senior advocate adds them.",
 };
 
 /* ── The budget meter ────────────────────────────────────────────────────── */
@@ -354,6 +377,15 @@ router.post(
       res.status(403).json(NOT_ENABLED);
       return;
     }
+    // Adding an example runs the redaction model, so it spends the chamber's
+    // budget — and unlike a draft it is not tied to a matter, so the per-task
+    // grant has nothing to hang on. `tasks.write` is the chamber-wide tier
+    // (admin and senior advocate); a junior with a task grant may draft, not
+    // set the house style everyone else's drafts are then written in.
+    if (!roleHasCapability(c.role, "tasks.write")) {
+      res.status(403).json(CHAMBER_WIDE_ONLY);
+      return;
+    }
 
     let sourceText = body.data.text ?? "";
     let sourceDocumentId: number | null = null;
@@ -607,6 +639,14 @@ router.post(
     // the chamber's budget to do it.
     if (!(await getVisibleCase(c, Number(req.params["id"])))) {
       res.status(404).json({ error: "No such matter in this chamber." });
+      return;
+    }
+
+    // The per-task grant. Checked AFTER row scope so a member who cannot see
+    // the matter is told it does not exist rather than that they lack a grant
+    // on it — the weaker answer would confirm the matter is there.
+    if (!(await mayDraftOnCase(c, Number(req.params["id"])))) {
+      res.status(403).json(NO_TASK_GRANT);
       return;
     }
 

@@ -1854,6 +1854,7 @@ export const ListTasksResponseItem = zod.object({
   "assigneeName": zod.string().nullish(),
   "deadline": zod.coerce.date(),
   "completedAt": zod.coerce.date().nullish(),
+  "aiAllowed": zod.boolean().optional().describe('Whether the assignee may use AI drafting on this task\'s matter. The per-task grant: a junior advocate holds `drafting.use` but is not trusted with the chamber\'s whole AI budget, so whoever assigns the work decides task by task. Admin and senior advocate are chamber-wide and never consult it; a clerk never holds `drafting.use`, so it is inert for them. Settable only by a caller with `tasks.write`.'),
   "isOverdue": zod.boolean().optional(),
   "hasDelayLog": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
@@ -1867,6 +1868,7 @@ export const ListTasksResponse = zod.array(ListTasksResponseItem)
  */
 
 export const createTaskBodyPriorityDefault = `medium`;
+export const createTaskBodyAiAllowedDefault = false;
 
 export const CreateTaskBody = zod.object({
   "caseId": zod.number(),
@@ -1874,7 +1876,8 @@ export const CreateTaskBody = zod.object({
   "description": zod.string().optional(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).default(createTaskBodyPriorityDefault),
   "assigneeId": zod.string().optional(),
-  "deadline": zod.coerce.date()
+  "deadline": zod.coerce.date(),
+  "aiAllowed": zod.boolean().default(createTaskBodyAiAllowedDefault).describe('Grant AI drafting on this task\'s matter to its assignee.')
 })
 
 export const CreateTaskResponse = zod.object({
@@ -1888,6 +1891,7 @@ export const CreateTaskResponse = zod.object({
   "assigneeName": zod.string().nullish(),
   "deadline": zod.coerce.date(),
   "completedAt": zod.coerce.date().nullish(),
+  "aiAllowed": zod.boolean().optional().describe('Whether the assignee may use AI drafting on this task\'s matter. The per-task grant: a junior advocate holds `drafting.use` but is not trusted with the chamber\'s whole AI budget, so whoever assigns the work decides task by task. Admin and senior advocate are chamber-wide and never consult it; a clerk never holds `drafting.use`, so it is inert for them. Settable only by a caller with `tasks.write`.'),
   "isOverdue": zod.boolean().optional(),
   "hasDelayLog": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
@@ -1909,6 +1913,7 @@ export const ListOverdueTasksResponseItem = zod.object({
   "assigneeName": zod.string().nullish(),
   "deadline": zod.coerce.date(),
   "completedAt": zod.coerce.date().nullish(),
+  "aiAllowed": zod.boolean().optional().describe('Whether the assignee may use AI drafting on this task\'s matter. The per-task grant: a junior advocate holds `drafting.use` but is not trusted with the chamber\'s whole AI budget, so whoever assigns the work decides task by task. Admin and senior advocate are chamber-wide and never consult it; a clerk never holds `drafting.use`, so it is inert for them. Settable only by a caller with `tasks.write`.'),
   "isOverdue": zod.boolean().optional(),
   "hasDelayLog": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
@@ -1935,6 +1940,7 @@ export const GetTaskResponse = zod.object({
   "assigneeName": zod.string().nullish(),
   "deadline": zod.coerce.date(),
   "completedAt": zod.coerce.date().nullish(),
+  "aiAllowed": zod.boolean().optional().describe('Whether the assignee may use AI drafting on this task\'s matter. The per-task grant: a junior advocate holds `drafting.use` but is not trusted with the chamber\'s whole AI budget, so whoever assigns the work decides task by task. Admin and senior advocate are chamber-wide and never consult it; a clerk never holds `drafting.use`, so it is inert for them. Settable only by a caller with `tasks.write`.'),
   "isOverdue": zod.boolean().optional(),
   "hasDelayLog": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
@@ -1958,7 +1964,8 @@ export const UpdateTaskBody = zod.object({
   "status": zod.enum(['pending', 'in_progress', 'completed', 'overdue']).optional(),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
   "assigneeId": zod.string().optional(),
-  "deadline": zod.coerce.date().optional()
+  "deadline": zod.coerce.date().optional(),
+  "aiAllowed": zod.boolean().optional().describe('Grant or withdraw AI drafting on this task\'s matter.')
 })
 
 export const UpdateTaskResponse = zod.object({
@@ -1972,6 +1979,7 @@ export const UpdateTaskResponse = zod.object({
   "assigneeName": zod.string().nullish(),
   "deadline": zod.coerce.date(),
   "completedAt": zod.coerce.date().nullish(),
+  "aiAllowed": zod.boolean().optional().describe('Whether the assignee may use AI drafting on this task\'s matter. The per-task grant: a junior advocate holds `drafting.use` but is not trusted with the chamber\'s whole AI budget, so whoever assigns the work decides task by task. Admin and senior advocate are chamber-wide and never consult it; a clerk never holds `drafting.use`, so it is inert for them. Settable only by a caller with `tasks.write`.'),
   "isOverdue": zod.boolean().optional(),
   "hasDelayLog": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),
@@ -2013,6 +2021,7 @@ export const CompleteTaskResponse = zod.object({
   "assigneeName": zod.string().nullish(),
   "deadline": zod.coerce.date(),
   "completedAt": zod.coerce.date().nullish(),
+  "aiAllowed": zod.boolean().optional().describe('Whether the assignee may use AI drafting on this task\'s matter. The per-task grant: a junior advocate holds `drafting.use` but is not trusted with the chamber\'s whole AI budget, so whoever assigns the work decides task by task. Admin and senior advocate are chamber-wide and never consult it; a clerk never holds `drafting.use`, so it is inert for them. Settable only by a caller with `tasks.write`.'),
   "isOverdue": zod.boolean().optional(),
   "hasDelayLog": zod.boolean().optional(),
   "createdAt": zod.coerce.date(),

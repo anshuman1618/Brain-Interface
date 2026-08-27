@@ -20,6 +20,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Sparkles } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -70,6 +72,7 @@ export function TaskFormModal({
   const [assigneeId, setAssigneeId] = useState<string>(UNASSIGNED);
   const [priority, setPriority] = useState("medium");
   const [deadline, setDeadline] = useState(() => todayPlus(7));
+  const [aiAllowed, setAiAllowed] = useState(false);
 
   useEffect(() => {
     if (open && defaultCaseId) setCaseId(String(defaultCaseId));
@@ -80,6 +83,13 @@ export function TaskFormModal({
   // Clients are members too, but work is assigned to staff.
   const assignable = members.filter((m) => m.role !== "client");
 
+  // The AI grant only means something for a junior advocate — see the tick box
+  // below for why it is not offered for the other roles.
+  const assignedJunior =
+    assigneeId === UNASSIGNED
+      ? null
+      : (assignable.find((m) => m.clerkId === assigneeId && m.role === "junior_advocate") ?? null);
+
   const reset = () => {
     setCaseId(defaultCaseId ? String(defaultCaseId) : "");
     setTitle("");
@@ -87,6 +97,7 @@ export function TaskFormModal({
     setAssigneeId(UNASSIGNED);
     setPriority("medium");
     setDeadline(todayPlus(7));
+    setAiAllowed(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -102,6 +113,7 @@ export function TaskFormModal({
           assigneeId: assigneeId === UNASSIGNED ? undefined : assigneeId,
           priority: priority as never,
           deadline,
+          aiAllowed,
         },
       },
       {
@@ -194,6 +206,37 @@ export function TaskFormModal({
               </SelectContent>
             </Select>
           </div>
+
+          {/*
+            The per-task AI grant, placed under the assignee because that is
+            what it qualifies: this person, on this matter, may draft.
+
+            Shown only when the task is actually assigned to a junior advocate.
+            Admin and senior advocate already draft chamber-wide, and a clerk
+            never holds `drafting.use` — offering the tick for either would be
+            a control that silently does nothing, which is worse than its
+            absence.
+          */}
+          {assignedJunior && (
+            <label className="flex items-start gap-2 rounded-[var(--radius)] bg-muted/40 p-3">
+              <Checkbox
+                checked={aiAllowed}
+                onCheckedChange={(v) => setAiAllowed(v === true)}
+                aria-label="Allow AI drafting on this matter for this task"
+              />
+              <span className="text-2xs">
+                <span className="flex items-center gap-1.5 font-medium text-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                  Allow AI drafting on this matter
+                </span>
+                <span className="mt-0.5 block text-muted-foreground">
+                  {assignedJunior.displayName || assignedJunior.email} may draft and ask for a case
+                  brief on this matter, spending the chamber&rsquo;s AI budget. Without this they
+                  can work the task but not draft with AI.
+                </span>
+              </span>
+            </label>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
