@@ -2186,6 +2186,77 @@ least profitable. Halving `grantMinor` is a one-line 2× markup if that matters.
 
 ---
 
+## Security review, 2026-08-25
+
+A 36-point review was run against the repository and the deployed
+configuration. 27 pass, 3 fail, 4 unknown, 2 not applicable. The three failures
+are recorded here with what was wrong, because each was a control that looked
+present and was not.
+
+### The budget has to hold on every route that reaches a model
+
+**Was:** `POST /exemplars` called the redaction pass with no budget check.
+`POST /cases/:id/drafts` had one; the exemplar route did not, so a chamber whose
+allowance was exhausted could keep spending by uploading style examples instead
+of drafting.
+
+**Now:** the same pessimistic `checkBudget` runs before `anonymise()`, estimated
+against `ANONYMISE_MAX_OUTPUT` — the actual ceiling, exported for that purpose
+rather than guessed at.
+
+**The general lesson**, which is why this is here and not just in a commit
+message: "the expensive route is guarded" is not the same as "spending is
+guarded". Any new call into `lib/ai` needs the check, and the drafting suite now
+exhausts a trial pack and asserts that both routes refuse.
+
+_Side effect worth knowing:_ the preview stub used to report the token count of
+its own placeholder text, so a draft cost a third of a paisa and the budget
+could never be exhausted in any test. It now reports output as a realistic
+fraction of the ceiling. Preview spend resembles production spend instead of
+flattering it, which is what made the control testable at all.
+
+### Readiness detail is for whoever runs the service, not for everyone
+
+**Was:** `/api/readyz` and `/api/health` are mounted ahead of `clerkMiddleware`
+— correctly, a monitor must not need a session — and returned `databaseError`,
+which `describeCause` deliberately fills with the innermost driver message. For
+a connection failure that is the host and port; for a credential failure it says
+so. Plus `frontendPath`, `nodeEnv` and the commit.
+
+**Now:** in production those two fields are omitted, leaving booleans about what
+is configured. The full object moved to `GET /api/operator/readiness`, behind
+the `OPERATOR_EMAILS` allowlist, which 404s rather than 403s like the rest of
+that surface.
+
+**Why not authenticate `/readyz` itself:** it sits in front of all auth on
+purpose, and moving it behind `clerkMiddleware` would make a health check fail
+when Clerk is misconfigured — precisely when you need it to answer.
+
+### A party's document is untrusted input sitting next to a tool
+
+**Was:** document text went into the review prompt as plain text, and the review
+enables the `web_search` server tool with no domain restriction. An opposing
+party's filing — exactly what an advocate ticks for a review — could carry text
+instructing the model to search for a string built from the matter's own facts,
+which turns the search box into a way to carry privileged information out.
+
+**Now, two halves, and the second is the one that matters:**
+
+1. Document text is wrapped by `wrapUntrusted()` (`lib/ai/untrusted.ts`) in an
+   envelope it cannot end — both tags are neutralised in the body, visibly, so
+   a reader can see something was defanged. The cached prefix tells the model
+   everything in that envelope is evidence and never an instruction.
+2. `web_search` carries `allowed_domains` — four court and case-law hosts. This
+   is the containment. Wording does not stop a model being told to search for
+   something; an allowlist stops the search being worth telling it to do.
+
+`untrusted.ts` is its own module with no database import specifically so the
+escaping is a pure function with its own offline suite. A live server cannot
+show what went into a prompt, and asserting on the stub's output would be
+asserting on the stub.
+
+---
+
 ## Things deliberately not done
 
 Recorded so they are not mistaken for oversights.
@@ -2209,3 +2280,10 @@ Recorded so they are not mistaken for oversights.
 - **A shared cross-chamber insight library.** See above: irreversible.
 - **Auto-filing anything.** Drafting a petition and lodging one are different
   categories of act. The platform does not file, serve, or send to a client.
+- **CSRF tokens.** Auth is a bearer token, not an ambient cookie, and production
+  sends no CORS headers unless configured. `express.urlencoded` is still mounted
+  and unused; removing it would close the remaining theoretical surface.
+- **A production-mode test of the `/readyz` redaction.** Production refuses to
+  boot without a real Postgres, which CI does not have. The dev branch is
+  exercised; the production branch is verified by inspection and by the operator
+  route's own tests.

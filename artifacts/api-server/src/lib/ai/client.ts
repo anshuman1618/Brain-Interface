@@ -66,6 +66,34 @@ export type CompletionRequest = {
   webSearch?: { maxUses: number } | undefined;
 };
 
+/**
+ * The only hosts a search from this server may reach.
+ *
+ * Search is enabled for one job — confirming an Indian citation exists — and
+ * these are the sources that answer it. Restricting the tool is not about
+ * result quality; it is the containment for a specific attack.
+ *
+ * A review prompt contains documents the chamber did not write: an opposing
+ * party's filing is exactly the sort of thing an advocate ticks for a review,
+ * and it is attacker-controlled text sitting in the same context as a tool that
+ * makes outbound requests. Text inside it can try to instruct the model to
+ * search for a string assembled from the matter's own facts, which turns the
+ * search box into a way to carry privileged information out of the server.
+ *
+ * An allowlist does not stop the model being told to do that. It stops the
+ * telling from being worth anything: a query that can only ever be sent to
+ * three court and case-law sites carries data to nobody who is listening.
+ *
+ * Extending this list widens that channel. Add a host only when a citation
+ * genuinely cannot be confirmed without it.
+ */
+const SEARCH_ALLOWED_DOMAINS = [
+  "indiankanoon.org",
+  "main.sci.gov.in",
+  "allahabadhighcourt.in",
+  "judgments.ecourts.gov.in",
+];
+
 export type CompletionResult = {
   text: string;
   model: string;
@@ -102,7 +130,20 @@ function stubCompletion(req: CompletionRequest): CompletionResult {
     `1. The matter is set out above.\n` +
     `2. The relief sought follows from it.\n` +
     `3. The chamber's earlier filings supplied the structure.\n`;
-  const outputTokens = Math.ceil(text.length / CHARS_PER_TOKEN);
+  // Output is reported as a plausible FRACTION OF THE CEILING rather than as the
+  // length of the placeholder above, and that is deliberate.
+  //
+  // Output tokens dominate what a draft actually costs. A stub reporting the
+  // ~100 tokens of its own placeholder makes every preview draft cost a third
+  // of a paisa, which means the budget — the control that stops a chamber
+  // spending more than it has — can never be exhausted in any test, and so is
+  // never actually exercised. A stub whose usage is unrealistic quietly makes
+  // the thing it is standing in for untestable.
+  //
+  // 0.6 of the ceiling is roughly what a real petition returns against a 16k
+  // cap. It is an estimate, and it is the honest kind: it makes preview spend
+  // resemble production spend instead of flattering it.
+  const outputTokens = Math.round(req.maxTokens * 0.6);
   const usage: Usage = { ...NO_USAGE, inputTokens, outputTokens };
   return { text, model: `stub:${req.model}`, usage, costMinor: costMinor(req.model, usage) };
 }
@@ -149,6 +190,9 @@ export async function complete(
               type: "web_search_20260209",
               name: "web_search",
               max_uses: req.webSearch.maxUses,
+              // See SEARCH_ALLOWED_DOMAINS. This is the containment for prompt
+              // injection carried in a document the chamber did not write.
+              allowed_domains: SEARCH_ALLOWED_DOMAINS,
             },
           ],
         }

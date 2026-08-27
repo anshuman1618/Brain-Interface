@@ -38,10 +38,11 @@ import {
 import { zodMessage } from "../lib/validation";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
-import { budgetFor } from "../lib/ai/budget";
-import { aiConfigured, usingStubModel } from "../lib/ai/client";
+import { budgetFor, checkBudget } from "../lib/ai/budget";
+import { aiConfigured, estimateTokens, usingStubModel } from "../lib/ai/client";
+import { estimateMinor, UTILITY_MODEL } from "../lib/ai/models";
 import { runDraft } from "../lib/ai/drafting";
-import { anonymise } from "../lib/ai/anonymise";
+import { anonymise, ANONYMISE_MAX_OUTPUT } from "../lib/ai/anonymise";
 import { extractText } from "../lib/ai/extract";
 import * as blobStore from "../lib/blob-store";
 
@@ -394,6 +395,27 @@ router.post(
         error: "invalid_request",
         message: "An example needs to be long enough to show a drafting style.",
       });
+      return;
+    }
+
+    /*
+     * The budget, checked HERE and not only on the drafting route.
+     *
+     * Adding an example calls a model — the redaction pass — so it spends real
+     * money, and for a while this path did that with no budget check at all. A
+     * chamber whose allowance was exhausted could keep spending by uploading
+     * examples instead of drafting, which made "strict limit" untrue on the one
+     * route nobody thinks of as a drafting route.
+     *
+     * Estimated the same pessimistic way as a draft: whole source text in,
+     * output assumed to run to the redaction ceiling. A redaction returns
+     * roughly what it was given, so that assumption is close rather than
+     * merely safe.
+     */
+    const estimate = estimateMinor(UTILITY_MODEL, estimateTokens(sourceText), ANONYMISE_MAX_OUTPUT);
+    const allowed = await checkBudget(c.workspaceId, estimate);
+    if (!allowed.ok) {
+      res.status(402).json({ error: "budget_exhausted", message: allowed.reason });
       return;
     }
 

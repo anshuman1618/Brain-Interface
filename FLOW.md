@@ -841,6 +841,13 @@ The draft row is written **before** the call so a request that dies mid-stream
 leaves visible evidence that tokens were spent; spend is recorded on the failure
 path too, so a failing loop is not free to run.
 
+Two controls added by the 2026-08-25 security review sit on this path:
+`POST /exemplars` runs the same `checkBudget` as drafting before its redaction
+call, and every ticked document is wrapped by `wrapUntrusted()`
+(`lib/ai/untrusted.ts`) before it reaches the prompt, with `web_search` bounded
+by `allowed_domains`. The full readiness object moved from the public
+`/api/readyz` to `/api/operator/readiness`.
+
 `lib/ai/` is the only place the Anthropic SDK is imported, and it is server-side
 only. `usingStubModel()` — true whenever `isPreviewDatabase()` or no
 `ANTHROPIC_API_KEY` — swaps in a deterministic stand-in, which is what lets all

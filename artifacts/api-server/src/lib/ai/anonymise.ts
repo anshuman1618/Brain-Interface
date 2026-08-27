@@ -27,8 +27,14 @@ import { ANONYMISE_RULES } from "./prompts";
  * hole in the meter.
  */
 
-/** Redaction runs on the whole document, so it needs room for all of it back. */
-const MAX_OUTPUT = 32_000;
+/**
+ * Redaction runs on the whole document, so it needs room for all of it back.
+ *
+ * Exported because the route has to estimate the cost of this call BEFORE
+ * making it, and an estimate computed from a different ceiling than the one
+ * actually used is not an estimate of anything.
+ */
+export const ANONYMISE_MAX_OUTPUT = 32_000;
 
 export async function anonymise(input: {
   workspaceId: number;
@@ -39,7 +45,7 @@ export async function anonymise(input: {
     model: UTILITY_MODEL,
     system: ANONYMISE_RULES,
     user: input.text,
-    maxTokens: MAX_OUTPUT,
+    maxTokens: ANONYMISE_MAX_OUTPUT,
     effort: "medium",
   });
 

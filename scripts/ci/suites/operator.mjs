@@ -70,6 +70,39 @@ check(
 const operator = await call("/operator/metrics", { token: as(OPERATOR, "Ops") });
 check("the allowlisted address is admitted", operator.status === 200, `got ${operator.status}`);
 
+/* ─────────────── Readiness detail moved behind the allowlist ─────────────── */
+//
+// A security review found /api/readyz handing the database driver's own failure
+// text to anonymous callers — which for a connection failure names the host and
+// can say "password authentication failed". The detail did not go away; it moved
+// here, where there is somebody to authorise. These two checks are what stop it
+// drifting back out.
+const readinessAnon = await call("/operator/readiness");
+check(
+  "readiness detail is not public",
+  readinessAnon.status === 401 || readinessAnon.status === 404,
+  `got ${readinessAnon.status}`,
+);
+const readinessStranger = await call("/operator/readiness", { token: as(outsider, "Outsider") });
+check(
+  "...and a signed-in stranger gets 404, not 403",
+  readinessStranger.status === 404,
+  `got ${readinessStranger.status}`,
+);
+const readiness = await call("/operator/readiness", { token: as(OPERATOR, "Ops") });
+check("an operator gets it", readiness.status === 200, `got ${readiness.status}`);
+check(
+  "...including the field that was removed from the public endpoint",
+  Object.prototype.hasOwnProperty.call(readiness.data ?? {}, "databaseError"),
+  JSON.stringify(Object.keys(readiness.data ?? {})),
+);
+check(
+  "...and it still reports what is configured",
+  typeof readiness.data?.filesEncrypted === "boolean" &&
+    typeof readiness.data?.aiConfigured === "boolean",
+  JSON.stringify(readiness.data),
+);
+
 /* ─────────────── A chamber to count ─────────────── */
 section("A chamber, a matter and a person for the numbers to describe");
 

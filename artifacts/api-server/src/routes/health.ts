@@ -11,6 +11,28 @@ import { describeBlobBackend } from "../lib/blob-backends";
 
 const router: IRouter = Router();
 
+/**
+ * Whether this response may carry operational detail.
+ *
+ * These routes are mounted ahead of `clerkMiddleware` on purpose — a monitor
+ * must not need a session — which means every caller here is anonymous and
+ * there is nobody to authorise. So the answer cannot be "who is asking"; it has
+ * to be "is this a deployment where the detail is safe to hand out at all".
+ *
+ * Outside production it is: a developer reading `ECONNREFUSED` on their own
+ * machine is the entire point of these endpoints. In production it is not.
+ * `describeCause` deliberately surfaces the innermost driver message, and for a
+ * database failure that is the host, the port, and sometimes
+ * "password authentication failed" — reconnaissance handed to anonymous callers
+ * at exactly the moment the service is least able to absorb it.
+ *
+ * The detail is not lost, it moves: `GET /api/operator/readiness` serves the
+ * same object to an operator, behind the allowlist in `lib/operator.ts`.
+ */
+function detailAllowed(): boolean {
+  return process.env["NODE_ENV"] !== "production";
+}
+
 /** The innermost message in an error chain, which is the one worth reading. */
 function describeCause(err: unknown, depth = 0): string {
   if (!(err instanceof Error)) return "unknown";
@@ -60,7 +82,7 @@ router.get("/health", async (_req, res) => {
   res.status(healthy ? 200 : 503).json({
     status: healthy ? "ok" : "unhealthy",
     database,
-    databaseError: error,
+    databaseError: detailAllowed() ? error : null,
     latencyMs: Date.now() - startedAt,
     uptimeSeconds: Math.round(process.uptime()),
     timestamp: new Date().toISOString(),
@@ -127,7 +149,56 @@ router.get("/readyz", async (_req, res) => {
   };
 
   const ready = checks.database === "ok" && checks.frontendBuilt;
-  res.status(ready ? 200 : 503).json({ status: ready ? "ready" : "degraded", checks });
+
+  // In production the two fields that describe the INSIDE of the deployment go
+  // away: the driver's own failure text, and where on disk the frontend lives.
+  // Everything left is a boolean about whether a subsystem is configured, which
+  // is what a monitor needs and what an outsider learns nothing from.
+  const body = detailAllowed()
+    ? checks
+    : { ...checks, databaseError: null, frontendPath: undefined };
+
+  res.status(ready ? 200 : 503).json({ status: ready ? "ready" : "degraded", checks: body });
 });
+
+/**
+ * The full readiness object, for whoever runs the service.
+ *
+ * Exported rather than routed here: `/api/operator/*` sits behind
+ * `requireAuth` and the operator allowlist, and these health routes
+ * deliberately sit in front of all authentication. Putting the authorised copy
+ * in the authorised router keeps that boundary where it can be seen.
+ */
+export async function readinessDetail(): Promise<Record<string, unknown>> {
+  const clientDist = resolveClientDist();
+  let database: "ok" | "unreachable" = "unreachable";
+  let databaseError: string | null = null;
+  try {
+    await db.execute(sql`select 1`);
+    database = "ok";
+  } catch (err) {
+    databaseError = describeCause(err);
+  }
+
+  return {
+    database,
+    databaseError,
+    frontendBuilt: existsSync(`${clientDist}/index.html`),
+    frontendPath: clientDist,
+    filesEncrypted: encryptionKey() !== null,
+    fileStorage: describeBlobBackend().backend,
+    paymentsConfigured: paymentsEnabled(),
+    emailConfigured: Boolean(process.env["SMTP_HOST"]?.trim()),
+    errorReportingConfigured: Boolean(process.env["ERROR_WEBHOOK_URL"]?.trim()),
+    workspaceTokenSecretSet: Boolean(process.env["WORKSPACE_TOKEN_SECRET"]?.trim()),
+    aiConfigured: Boolean(process.env["ANTHROPIC_API_KEY"]?.trim()),
+    nodeEnv: process.env["NODE_ENV"] ?? "development",
+    commit:
+      process.env["RENDER_GIT_COMMIT"] ??
+      process.env["GIT_COMMIT"] ??
+      process.env["SOURCE_VERSION"] ??
+      null,
+  };
+}
 
 export default router;
