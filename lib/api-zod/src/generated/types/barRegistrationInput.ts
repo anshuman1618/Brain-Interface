@@ -16,4 +16,10 @@ export interface BarRegistrationInput {
   barEnrolmentNo: string;
   /** Supreme Court Advocate-on-Record number. Optional — most advocates never hold one. */
   aorNo?: string;
+  /** Advocate-on-Record at a High Court, where that court keeps such a roll. A different roll from the Supreme Court one, so a separate field — an advocate may hold either, both or neither. */
+  aorHighCourtNo?: string;
+  /** Certificate of Practice number, issued by the state bar council. */
+  copNo?: string;
+  /** All India Bar Examination certificate number. Optional at declaration and required within six months of it — an advocate enrolled before the examination existed may hold none, and a newly enrolled one has a window in which to sit it. */
+  allIndiaBarNo?: string;
 }

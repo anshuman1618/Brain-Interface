@@ -78,13 +78,42 @@ check("...and is not lapsed", fresh.data.subscription.lapsed === false);
 check("...with no period running", fresh.data.subscription.currentPeriodEnd === null);
 check("...and no day count", fresh.data.subscription.daysLeft === null);
 
+// Not lapsed is not the same as paid. A chamber that has never taken a plan
+// gets its shell — the chamber itself is never locked — but no feature, so the
+// first matter waits on the subscription screen.
+const beforePaying = await call("/cases", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { title: "Too early", filingRef: `CV-P0-${suffix}` },
+});
+check(
+  "a chamber that has never paid cannot file a matter (402)",
+  beforePaying.status === 402,
+  `got ${beforePaying.status}`,
+);
+check(
+  "...refused as payment_required, not as a lapse",
+  beforePaying.data?.error === "payment_required",
+  beforePaying.data?.error,
+);
+check(
+  "...while the chamber itself still reads",
+  (await call("/workspace/subscription", { token: as(owner), wsToken: ws })).status === 200,
+);
+
+// The trial pack is the cheapest way past the gate and the one this suite's
+// allowance assertions below are written against.
+const tookTrial = await activate("trial", "one_time");
+check("the trial pack can be taken", tookTrial.status === 200, `got ${tookTrial.status}`);
+
 const firstCase = await call("/cases", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
   body: { title: "First matter", filingRef: `CV-P-${suffix}` },
 });
-check("a brand-new chamber can file a matter", firstCase.status === 201, `got ${firstCase.status}`);
+check("...and then a matter can be filed", firstCase.status === 201, `got ${firstCase.status}`);
 
 /* ─────────────── 2. THE TRIAL ALLOWANCE ─────────────── */
 section("2. The trial allowance is 10 matters and 5 seats");
@@ -160,14 +189,9 @@ check(
 
 /* ─────────────── 4. THE TRIAL PACK IS BOUGHT ONCE ─────────────── */
 section("4. The two-month trial cannot be taken twice");
-const trial1 = await call("/workspace/subscription", {
-  token: as(owner),
-  wsToken: ws,
-  method: "PUT",
-  body: { plan: "trial", billingPeriod: "one_time" },
-});
-check("the trial is accepted the first time", trial1.status === 200, `got ${trial1.status}`);
-
+// Section 1 already took it, which is the "first time" this section used to
+// buy for itself. Taking it twice here would prove nothing the second call
+// below does not.
 const trial2 = await call("/workspace/subscription", {
   token: as(owner),
   wsToken: ws,
@@ -332,6 +356,16 @@ const seatWs = await call("/workspaces", {
 });
 const sTok = seatWs.data.workspaceToken;
 await declareBarRegistration(call, as(seatOwner));
+// access_control.manage is not one of the capabilities a chamber keeps before
+// it has paid, so the seat cap cannot be reached at all without a plan.
+await activatePlan(BASE, call, {
+  token: as(seatOwner),
+  wsToken: sTok,
+  workspaceId: seatWs.data.activeWorkspace.id,
+  plan: "trial",
+  billingPeriod: "one_time",
+  paymentsOn,
+});
 
 // Founder is seat 1. Admit a whole domain, then sign in six people through it.
 await call("/workspace/access-list", {

@@ -173,6 +173,7 @@ CREATE TABLE IF NOT EXISTS users (
   bar_enrolment_no TEXT,
   aor_no TEXT,
   bar_declared_at TIMESTAMPTZ,
+  phone TEXT,
   last_seen_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -492,6 +493,113 @@ CREATE TABLE IF NOT EXISTS service_enquiries (
   status TEXT NOT NULL DEFAULT 'new',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS chamber_insights (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  tags TEXT NOT NULL DEFAULT '',
+  court_id INTEGER,
+  case_type_norm TEXT,
+  author_clerk_id TEXT NOT NULL DEFAULT '',
+  author_name TEXT NOT NULL DEFAULT '',
+  author_role TEXT NOT NULL DEFAULT '',
+  shared_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS style_exemplars (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'petition',
+  title TEXT NOT NULL,
+  source_document_id INTEGER,
+  source_text TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  anonymised_at TIMESTAMPTZ,
+  reviewed_at TIMESTAMPTZ,
+  reviewed_by TEXT,
+  active BOOLEAN NOT NULL DEFAULT true,
+  added_by_clerk_id TEXT NOT NULL DEFAULT '',
+  added_by_name TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS drafts (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'petition',
+  title TEXT NOT NULL DEFAULT '',
+  instruction TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'generating',
+  error TEXT,
+  model TEXT NOT NULL DEFAULT '',
+  parent_draft_id INTEGER,
+  created_by_clerk_id TEXT NOT NULL DEFAULT '',
+  created_by_name TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS draft_sources (
+  id SERIAL PRIMARY KEY,
+  draft_id INTEGER NOT NULL,
+  workspace_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  source_id INTEGER,
+  label TEXT NOT NULL DEFAULT '',
+  tokens INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ai_usage_events (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  draft_id INTEGER,
+  purpose TEXT NOT NULL DEFAULT 'draft',
+  model TEXT NOT NULL DEFAULT '',
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+  cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+  web_searches INTEGER NOT NULL DEFAULT 0,
+  cost_minor INTEGER NOT NULL DEFAULT 0,
+  dedupe_key TEXT NOT NULL,
+  actor_clerk_id TEXT NOT NULL DEFAULT '',
+  at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT ai_usage_events_dedupe_key UNIQUE (dedupe_key)
+);
+
+CREATE TABLE IF NOT EXISTS case_access_grants (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  granted_by TEXT NOT NULL DEFAULT '',
+  granted_by_clerk_id TEXT NOT NULL DEFAULT '',
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT case_access_grants_membership_case_key UNIQUE (membership_id, case_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_topups (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  pack TEXT NOT NULL,
+  price_minor INTEGER NOT NULL DEFAULT 0,
+  grant_minor INTEGER NOT NULL DEFAULT 0,
+  order_id TEXT,
+  payment_id TEXT,
+  expires_at TIMESTAMPTZ,
+  bought_by_clerk_id TEXT NOT NULL DEFAULT '',
+  bought_by_name TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 `;
 
 /**
@@ -563,13 +671,17 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_enrolment_no TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS aor_no TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS bar_declared_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ;
--- Sign-in by SMS code. Both mirror the users.email idiom: NOT NULL, defaulting
--- to the empty string, so a row that has one identifier and not the other needs
--- no special case anywhere.
-ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+-- Phone identity: main's shape (nullable TEXT), not the NOT NULL DEFAULT ''
+-- variant this branch had. Two implementations of the same feature met here and
+-- main's is the one that shipped, so the columns, the normaliser and the invite
+-- semantics all follow it.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE invites ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE invites ALTER COLUMN email DROP NOT NULL;
 
--- Push notifications. Mirrors lib/db/src/schema/push.ts; see the migration in
--- lib/db/drizzle for why the shape matches mail_outbox so exactly.
+-- Push notifications. Mirrors lib/db/src/schema/push.ts; see
+-- lib/db/drizzle/0015_push_notifications.sql for why the shape matches
+-- mail_outbox so exactly.
 CREATE TABLE IF NOT EXISTS device_tokens (
   id SERIAL PRIMARY KEY,
   workspace_id INTEGER NOT NULL,
@@ -582,6 +694,7 @@ CREATE TABLE IF NOT EXISTS device_tokens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT device_tokens_ws_token_key UNIQUE (workspace_id, token)
 );
+CREATE INDEX IF NOT EXISTS device_tokens_ws_user_idx ON device_tokens (workspace_id, user_id);
 
 CREATE TABLE IF NOT EXISTS push_outbox (
   id SERIAL PRIMARY KEY,
@@ -601,8 +714,7 @@ CREATE TABLE IF NOT EXISTS push_outbox (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   sent_at TIMESTAMPTZ
 );
-ALTER TABLE invites ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
-ALTER TABLE invites ALTER COLUMN email SET DEFAULT '';
+CREATE INDEX IF NOT EXISTS push_outbox_status_next_idx ON push_outbox (status, next_attempt_at);
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS court_id INTEGER;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_type TEXT;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_type_norm TEXT;
@@ -610,6 +722,35 @@ ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_number INTEGER;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_year INTEGER;
 ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
 ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS cause_list_entry_id INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS aor_high_court_no TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cop_no TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS all_india_bar_no TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS all_india_bar_due_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_claimed_at TIMESTAMPTZ;
+ALTER TABLE workspace_memberships
+  ADD COLUMN IF NOT EXISTS case_access_restricted BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS case_access_grants_membership_idx
+  ON case_access_grants (membership_id);
+CREATE INDEX IF NOT EXISTS case_access_grants_workspace_idx
+  ON case_access_grants (workspace_id);
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled_by TEXT;
+ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled_at TIMESTAMPTZ;
+-- Insight retrieval. Full text rather than trigram or vector: neither pg_trgm
+-- nor pgvector exists in PGlite, so an embedding retriever would be a
+-- production-only path no suite here could ever exercise.
+CREATE INDEX IF NOT EXISTS chamber_insights_workspace_idx
+  ON chamber_insights (workspace_id);
+CREATE INDEX IF NOT EXISTS chamber_insights_fts_idx ON chamber_insights
+  USING GIN (to_tsvector('simple',
+    coalesce(title, '') || ' ' || coalesce(body, '') || ' ' || coalesce(tags, '')));
+CREATE INDEX IF NOT EXISTS style_exemplars_workspace_kind_idx
+  ON style_exemplars (workspace_id, kind);
+CREATE INDEX IF NOT EXISTS drafts_workspace_case_idx ON drafts (workspace_id, case_id);
+CREATE INDEX IF NOT EXISTS draft_sources_draft_idx ON draft_sources (draft_id);
+CREATE INDEX IF NOT EXISTS ai_usage_events_workspace_at_idx
+  ON ai_usage_events (workspace_id, at);
+CREATE INDEX IF NOT EXISTS ai_topups_workspace_idx ON ai_topups (workspace_id);
 `;
 
 /** Where the preview database lives on disk. */

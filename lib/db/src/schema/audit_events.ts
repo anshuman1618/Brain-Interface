@@ -48,6 +48,17 @@ export const AUDIT_ACTIONS = [
   "invoice.paid",
   "invoice.void",
   "billing.settings_updated",
+  // AI drafting. The first is the consent record — when a chamber decided that
+  // matter facts and selected documents may reach a third party — and the last
+  // is every occasion on which that actually happened. Between them they are
+  // the answer to "what of my client's did you send, and who authorised it".
+  "drafting.enabled",
+  "drafting.disabled",
+  "drafting.exemplar_added",
+  "drafting.generated",
+  // Who narrowed whose sight of which files, and when. The first question
+  // asked after "how did she see the Mehta file".
+  "member.case_access_changed",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

@@ -9,8 +9,8 @@
 
 ## What we collect from you
 
-Your **name**, **email address**, and which **identity provider** you signed in
-with. When you use the Service we also record **which chamber you belong to and
+Your **name**, your **email address or mobile number** — whichever you sign in
+with — and which **identity provider** vouched for it. When you use the Service we also record **which chamber you belong to and
 at what role**, **the privileged actions you take**, and a **truncated IP
 address**.
 
@@ -18,7 +18,8 @@ address**.
 
 To admit you to your chamber, to decide what you are allowed to see and do, to
 keep an accountability record for your chamber, to secure the account, and to
-bill the chamber for the Service.
+bill the chamber for the Service. Where you sign in by mobile, your number is
+also used to send you the one-time code.
 
 ## How to exercise your rights
 

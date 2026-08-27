@@ -1,5 +1,6 @@
 // Empty platform → found a chamber → invite a team → assign work → calendar.
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -82,6 +83,8 @@ await declareBarRegistration(call, as("founder@chambers.test"));
 check("and is flagged owner", created.data.isOwner === true);
 const WS = created.data.activeWorkspace.id;
 const founderWs = created.data.workspaceToken;
+// A chamber that has never paid can read its own shell and nothing else.
+await grantPreviewPlan(call, as("founder@chambers.test"), founderWs);
 
 section("3. Everything reads zero");
 for (const [path, label] of [
@@ -327,6 +330,7 @@ check("second chamber created", rival.status === 201, `got ${rival.status}`);
 const rivalWs = rival.data.workspaceToken;
 check("rival admin is owner of theirs", rival.data.isOwner === true);
 await declareBarRegistration(call, as("other@rival.test"));
+await grantPreviewPlan(call, as("other@rival.test"), rivalWs);
 
 const rivalCases = await call("/cases", { token: as("other@rival.test"), wsToken: rivalWs });
 check(

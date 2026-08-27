@@ -9,10 +9,15 @@ import { useSession } from "@/lib/session";
 /**
  * The sign-in layer, reached from "Chamber Portal" on the landing page.
  *
- * All three routes end in the same place: an email address the provider has
- * verified. That address is then checked server-side against the workspace
- * access list, which is the only thing that admits anyone. Choosing Google over
- * Zoho changes nothing about what you can reach.
+ * Every route ends in the same place: an identifier the provider has verified —
+ * an email address, or a mobile number. That identifier is then checked
+ * server-side against the workspace access list, which is the only thing that
+ * admits anyone. Choosing Google over Zoho, or SMS over email, changes nothing
+ * about what you can reach.
+ *
+ * The mobile route exists because a chamber's clerks and most of its clients
+ * have a phone and no work address. Requiring an address to be admitted
+ * excluded exactly the people a practice needs on the system.
  */
 /**
  * Same shape the API applies to access-list entries, so an address this screen
@@ -22,29 +27,26 @@ import { useSession } from "@/lib/session";
  */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Clerk's one-time codes are six digits, by email and by SMS alike. */
+/** Clerk's one-time codes are six digits, emailed or texted alike. */
 const CODE_LENGTH = 6;
 
 /**
- * Loose on purpose, and NOT the canonical form.
+ * Loose on purpose: seven to fifteen digits, optionally with a leading +.
  *
- * The server owns canonicalisation (`normalisePhone` in lib/db) and will refuse
- * anything it cannot resolve. This only catches the obvious typo before a round
- * trip, so it accepts the shapes a person actually types — ten digits, a
- * leading zero, or a full +country form, with spaces, dashes or brackets
- * anywhere. Tightening it here would reject numbers the server accepts.
+ * The server normalises to E.164 and is the authority on what is usable. A
+ * stricter rule here would be a second answer to the same question, and the
+ * one people meet first — so it checks only for what is obviously not a number.
  */
-const PHONE_PATTERN = /^\+?[\d\s()./-]{8,20}$/;
+const PHONE_PATTERN = /^\+?[\d\s\-().]{7,20}$/;
 
 export default function PortalSignInPage() {
   const {
     previewMode,
     signInWithProvider,
-    verifyCode,
+    verifyEmailCode,
     resendCode,
     awaitingCode,
-    pendingIdentifier,
-    pendingChannel,
+    pendingEmail,
     cancelCodeEntry,
     signInError,
     isSigningIn,
@@ -54,43 +56,46 @@ export default function PortalSignInPage() {
   const isSetup = new URLSearchParams(useSearch()).get("new") === "1";
 
   const [chosen, setChosen] = useState<ProviderId | null>(null);
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
-  const [identifierError, setIdentifierError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
-  /** Which kind of identifier the chosen route collects. */
-  const channel: "email" | "phone" = chosen === "phone" ? "phone" : "email";
-  const onPhone = channel === "phone";
+  // After a refresh the provider knows the address but this component does not,
+  // so the code screen reads from the persisted value first.
+  const codeSentTo = pendingEmail || (chosen === "phone" ? phone : email);
 
-  // After a refresh the provider knows the identifier but this component does
-  // not, so the code screen reads from the persisted value first.
-  const codeSentTo = pendingIdentifier || identifier;
-  const codeChannel = pendingIdentifier ? pendingChannel : channel;
+  const byPhone = chosen === "phone";
+  const identifier = byPhone ? phone : email;
 
-  const validateIdentifier = (value: string): string | null => {
+  const validateEmail = (value: string): string | null => {
     const trimmed = value.trim();
-    if (onPhone) {
-      if (!trimmed) return "Enter your mobile number.";
-      if (!PHONE_PATTERN.test(trimmed)) return "That doesn't look like a mobile number.";
-      return null;
-    }
     if (!trimmed) return "Enter your email address.";
     if (!EMAIL_PATTERN.test(trimmed)) return "That doesn't look like an email address.";
     return null;
   };
 
+  const validatePhone = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (!trimmed) return "Enter your mobile number.";
+    if (!/\d/.test(trimmed) || !PHONE_PATTERN.test(trimmed)) {
+      return "That doesn't look like a mobile number.";
+    }
+    return null;
+  };
+
+  const validateIdentifier = (value: string): string | null =>
+    byPhone ? validatePhone(value) : validateEmail(value);
+
   const startProvider = (id: ProviderId) => {
     // Outside preview, Google and Zoho hand off to the identity provider
-    // immediately; the email and mobile routes need an identifier typed here
-    // first. In preview every route uses the form, since no provider is
-    // contacted at all.
+    // immediately; only the email route needs an address typed here first.
     if (!previewMode && id !== "email" && id !== "phone") {
       void signInWithProvider(id, "");
       return;
     }
-    setIdentifierError(null);
-    setIdentifier("");
+    setEmailError(null);
     setChosen(id);
   };
 
@@ -101,7 +106,7 @@ export default function PortalSignInPage() {
     // enabled by any non-empty string, so "abc" reached Clerk and came back as
     // a red banner about a failed request instead of a note under the field.
     const problem = validateIdentifier(identifier);
-    setIdentifierError(problem);
+    setEmailError(problem);
     if (problem) return;
     void signInWithProvider(chosen, identifier.trim(), name.trim());
   };
@@ -136,7 +141,7 @@ export default function PortalSignInPage() {
           <p className="text-muted-foreground mb-8 leading-relaxed">
             {isSetup
               ? "Sign in first, then name your chamber and choose whether you run it as Firm Admin or Senior Advocate. You'll invite everyone else afterwards."
-              : "Sign in with the address your chamber admin invited. A different address will be turned away."}
+              : "Sign in with the address or mobile number your chamber admin invited. A different one will be turned away."}
           </p>
 
           <p className="text-xs text-muted-foreground mb-6 flex items-center gap-1.5">
@@ -157,13 +162,13 @@ export default function PortalSignInPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                void verifyCode(code);
+                void verifyEmailCode(code);
               }}
               className="flex flex-col gap-4"
             >
               <div className="rounded-lg bg-background shadow-[var(--press-sm)] px-4 py-3">
                 <p className="text-sm">
-                  We sent a one-time code {codeChannel === "phone" ? "by SMS to" : "to"}{" "}
+                  We sent a one-time code to{" "}
                   <span className="font-mono font-medium break-all">{codeSentTo}</span>.
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -190,7 +195,7 @@ export default function PortalSignInPage() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  {CODE_LENGTH} digits, from the email just sent.
+                  {CODE_LENGTH} digits, from the {byPhone ? "text message" : "email"} just sent.
                 </p>
               </div>
 
@@ -211,7 +216,7 @@ export default function PortalSignInPage() {
                   }}
                   className="text-xs font-mono uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Use a different address
+                  {byPhone ? "Use a different number" : "Use a different address"}
                 </button>
                 <button
                   type="button"
@@ -263,48 +268,45 @@ export default function PortalSignInPage() {
 
               <div className="space-y-2">
                 <label
-                  htmlFor="signin-identifier"
+                  htmlFor="signin-email"
                   className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider"
                 >
-                  {onPhone ? "Mobile number" : "Email address"}
+                  {byPhone ? "Mobile number" : "Email address"}
                 </label>
                 <Input
-                  id="signin-identifier"
-                  // `type="tel"` brings up the phone keypad rather than a full
-                  // keyboard, which is most of the difference on a handset.
-                  type={onPhone ? "tel" : "email"}
-                  inputMode={onPhone ? "tel" : "email"}
-                  autoComplete={onPhone ? "tel" : "email"}
+                  id="signin-email"
+                  type={byPhone ? "tel" : "email"}
                   value={identifier}
                   onChange={(e) => {
-                    setIdentifier(e.target.value);
+                    if (byPhone) setPhone(e.target.value);
+                    else setEmail(e.target.value);
                     // Clear as soon as they start fixing it; re-checked on blur
                     // and again on submit.
-                    if (identifierError) setIdentifierError(null);
+                    if (emailError) setEmailError(null);
                   }}
-                  onBlur={() =>
-                    identifier.trim() && setIdentifierError(validateIdentifier(identifier))
-                  }
-                  aria-invalid={identifierError ? true : undefined}
-                  aria-describedby={identifierError ? "signin-identifier-error" : undefined}
+                  onBlur={() => identifier.trim() && setEmailError(validateIdentifier(identifier))}
+                  aria-invalid={emailError ? true : undefined}
+                  aria-describedby={emailError ? "signin-email-error" : undefined}
                   className="rounded-lg bg-background"
-                  placeholder={onPhone ? "98765 43210" : "you@yourchamber.in"}
+                  placeholder={byPhone ? "+91 98765 43210" : "you@yourchamber.in"}
+                  autoComplete={byPhone ? "tel" : "email"}
+                  inputMode={byPhone ? "tel" : undefined}
                   autoFocus
                   required
                 />
-                {onPhone && (
+                {byPhone && !emailError && (
                   <p className="text-xs text-muted-foreground">
-                    Ten digits for an Indian number, or the full +country form.
+                    With or without +91 — both work. Standard SMS charges apply.
                   </p>
                 )}
-                {identifierError && (
+                {emailError && (
                   <p
-                    id="signin-identifier-error"
+                    id="signin-email-error"
                     role="alert"
                     className="text-xs text-destructive flex items-center gap-1.5"
                   >
                     <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                    {identifierError}
+                    {emailError}
                   </p>
                 )}
               </div>

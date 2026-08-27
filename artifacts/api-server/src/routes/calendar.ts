@@ -16,7 +16,7 @@ import {
   type AuthRequest,
   type WorkspaceContext,
 } from "../middlewares/requireAuth";
-import { caseInWorkspace } from "../lib/scope";
+import { caseInWorkspace, visibleCaseIds } from "../lib/scope";
 import { displayRole, isWorkspaceRole } from "../lib/permissions";
 
 const router: IRouter = Router();
@@ -105,7 +105,26 @@ router.get(
       .from(calendarEntriesTable)
       .where(eq(calendarEntriesTable.workspaceId, c.workspaceId));
 
-    const visible = rows.filter((r) => audienceIncludes(r.audience, c.role, c.user.clerkId));
+    /*
+     * Two filters, and they answer different questions.
+     *
+     * `audienceIncludes` asks who an entry was addressed to. Row scope asks
+     * which matters this member may see at all — and until case-access grants
+     * existed the two never disagreed, because everybody who could read the
+     * calendar could also read every matter. Now they do disagree: a junior
+     * narrowed to two matters was still served every hearing in the chamber,
+     * with the matter's name in the title.
+     *
+     * An entry with no `caseId` is chamber-wide — a firm meeting, a holiday —
+     * and belongs to nobody's matter, so it stays. Only entries pinned to a
+     * matter are scoped by it.
+     */
+    const allowed = new Set(await visibleCaseIds(c));
+    const visible = rows.filter(
+      (r) =>
+        audienceIncludes(r.audience, c.role, c.user.clerkId) &&
+        (r.caseId === null || allowed.has(r.caseId)),
+    );
     res.json(ListCalendarEntriesResponse.parse(await Promise.all(visible.map(view))));
   },
 );

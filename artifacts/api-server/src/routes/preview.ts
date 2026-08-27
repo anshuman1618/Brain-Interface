@@ -72,6 +72,77 @@ router.post(
 );
 
 /**
+ * Put this workspace's plan in force, without taking a payment.
+ *
+ * The paid gate is real in preview mode, deliberately — a gate that is switched
+ * off wherever it is testable is a gate nobody has tested. But preview has no
+ * payment provider at all: `paymentsEnabled()` is false, checkout returns 503,
+ * and the webhook that normally activates a plan is never called. Without this
+ * route a preview chamber could never open a matter, and `pnpm run preview` —
+ * documented as the fastest way to see a change — would show a paywall.
+ *
+ * The same three things keep it out of production as the route above:
+ *
+ *   1. `isPreviewAuth()` is hard-false when NODE_ENV=production, and the server
+ *      refuses to boot into preview mode there. This 404s in that case, so it
+ *      does not advertise its own existence.
+ *   2. It is behind `requireWorkspace`, so it can only touch the caller's own
+ *      workspace — the id comes from the verified context, never the body.
+ *   3. It activates a TRIAL and nothing else. It cannot grant Pro or Firm, so
+ *      the worst it can do to a preview database is give one chamber the
+ *      allowance it would have had for ninety-nine rupees.
+ *
+ * It does NOT write either once-only marker — `users.trial_claimed_at` or
+ * `subscriptions.trial_used_at`. One trial per person, and one per chamber, are
+ * commercial rules about real money; burning somebody's real entitlement from a
+ * preview route would be a bug, and leaving both unwritten is what lets the
+ * suites that test those rules still reach a genuinely unclaimed trial after
+ * calling this.
+ */
+router.post(
+  "/preview/activate-plan",
+  requireWorkspace,
+  async (req: AuthRequest, res): Promise<void> => {
+    if (!isPreviewAuth() || !isPreviewDatabase()) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const c = ctx(req);
+    const now = new Date();
+    const end = new Date(now);
+    end.setMonth(end.getMonth() + 2);
+
+    // A chamber has no subscription row until it selects something — see
+    // plan.mjs §1, which asserts that a row-less chamber is not treated as
+    // lapsed. So this inserts when there is nothing to update; writing only the
+    // UPDATE looks like it works and silently does nothing, which is exactly
+    // how it was got wrong the first time.
+    const fields = {
+      plan: "trial",
+      billingPeriod: "one_time",
+      status: "active",
+      paidMonths: 2,
+      amountMinor: 9_900,
+      startedAt: now,
+      currentPeriodEnd: end,
+      updatedAt: now,
+    } as const;
+
+    const updated = await db
+      .update(subscriptionsTable)
+      .set(fields)
+      .where(eq(subscriptionsTable.workspaceId, c.workspaceId))
+      .returning({ id: subscriptionsTable.id });
+
+    if (updated.length === 0) {
+      await db.insert(subscriptionsTable).values({ workspaceId: c.workspaceId, ...fields });
+    }
+
+    res.json({ activated: true, plan: "trial", currentPeriodEnd: end.toISOString() });
+  },
+);
+
+/**
  * Run the reminder sweep now, instead of waiting for the half-hour cron.
  *
  * The sweep is the only place hearing, deadline and consultation reminders are
@@ -80,7 +151,7 @@ router.post(
  * does is idempotent (`notify()` refuses a message it has already sent), so
  * running it early only ever brings work forward.
  *
- * Guarded exactly like `set-period-end` above: 404 outside preview, behind
+ * Guarded exactly like the two routes above: 404 outside preview, behind
  * `requireWorkspace`, and it creates nothing a caller could not have caused by
  * waiting thirty minutes.
  */

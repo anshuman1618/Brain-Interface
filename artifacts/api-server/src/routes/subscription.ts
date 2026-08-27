@@ -50,6 +50,8 @@ function trialDefault(workspaceId: number) {
     // its plan had expired before it chose one.
     lapsed: false,
     daysLeft: null,
+    // No row is the strongest form of never having paid.
+    neverPaid: true,
     updatedBy: null,
   };
 }
@@ -74,6 +76,10 @@ function view(row: Subscription, state: PlanState) {
     currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
     lapsed: state.lapsed,
     daysLeft: state.daysLeft,
+    // Taken from the same computation enforcement uses, not recomputed from the
+    // fields above — the client gates its subscription screen on this, and a
+    // second derivation is a second thing to get out of step.
+    neverPaid: state.neverPaid,
     updatedBy: row.updatedBy ?? null,
   };
 }

@@ -15,6 +15,7 @@
  *     that keeps a chamber from believing a reminder went out when it did not.
  */
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -72,6 +73,13 @@ const bTok = B.data?.workspaceToken;
 const bId = B.data?.activeWorkspace?.id;
 await declareBarRegistration(call, adminA);
 await declareBarRegistration(call, adminB);
+// Both chambers need a plan in force: without one the calendar is 402 and an
+// invite admits nobody, so §5 below would be measuring the subscription gate
+// rather than whether a hearing reaches the people it is addressed to.
+// Registering a device (§1–4) is deliberately NOT gated — a member who can
+// sign in can be reached.
+await grantPreviewPlan(call, adminA, aTok);
+await grantPreviewPlan(call, adminB, bTok);
 
 /* ── 1. Registration ───────────────────────────────────────────────────────── */
 section("1. A device registers against the caller's own chamber");

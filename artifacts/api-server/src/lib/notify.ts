@@ -44,6 +44,18 @@ export type Notification = {
   emailBody?: string;
   emailKind?: MailKind;
   pushKind?: string;
+  /**
+   * Whether an identical message already sent to this person suppresses this
+   * one. Default true, which is what the scheduler needs: it sweeps every
+   * half hour and would otherwise re-send the same T-24h reminder on each
+   * tick.
+   *
+   * Event-driven callers must pass false. A document requested twice is two
+   * requests, and the second one wording-identical to the first is the normal
+   * case, not a duplicate tick — swallowing it would leave a client waiting
+   * for a request they were never told about.
+   */
+  dedupe?: boolean;
 };
 
 /**
@@ -72,7 +84,7 @@ export async function alreadyNotified(clerkId: string, message: string): Promise
  */
 export async function notify(n: Notification): Promise<boolean> {
   try {
-    if (await alreadyNotified(n.clerkId, n.message)) return false;
+    if (n.dedupe !== false && (await alreadyNotified(n.clerkId, n.message))) return false;
 
     await db.insert(notificationsTable).values({
       userId: n.clerkId,

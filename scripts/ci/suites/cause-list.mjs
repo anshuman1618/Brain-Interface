@@ -6,6 +6,7 @@
 // proposals, the accept path that creates a calendar entry, and the failure
 // path that records a broken court without taking the others down.
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -49,6 +50,7 @@ const founded = await call("/workspaces", {
 const ws = founded.data.workspaceToken;
 check("chamber founded", founded.status === 201, `got ${founded.status}`);
 await declareBarRegistration(call, as(owner));
+await grantPreviewPlan(call, as(owner), ws);
 
 const courts = await call("/courts", { token: as(owner), wsToken: ws });
 check("the courts registry is readable", courts.status === 200, `got ${courts.status}`);
@@ -225,6 +227,7 @@ const rivalWs = await call("/workspaces", {
 });
 const rTok = rivalWs.data.workspaceToken;
 await declareBarRegistration(call, as(rival));
+await grantPreviewPlan(call, as(rival), rTok);
 
 const rivalProposals = await call("/cause-list/proposals", { token: as(rival), wsToken: rTok });
 check(

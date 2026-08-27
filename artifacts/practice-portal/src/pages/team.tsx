@@ -5,6 +5,7 @@ import {
   type AccessRequest,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -23,13 +24,25 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, UserMinus, Scale } from "lucide-react";
+import { ShieldCheck, UserMinus, Scale, EyeOff } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/session";
 import { ROLE_OPTIONS, roleLabel, needsBarRegistration } from "@/lib/role-options";
+import { CaseAccessDialog } from "@/components/case-access-dialog";
 
 const ASSIGNABLE_ROLES = ROLE_OPTIONS.map((o) => o.value);
+
+/**
+ * Who can be narrowed to named matters.
+ *
+ * A senior advocate directs the chamber's work and cannot be shut out of it; a
+ * client is already confined to their own matter by row scope, and layering a
+ * second mechanism on top would give two places to look when somebody cannot
+ * see something. The server refuses the others with a 400 — this only decides
+ * whether the button is worth offering.
+ */
+const RESTRICTABLE_ROLES = ["junior_advocate", "clerk_intern"];
 
 /**
  * Membership management for the current workspace.
@@ -39,7 +52,8 @@ const ASSIGNABLE_ROLES = ROLE_OPTIONS.map((o) => o.value);
  * other.
  */
 export default function TeamPage() {
-  const { activeWorkspace, claims } = useSession();
+  const { activeWorkspace, claims, can } = useSession();
+  const [caseAccessFor, setCaseAccessFor] = useState<{ id: number; name: string } | null>(null);
   const { data: members, isLoading } = useListWorkspaceMembers();
   const updateMember = useUpdateWorkspaceMember();
   const queryClient = useQueryClient();
@@ -200,18 +214,36 @@ export default function TeamPage() {
                       </Select>
                     </TableCell>
                     <TableCell className="text-right">
-                      {/* An admin cannot revoke themselves — the server refuses it too,
-                          so a workspace can never be left with nobody to administer it. */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-lg"
-                        disabled={updateMember.isPending || isSelf}
-                        onClick={() => handleRevoke(m.id, m.displayName || "Member")}
-                      >
-                        <UserMinus className="h-3.5 w-3.5 mr-1.5" />
-                        Revoke
-                      </Button>
+                      <div className="flex flex-col items-end gap-2 sm:flex-row sm:justify-end">
+                        {/* Narrowing someone's matters is the same kind of
+                            decision as admitting them, so it sits behind the
+                            same capability the access list does. */}
+                        {can("access_control.manage") && RESTRICTABLE_ROLES.includes(m.role) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg"
+                            onClick={() =>
+                              setCaseAccessFor({ id: m.id, name: m.displayName || "This member" })
+                            }
+                          >
+                            <EyeOff className="h-3.5 w-3.5 mr-1.5" />
+                            Case access
+                          </Button>
+                        )}
+                        {/* An admin cannot revoke themselves — the server refuses it too,
+                            so a workspace can never be left with nobody to administer it. */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-lg"
+                          disabled={updateMember.isPending || isSelf}
+                          onClick={() => handleRevoke(m.id, m.displayName || "Member")}
+                        >
+                          <UserMinus className="h-3.5 w-3.5 mr-1.5" />
+                          Revoke
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -220,6 +252,15 @@ export default function TeamPage() {
           </TableBody>
         </Table>
       </div>
+
+      <CaseAccessDialog
+        membershipId={caseAccessFor?.id ?? null}
+        memberName={caseAccessFor?.name ?? ""}
+        open={caseAccessFor !== null}
+        onOpenChange={(next) => {
+          if (!next) setCaseAccessFor(null);
+        }}
+      />
     </div>
   );
 }

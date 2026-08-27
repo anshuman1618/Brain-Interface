@@ -35,7 +35,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Copy, Plus, Mail, ShieldCheck, Check, Smartphone } from "lucide-react";
+import { Copy, Plus, Mail, Smartphone, ShieldCheck, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateTime } from "@/lib/utils";
 import { AccessRequestQueue } from "@/components/access-request-queue";
@@ -51,11 +51,12 @@ export default function InvitesPage() {
   const { toast } = useToast();
 
   const [isOpen, setIsOpen] = useState(false);
-  // An invite names exactly one identifier, so the dialog offers a choice
-  // rather than two fields somebody could fill in both of — which the server
-  // refuses anyway.
-  const [channel, setChannel] = useState<"email" | "phone">("email");
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
+  // An invite names one identifier. A chamber's clerks and most of its clients
+  // have a mobile and no work address, so refusing to invite a number would
+  // exclude exactly the people the chamber needs on the system.
+  const [inviteBy, setInviteBy] = useState<"email" | "phone">("email");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState<InviteInputRole>("client");
   const [caseId, setCaseId] = useState("");
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -65,12 +66,15 @@ export default function InvitesPage() {
   // role, so this mirrors that rule rather than letting the request round-trip
   // to learn it.
   const caseIdRequired = role === "client";
+  const identifier = inviteBy === "phone" ? phone : email;
   const canSubmit =
     !!identifier.trim() && !!role && (!caseIdRequired || !!caseId) && !createInvite.isPending;
 
   const handleCreate = () => {
+    // Exactly one, never both — the server refuses the pair, and sending an
+    // empty string for the other would be sending both.
     const payload: InviteInput =
-      channel === "phone" ? { phone: identifier.trim(), role } : { email: identifier.trim(), role };
+      inviteBy === "phone" ? { phone: phone.trim(), role } : { email: email.trim(), role };
     if (role === "client") {
       payload.caseId = parseInt(caseId, 10);
     }
@@ -80,7 +84,7 @@ export default function InvitesPage() {
       {
         onSuccess: () => {
           setIsOpen(false);
-          setIdentifier("");
+          setEmail("");
           setRole("client");
           setCaseId("");
           queryClient.invalidateQueries({ queryKey: getListInvitesQueryKey() });
@@ -123,16 +127,7 @@ export default function InvitesPage() {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label>Invite by</Label>
-                <Select
-                  value={channel}
-                  onValueChange={(v) => {
-                    setChannel(v as "email" | "phone");
-                    // Clearing matters: an address left in the box after
-                    // switching to mobile would be sent as a phone number and
-                    // refused by the server for no visible reason.
-                    setIdentifier("");
-                  }}
-                >
+                <Select value={inviteBy} onValueChange={(v) => setInviteBy(v as "email" | "phone")}>
                   <SelectTrigger className="rounded-lg">
                     <SelectValue />
                   </SelectTrigger>
@@ -143,14 +138,21 @@ export default function InvitesPage() {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>{channel === "phone" ? "Mobile Number" : "Email Address"}</Label>
+                <Label>{inviteBy === "phone" ? "Mobile number" : "Email Address"}</Label>
                 <Input
-                  type={channel === "phone" ? "tel" : "email"}
-                  inputMode={channel === "phone" ? "tel" : "email"}
+                  type={inviteBy === "phone" ? "tel" : "email"}
                   value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder={channel === "phone" ? "98765 43210" : "client@example.com"}
+                  onChange={(e) =>
+                    inviteBy === "phone" ? setPhone(e.target.value) : setEmail(e.target.value)
+                  }
+                  placeholder={inviteBy === "phone" ? "+91 98765 43210" : "client@example.com"}
                 />
+                {inviteBy === "phone" && (
+                  <p className="text-2xs leading-relaxed text-muted-foreground">
+                    They sign in by SMS to this number. Indian telcos reassign a disconnected number
+                    after about ninety days — revoke the entry when somebody leaves.
+                  </p>
+                )}
               </div>
               <div className="grid gap-2">
                 <Label>Assigned Role</Label>
@@ -254,11 +256,11 @@ export default function InvitesPage() {
                 return (
                   <TableRow key={inv.id} className={isExpired || isUsed ? "opacity-50" : ""}>
                     <TableCell>
-                      <div className="font-medium text-sm flex items-center gap-2 break-all">
+                      <div className="font-medium text-sm flex items-center gap-2">
                         {inv.phone ? (
-                          <Smartphone className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <Smartphone className="h-4 w-4 text-muted-foreground" />
                         ) : (
-                          <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <Mail className="h-4 w-4 text-muted-foreground" />
                         )}
                         {inv.phone || inv.email}
                       </div>

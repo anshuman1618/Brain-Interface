@@ -28,21 +28,19 @@ export default function AccessDeniedPage() {
   const [founding, setFounding] = useState(false);
 
   const provider = providerLabel(authProvider);
-  /*
-   * Which identifier this person actually holds decides the whole screen.
+  /**
+   * Whichever identifier the caller actually holds.
    *
-   * Somebody who signed in by SMS has no address at all, and that is their
-   * finished state, not a failure — telling them "we didn't get a verified
-   * email address" would send them off to fix something that is not broken.
-   * So the copy below names whichever identifier they have, and only the
-   * genuinely empty case gets the "nothing was verified" wording.
+   * Somebody who signed in by SMS has no address, and telling them to "ask your
+   * admin to add <blank>" is the failure this replaces — the screen would name
+   * nobody while asking them to act on it.
    */
   const identifier = email || phone;
-  const identifierNoun = email ? "email address" : "mobile number";
-  // Nothing verified at all: the account exists but there is nothing to match
-  // against a list. Without this the screen said "you signed in as" and then
-  // named nobody, which reads like a bug rather than a thing to act on.
-  const identifierMissing = !identifier;
+  const isPhone = !email && Boolean(phone);
+  const identifierWord = isPhone ? "mobile number" : "email address";
+  // Nothing verified reached us at all: the account exists but there is nothing
+  // to match against a list.
+  const addressMissing = !identifier;
 
   if (founding) {
     return <CreateChamberPage onCancel={() => setFounding(false)} />;
@@ -56,7 +54,7 @@ export default function AccessDeniedPage() {
         <div className="border border-destructive/40 bg-destructive/5 p-8">
           <div className="flex items-start gap-4">
             <div className="h-10 w-10 bg-destructive/10 flex items-center justify-center shrink-0">
-              {identifierMissing ? (
+              {addressMissing ? (
                 <ShieldAlert className="h-5 w-5 text-destructive" />
               ) : (
                 <MailX className="h-5 w-5 text-destructive" />
@@ -64,10 +62,10 @@ export default function AccessDeniedPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-mono text-xs uppercase tracking-widest text-destructive mb-1">
-                {identifierMissing ? "Identity not verified" : "Access denied"}
+                {addressMissing ? "Address not verified" : "Access denied"}
               </p>
 
-              {identifierMissing ? (
+              {addressMissing ? (
                 <>
                   <h1 className="text-2xl font-bold tracking-tight mb-3">
                     We didn't get a verified email address or mobile number
@@ -83,12 +81,13 @@ export default function AccessDeniedPage() {
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-4">
                       <li>
-                        Verify your email address with{provider ? ` ${provider}` : " your provider"}
-                        , then sign out and sign in again.
+                        Verify your email address or mobile number with
+                        {provider ? ` ${provider}` : " your provider"}, then sign out and sign in
+                        again.
                       </li>
                       <li>
                         Or sign in with the email or mobile option, which verifies the identifier
-                        directly with a one-time code.
+                        directly.
                       </li>
                     </ul>
                   </div>
@@ -96,7 +95,7 @@ export default function AccessDeniedPage() {
               ) : (
                 <>
                   <h1 className="text-2xl font-bold tracking-tight mb-3">
-                    This {identifierNoun} isn't on the chamber's access list
+                    This {identifierWord} isn't on the chamber's access list
                   </h1>
                   <p className="text-sm text-muted-foreground leading-relaxed mb-4">
                     You signed in successfully{provider ? ` with ${provider}` : ""} as{" "}
@@ -104,18 +103,23 @@ export default function AccessDeniedPage() {
                       {identifier}
                     </span>
                     {displayName ? ` (${displayName})` : ""}. That proves who you are, but a chamber
-                    admin has not admitted this {identifierNoun}, so there is nothing here for you
-                    yet.
+                    admin has not admitted it, so there is nothing here for you yet.
                   </p>
                   <div className="rounded-lg bg-card shadow-sm p-4">
                     <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-2">
                       What to do
                     </p>
                     <ul className="text-sm text-muted-foreground space-y-1.5 list-disc pl-4">
-                      {email && (
+                      {!isPhone && (
                         <li>
                           If your chamber uses a work address, sign out and sign in with that one
                           instead — a personal Gmail or Zoho account won't match.
+                        </li>
+                      )}
+                      {isPhone && (
+                        <li>
+                          If your chamber admitted you by email instead, sign out and sign in with
+                          that address.
                         </li>
                       )}
                       <li>

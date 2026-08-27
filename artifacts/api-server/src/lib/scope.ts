@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { db, casesTable, tasksTable } from "@workspace/db";
+import { db, casesTable, tasksTable, caseAccessGrantsTable } from "@workspace/db";
 import type { WorkspaceContext } from "../middlewares/requireAuth";
 
 /**
@@ -14,6 +14,32 @@ import type { WorkspaceContext } from "../middlewares/requireAuth";
  * from another tenant even if a caller supplies an id from one.
  */
 
+/**
+ * Matters an admin has explicitly opened to this member.
+ *
+ * Empty for everybody whose membership is not marked restricted, which is
+ * everybody by default — so this costs one indexed lookup on the path that
+ * uses it and nothing at all on the path that does not.
+ */
+async function grantedCaseIds(ctx: WorkspaceContext): Promise<number[]> {
+  if (!ctx.caseAccessRestricted || ctx.membershipId === null) return [];
+  const rows = await db
+    .select({ caseId: caseAccessGrantsTable.caseId })
+    .from(caseAccessGrantsTable)
+    .innerJoin(casesTable, eq(casesTable.id, caseAccessGrantsTable.caseId))
+    .where(
+      and(
+        eq(caseAccessGrantsTable.membershipId, ctx.membershipId),
+        // Joined through `cases` and filtered by workspace, so a grant naming a
+        // matter in another chamber resolves to nothing rather than to that
+        // matter. A grant cannot reach across the tenant boundary even if a row
+        // somehow named an id from the other side of it.
+        eq(casesTable.workspaceId, ctx.workspaceId),
+      ),
+    );
+  return rows.map((r) => r.caseId);
+}
+
 /** The case ids the caller may see. Always workspace-filtered first. */
 export async function visibleCaseIds(ctx: WorkspaceContext): Promise<number[]> {
   let ids: number[];
@@ -26,6 +52,28 @@ export async function visibleCaseIds(ctx: WorkspaceContext): Promise<number[]> {
         and(eq(casesTable.workspaceId, ctx.workspaceId), eq(casesTable.clientId, ctx.user.id)),
       );
     ids = rows.map((r) => r.id);
+  } else if (ctx.caseAccessRestricted) {
+    /*
+     * A junior or clerk an admin has narrowed: assigned matters, plus the ones
+     * granted explicitly.
+     *
+     * Handled before the role's own scope rather than after it, because it
+     * REPLACES that scope rather than filtering it. A restricted junior's role
+     * says `all`; intersecting with `all` would be a no-op and the restriction
+     * would do nothing at all — which is the obvious way to write this and the
+     * reason it is written this way instead.
+     */
+    const assigned = await db
+      .select({ id: casesTable.id })
+      .from(casesTable)
+      .innerJoin(tasksTable, eq(tasksTable.caseId, casesTable.id))
+      .where(
+        and(
+          eq(casesTable.workspaceId, ctx.workspaceId),
+          eq(tasksTable.assigneeId, ctx.user.clerkId),
+        ),
+      );
+    ids = [...new Set([...assigned.map((r) => r.id), ...(await grantedCaseIds(ctx))])];
   } else if (ctx.caseScope === "assigned") {
     // Clerk/Intern: only matters they hold a task on. The join is constrained to
     // this workspace's cases so a task row can never drag in a foreign case.
@@ -81,6 +129,18 @@ export async function getVisibleCase(
     .from(casesTable)
     .where(and(eq(casesTable.id, caseId), eq(casesTable.workspaceId, ctx.workspaceId)));
   if (!row) return null;
+
+  // Same rule as visibleCaseIds, and checked here too because this is a
+  // separate entry point — GET /cases/:id and every write that loads the row
+  // first come through here, not through the list.
+  if (ctx.caseAccessRestricted) {
+    const [assigned] = await db
+      .select({ id: tasksTable.id })
+      .from(tasksTable)
+      .where(and(eq(tasksTable.caseId, caseId), eq(tasksTable.assigneeId, ctx.user.clerkId)));
+    if (assigned) return row;
+    return (await grantedCaseIds(ctx)).includes(caseId) ? row : null;
+  }
 
   if (ctx.caseScope === "own") {
     return row.clientId === ctx.user.id ? row : null;
