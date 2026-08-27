@@ -1204,6 +1204,22 @@ filter on `sendPush` is the tenant boundary: someone in two chambers holds a
 device row per chamber, and a matter from one cannot surface while they are in
 the other.
 
+The other four inserts are event-driven rather than swept, and reach `notify()`
+from the request that caused them:
+
+```
+POST /document-requests            → the client is asked for a document
+PATCH /document-requests/:id       → the client marks it done
+POST /cases/:id/documents          → an upload closes the request  (JSON)
+POST /cases/:id/documents/content  → an upload closes the request  (raw bytes,
+                                      which is the camera path)
+```
+
+All four pass `dedupe: false`. All four are the half of the loop that faces a
+client, who is the member most likely to have signed up by mobile number and
+have no email at all — so before push, the bell row was the only trace, and a
+bell is only seen by somebody already looking at the app.
+
 ---
 
 ## 6. Going live

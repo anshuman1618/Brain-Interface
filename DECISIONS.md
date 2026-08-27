@@ -2430,6 +2430,33 @@ nothing.
 
 ## Mobile
 
+### A lost connection to `POST /cases/:id/drafts` does not mean a lost draft
+
+**Decided:** the drafting page distinguishes a refusal the server sent from a
+connection that went away, and says so. Only the first is "could not start".
+
+**Why:** `POST /cases/:id/drafts` awaits `runDraft` and is held open for the
+whole model call — a minute or more. That is the request in the product most
+likely to be lost on a phone, and for reasons that have nothing to do with the
+server: backgrounding the app suspends the webview's network task, and a
+wifi-to-cellular handoff drops the socket outright.
+
+The server is unaffected either way. `runDraft` writes the row in `generating`
+_before_ it calls the model and sets `ready` or `failed` itself, so the work
+survives the caller. The failure mode was purely in the reader's head: told the
+draft did not start, they run it again, and the chamber pays twice for the same
+draft. An `ApiError` carries a status and is therefore the server refusing;
+anything else is the connection, and the list is what knows the truth — so the
+error path refetches it rather than asserting.
+
+**Not fixed here, and worth deciding on:** the request is synchronous at all.
+`runDraft` is already shaped like a job — pre-flight, insert, run, update — so
+splitting it after the pre-flight would let the POST return 202 immediately and
+leave the existing 2-second poll to fill the row in. That is a change to how
+drafting fails (a 402 or 404 must stay synchronous; a model error would move
+from the response body into `drafts.error`, where the list already exposes it),
+and it belongs in its own commit rather than inside a merge.
+
 ### Capacitor around the existing SPA, not a second frontend
 
 **Decided:** the Android and iOS apps bundle the same built SPA the web
@@ -2527,6 +2554,15 @@ one. One helper means the three channels cannot disagree about who was told what
 **Why an outbox rather than fire-and-forget:** the same reason mail has one. The
 things this system notifies about are filing deadlines and hearing dates; a
 message that failed to send has to stay visible instead of becoming a log line.
+
+**`dedupe` is opt-out, and event-driven callers must opt out.** The dedup key is
+exact message text, which is what the scheduler needs — it sweeps every half hour
+and would otherwise re-send the same T-24h reminder on each tick. It is wrong for
+the four document-request sites: asking a client for the same document twice is
+two requests, and the second one wording-identical to the first is the normal
+case. Swallowing it would leave them waiting for a request they were never told
+about. Hence `dedupe: false` at every event site, and the default left alone for
+the sweep.
 
 **One transport for two platforms:** FCM HTTP v1 delivers to iOS too, once the
 APNs key is uploaded to Firebase. Hand-rolled service-account JWT and one POST,

@@ -132,13 +132,13 @@ function InsightsTab() {
         />
         <div className="mt-2 flex flex-wrap items-end gap-2">
           <Input
-            className="w-[220px] rounded-lg"
+            className="w-full rounded-lg sm:w-[220px]"
             placeholder="tags, comma separated"
             value={tags}
             onChange={(e) => setTags(e.target.value)}
           />
           <Select value={courtId} onValueChange={setCourtId}>
-            <SelectTrigger className="w-[260px] rounded-lg">
+            <SelectTrigger className="w-full rounded-lg sm:w-[260px]">
               <SelectValue placeholder="Any forum" />
             </SelectTrigger>
             <SelectContent>
@@ -258,13 +258,13 @@ function ExemplarsTab() {
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <Input
-            className="w-[280px] rounded-lg"
+            className="w-full rounded-lg sm:w-[280px]"
             placeholder="Label, e.g. the good writ from last year"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
           <Select value={kind} onValueChange={setKind}>
-            <SelectTrigger className="w-[200px] rounded-lg">
+            <SelectTrigger className="w-full rounded-lg sm:w-[200px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

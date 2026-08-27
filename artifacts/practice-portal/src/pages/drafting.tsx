@@ -12,6 +12,7 @@ import {
   getGetAiBudgetQueryKey,
   getListCasesQueryKey,
   getListDocumentsQueryKey,
+  ApiError,
   type Draft,
   type Case,
   type Document,
@@ -282,12 +283,34 @@ export default function DraftingPage() {
             description: "It will appear below as it is written.",
           });
         },
-        onError: (err: Error) =>
-          toast({
-            title: "Could not start",
-            description: userMessage(err),
-            variant: "destructive",
-          }),
+        onError: (err: Error) => {
+          // The POST is held open for the whole model call, which on a phone is
+          // the request most likely to be lost: backgrounding the app suspends
+          // the webview's network task, and a wifi-to-cellular handoff drops it
+          // outright. The server is unaffected — `runDraft` writes the row
+          // before it calls the model and sets `ready` or `failed` itself — so a
+          // dropped connection means the draft is very probably still coming.
+          //
+          // Saying "could not start" there would be false, and worse: the reader
+          // runs it again and the chamber pays for the same draft twice. An
+          // ApiError carries a status, so it IS the server refusing; anything
+          // else is the connection, and the list is what knows the truth.
+          const refused = err instanceof ApiError;
+          refresh();
+          toast(
+            refused
+              ? {
+                  title: "Could not start",
+                  description: userMessage(err),
+                  variant: "destructive",
+                }
+              : {
+                  title: "Lost the connection",
+                  description:
+                    "The draft may still be running — it will appear below when it lands. Check before asking for it again.",
+                },
+          );
+        },
       },
     );
   };
@@ -318,8 +341,12 @@ export default function DraftingPage() {
       <BudgetMeter />
 
       <div className="rounded-lg bg-card p-4 shadow-sm">
+        {/* Each control is full-width on a phone and its designed width from
+            `sm` up. `flex-wrap` alone is not enough: a 320px trigger inside a
+            padded card inside a 360px viewport overflows the page before it
+            has anything to wrap onto. */}
         <div className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-1">
+          <div className="grid w-full gap-1 sm:w-auto">
             <label className="font-mono text-3xs uppercase tracking-wider text-muted-foreground">
               Matter
             </label>
@@ -330,7 +357,7 @@ export default function DraftingPage() {
                 setPicked([]);
               }}
             >
-              <SelectTrigger className="w-[320px] rounded-lg">
+              <SelectTrigger className="w-full rounded-lg sm:w-[320px]">
                 <SelectValue placeholder="Choose a matter" />
               </SelectTrigger>
               <SelectContent>
@@ -342,12 +369,12 @@ export default function DraftingPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1">
+          <div className="grid w-full gap-1 sm:w-auto">
             <label className="font-mono text-3xs uppercase tracking-wider text-muted-foreground">
               Document
             </label>
             <Select value={kind} onValueChange={setKind}>
-              <SelectTrigger className="w-[240px] rounded-lg">
+              <SelectTrigger className="w-full rounded-lg sm:w-[240px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -429,7 +456,10 @@ export default function DraftingPage() {
           </Button>
           <Link
             href="/chamber-knowledge"
-            className="self-center text-2xs text-muted-foreground underline underline-offset-2"
+            // `self-center` collapsed this to the height of its own text —
+            // about 14px, next to two 36px buttons. Sized rather than padded so
+            // it keeps sitting on the buttons' baseline row.
+            className="flex min-h-9 items-center text-2xs text-muted-foreground underline underline-offset-2"
           >
             Improve these drafts →
           </Link>

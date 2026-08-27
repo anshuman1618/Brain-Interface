@@ -468,6 +468,11 @@ if (signedIn) {
     ["/team", "team roles"],
     ["/activity", "activity"],
     ["/kpi", "kpi"],
+    // Both are behind `drafting.use`, which this run's admin holds. They are
+    // rows of Selects and Inputs at their designed widths — the shape that
+    // overflows a 360px card before `flex-wrap` has anything to wrap onto.
+    ["/drafting", "drafting"],
+    ["/chamber-knowledge", "chamber knowledge"],
   ];
 
   for (const [href, name] of ROUTES) {
@@ -495,7 +500,7 @@ if (signedIn) {
    * or an 8px label slips in unnoticed.
    */
   await page.setViewportSize({ width: 360, height: 740 });
-  for (const href of ["/tasks", "/invoices", "/consultations"]) {
+  for (const href of ["/tasks", "/invoices", "/consultations", "/drafting", "/chamber-knowledge"]) {
     await page.goto(`${BASE}${href}`, { waitUntil: "networkidle" });
     await page.waitForTimeout(900);
     const small = await page.evaluate(() => {
