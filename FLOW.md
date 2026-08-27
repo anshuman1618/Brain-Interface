@@ -1076,6 +1076,24 @@ times on purpose: on the page before anything is asked for, on every output
 card, and inside the body text itself, because the only copy that follows a
 draft into a filing is the one in the text.
 
+### Row scope is enforced in two helpers, and every route must use one
+
+`lib/scope.ts` has four helpers and they are not interchangeable:
+
+| Helper                     | Answers                                                        |
+| -------------------------- | -------------------------------------------------------------- |
+| `visibleCaseIds(ctx)`      | which matters may this caller see — honours case-access grants |
+| `getVisibleCase(ctx, id)`  | may this caller see THIS matter — same rules, single row       |
+| `caseInWorkspace(ctx, id)` | is this matter in the chamber at all — **ignores row scope**   |
+| `workspaceCaseIds(ctx)`    | every matter in the chamber — **ignores row scope**            |
+
+The bottom two exist for writes that only need tenant validation (attaching a
+calendar entry, validating an access-list `caseId`) and for admin aggregates
+(`kpi.ts`). Using either on a read path is how the four leaks fixed after
+`fe8c902` happened — see DECISIONS.md. A new route that returns anything
+derived from a matter uses one of the top two, and a route that scopes its list
+must scope its `:id` fetch with the same helper.
+
 ### Known, unfixed
 
 - **The Clerk tenant is a development instance.** Production logs

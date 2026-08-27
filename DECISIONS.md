@@ -2376,6 +2376,58 @@ reported `activated: true`, and changed nothing.
 
 ---
 
+## The case-access restriction had to be taught to four more routes (2026-08-27)
+
+Found by pen-testing `fe8c902` rather than by review, which is the point: the
+feature's own suite proved the restriction on `/cases`, and `/cases` was never
+where it was going to fail.
+
+**The shape of the bug.** Case-access grants introduced a distinction that had
+not existed before. Until then "is this matter in my chamber" and "may I see
+this matter" were the same question for a junior advocate, whose row scope is
+`all`. Every route written against the weaker check — `caseInWorkspace`, or a
+bare `workspace_id` filter — was correct when it was written and silently
+became a hole the moment an admin could narrow somebody.
+
+Four routes reached case-scoped data without going through `visibleCaseIds` or
+`getVisibleCase`:
+
+| Route                              | What leaked                                                                                                                                                                                                                        |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /tasks/:id`                   | Task title and deadline on a walled-off matter. The LIST was scoped (`visibleTasks` → `visibleCaseIds`); the single fetch was not.                                                                                                 |
+| `GET /calendar`                    | Filtered by audience only, so every hearing in the chamber was served with the matter's name in the title.                                                                                                                         |
+| `GET`/`POST /cases/:id/drafts`     | A draft body is the matter's facts written out in full — the richest thing in the chamber to leak. POST also let a restricted member commission a brief on a matter they could not open, spending the chamber's budget to read it. |
+| `GET`/`PATCH`/`DELETE /drafts/:id` | Read, rewrite or destroy any draft in the chamber by id.                                                                                                                                                                           |
+
+**The list/detail asymmetry is the recurring one.** Three of the four scoped
+the collection and not the item. It is easy to write and it looks tested,
+because the list assertion passes.
+
+**Two of the fixes are about ordering, not scope.** `PATCH` and `DELETE` on
+`/drafts/:id` filtered in the `WHERE` clause and checked the returned row
+afterwards — so a draft outside the caller's scope was already overwritten or
+deleted by the time the handler answered 404. They now read, check, then write.
+A refusal that fires after the row is gone is not a refusal.
+
+**What held.** Tenant isolation everywhere probed (replayed workspace tokens,
+forged `X-Workspace-Id`, cross-chamber membership ids, the preview
+plan-activation route). The never-paid gate on every write, with reads still
+open so the chamber is never locked out. Self-escalation — a restricted junior
+widening their own grants, promoting themselves to admin, or self-assigning a
+task on a hidden matter to make it visible. The once-stamped All India Bar
+deadline, and writing another user's credentials.
+
+**The probe is not in the repository**; its assertions are, in
+`case-access.mjs`. A one-off script that proves a hole once is worth less than
+the assertion that stops it coming back, and the calendar assertion in
+particular was rewritten after it first passed vacuously — the junior could see
+no entries at all, so "chamber-wide entries are untouched" proved nothing. It
+now seeds an entry on the hidden matter, one on the granted matter and one
+chamber-wide, so the filter has to discriminate rather than merely return
+nothing.
+
+---
+
 ## Things deliberately not done
 
 Recorded so they are not mistaken for oversights.

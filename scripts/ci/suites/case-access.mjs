@@ -222,6 +222,142 @@ check(
   JSON.stringify(clerkCases.data?.map((c) => c.id)),
 );
 
+/* ─────────────── The restriction has to hold on EVERY path ─────────────── */
+section("The narrowing holds on every route that reaches a matter, not just /cases");
+/*
+ * A pen-test of fe8c902 found four routes that reached case-scoped data
+ * without going through `visibleCaseIds` / `getVisibleCase`. Every one of them
+ * was correct before case-access grants existed — a junior could see every
+ * matter anyway, so "is it in this chamber" and "may I see it" were the same
+ * question. They stopped being the same question, and these are the paths that
+ * did not notice:
+ *
+ *   GET  /tasks/:id        — the LIST was scoped, the single fetch was not
+ *   GET  /calendar         — filtered by audience only, so hearings leaked
+ *   GET  /cases/:id/drafts — a draft body is the matter's facts in full
+ *   GET/PATCH/DELETE /drafts/:id
+ *   POST /cases/:id/drafts — could commission a brief on a hidden matter
+ *
+ * Asserted here rather than left to the routes' own suites because what is
+ * being tested is the restriction, not the route.
+ */
+
+// Give the ungranted matter something on every surface worth leaking.
+const hiddenTask = await call("/tasks", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: {
+    caseId: beta.data.id,
+    title: "Confidential: brief the silk",
+    deadline: new Date(Date.now() + 6 * 864e5).toISOString().slice(0, 10),
+  },
+});
+// Three entries, so the filter has to DISCRIMINATE rather than just return
+// nothing: one on the hidden matter, one on the granted matter, and one
+// chamber-wide. A version that dropped everything would pass a test that only
+// checked the hidden one was absent.
+for (const [title, caseId] of [
+  ["Confidential hearing", beta.data.id],
+  ["Granted matter hearing", alpha.data.id],
+  ["Chamber holiday", null],
+]) {
+  await call("/calendar", {
+    token: as(owner),
+    wsToken: ws,
+    method: "POST",
+    body: {
+      ...(caseId === null ? {} : { caseId }),
+      title,
+      entryDate: new Date(Date.now() + 9 * 864e5).toISOString().slice(0, 10),
+      kind: caseId === null ? "note" : "hearing",
+    },
+  });
+}
+await call("/workspace/drafting", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { enabled: true, acknowledgement: "Read and accepted." },
+});
+const hiddenDraft = await call(`/cases/${beta.data.id}/drafts`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { kind: "letter", instruction: "A letter on the matter the junior cannot see." },
+});
+
+// Narrow the junior again — the section above lifted the restriction.
+await call(`/memberships/${juniorM}/case-access`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "PUT",
+  body: { restricted: true, caseIds: [alpha.data.id] },
+});
+const jTok = juniorS.workspaceToken;
+
+check(
+  "GET /tasks/:id on an ungranted matter is 404, not the task",
+  (await call(`/tasks/${hiddenTask.data.id}`, { token: as(junior), wsToken: jTok })).status === 404,
+  "the list was scoped and the single fetch was not",
+);
+const calRows = (await call("/calendar", { token: as(junior), wsToken: jTok })).data ?? [];
+check(
+  "GET /calendar drops entries pinned to an ungranted matter",
+  !calRows.some((e) => e.caseId === beta.data.id),
+  JSON.stringify(calRows.map((e) => e.title)),
+);
+check(
+  "...while the granted matter's hearing is still served",
+  calRows.some((e) => e.caseId === alpha.data.id),
+  JSON.stringify(calRows.map((e) => e.title)),
+);
+check(
+  "...and so is the chamber-wide entry, which belongs to no matter",
+  calRows.some((e) => e.caseId === null && e.title === "Chamber holiday"),
+  JSON.stringify(calRows.map((e) => [e.title, e.caseId])),
+);
+check(
+  "GET /cases/:id/drafts on an ungranted matter is 404",
+  (await call(`/cases/${beta.data.id}/drafts`, { token: as(junior), wsToken: jTok })).status ===
+    404,
+  "a draft body is the matter's facts written out in full",
+);
+check(
+  "POST /cases/:id/drafts on an ungranted matter is refused",
+  (
+    await call(`/cases/${beta.data.id}/drafts`, {
+      token: as(junior),
+      wsToken: jTok,
+      method: "POST",
+      body: { kind: "brief", instruction: "Brief me on a matter I cannot open." },
+    })
+  ).status === 404,
+  "otherwise the model reads the matter and the chamber pays for it",
+);
+for (const [label, method] of [
+  ["GET", "GET"],
+  ["PATCH", "PATCH"],
+  ["DELETE", "DELETE"],
+]) {
+  check(
+    `${label} /drafts/:id of a draft on an ungranted matter is 404`,
+    (
+      await call(`/drafts/${hiddenDraft.data.id}`, {
+        token: as(junior),
+        wsToken: jTok,
+        method,
+        ...(method === "PATCH" ? { body: { title: "x" } } : {}),
+      })
+    ).status === 404,
+  );
+}
+check(
+  "...and the draft survived the refused PATCH and DELETE",
+  (await call(`/drafts/${hiddenDraft.data.id}`, { token: as(owner), wsToken: ws })).status === 200,
+  "a refusal that fires after the row is gone is not a refusal",
+);
+
 /* ─────────────── Who cannot be restricted ─────────────── */
 section("A senior advocate cannot be narrowed, and a client is already narrow");
 

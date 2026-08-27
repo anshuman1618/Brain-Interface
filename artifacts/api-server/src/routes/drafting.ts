@@ -43,6 +43,7 @@ import { aiConfigured, estimateTokens, usingStubModel } from "../lib/ai/client";
 import { estimateMinor, UTILITY_MODEL } from "../lib/ai/models";
 import { runDraft } from "../lib/ai/drafting";
 import { anonymise, ANONYMISE_MAX_OUTPUT } from "../lib/ai/anonymise";
+import { getVisibleCase } from "../lib/scope";
 import { extractText } from "../lib/ai/extract";
 import * as blobStore from "../lib/blob-store";
 
@@ -556,6 +557,15 @@ router.get(
   requireCapability("drafting.use"),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
+    // Row scope, not just the workspace. A draft's body is the matter's facts
+    // written out in full, so this list is the richest thing in the chamber to
+    // leak — and `drafting.use` is held by a junior advocate, who may have been
+    // narrowed to named matters. 404 rather than 403: a member should not be
+    // able to confirm that a matter they cannot see exists.
+    if (!(await getVisibleCase(c, Number(req.params["id"])))) {
+      res.status(404).json({ error: "No such matter in this chamber." });
+      return;
+    }
     const rows = await db
       .select()
       .from(draftsTable)
@@ -587,6 +597,16 @@ router.post(
     }
     if (!(await draftingIsOn(c.workspaceId))) {
       res.status(403).json(NOT_ENABLED);
+      return;
+    }
+
+    // Row scope, checked here rather than left to `assemble()` — that only
+    // verifies the matter belongs to the workspace. Without this a member
+    // narrowed to named matters could commission a brief on a matter they
+    // cannot open, pulling its facts into a draft they CAN read and spending
+    // the chamber's budget to do it.
+    if (!(await getVisibleCase(c, Number(req.params["id"])))) {
+      res.status(404).json({ error: "No such matter in this chamber." });
       return;
     }
 
@@ -637,7 +657,7 @@ router.get(
           eq(draftsTable.workspaceId, c.workspaceId),
         ),
       );
-    if (!row) {
+    if (!row || !(await getVisibleCase(c, row.caseId))) {
       res.status(404).json({ error: "No such draft in this chamber." });
       return;
     }
@@ -656,6 +676,22 @@ router.patch(
       return;
     }
     const c = ctx(req);
+    // Read before write. The previous version updated first and checked the
+    // result, which meant a draft on a matter outside the caller's row scope
+    // was already overwritten by the time it answered 404.
+    const [existing] = await db
+      .select()
+      .from(draftsTable)
+      .where(
+        and(
+          eq(draftsTable.id, Number(req.params["id"])),
+          eq(draftsTable.workspaceId, c.workspaceId),
+        ),
+      );
+    if (!existing || !(await getVisibleCase(c, existing.caseId))) {
+      res.status(404).json({ error: "No such draft in this chamber." });
+      return;
+    }
     const [row] = await db
       .update(draftsTable)
       .set({
@@ -663,17 +699,8 @@ router.patch(
         ...(body.data.title !== undefined ? { title: body.data.title } : {}),
         ...(body.data.keep ? { status: "kept" as const } : {}),
       })
-      .where(
-        and(
-          eq(draftsTable.id, Number(req.params["id"])),
-          eq(draftsTable.workspaceId, c.workspaceId),
-        ),
-      )
+      .where(eq(draftsTable.id, existing.id))
       .returning();
-    if (!row) {
-      res.status(404).json({ error: "No such draft in this chamber." });
-      return;
-    }
     res.json(await draftJson(row));
   },
 );
@@ -684,14 +711,24 @@ router.delete(
   requireCapability("drafting.use"),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const [row] = await db
-      .delete(draftsTable)
+    // Checked before the delete, for the same reason as the patch above: a
+    // refusal that fires after the row is gone is not a refusal.
+    const [existing] = await db
+      .select()
+      .from(draftsTable)
       .where(
         and(
           eq(draftsTable.id, Number(req.params["id"])),
           eq(draftsTable.workspaceId, c.workspaceId),
         ),
-      )
+      );
+    if (!existing || !(await getVisibleCase(c, existing.caseId))) {
+      res.status(404).json({ error: "No such draft in this chamber." });
+      return;
+    }
+    const [row] = await db
+      .delete(draftsTable)
+      .where(eq(draftsTable.id, existing.id))
       .returning({ id: draftsTable.id });
     if (!row) {
       res.status(404).json({ error: "No such draft in this chamber." });
