@@ -1111,11 +1111,37 @@ must scope its `:id` fetch with the same helper.
 `DEPLOYMENT.md` is the full runbook. This is the short path, in order, with the
 things that actually block you.
 
-### Step 0 — merge to `main`
+### Step 0 — merge to `main` (done)
 
-Render deploys from `main` (`render.yaml`, `branch: main`). The two commits
-above are on the feature branch, so **nothing above is live**. Merge first, or
-you will deploy the old design and wonder why.
+Render deploys from `main` (`render.yaml`, `branch: main`), so merging IS
+deploying — there is no staging step between the two.
+
+Everything described above is on `main` as of `f33b396`: AI drafting, the three
+security-review fixes, the paid plan gate with its subscription screen, case
+access for juniors and clerks, advocate credentials, the AI case brief, and the
+four routes taught about case access afterwards.
+
+**The one thing to check after a deploy that crosses this point:** the paid gate
+applies to chambers that already exist. A chamber only gets a `subscriptions`
+row when somebody picks a plan, and before this it did not need one — no row
+meant trial limits, free. After it, no row means `neverPaid`: the chamber reads
+normally and cannot open a matter, invite anyone, draft or invoice.
+
+Checked against production after the `f33b396` deploy, and **no chamber was
+gated** — the one workspace that exists already carried an active trial. No
+grandfathering migration was written, deliberately: a data migration that does
+nothing on the database it was written for would still fire on the next one,
+and quietly hand a free plan to chambers the gate is meant to catch.
+
+If this repo is ever deployed onto a database that already has chambers
+without subscription rows, that migration becomes necessary. The query that
+answers it:
+
+```sql
+select count(*) from workspaces w
+left join subscriptions s on s.workspace_id = w.id
+where s.id is null or (s.status <> 'active' and s.started_at is null);
+```
 
 ### Step 1 — get accounts and keys
 
