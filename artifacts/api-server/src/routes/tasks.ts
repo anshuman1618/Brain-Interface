@@ -29,7 +29,7 @@ import {
   type WorkspaceContext,
 } from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
-import { caseInWorkspace, visibleCaseIds, visibleTasks } from "../lib/scope";
+import { caseInWorkspace, getVisibleCase, visibleCaseIds, visibleTasks } from "../lib/scope";
 
 const router: IRouter = Router();
 
@@ -55,6 +55,14 @@ async function enrichTask(t: typeof tasksTable.$inferSelect) {
  * Fetches a task only if its case is inside the caller's workspace and within
  * their row scope. Everything about task access is derived from the case, so a
  * task id from another tenant resolves to nothing.
+ *
+ * `getVisibleCase`, not `caseInWorkspace`. The weaker check asks only "is this
+ * matter in the chamber", which was true of every matter a junior could reach
+ * until case-access grants existed — so `GET /tasks/:id` returned the title
+ * and deadline of a task on a matter an admin had deliberately walled that
+ * junior off from. The list was filtered (`visibleTasks` goes through
+ * `visibleCaseIds`) and the single fetch was not, which is the shape this bug
+ * usually takes.
  */
 async function getVisibleTask(
   c: WorkspaceContext,
@@ -62,7 +70,7 @@ async function getVisibleTask(
 ): Promise<typeof tasksTable.$inferSelect | null> {
   const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, taskId));
   if (!task) return null;
-  if (!(await caseInWorkspace(c, task.caseId))) return null;
+  if (!(await getVisibleCase(c, task.caseId))) return null;
 
   if (c.taskScope === "assigned") {
     return task.assigneeId === c.user.clerkId ? task : null;

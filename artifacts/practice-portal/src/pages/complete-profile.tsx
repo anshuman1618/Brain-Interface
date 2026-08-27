@@ -8,15 +8,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
- * The bar-registration gate.
+ * The bar-registration gate, and the advocate's credentials.
  *
  * Renders in two situations that look identical but are reached differently:
  * as a hard gate before the dashboard (dashboard-layout.tsx, when
  * `profileComplete` is false), and as a page someone reaches deliberately
- * to correct what they declared — see the "Edit" link on their own row in
- * Team Roles. `onDone` distinguishes them: the gate has none and relies on
- * `refreshSession()` re-evaluating `profileComplete`, while a deliberate
- * visit is given a way back out.
+ * to correct or complete what they declared — see the "Edit" link on their own
+ * row in Team Roles, and the credentials notice on the dashboard. `onDone`
+ * distinguishes them: the gate has none and relies on `refreshSession()`
+ * re-evaluating `profileComplete`, while a deliberate visit is given a way
+ * back out.
+ *
+ * ── Two tiers, because they are not all obtainable on the same day ───────
+ *
+ * **Now:** the state bar council and the enrolment number. Every enrolled
+ * advocate has both from the day they are enrolled, and without them we cannot
+ * say who is practising here at all.
+ *
+ * **Whenever they exist:** Certificate of Practice, and Advocate-on-Record at
+ * the Supreme Court or a High Court. Most advocates hold none of these, and a
+ * form that demanded them would be asking most of its users to invent numbers.
+ *
+ * **Within six months:** the All India Bar Examination certificate number. It
+ * is asked for from the start and enforced only once its own deadline passes,
+ * which is what the countdown under that field is counting. The deadline is
+ * stamped once, server-side, on the first declaration — re-saving this form
+ * cannot move it.
  *
  * Nothing here is verified against a bar council — this records what the
  * person typed, not proof of it. See `bar_declared_at` on the schema.
@@ -32,6 +49,9 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
   const [barCouncilState, setBarCouncilState] = useState("");
   const [barEnrolmentNo, setBarEnrolmentNo] = useState("");
   const [aorNo, setAorNo] = useState("");
+  const [aorHighCourtNo, setAorHighCourtNo] = useState("");
+  const [copNo, setCopNo] = useState("");
+  const [allIndiaBarNo, setAllIndiaBarNo] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,7 +59,14 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
     setBarCouncilState(me.barCouncilState ?? "");
     setBarEnrolmentNo(me.barEnrolmentNo ?? "");
     setAorNo(me.aorNo ?? "");
+    setAorHighCourtNo(me.aorHighCourtNo ?? "");
+    setCopNo(me.copNo ?? "");
+    setAllIndiaBarNo(me.allIndiaBarNo ?? "");
   }, [me]);
+
+  // Null once supplied, or before anything has been declared at all. Negative
+  // means the six months are up and the gate is already refusing requests.
+  const daysLeft = me?.allIndiaBarDaysLeft ?? null;
 
   const canSubmit = !!barCouncilState.trim() && !!barEnrolmentNo.trim();
 
@@ -52,7 +79,12 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
         data: {
           barCouncilState: barCouncilState.trim(),
           barEnrolmentNo: barEnrolmentNo.trim(),
+          // Sent only when filled. An empty string would be stored as an empty
+          // string, which reads as "declared, and blank" rather than "not held".
           ...(aorNo.trim() ? { aorNo: aorNo.trim() } : {}),
+          ...(aorHighCourtNo.trim() ? { aorHighCourtNo: aorHighCourtNo.trim() } : {}),
+          ...(copNo.trim() ? { copNo: copNo.trim() } : {}),
+          ...(allIndiaBarNo.trim() ? { allIndiaBarNo: allIndiaBarNo.trim() } : {}),
         },
       });
       refreshSession();
@@ -118,13 +150,63 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="aor-no">Supreme Court AOR Number (optional)</Label>
+            <Label htmlFor="cop-no">Certificate of Practice number (optional)</Label>
             <Input
-              id="aor-no"
-              value={aorNo}
-              onChange={(e) => setAorNo(e.target.value)}
-              placeholder="Leave blank if you are not an Advocate-on-Record"
+              id="cop-no"
+              value={copNo}
+              onChange={(e) => setCopNo(e.target.value)}
+              placeholder="Leave blank if you do not hold one"
             />
+          </div>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="aor-no">Supreme Court AOR number (optional)</Label>
+              <Input
+                id="aor-no"
+                value={aorNo}
+                onChange={(e) => setAorNo(e.target.value)}
+                placeholder="Advocate-on-Record, SCI"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="aor-hc-no">High Court AOR number (optional)</Label>
+              <Input
+                id="aor-hc-no"
+                value={aorHighCourtNo}
+                onChange={(e) => setAorHighCourtNo(e.target.value)}
+                placeholder="Where that court keeps a roll"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="aibe-no">All India Bar Examination certificate number</Label>
+            <Input
+              id="aibe-no"
+              value={allIndiaBarNo}
+              onChange={(e) => setAllIndiaBarNo(e.target.value)}
+              placeholder="e.g. AIBE-XVIII-0001234"
+              aria-describedby="aibe-note"
+            />
+            {/* The countdown, in the one place the number can be supplied.
+                Server-computed: the browser's clock is not what the gate uses,
+                and the two disagreeing would show a deadline that has already
+                passed as though it had not. */}
+            <p
+              id="aibe-note"
+              className={`text-3xs font-mono uppercase tracking-wider ${
+                daysLeft !== null && daysLeft < 0 ? "text-destructive" : "text-muted-foreground"
+              }`}
+            >
+              {allIndiaBarNo.trim()
+                ? "Recorded as you state it."
+                : daysLeft === null
+                  ? "Required within six months of declaring your enrolment."
+                  : daysLeft < 0
+                    ? `Overdue by ${Math.abs(daysLeft)} ${Math.abs(daysLeft) === 1 ? "day" : "days"} — the chamber is closed to you until it is supplied.`
+                    : `${daysLeft} ${daysLeft === 1 ? "day" : "days"} left to supply it.`}
+            </p>
           </div>
 
           <div className="flex items-center justify-between gap-4 pt-2">

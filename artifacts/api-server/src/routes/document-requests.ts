@@ -1,12 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import {
-  db,
-  documentRequestsTable,
-  usersTable,
-  casesTable,
-  notificationsTable,
-} from "@workspace/db";
+import { db, documentRequestsTable, usersTable, casesTable } from "@workspace/db";
 import { CreateDocumentRequestBody, UpdateDocumentRequestBody } from "@workspace/api-zod";
 import {
   requireWorkspace,
@@ -17,6 +11,7 @@ import {
 } from "../middlewares/requireAuth";
 import { caseInWorkspace } from "../lib/scope";
 import { displayRole } from "../lib/permissions";
+import { notify } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -117,11 +112,18 @@ router.post(
       })
       .returning();
 
-    await db.insert(notificationsTable).values({
-      userId: recipient.clerkId,
+    // The client this is addressed to may well have signed up by mobile number
+    // and have no email at all, so the bell row alone would be the only trace —
+    // and a bell is only seen by somebody already looking at the app. notify()
+    // adds the push, which is the channel that actually reaches them.
+    await notify({
+      clerkId: recipient.clerkId,
+      workspaceId: c.workspaceId,
       type: "document_request",
+      title: "A document has been requested",
       message: `Action required: "${parsed.data.documentName}" has been requested by ${c.user.displayName} (${displayRole(c.role)}).`,
       link: "/dashboard",
+      dedupe: false,
     });
 
     res.status(201).json(await enrich(created));
@@ -172,11 +174,14 @@ router.patch(
       .returning();
 
     if (parsed.data.status !== existing.status && existing.requestedByClerkId) {
-      await db.insert(notificationsTable).values({
-        userId: existing.requestedByClerkId,
+      await notify({
+        clerkId: existing.requestedByClerkId,
+        workspaceId: c.workspaceId,
         type: "document_request",
+        title: "A document request was updated",
         message: `${existing.requestedFromName || "The client"} marked "${existing.documentName}" as ${parsed.data.status}.`,
         link: "/dashboard",
+        dedupe: false,
       });
     }
 

@@ -104,16 +104,42 @@ export interface UserProfile {
   roleSelected: boolean;
   displayName: string;
   email: string;
-  /** Verified mobile in E.164, or "". */
-  phone: string;
   /** @nullable */
   authProvider?: string | null;
   /** @nullable */
   barCouncilState?: string | null;
   /** @nullable */
   barEnrolmentNo?: string | null;
-  /** @nullable */
+  /**
+     * Advocate-on-Record, Supreme Court of India.
+     * @nullable
+     */
   aorNo?: string | null;
+  /**
+     * Advocate-on-Record at a High Court, where that court keeps a roll.
+     * @nullable
+     */
+  aorHighCourtNo?: string | null;
+  /**
+     * Certificate of Practice number.
+     * @nullable
+     */
+  copNo?: string | null;
+  /**
+     * All India Bar Examination certificate number.
+     * @nullable
+     */
+  allIndiaBarNo?: string | null;
+  /**
+     * When the All India Bar number stops being optional. Stamped once, on the first declaration, and never moved — a deadline that resets each time the form is saved is not a deadline.
+     * @nullable
+     */
+  allIndiaBarDueAt?: string | null;
+  /**
+     * Days until it is required. Null once supplied or when no deadline is set; negative once overdue.
+     * @nullable
+     */
+  allIndiaBarDaysLeft?: number | null;
   /** @nullable */
   barDeclaredAt?: string | null;
   createdAt: string;
@@ -184,8 +210,11 @@ export interface SessionClaims {
   clerkId: string;
   displayName: string;
   email: string;
-  /** Verified mobile in E.164, or "". Somebody who signed up by SMS has this and no email; the two are alternatives, not a pair. */
-  phone: string;
+  /**
+     * The verified mobile in E.164, or null. The Access Denied screen needs it to name the identifier the caller actually holds — telling somebody who signed in by phone to "ask your admin to add <blank>" is the failure this replaces.
+     * @nullable
+     */
+  phone?: string | null;
   /** active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address. */
   accessStatus: SessionClaimsAccessStatus;
   /**
@@ -225,6 +254,12 @@ export interface BarRegistrationInput {
   barEnrolmentNo: string;
   /** Supreme Court Advocate-on-Record number. Optional — most advocates never hold one. */
   aorNo?: string;
+  /** Advocate-on-Record at a High Court, where that court keeps such a roll. A different roll from the Supreme Court one, so a separate field — an advocate may hold either, both or neither. */
+  aorHighCourtNo?: string;
+  /** Certificate of Practice number, issued by the state bar council. */
+  copNo?: string;
+  /** All India Bar Examination certificate number. Optional at declaration and required within six months of it — an advocate enrolled before the examination existed may hold none, and a newly enrolled one has a window in which to sit it. */
+  allIndiaBarNo?: string;
 }
 
 export interface BarRegistration {
@@ -232,6 +267,22 @@ export interface BarRegistration {
   barEnrolmentNo: string;
   /** @nullable */
   aorNo?: string | null;
+  /** @nullable */
+  aorHighCourtNo?: string | null;
+  /** @nullable */
+  copNo?: string | null;
+  /** @nullable */
+  allIndiaBarNo?: string | null;
+  /**
+     * When the All India Bar number stops being optional.
+     * @nullable
+     */
+  allIndiaBarDueAt?: string | null;
+  /**
+     * Days until it is required. Null once supplied or when no deadline is set; negative once overdue. Drives the warning before the gate bites.
+     * @nullable
+     */
+  allIndiaBarDaysLeft?: number | null;
   barDeclaredAt: string;
 }
 
@@ -489,7 +540,7 @@ export const AccessListEntryInputRole = {
 export interface AccessListEntryInput {
   kind: AccessListEntryInputKind;
   /**
-     * An exact email address, a bare domain such as "chambers.in", or a mobile number in E.164 ("+919876543210"). A ten-digit number is read as Indian. There is deliberately no domain equivalent for phone — a numbering range is not an organisation.
+     * An exact email address, a bare domain such as "chambers.in", or a mobile number. A number is normalised to E.164 on write, so any readable form is accepted and matching stays an equality check. A phone entry carries a risk the others do not: telcos reassign a disconnected number after about ninety days.
      * @minLength 3
      */
   value: string;
@@ -1295,6 +1346,8 @@ export interface Subscription {
      * @nullable
      */
   daysLeft?: number | null;
+  /** This chamber has never had a plan in force. Distinct from `lapsed`, which means one WAS in force and ran out — "your plan expired" is a bewildering thing to read on the day you signed up. Enforcement uses the same flag, so a client that gates on it shows the subscription screen exactly when the API would answer 402 `payment_required`. Derived, never stored: `status` may read `trialing` on a chamber that abandoned a checkout, and `startedAt` is the honest test. */
+  neverPaid?: boolean;
   /** @nullable */
   updatedBy?: string | null;
 }
@@ -1467,6 +1520,302 @@ export interface CauseListSyncRunResult {
   upserted: number;
   proposed: number;
   error?: string;
+}
+
+export type CaseAccessGrantsItem = {
+  caseId: number;
+  caseTitle: string;
+  grantedBy?: string;
+  createdAt?: string;
+};
+
+export interface CaseAccess {
+  membershipId: number;
+  role: string;
+  /** When true the member sees assigned matters PLUS the granted ones, and nothing else. When false their role's own scope applies. */
+  restricted: boolean;
+  grantedCaseIds: number[];
+  grants?: CaseAccessGrantsItem[];
+}
+
+export interface CaseAccessInput {
+  restricted: boolean;
+  /**
+     * The complete set of explicitly granted matters. Sent whole rather than as add/remove, so a stale client cannot silently re-grant a matter an admin has just taken away.
+     * @maxItems 500
+     */
+  caseIds?: number[];
+  /** @maxLength 500 */
+  note?: string;
+}
+
+/**
+ * `economy` routes everything to the lighter model. It is what the trial runs on, so an evaluation cannot spend a plan's worth of tokens on one petition.
+ */
+export type AiBudgetTier = typeof AiBudgetTier[keyof typeof AiBudgetTier];
+
+
+export const AiBudgetTier = {
+  full: 'full',
+  economy: 'economy',
+} as const;
+
+export interface AiBudget {
+  plan: string;
+  /** What the plan grants for this period, in paise. */
+  allowanceMinor: number;
+  /** Unexpired top-up grants, in paise. These carry forward; the allowance does not. */
+  topupMinor: number;
+  spentMinor: number;
+  remainingMinor: number;
+  /** @nullable */
+  resetsAt?: string | null;
+  /** `economy` routes everything to the lighter model. It is what the trial runs on, so an evaluation cannot spend a plan's worth of tokens on one petition. */
+  tier: AiBudgetTier;
+  /** Whether an admin has switched drafting on for this chamber. */
+  draftingEnabled: boolean;
+  /** Whether the deployment has an API key at all. False means every draft is served by the preview stub — useful to know before wondering why the output reads oddly. */
+  configured?: boolean;
+}
+
+export interface DraftingToggleInput {
+  enabled: boolean;
+  /** The disclosure text the admin accepted, recorded verbatim. */
+  acknowledgement?: string;
+}
+
+export interface DraftingSettings {
+  draftingEnabled: boolean;
+  /** @nullable */
+  draftingEnabledBy?: string | null;
+  /** @nullable */
+  draftingEnabledAt?: string | null;
+}
+
+export interface Insight {
+  id: number;
+  title: string;
+  body: string;
+  tags: string;
+  /** @nullable */
+  courtId?: number | null;
+  /** @nullable */
+  courtName?: string | null;
+  /** @nullable */
+  caseTypeNorm?: string | null;
+  authorName: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface InsightInput {
+  /**
+     * @minLength 3
+     * @maxLength 200
+     */
+  title: string;
+  /** @maxLength 8000 */
+  body?: string;
+  /** @maxLength 300 */
+  tags?: string;
+  /** @nullable */
+  courtId?: number | null;
+  /**
+     * As typed. Normalised on write so retrieval compares as equality.
+     * @nullable
+     */
+  caseType?: string | null;
+}
+
+export type ExemplarKind = typeof ExemplarKind[keyof typeof ExemplarKind];
+
+
+export const ExemplarKind = {
+  petition: 'petition',
+  written_statement: 'written_statement',
+  appeal: 'appeal',
+  application: 'application',
+  reply: 'reply',
+  notice: 'notice',
+  letter: 'letter',
+} as const;
+
+export interface Exemplar {
+  id: number;
+  kind: ExemplarKind;
+  title: string;
+  /** The redacted copy. This, and only this, is what reaches a prompt. */
+  body: string;
+  /** @nullable */
+  sourceDocumentId?: number | null;
+  /** @nullable */
+  anonymisedAt?: string | null;
+  /**
+     * Null means unusable. An exemplar is not assembled into any prompt until a person has read the redacted copy and accepted it.
+     * @nullable
+     */
+  reviewedAt?: string | null;
+  /** @nullable */
+  reviewedBy?: string | null;
+  active: boolean;
+  addedByName?: string;
+  createdAt: string;
+}
+
+export type ExemplarInputKind = typeof ExemplarInputKind[keyof typeof ExemplarInputKind];
+
+
+export const ExemplarInputKind = {
+  petition: 'petition',
+  written_statement: 'written_statement',
+  appeal: 'appeal',
+  application: 'application',
+  reply: 'reply',
+  notice: 'notice',
+  letter: 'letter',
+} as const;
+
+export interface ExemplarInput {
+  kind: ExemplarInputKind;
+  /**
+     * @minLength 3
+     * @maxLength 200
+     */
+  title: string;
+  /**
+     * A document on one of this chamber's matters, to promote.
+     * @nullable
+     */
+  documentId?: number | null;
+  /**
+     * Pasted text, when the example is not already a stored document.
+     * @maxLength 200000
+     */
+  text?: string;
+}
+
+export interface ExemplarPatch {
+  /** @maxLength 200 */
+  title?: string;
+  /**
+     * The corrected redaction.
+     * @maxLength 200000
+     */
+  body?: string;
+  /** Accept the redacted copy and make the exemplar usable. */
+  approve?: boolean;
+  active?: boolean;
+}
+
+export type DraftKind = typeof DraftKind[keyof typeof DraftKind];
+
+
+export const DraftKind = {
+  petition: 'petition',
+  written_statement: 'written_statement',
+  appeal: 'appeal',
+  application: 'application',
+  reply: 'reply',
+  notice: 'notice',
+  letter: 'letter',
+  brief: 'brief',
+} as const;
+
+export type DraftStatus = typeof DraftStatus[keyof typeof DraftStatus];
+
+
+export const DraftStatus = {
+  generating: 'generating',
+  ready: 'ready',
+  failed: 'failed',
+  kept: 'kept',
+} as const;
+
+export type DraftUnreadableItem = {
+  id?: number;
+  name: string;
+  note: string;
+};
+
+export type DraftSourceKind = typeof DraftSourceKind[keyof typeof DraftSourceKind];
+
+
+export const DraftSourceKind = {
+  document: 'document',
+  insight: 'insight',
+  exemplar: 'exemplar',
+  matter: 'matter',
+} as const;
+
+export interface DraftSource {
+  kind: DraftSourceKind;
+  /** @nullable */
+  sourceId?: number | null;
+  label: string;
+  tokens?: number;
+}
+
+export interface Draft {
+  id: number;
+  caseId: number;
+  kind: DraftKind;
+  title: string;
+  instruction?: string;
+  body: string;
+  status: DraftStatus;
+  /** @nullable */
+  error?: string | null;
+  model?: string;
+  /** @nullable */
+  parentDraftId?: number | null;
+  createdByName: string;
+  createdAt: string;
+  /** Exactly what was sent to produce this. The record of what left the server. */
+  sources?: DraftSource[];
+  /** Documents the advocate selected that yielded no text — almost always scans. Surfaced because a document that contributed nothing must not be silently counted as context. */
+  unreadable?: DraftUnreadableItem[];
+}
+
+export type DraftInputKind = typeof DraftInputKind[keyof typeof DraftInputKind];
+
+
+export const DraftInputKind = {
+  petition: 'petition',
+  written_statement: 'written_statement',
+  appeal: 'appeal',
+  application: 'application',
+  reply: 'reply',
+  notice: 'notice',
+  letter: 'letter',
+  brief: 'brief',
+} as const;
+
+export interface DraftInput {
+  kind: DraftInputKind;
+  /**
+     * @minLength 5
+     * @maxLength 4000
+     */
+  instruction: string;
+  /**
+     * The ONLY documents that will be sent. Each is re-checked against this matter and this chamber before it is read.
+     * @maxItems 20
+     */
+  documentIds?: number[];
+  /**
+     * Set when revising, so versions chain rather than overwrite.
+     * @nullable
+     */
+  parentDraftId?: number | null;
+}
+
+export interface DraftPatch {
+  /** @maxLength 400000 */
+  body?: string;
+  /** @maxLength 200 */
+  title?: string;
+  /** Mark the draft as one the chamber is keeping. */
+  keep?: boolean;
 }
 
 export type ServiceEnquiryInputServiceKind = typeof ServiceEnquiryInputServiceKind[keyof typeof ServiceEnquiryInputServiceKind];
@@ -1923,10 +2272,16 @@ export const InviteRole = {
 
 export interface Invite {
   id: number;
-  /** The address invited, or "" when the invite names a number instead. */
-  email: string;
-  /** The mobile number invited in E.164, or "" when it names an address. */
-  phone: string;
+  /**
+     * Null when the invite named a mobile number instead.
+     * @nullable
+     */
+  email?: string | null;
+  /**
+     * E.164. Null when the invite named an address.
+     * @nullable
+     */
+  phone?: string | null;
   token: string;
   role: InviteRole;
   /** @nullable */
@@ -1951,12 +2306,10 @@ export const InviteInputRole = {
   client: 'client',
 } as const;
 
-/**
- * Addressed to exactly one of email or phone. Supplying both, or neither, is refused — not modelled here because JSON Schema expresses "exactly one of" badly; see routes/invites.ts for the actual rule.
- */
 export interface InviteInput {
+  /** The address to invite. Exactly one of email or phone must be given; the server rejects both and neither, and validates the shape of whichever was supplied. */
   email?: string;
-  /** Mobile number. Ten digits is read as Indian; any other country needs the full +code form. Stored normalised to E.164. */
+  /** The mobile number to invite, in any readable form — "+91 98765 43210", "098765 43210" and "9876543210" all normalise to the same E.164 value. For the clerk or client who has a phone and no work address. */
   phone?: string;
   /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
@@ -2120,6 +2473,13 @@ export const ListCauseListProposalsStatus = {
   accepted: 'accepted',
   dismissed: 'dismissed',
 } as const;
+
+export type ListInsightsParams = {
+/**
+ * Full-text filter. Omit for the most recent.
+ */
+q?: string;
+};
 
 export type ListUsersParams = {
 role?: ListUsersRole;

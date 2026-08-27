@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link, Route, Switch, useLocation } from "wouter";
 import { useSession } from "@/lib/session";
 import { PreviewBar } from "@/components/preview-bar";
@@ -23,6 +23,8 @@ const InvitesPage = lazy(() => import("@/pages/invites"));
 const ClientPortalPage = lazy(() => import("@/pages/client-portal"));
 const CalendarPage = lazy(() => import("@/pages/calendar"));
 const CauseListPage = lazy(() => import("@/pages/cause-list"));
+const DraftingPage = lazy(() => import("@/pages/drafting"));
+const ChamberKnowledgePage = lazy(() => import("@/pages/chamber-knowledge"));
 const DocumentsPage = lazy(() => import("@/pages/documents"));
 const FeedbackPage = lazy(() => import("@/pages/feedback"));
 const TeamPage = lazy(() => import("@/pages/team"));
@@ -31,6 +33,7 @@ const OperatorPage = lazy(() => import("@/pages/operator"));
 import PendingApprovalPage from "@/pages/pending-approval";
 import AccessDeniedPage from "@/pages/access-denied";
 import CompleteProfilePage from "@/pages/complete-profile";
+import ChoosePlanPage from "@/pages/choose-plan";
 import UnauthorizedPage from "@/pages/unauthorized";
 import NotFound from "@/pages/not-found";
 import {
@@ -52,6 +55,8 @@ import {
   MoreVertical,
   History,
   Receipt,
+  PenLine,
+  Lightbulb,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -62,6 +67,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { PricingModalProvider, usePricingModal } from "@/components/pricing-modal";
+import { useGetSubscription, getGetSubscriptionQueryKey } from "@workspace/api-client-react";
 import { NotificationBell } from "@/components/notification-bell";
 import { GlobalSearch } from "@/components/global-search";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -84,6 +90,30 @@ function DashboardLayoutContent() {
   } = useSession();
   const [location, setLocation] = useLocation();
   const { setOpen: setPricingModalOpen } = usePricingModal();
+
+  /*
+   * The subscription screen, shown once, just after chamber setup.
+   *
+   * `neverPaid` is read from the server rather than derived here, because it is
+   * the same flag `requireCapability` gates on — anything computed in the
+   * browser would eventually disagree with the 402 the API is about to send.
+   *
+   * The query is held until there is a workspace AND the profile is complete,
+   * since every workspace-scoped read is refused before both, and a 403 in the
+   * console on the profile screen is a bug report waiting to be filed.
+   *
+   * `skippedPlan` is deliberately component state and not persisted: the
+   * chamber is never locked, so somebody who wants to look around first can,
+   * and the offer comes back next time they open the app. The plan banner keeps
+   * it in front of them meanwhile.
+   */
+  const [skippedPlan, setSkippedPlan] = useState(false);
+  const { data: subscriptionState } = useGetSubscription({
+    query: {
+      queryKey: getGetSubscriptionQueryKey(),
+      enabled: Boolean(activeWorkspace) && profileComplete,
+    },
+  });
 
   if (!isLoaded || (isSignedIn && !claims)) {
     return (
@@ -139,12 +169,33 @@ function DashboardLayoutContent() {
     );
   }
 
+  // A chamber that has never taken a plan can read its own shell and nothing
+  // else, so the founder is shown the plans before a dashboard of modules that
+  // will each answer 402. Placed after the bar gate rather than before it
+  // because every workspace-scoped read — this one included — is refused until
+  // enrolment is declared, so there is nothing to show until then.
+  if (subscriptionState?.subscription.neverPaid && !skippedPlan) {
+    return (
+      <div className="min-h-screen bg-background text-foreground">
+        <PreviewBar />
+        <ChoosePlanPage onSkip={() => setSkippedPlan(true)} />
+      </div>
+    );
+  }
+
   // Nav visibility is a projection of the server-issued capability list. Hiding
   // an item is cosmetic; the route guard below and the API both re-check.
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: can("calendar.read") },
     { href: "/cause-list", label: "Court Listings", icon: Gavel, show: can("calendar.read") },
+    { href: "/drafting", label: "Drafting", icon: PenLine, show: can("drafting.use") },
+    {
+      href: "/chamber-knowledge",
+      label: "Chamber Knowledge",
+      icon: Lightbulb,
+      show: can("drafting.use"),
+    },
     {
       href: "/client-portal",
       label: "My Portal",
@@ -428,6 +479,30 @@ function DashboardLayoutContent() {
                     <RequireCapability capability="calendar.read">
                       <ErrorBoundary label="Court Listings">
                         <CauseListPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  {/* Both behind drafting.use — practice roles only. A clerk
+                      keeps the diary but does not settle pleadings, and a
+                      drafting request spends the chamber's money. */}
+                  <Route path="/drafting/:caseId">
+                    <RequireCapability capability="drafting.use">
+                      <ErrorBoundary label="Drafting">
+                        <DraftingPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/drafting">
+                    <RequireCapability capability="drafting.use">
+                      <ErrorBoundary label="Drafting">
+                        <DraftingPage />
+                      </ErrorBoundary>
+                    </RequireCapability>
+                  </Route>
+                  <Route path="/chamber-knowledge">
+                    <RequireCapability capability="drafting.use">
+                      <ErrorBoundary label="Chamber Knowledge">
+                        <ChamberKnowledgePage />
                       </ErrorBoundary>
                     </RequireCapability>
                   </Route>

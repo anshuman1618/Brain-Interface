@@ -49,6 +49,22 @@ export const workspaceMembershipsTable = pgTable(
      * from an invite or access-list entry; nothing here writes it directly.
      */
     caseId: integer("case_id"),
+    /**
+     * Narrow this member to assigned matters plus whatever was explicitly
+     * granted in `case_access_grants`.
+     *
+     * For a junior advocate or a clerk. False for everybody, always, until an
+     * admin turns it on — which is what makes shipping this take access away
+     * from nobody. An unrestricted junior keeps the `all` scope their role has
+     * always had.
+     *
+     * Deliberately NOT a third value of the role's row scope. Scope is a
+     * property of the ROLE and is the same in every chamber; this is a decision
+     * one chamber made about one person, and the two must not be confused —
+     * a chamber that restricts its junior has not changed what "junior
+     * advocate" means anywhere else.
+     */
+    caseAccessRestricted: boolean("case_access_restricted").notNull().default(false),
     status: text("status").notNull().default("pending"),
     /** Free-text justification supplied with an access request. */
     requestNote: text("request_note"),

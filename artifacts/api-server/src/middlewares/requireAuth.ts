@@ -6,7 +6,7 @@ import {
   capabilitiesForRole,
   caseScopeForRole,
   taskScopeForRole,
-  needsBarRegistration,
+  barCredentialsComplete,
   type Capability,
   type RowScope,
   isCapabilityAllowedWhenLapsed,
@@ -32,6 +32,19 @@ export type WorkspaceContext = {
   caseScope: RowScope;
   taskScope: RowScope;
   planState: PlanState;
+  /**
+   * The active membership row's id. Null should never happen after
+   * `requireWorkspace`; it is nullable so nothing downstream has to assume.
+   */
+  membershipId: number | null;
+  /**
+   * This member has been narrowed to assigned matters plus explicit grants.
+   *
+   * A decision one chamber made about one person, not a property of their role
+   * — which is why it lives on the membership and not in the capability matrix.
+   * False for everybody until an admin sets it.
+   */
+  caseAccessRestricted: boolean;
   /**
    * Narrows visibility to exactly one matter, on top of whatever `caseScope`
    * already allows. Set only when the membership was created from a client
@@ -111,6 +124,9 @@ export type MembershipLookup = {
   role: string;
   isOwner: boolean;
   caseId: number | null;
+  /** The membership row's own id — what a case-access grant points at. */
+  membershipId: number;
+  caseAccessRestricted: boolean;
 };
 
 /**
@@ -143,9 +159,11 @@ export async function findActiveMembership(
 ): Promise<MembershipLookup | null> {
   const [row] = await db
     .select({
+      membershipId: workspaceMembershipsTable.id,
       role: workspaceMembershipsTable.role,
       isOwner: workspaceMembershipsTable.isOwner,
       caseId: workspaceMembershipsTable.caseId,
+      caseAccessRestricted: workspaceMembershipsTable.caseAccessRestricted,
       workspace: workspacesTable,
     })
     .from(workspaceMembershipsTable)
@@ -159,16 +177,25 @@ export async function findActiveMembership(
     );
 
   return row
-    ? { workspace: row.workspace, role: row.role, isOwner: row.isOwner, caseId: row.caseId }
+    ? {
+        workspace: row.workspace,
+        role: row.role,
+        isOwner: row.isOwner,
+        caseId: row.caseId,
+        membershipId: row.membershipId,
+        caseAccessRestricted: row.caseAccessRestricted,
+      }
     : null;
 }
 
 export async function listActiveMemberships(userId: number): Promise<MembershipLookup[]> {
   const rows = await db
     .select({
+      membershipId: workspaceMembershipsTable.id,
       role: workspaceMembershipsTable.role,
       isOwner: workspaceMembershipsTable.isOwner,
       caseId: workspaceMembershipsTable.caseId,
+      caseAccessRestricted: workspaceMembershipsTable.caseAccessRestricted,
       workspace: workspacesTable,
     })
     .from(workspaceMembershipsTable)
@@ -185,6 +212,8 @@ export async function listActiveMemberships(userId: number): Promise<MembershipL
     role: r.role,
     isOwner: r.isOwner,
     caseId: r.caseId,
+    membershipId: r.membershipId,
+    caseAccessRestricted: r.caseAccessRestricted,
   }));
 }
 
@@ -258,14 +287,19 @@ export const requireWorkspace = async (
   // the request rather than just hiding the button that would have sent it.
   // PUT /users/me/bar-registration sits behind requireAuth, not this guard,
   // so declaring it is never itself blocked by this check.
-  if (
-    needsBarRegistration(target.role) &&
-    !(user.barCouncilState?.trim() && user.barEnrolmentNo?.trim())
-  ) {
+  // Two tiers: enrolment now, All India Bar number within six months. The
+  // second is requested from the start and enforced only once its own deadline
+  // has passed — see `barCredentialsComplete()`.
+  const credentials = barCredentialsComplete(target.role, user);
+  if (!credentials.ok) {
     res.status(403).json({
       error: "Forbidden",
-      reason: "profile_incomplete",
-      message: "Declare your bar enrolment before using this workspace.",
+      // The existing reason is kept for the enrolment case so the frontend's
+      // profile-completion screen and every suite that asserts on it keep
+      // working; the overdue case carries its own so it can be routed
+      // differently and explained differently.
+      reason: credentials.reason === "bar_registration" ? "profile_incomplete" : credentials.reason,
+      message: credentials.message,
     });
     return;
   }
@@ -283,6 +317,15 @@ export const requireWorkspace = async (
     taskScope: taskScopeForRole(target.role),
     planState,
     restrictedCaseId: target.caseId,
+    membershipId: target.membershipId,
+    // Only ever true for a junior advocate or a clerk. Admin and senior
+    // advocate direct the chamber's work and cannot be narrowed out of it; a
+    // client is already confined to their own matter by `caseScope`, and
+    // layering a second mechanism on top would give two places to look when
+    // somebody cannot see something.
+    caseAccessRestricted:
+      target.caseAccessRestricted &&
+      (target.role === "junior_advocate" || target.role === "clerk_intern"),
   };
 
   next();
@@ -305,6 +348,32 @@ export const requireCapability =
     if (!context) {
       res.status(403).json({ error: "Forbidden", reason: "no_workspace_context" });
       return;
+    }
+
+    /*
+     * Never paid: the chamber opens, the work inside it does not.
+     *
+     * Checked before `lapsed` because the two are mutually exclusive and the
+     * messages are different in a way that matters. "Your plan expired" said to
+     * somebody who created their chamber ten minutes ago is nonsense, and it
+     * sends them looking for a renewal button that does not apply to them.
+     *
+     * The same read allowlist as a lapsed chamber, so nothing they already have
+     * becomes unreachable — a founder who abandoned the card form still has a
+     * chamber, a plan screen and a way back in. That is the whole reason this
+     * is a capability gate rather than a wall in front of the dashboard.
+     */
+    if (context.planState.neverPaid) {
+      const notAllowed = capabilities.filter((c) => !isCapabilityAllowedWhenLapsed(c));
+      if (notAllowed.length > 0) {
+        res.status(402).json({
+          error: "payment_required",
+          message:
+            "This chamber has not started a plan yet. Choose one from the plan screen to " +
+            "open matters, drafting and invoicing.",
+        });
+        return;
+      }
     }
 
     // Check if plan is lapsed and any requested capability is not in the allowlist.

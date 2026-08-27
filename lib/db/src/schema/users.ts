@@ -9,20 +9,6 @@ export const usersTable = pgTable("users", {
   roleSelected: boolean("role_selected").notNull().default(false), // true once user has picked a role at sign-up
   displayName: text("display_name").notNull().default(""),
   email: text("email").notNull().default(""),
-  /**
-   * Verified mobile number in E.164, or "" — the same shape as `email` above,
-   * and for the same reason: a provider may vouch for one, the other, or both.
-   *
-   * A person can now be admitted to a chamber by number alone
-   * (`workspace_access_list.kind = "phone"`), so this is an identity column,
-   * not a contact detail. Only a number Clerk reports as VERIFIED is ever
-   * written here; an unverified one is attacker-supplied text and matching it
-   * against the access list would let anybody claim a colleague's grant.
-   *
-   * Deliberately not unique, exactly like `email`. The identity anchor is
-   * `clerk_id`; these two are what the access list matches on.
-   */
-  phone: text("phone").notNull().default(""),
   /** How they last signed in: google | zoho | email. Display only — never authorization. */
   authProvider: text("auth_provider").notNull().default(""),
   /**
@@ -49,6 +35,39 @@ export const usersTable = pgTable("users", {
   /** Supreme Court Advocate-on-Record number. Optional — most advocates never hold one. */
   aorNo: text("aor_no"),
   /**
+   * Advocate-on-Record at a High Court, where the court maintains such a roll.
+   *
+   * Separate from `aorNo`, which is the Supreme Court one, because they are
+   * different rolls with different numbers and an advocate may hold either,
+   * both or neither. Collapsing them into one field would make "which court is
+   * this number from" unanswerable the moment somebody holds two.
+   */
+  aorHighCourtNo: text("aor_high_court_no"),
+  /** Certificate of Practice number, issued by the state bar council. */
+  copNo: text("cop_no"),
+  /**
+   * All India Bar Examination certificate number.
+   *
+   * Nullable, and deliberately not required at first declaration: an advocate
+   * enrolled before the examination existed may not hold one, and a newly
+   * enrolled advocate has a statutory window to sit it. Required by
+   * `allIndiaBarDueAt` below rather than immediately.
+   */
+  allIndiaBarNo: text("all_india_bar_no"),
+  /**
+   * When the All India Bar number stops being optional.
+   *
+   * Set six months out when bar registration is first declared. Until then the
+   * field is requested and not enforced; after it, the same gate that blocks a
+   * practice role without an enrolment number blocks one without this.
+   *
+   * Stored as a date rather than derived from `barDeclaredAt` on read, because
+   * the window belongs to the person: extending it for somebody whose
+   * examination was postponed should be one operator update, not a code change
+   * that moves the deadline for everybody.
+   */
+  allIndiaBarDueAt: timestamp("all_india_bar_due_at", { withTimezone: true }),
+  /**
    * When the two required fields above were last declared complete. Named
    * `_declared_at`, not `_verified_at`: nothing here is checked against a bar
    * council, and the column name must not let a future reader mistake
@@ -69,6 +88,29 @@ export const usersTable = pgTable("users", {
    * from it and nothing shows it to another chamber.
    */
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  /**
+   * A verified mobile number in E.164, or null.
+   *
+   * The second identifier this platform admits people by. Written only from a
+   * Clerk-**verified** number, exactly like `email` — an unverified one is
+   * attacker-supplied text, and matching it against the access list would let
+   * anyone claim a colleague's number and inherit their role.
+   *
+   * Not unique, matching `email`. Normalised on write by `normalisePhone()` so
+   * access-list matching stays a plain equality check.
+   */
+  phone: text("phone"),
+  /**
+   * When this person last claimed the two-month trial pack, in any chamber.
+   *
+   * On the USER, not the subscription, and that is the whole point. The trial
+   * is one per person: a founder who has used it and then creates a second
+   * chamber must not get another, and a per-workspace record would reset every
+   * time somebody founded one. Written by the payment webhook when a trial
+   * purchase is applied, so it records a payment that actually happened rather
+   * than an intent.
+   */
+  trialClaimedAt: timestamp("trial_claimed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

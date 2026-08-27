@@ -26,21 +26,23 @@ export function isPreviewAuth(): boolean {
  */
 export type PreviewIdentity = {
   email: string;
-  /** E.164, or "". Exactly one of email / phone is set. */
-  phone: string;
+  /** E.164, or null. Exactly one of `email` / `phone` is ever set. */
+  phone: string | null;
   provider: string;
   displayName: string;
 };
 
 /**
  * The frontend identifies preview callers by a bearer token instead of a Clerk
- * session JWT. Two channels, one per kind of identifier:
+ * session JWT. Two forms, one per kind of identifier:
  *
- *   preview:email:<provider>:<email>[:<display name>]
- *   preview:phone:<provider>:<e164>[:<display name>]
+ *   preview:email:<provider>:<url-encoded email>[:<display name>]
+ *   preview:phone:<provider>:<url-encoded E.164>[:<display name>]
  *
- * The `preview:email:` form is unchanged and must stay that way — every
- * integration suite in scripts/ci constructs it by hand.
+ * The email form is byte-identical to what it has always been. That is
+ * deliberate and load-bearing: every CI suite and both browser suites build
+ * tokens with it, and they must keep passing untouched — that is the evidence
+ * the email path was extended rather than altered.
  *
  * Returns null when the header is absent or malformed, which the caller treats
  * as unauthenticated. The token carries no authority — it only names an
@@ -52,48 +54,53 @@ export function previewIdentityFromRequest(
   const raw = authorization?.replace(/^Bearer\s+/i, "").trim();
   if (!raw) return null;
 
-  const channel = raw.startsWith("preview:email:")
-    ? "email"
-    : raw.startsWith("preview:phone:")
-      ? "phone"
-      : null;
-  if (!channel) return null;
+  if (raw.startsWith("preview:email:")) {
+    const [provider, email, ...nameParts] = raw.slice("preview:email:".length).split(":");
+    const normalised = normaliseEmail(decodeURIComponent(email ?? ""));
+    if (!normalised.includes("@")) return null;
+    if (!["google", "zoho", "email"].includes(provider)) return null;
 
-  const [provider, identifier, ...nameParts] = raw.slice(`preview:${channel}:`.length).split(":");
-  const displayName = decodeURIComponent(nameParts.join(":") || "").trim();
-  const decoded = decodeURIComponent(identifier ?? "");
-
-  if (channel === "phone") {
-    const phone = normalisePhone(decoded);
-    // Same rule as production: a number that will not normalise is not an
-    // identity. Accepting the raw string would put a value in users.phone that
-    // no canonical access-list row could ever match.
-    if (!phone) return null;
-    if (!["phone", "email"].includes(provider)) return null;
-    return { email: "", phone, provider, displayName };
+    return {
+      email: normalised,
+      phone: null,
+      provider,
+      displayName: decodeURIComponent(nameParts.join(":") || "").trim(),
+    };
   }
 
-  const normalised = normaliseEmail(decoded);
-  if (!normalised.includes("@")) return null;
-  if (!["google", "zoho", "email"].includes(provider)) return null;
+  if (raw.startsWith("preview:phone:")) {
+    const [provider, phone, ...nameParts] = raw.slice("preview:phone:".length).split(":");
+    // normalisePhone returns "" for anything unusable, so this one check covers
+    // absent, malformed and out-of-range alike.
+    const normalised = normalisePhone(decodeURIComponent(phone ?? ""));
+    if (!normalised) return null;
+    if (provider !== "phone") return null;
 
-  return { email: normalised, phone: "", provider, displayName };
+    return {
+      email: "",
+      phone: normalised,
+      provider,
+      displayName: decodeURIComponent(nameParts.join(":") || "").trim(),
+    };
+  }
+
+  return null;
 }
 
 /**
  * Stable synthetic Clerk-style id for a preview identity.
  *
- * The id must be a pure function of the identifier: it is the only thing tying
- * a preview caller to their row in `users`, so the same address or number has
- * to produce the same id on every request and across restarts.
- *
- * Email and phone ids are namespaced apart so they cannot collide, and the
- * phone form is built from the normalised E.164 — two spellings of one number
- * are one person.
+ * The email form is lossy on purpose-by-accident: every non-alphanumeric
+ * becomes `_`, so `a.b@x.com` and `a-b@x.com` collapse to one id. Preview only,
+ * and long-standing, so it is left alone rather than changed underneath the
+ * suites. The phone form has no such problem — E.164 is a plus and digits — and
+ * is injective, which is worth having rather than copying the flaw for symmetry.
  */
 export function previewClerkId(identity: Pick<PreviewIdentity, "email" | "phone">): string {
-  if (identity.phone) {
-    return `preview_phone_${normalisePhone(identity.phone).replace(/[^0-9]/g, "")}`;
-  }
-  return `preview_email_${normaliseEmail(identity.email).replace(/[^a-z0-9]/g, "_")}`;
+  if (identity.phone) return `preview_phone_${identity.phone.replace(/\D/g, "")}`;
+  return previewClerkIdForEmail(identity.email);
+}
+
+export function previewClerkIdForEmail(email: string): string {
+  return `preview_email_${normaliseEmail(email).replace(/[^a-z0-9]/g, "_")}`;
 }

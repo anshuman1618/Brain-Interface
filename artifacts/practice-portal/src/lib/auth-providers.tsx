@@ -18,12 +18,10 @@ export type ProviderId = "google" | "zoho" | "email" | "phone";
 export type AuthProvider = {
   id: ProviderId;
   label: string;
-  /** Clerk SSO strategy. Null for the one-time-code routes (email and phone). */
+  /** Clerk SSO strategy. Null for the email and phone routes, which are code-based. */
   strategy: string | null;
   hint: string;
   icon: ReactNode;
-  /** What the identifier field collects. Absent for the redirect providers. */
-  channel?: "email" | "phone";
 };
 
 // Inlined marks rather than remote images: the artifact/CSP rules block external
@@ -132,15 +130,13 @@ export const AUTH_PROVIDERS: AuthProvider[] = [
     strategy: null,
     hint: "One-time code to your inbox",
     icon: EmailMark,
-    channel: "email",
   },
   {
     id: "phone",
-    label: "Continue with mobile",
+    label: "Continue with mobile number",
     strategy: null,
     hint: "One-time code by SMS",
     icon: PhoneMark,
-    channel: "phone",
   },
 ];
 
@@ -152,8 +148,6 @@ export function providerLabel(id: string | null | undefined): string {
       return "Zoho Mail";
     case "email":
       return "email";
-    case "phone":
-      return "a mobile number";
     default:
       return "";
   }

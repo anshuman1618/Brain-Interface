@@ -1,5 +1,6 @@
 // Subscription: who may change the plan, and can a client name its own price?
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -55,6 +56,15 @@ await declareBarRegistration(call, as(owner));
 const billingEnabled =
   (await call("/billing/config", { token: as(owner), wsToken: ws })).data?.enabled === true;
 
+// Read BEFORE anything touches the plan. A chamber that has just been founded
+// has never paid, and the moment the setup below gives it an allowance that
+// state is gone — so the assertions in the next section run against this.
+const initial = await call("/workspace/subscription", { token: as(owner), wsToken: ws });
+
+// A chamber that has never paid may read its own shell and nothing else, and
+// the setup below opens a matter. See lib/preview-plan.mjs.
+await grantPreviewPlan(call, as(owner), ws);
+
 await call("/invites", {
   token: as(owner),
   wsToken: ws,
@@ -81,7 +91,6 @@ await call("/invites", {
 const clientS = (await call("/session", { token: as(client, "S Client") })).data;
 
 section("A new chamber is on trial, not on a paid plan");
-const initial = await call("/workspace/subscription", { token: as(owner), wsToken: ws });
 check("readable", initial.status === 200, `got ${initial.status}`);
 check(
   "starts trialing",
@@ -129,10 +138,10 @@ check(
   "...and the saving is the 2 free months",
   yearlyPro.savingsMinor === monthlyPro.amountMinor * 2,
 );
-check("Pro is Rs 1,999 a month", monthlyPro.amountMinor === 199900, String(monthlyPro.amountMinor));
+check("Pro is Rs 2,499 a month", monthlyPro.amountMinor === 249900, String(monthlyPro.amountMinor));
 check(
-  "Firm is Rs 4,999 a month",
-  monthlyFirm.amountMinor === 499900,
+  "Firm is Rs 7,999 a month",
+  monthlyFirm.amountMinor === 799900,
   String(monthlyFirm.amountMinor),
 );
 check("half-yearly gives one month free", halfPro.freeMonths === 1 && halfPro.paidMonths === 5);

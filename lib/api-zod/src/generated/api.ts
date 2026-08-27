@@ -27,11 +27,15 @@ export const GetMeResponse = zod.object({
   "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
-  "phone": zod.string().describe('Verified mobile in E.164, or \"\".'),
   "authProvider": zod.string().nullish(),
   "barCouncilState": zod.string().nullish(),
   "barEnrolmentNo": zod.string().nullish(),
-  "aorNo": zod.string().nullish(),
+  "aorNo": zod.string().nullish().describe('Advocate-on-Record, Supreme Court of India.'),
+  "aorHighCourtNo": zod.string().nullish().describe('Advocate-on-Record at a High Court, where that court keeps a roll.'),
+  "copNo": zod.string().nullish().describe('Certificate of Practice number.'),
+  "allIndiaBarNo": zod.string().nullish().describe('All India Bar Examination certificate number.'),
+  "allIndiaBarDueAt": zod.coerce.date().nullish().describe('When the All India Bar number stops being optional. Stamped once, on the first declaration, and never moved — a deadline that resets each time the form is saved is not a deadline.\n'),
+  "allIndiaBarDaysLeft": zod.number().nullish().describe('Days until it is required. Null once supplied or when no deadline is set; negative once overdue.\n'),
   "barDeclaredAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -51,11 +55,15 @@ export const UpdateMeResponse = zod.object({
   "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
-  "phone": zod.string().describe('Verified mobile in E.164, or \"\".'),
   "authProvider": zod.string().nullish(),
   "barCouncilState": zod.string().nullish(),
   "barEnrolmentNo": zod.string().nullish(),
-  "aorNo": zod.string().nullish(),
+  "aorNo": zod.string().nullish().describe('Advocate-on-Record, Supreme Court of India.'),
+  "aorHighCourtNo": zod.string().nullish().describe('Advocate-on-Record at a High Court, where that court keeps a roll.'),
+  "copNo": zod.string().nullish().describe('Certificate of Practice number.'),
+  "allIndiaBarNo": zod.string().nullish().describe('All India Bar Examination certificate number.'),
+  "allIndiaBarDueAt": zod.coerce.date().nullish().describe('When the All India Bar number stops being optional. Stamped once, on the first declaration, and never moved — a deadline that resets each time the form is saved is not a deadline.\n'),
+  "allIndiaBarDaysLeft": zod.number().nullish().describe('Days until it is required. Null once supplied or when no deadline is set; negative once overdue.\n'),
   "barDeclaredAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -72,13 +80,21 @@ export const UpdateMeResponse = zod.object({
 export const SetBarRegistrationBody = zod.object({
   "barCouncilState": zod.string().min(1).describe('Self-declared, loosely validated — enrolment formats vary by state bar and are not standardised. What is typed is stored.\n'),
   "barEnrolmentNo": zod.string().min(1),
-  "aorNo": zod.string().optional().describe('Supreme Court Advocate-on-Record number. Optional — most advocates never hold one.')
+  "aorNo": zod.string().optional().describe('Supreme Court Advocate-on-Record number. Optional — most advocates never hold one.'),
+  "aorHighCourtNo": zod.string().optional().describe('Advocate-on-Record at a High Court, where that court keeps such a roll. A different roll from the Supreme Court one, so a separate field — an advocate may hold either, both or neither.\n'),
+  "copNo": zod.string().optional().describe('Certificate of Practice number, issued by the state bar council.'),
+  "allIndiaBarNo": zod.string().optional().describe('All India Bar Examination certificate number. Optional at declaration and required within six months of it — an advocate enrolled before the examination existed may hold none, and a newly enrolled one has a window in which to sit it.\n')
 })
 
 export const SetBarRegistrationResponse = zod.object({
   "barCouncilState": zod.string(),
   "barEnrolmentNo": zod.string(),
   "aorNo": zod.string().nullish(),
+  "aorHighCourtNo": zod.string().nullish(),
+  "copNo": zod.string().nullish(),
+  "allIndiaBarNo": zod.string().nullish(),
+  "allIndiaBarDueAt": zod.coerce.date().nullish().describe('When the All India Bar number stops being optional.'),
+  "allIndiaBarDaysLeft": zod.number().nullish().describe('Days until it is required. Null once supplied or when no deadline is set; negative once overdue. Drives the warning before the gate bites.\n'),
   "barDeclaredAt": zod.coerce.date()
 })
 
@@ -92,7 +108,7 @@ export const GetSessionResponse = zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
   "email": zod.string(),
-  "phone": zod.string().describe('Verified mobile in E.164, or \"\". Somebody who signed up by SMS has this and no email; the two are alternatives, not a pair.\n'),
+  "phone": zod.string().nullish().describe('The verified mobile in E.164, or null. The Access Denied screen needs it to name the identifier the caller actually holds — telling somebody who signed in by phone to \"ask your admin to add <blank>\" is the failure this replaces.\n'),
   "accessStatus": zod.enum(['not_recognised', 'pending_approval', 'active']).describe('active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.\n'),
   "authProvider": zod.string().nullish().describe('How the caller signed in (google | zoho | email). Display only.'),
   "memberships": zod.array(zod.object({
@@ -135,7 +151,7 @@ export const SwitchWorkspaceResponse = zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
   "email": zod.string(),
-  "phone": zod.string().describe('Verified mobile in E.164, or \"\". Somebody who signed up by SMS has this and no email; the two are alternatives, not a pair.\n'),
+  "phone": zod.string().nullish().describe('The verified mobile in E.164, or null. The Access Denied screen needs it to name the identifier the caller actually holds — telling somebody who signed in by phone to \"ask your admin to add <blank>\" is the failure this replaces.\n'),
   "accessStatus": zod.enum(['not_recognised', 'pending_approval', 'active']).describe('active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.\n'),
   "authProvider": zod.string().nullish().describe('How the caller signed in (google | zoho | email). Display only.'),
   "memberships": zod.array(zod.object({
@@ -183,7 +199,7 @@ export const CreateWorkspaceResponse = zod.object({
   "clerkId": zod.string(),
   "displayName": zod.string(),
   "email": zod.string(),
-  "phone": zod.string().describe('Verified mobile in E.164, or \"\". Somebody who signed up by SMS has this and no email; the two are alternatives, not a pair.\n'),
+  "phone": zod.string().nullish().describe('The verified mobile in E.164, or null. The Access Denied screen needs it to name the identifier the caller actually holds — telling somebody who signed in by phone to \"ask your admin to add <blank>\" is the failure this replaces.\n'),
   "accessStatus": zod.enum(['not_recognised', 'pending_approval', 'active']).describe('active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address.\n'),
   "authProvider": zod.string().nullish().describe('How the caller signed in (google | zoho | email). Display only.'),
   "memberships": zod.array(zod.object({
@@ -731,6 +747,7 @@ export const GetSubscriptionResponse = zod.object({
   "currentPeriodEnd": zod.coerce.date().nullish(),
   "lapsed": zod.boolean().optional().describe('Whether the period has elapsed, derived server-side on every read. Never computed in the browser: the browser\'s clock is not what enforcement uses, and the two disagreeing would show a chamber a plan the server has already stopped honouring.\n'),
   "daysLeft": zod.number().nullish().describe('Whole days until `currentPeriodEnd`, server-computed. Null when no period is running, negative once it has elapsed.\n'),
+  "neverPaid": zod.boolean().optional().describe('This chamber has never had a plan in force. Distinct from `lapsed`, which means one WAS in force and ran out — \"your plan expired\" is a bewildering thing to read on the day you signed up. Enforcement uses the same flag, so a client that gates on it shows the subscription screen exactly when the API would answer 402 `payment_required`. Derived, never stored: `status` may read `trialing` on a chamber that abandoned a checkout, and `startedAt` is the honest test.\n'),
   "updatedBy": zod.string().nullish()
 }),
   "catalogue": zod.array(zod.object({
@@ -775,6 +792,7 @@ export const SetSubscriptionResponse = zod.object({
   "currentPeriodEnd": zod.coerce.date().nullish(),
   "lapsed": zod.boolean().optional().describe('Whether the period has elapsed, derived server-side on every read. Never computed in the browser: the browser\'s clock is not what enforcement uses, and the two disagreeing would show a chamber a plan the server has already stopped honouring.\n'),
   "daysLeft": zod.number().nullish().describe('Whole days until `currentPeriodEnd`, server-computed. Null when no period is running, negative once it has elapsed.\n'),
+  "neverPaid": zod.boolean().optional().describe('This chamber has never had a plan in force. Distinct from `lapsed`, which means one WAS in force and ran out — \"your plan expired\" is a bewildering thing to read on the day you signed up. Enforcement uses the same flag, so a client that gates on it shows the subscription screen exactly when the API would answer 402 `payment_required`. Derived, never stored: `status` may read `trialing` on a chamber that abandoned a checkout, and `startedAt` is the honest test.\n'),
   "updatedBy": zod.string().nullish()
 }),
   "catalogue": zod.array(zod.object({
@@ -945,6 +963,472 @@ export const TriggerCauseListSyncResponse = zod.object({
 
 
 /**
+ * Visible from the first day of the period rather than at the moment of refusal. A hard limit nobody could see coming is an outage; the same limit with a meter beside it is a budget.
+ * @summary What is left of this chamber's drafting budget
+ */
+export const GetAiBudgetResponse = zod.object({
+  "plan": zod.string(),
+  "allowanceMinor": zod.number().describe('What the plan grants for this period, in paise.'),
+  "topupMinor": zod.number().describe('Unexpired top-up grants, in paise. These carry forward; the allowance does not.'),
+  "spentMinor": zod.number(),
+  "remainingMinor": zod.number(),
+  "resetsAt": zod.coerce.date().nullish(),
+  "tier": zod.enum(['full', 'economy']).describe('`economy` routes everything to the lighter model. It is what the trial runs on, so an evaluation cannot spend a plan\'s worth of tokens on one petition.\n'),
+  "draftingEnabled": zod.boolean().describe('Whether an admin has switched drafting on for this chamber.'),
+  "configured": zod.boolean().optional().describe('Whether the deployment has an API key at all. False means every draft is served by the preview stub — useful to know before wondering why the output reads oddly.\n')
+})
+
+
+/**
+ * Off until an admin turns it on, having read what leaves the server. Drafting sends matter facts — and whichever documents an advocate ticks — to a third party. That is a decision a practice makes deliberately, and this records who made it and when.
+ * @summary Turn AI drafting on or off for this chamber (admin only)
+ */
+export const SetDraftingEnabledBody = zod.object({
+  "enabled": zod.boolean(),
+  "acknowledgement": zod.string().optional().describe('The disclosure text the admin accepted, recorded verbatim.')
+})
+
+export const SetDraftingEnabledResponse = zod.object({
+  "draftingEnabled": zod.boolean(),
+  "draftingEnabledBy": zod.string().nullish(),
+  "draftingEnabledAt": zod.coerce.date().nullish()
+})
+
+
+/**
+ * @summary What this chamber's advocates have learned
+ */
+export const ListInsightsQueryParams = zod.object({
+  "q": zod.coerce.string().optional().describe('Full-text filter. Omit for the most recent.')
+})
+
+export const ListInsightsResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "tags": zod.string(),
+  "courtId": zod.number().nullish(),
+  "courtName": zod.string().nullish(),
+  "caseTypeNorm": zod.string().nullish(),
+  "authorName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+})
+export const ListInsightsResponse = zod.array(ListInsightsResponseItem)
+
+
+/**
+ * @summary Record an observation from practice
+ */
+export const createInsightBodyTitleMin = 3;
+export const createInsightBodyTitleMax = 200;
+
+export const createInsightBodyBodyMax = 8000;
+
+export const createInsightBodyTagsMax = 300;
+
+
+
+export const CreateInsightBody = zod.object({
+  "title": zod.string().min(createInsightBodyTitleMin).max(createInsightBodyTitleMax),
+  "body": zod.string().max(createInsightBodyBodyMax).optional(),
+  "tags": zod.string().max(createInsightBodyTagsMax).optional(),
+  "courtId": zod.number().nullish(),
+  "caseType": zod.string().nullish().describe('As typed. Normalised on write so retrieval compares as equality.')
+})
+
+export const CreateInsightResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "tags": zod.string(),
+  "courtId": zod.number().nullish(),
+  "courtName": zod.string().nullish(),
+  "caseTypeNorm": zod.string().nullish(),
+  "authorName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Correct an observation
+ */
+export const UpdateInsightParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateInsightBodyTitleMin = 3;
+export const updateInsightBodyTitleMax = 200;
+
+export const updateInsightBodyBodyMax = 8000;
+
+export const updateInsightBodyTagsMax = 300;
+
+
+
+export const UpdateInsightBody = zod.object({
+  "title": zod.string().min(updateInsightBodyTitleMin).max(updateInsightBodyTitleMax),
+  "body": zod.string().max(updateInsightBodyBodyMax).optional(),
+  "tags": zod.string().max(updateInsightBodyTagsMax).optional(),
+  "courtId": zod.number().nullish(),
+  "caseType": zod.string().nullish().describe('As typed. Normalised on write so retrieval compares as equality.')
+})
+
+export const UpdateInsightResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "body": zod.string(),
+  "tags": zod.string(),
+  "courtId": zod.number().nullish(),
+  "courtName": zod.string().nullish(),
+  "caseTypeNorm": zod.string().nullish(),
+  "authorName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date().optional()
+})
+
+
+/**
+ * @summary Remove an observation
+ */
+export const DeleteInsightParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteInsightResponse = zod.void()
+
+
+/**
+ * @summary Past filings kept as examples of how this chamber writes
+ */
+export const ListExemplarsResponseItem = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter']),
+  "title": zod.string(),
+  "body": zod.string().describe('The redacted copy. This, and only this, is what reaches a prompt.'),
+  "sourceDocumentId": zod.number().nullish(),
+  "anonymisedAt": zod.coerce.date().nullish(),
+  "reviewedAt": zod.coerce.date().nullish().describe('Null means unusable. An exemplar is not assembled into any prompt until a person has read the redacted copy and accepted it.\n'),
+  "reviewedBy": zod.string().nullish(),
+  "active": zod.boolean(),
+  "addedByName": zod.string().optional(),
+  "createdAt": zod.coerce.date()
+})
+export const ListExemplarsResponse = zod.array(ListExemplarsResponseItem)
+
+
+/**
+ * Extracts the text, then runs a redaction pass over it. The result is NOT usable until a person has read and accepted it — an exemplar rides in the cached prefix of every future draft of its kind, so an unreviewed one would put another client's facts in front of unrelated work.
+ * @summary Promote a matter document to a style exemplar
+ */
+export const createExemplarBodyTitleMin = 3;
+export const createExemplarBodyTitleMax = 200;
+
+export const createExemplarBodyTextMax = 200000;
+
+
+
+export const CreateExemplarBody = zod.object({
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter']),
+  "title": zod.string().min(createExemplarBodyTitleMin).max(createExemplarBodyTitleMax),
+  "documentId": zod.number().nullish().describe('A document on one of this chamber\'s matters, to promote.'),
+  "text": zod.string().max(createExemplarBodyTextMax).optional().describe('Pasted text, when the example is not already a stored document.')
+})
+
+export const CreateExemplarResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter']),
+  "title": zod.string(),
+  "body": zod.string().describe('The redacted copy. This, and only this, is what reaches a prompt.'),
+  "sourceDocumentId": zod.number().nullish(),
+  "anonymisedAt": zod.coerce.date().nullish(),
+  "reviewedAt": zod.coerce.date().nullish().describe('Null means unusable. An exemplar is not assembled into any prompt until a person has read the redacted copy and accepted it.\n'),
+  "reviewedBy": zod.string().nullish(),
+  "active": zod.boolean(),
+  "addedByName": zod.string().optional(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Accept or correct the redacted copy
+ */
+export const UpdateExemplarParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateExemplarBodyTitleMax = 200;
+
+export const updateExemplarBodyBodyMax = 200000;
+
+
+
+export const UpdateExemplarBody = zod.object({
+  "title": zod.string().max(updateExemplarBodyTitleMax).optional(),
+  "body": zod.string().max(updateExemplarBodyBodyMax).optional().describe('The corrected redaction.'),
+  "approve": zod.boolean().optional().describe('Accept the redacted copy and make the exemplar usable.'),
+  "active": zod.boolean().optional()
+})
+
+export const UpdateExemplarResponse = zod.object({
+  "id": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter']),
+  "title": zod.string(),
+  "body": zod.string().describe('The redacted copy. This, and only this, is what reaches a prompt.'),
+  "sourceDocumentId": zod.number().nullish(),
+  "anonymisedAt": zod.coerce.date().nullish(),
+  "reviewedAt": zod.coerce.date().nullish().describe('Null means unusable. An exemplar is not assembled into any prompt until a person has read the redacted copy and accepted it.\n'),
+  "reviewedBy": zod.string().nullish(),
+  "active": zod.boolean(),
+  "addedByName": zod.string().optional(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove an exemplar
+ */
+export const DeleteExemplarParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteExemplarResponse = zod.void()
+
+
+/**
+ * @summary Drafts and briefs prepared for this matter
+ */
+export const ListDraftsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListDraftsResponseItem = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "title": zod.string(),
+  "instruction": zod.string().optional(),
+  "body": zod.string(),
+  "status": zod.enum(['generating', 'ready', 'failed', 'kept']),
+  "error": zod.string().nullish(),
+  "model": zod.string().optional(),
+  "parentDraftId": zod.number().nullish(),
+  "createdByName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "sources": zod.array(zod.object({
+  "kind": zod.enum(['document', 'insight', 'exemplar', 'matter']),
+  "sourceId": zod.number().nullish(),
+  "label": zod.string(),
+  "tokens": zod.number().optional()
+})).optional().describe('Exactly what was sent to produce this. The record of what left the server.'),
+  "unreadable": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string(),
+  "note": zod.string()
+})).optional().describe('Documents the advocate selected that yielded no text — almost always scans. Surfaced because a document that contributed nothing must not be silently counted as context.\n')
+})
+export const ListDraftsResponse = zod.array(ListDraftsResponseItem)
+
+
+/**
+ * Returns immediately with a draft in `generating`; the work continues on the server and the client polls `GET /drafts/{id}`. A petition takes a minute or more to write, which is past the point where an HTTP request survives a proxy — and this way a browser that navigates away does not lose work the chamber has already paid for.
+ *
+ * Only the documents named in `documentIds` are sent, and each is re-checked against this matter and this chamber before it is read.
+ * @summary Draft a document, or prepare a case brief
+ */
+export const CreateDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const createDraftBodyInstructionMin = 5;
+export const createDraftBodyInstructionMax = 4000;
+
+export const createDraftBodyDocumentIdsMax = 20;
+
+
+
+export const CreateDraftBody = zod.object({
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "instruction": zod.string().min(createDraftBodyInstructionMin).max(createDraftBodyInstructionMax),
+  "documentIds": zod.array(zod.number()).max(createDraftBodyDocumentIdsMax).optional().describe('The ONLY documents that will be sent. Each is re-checked against this matter and this chamber before it is read.\n'),
+  "parentDraftId": zod.number().nullish().describe('Set when revising, so versions chain rather than overwrite.')
+})
+
+export const CreateDraftResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "title": zod.string(),
+  "instruction": zod.string().optional(),
+  "body": zod.string(),
+  "status": zod.enum(['generating', 'ready', 'failed', 'kept']),
+  "error": zod.string().nullish(),
+  "model": zod.string().optional(),
+  "parentDraftId": zod.number().nullish(),
+  "createdByName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "sources": zod.array(zod.object({
+  "kind": zod.enum(['document', 'insight', 'exemplar', 'matter']),
+  "sourceId": zod.number().nullish(),
+  "label": zod.string(),
+  "tokens": zod.number().optional()
+})).optional().describe('Exactly what was sent to produce this. The record of what left the server.'),
+  "unreadable": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string(),
+  "note": zod.string()
+})).optional().describe('Documents the advocate selected that yielded no text — almost always scans. Surfaced because a document that contributed nothing must not be silently counted as context.\n')
+})
+
+
+/**
+ * @summary One draft, including its progress while it is being written
+ */
+export const GetDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetDraftResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "title": zod.string(),
+  "instruction": zod.string().optional(),
+  "body": zod.string(),
+  "status": zod.enum(['generating', 'ready', 'failed', 'kept']),
+  "error": zod.string().nullish(),
+  "model": zod.string().optional(),
+  "parentDraftId": zod.number().nullish(),
+  "createdByName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "sources": zod.array(zod.object({
+  "kind": zod.enum(['document', 'insight', 'exemplar', 'matter']),
+  "sourceId": zod.number().nullish(),
+  "label": zod.string(),
+  "tokens": zod.number().optional()
+})).optional().describe('Exactly what was sent to produce this. The record of what left the server.'),
+  "unreadable": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string(),
+  "note": zod.string()
+})).optional().describe('Documents the advocate selected that yielded no text — almost always scans. Surfaced because a document that contributed nothing must not be silently counted as context.\n')
+})
+
+
+/**
+ * @summary Edit a draft, or mark it kept
+ */
+export const UpdateDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateDraftBodyBodyMax = 400000;
+
+export const updateDraftBodyTitleMax = 200;
+
+
+
+export const UpdateDraftBody = zod.object({
+  "body": zod.string().max(updateDraftBodyBodyMax).optional(),
+  "title": zod.string().max(updateDraftBodyTitleMax).optional(),
+  "keep": zod.boolean().optional().describe('Mark the draft as one the chamber is keeping.')
+})
+
+export const UpdateDraftResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "title": zod.string(),
+  "instruction": zod.string().optional(),
+  "body": zod.string(),
+  "status": zod.enum(['generating', 'ready', 'failed', 'kept']),
+  "error": zod.string().nullish(),
+  "model": zod.string().optional(),
+  "parentDraftId": zod.number().nullish(),
+  "createdByName": zod.string(),
+  "createdAt": zod.coerce.date(),
+  "sources": zod.array(zod.object({
+  "kind": zod.enum(['document', 'insight', 'exemplar', 'matter']),
+  "sourceId": zod.number().nullish(),
+  "label": zod.string(),
+  "tokens": zod.number().optional()
+})).optional().describe('Exactly what was sent to produce this. The record of what left the server.'),
+  "unreadable": zod.array(zod.object({
+  "id": zod.number().optional(),
+  "name": zod.string(),
+  "note": zod.string()
+})).optional().describe('Documents the advocate selected that yielded no text — almost always scans. Surfaced because a document that contributed nothing must not be silently counted as context.\n')
+})
+
+
+/**
+ * Removes the draft. The spend it caused stays on the record — the tokens were used whether or not the output was kept, and a budget derived from rows a chamber can delete would not be a budget.
+ * @summary Discard a draft
+ */
+export const DeleteDraftParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteDraftResponse = zod.void()
+
+
+/**
+ * A junior advocate or clerk can be narrowed to the matters they are assigned plus the matters named here. Off by default: an unrestricted member keeps the row scope their role has always had, so switching this on is a deliberate act and shipping it took access from nobody.
+ * @summary Which matters this member may see (access_control.manage only)
+ */
+export const GetCaseAccessParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetCaseAccessResponse = zod.object({
+  "membershipId": zod.number(),
+  "role": zod.string(),
+  "restricted": zod.boolean().describe('When true the member sees assigned matters PLUS the granted ones, and nothing else. When false their role\'s own scope applies.\n'),
+  "grantedCaseIds": zod.array(zod.number()),
+  "grants": zod.array(zod.object({
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "grantedBy": zod.string().optional(),
+  "createdAt": zod.coerce.date().optional()
+})).optional()
+})
+
+
+/**
+ * @summary Restrict a member, and name the matters they may see (access_control.manage only)
+ */
+export const SetCaseAccessParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const setCaseAccessBodyCaseIdsMax = 500;
+
+export const setCaseAccessBodyNoteMax = 500;
+
+
+
+export const SetCaseAccessBody = zod.object({
+  "restricted": zod.boolean(),
+  "caseIds": zod.array(zod.number()).max(setCaseAccessBodyCaseIdsMax).optional().describe('The complete set of explicitly granted matters. Sent whole rather than as add\/remove, so a stale client cannot silently re-grant a matter an admin has just taken away.\n'),
+  "note": zod.string().max(setCaseAccessBodyNoteMax).optional()
+})
+
+export const SetCaseAccessResponse = zod.object({
+  "membershipId": zod.number(),
+  "role": zod.string(),
+  "restricted": zod.boolean().describe('When true the member sees assigned matters PLUS the granted ones, and nothing else. When false their role\'s own scope applies.\n'),
+  "grantedCaseIds": zod.array(zod.number()),
+  "grants": zod.array(zod.object({
+  "caseId": zod.number(),
+  "caseTitle": zod.string(),
+  "grantedBy": zod.string().optional(),
+  "createdAt": zod.coerce.date().optional()
+})).optional()
+})
+
+
+/**
  * @summary Email addresses and domains admitted to this workspace (admin only)
  */
 export const ListAccessListResponseItem = zod.object({
@@ -972,7 +1456,7 @@ export const createAccessListEntryBodyValueMin = 3;
 
 export const CreateAccessListEntryBody = zod.object({
   "kind": zod.enum(['email', 'domain', 'phone']),
-  "value": zod.string().min(createAccessListEntryBodyValueMin).describe('An exact email address, a bare domain such as \"chambers.in\", or a mobile number in E.164 (\"+919876543210\"). A ten-digit number is read as Indian. There is deliberately no domain equivalent for phone — a numbering range is not an organisation.\n'),
+  "value": zod.string().min(createAccessListEntryBodyValueMin).describe('An exact email address, a bare domain such as \"chambers.in\", or a mobile number. A number is normalised to E.164 on write, so any readable form is accepted and matching stays an equality check. A phone entry carries a risk the others do not: telcos reassign a disconnected number after about ninety days.\n'),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role granted on first sign-in. Chosen by the admin.'),
   "caseId": zod.number().optional().describe('Required when role is \"client\" — the server rejects a client entry with no caseId, and rejects a caseId on any other role. Same rule as InviteInput.caseId; this is the other of the two paths that can create a client membership.\n'),
   "note": zod.string().optional()
@@ -1069,11 +1553,15 @@ export const ListUsersResponseItem = zod.object({
   "roleSelected": zod.boolean().describe('True once the user has completed self-service role selection at sign-up.'),
   "displayName": zod.string(),
   "email": zod.string(),
-  "phone": zod.string().describe('Verified mobile in E.164, or \"\".'),
   "authProvider": zod.string().nullish(),
   "barCouncilState": zod.string().nullish(),
   "barEnrolmentNo": zod.string().nullish(),
-  "aorNo": zod.string().nullish(),
+  "aorNo": zod.string().nullish().describe('Advocate-on-Record, Supreme Court of India.'),
+  "aorHighCourtNo": zod.string().nullish().describe('Advocate-on-Record at a High Court, where that court keeps a roll.'),
+  "copNo": zod.string().nullish().describe('Certificate of Practice number.'),
+  "allIndiaBarNo": zod.string().nullish().describe('All India Bar Examination certificate number.'),
+  "allIndiaBarDueAt": zod.coerce.date().nullish().describe('When the All India Bar number stops being optional. Stamped once, on the first declaration, and never moved — a deadline that resets each time the form is saved is not a deadline.\n'),
+  "allIndiaBarDaysLeft": zod.number().nullish().describe('Days until it is required. Null once supplied or when no deadline is set; negative once overdue.\n'),
   "barDeclaredAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1916,8 +2404,8 @@ export const GlobalSearchResponse = zod.object({
  */
 export const ListInvitesResponseItem = zod.object({
   "id": zod.number(),
-  "email": zod.string().describe('The address invited, or \"\" when the invite names a number instead.'),
-  "phone": zod.string().describe('The mobile number invited in E.164, or \"\" when it names an address.'),
+  "email": zod.string().nullish().describe('Null when the invite named a mobile number instead.'),
+  "phone": zod.string().nullish().describe('E.164. Null when the invite named an address.'),
   "token": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "caseId": zod.number().nullish(),
@@ -1932,16 +2420,16 @@ export const ListInvitesResponse = zod.array(ListInvitesResponseItem)
  * @summary Generate an invite link for a client
  */
 export const CreateInviteBody = zod.object({
-  "email": zod.string().optional(),
-  "phone": zod.string().optional().describe('Mobile number. Ten digits is read as Indian; any other country needs the full +code form. Stored normalised to E.164.\n'),
+  "email": zod.string().optional().describe('The address to invite. Exactly one of email or phone must be given; the server rejects both and neither, and validates the shape of whichever was supplied.\n'),
+  "phone": zod.string().optional().describe('The mobile number to invite, in any readable form — \"+91 98765 43210\", \"098765 43210\" and \"9876543210\" all normalise to the same E.164 value. For the clerk or client who has a phone and no work address.\n'),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role the invited person is admitted at. Chosen by the admin.'),
   "caseId": zod.number().optional().describe('Required when role is \"client\" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field\'s value, which JSON Schema expresses badly; see routes\/invites.ts for the actual rule.\n')
-}).describe('Addressed to exactly one of email or phone. Supplying both, or neither, is refused — not modelled here because JSON Schema expresses \"exactly one of\" badly; see routes\/invites.ts for the actual rule.\n')
+})
 
 export const CreateInviteResponse = zod.object({
   "id": zod.number(),
-  "email": zod.string().describe('The address invited, or \"\" when the invite names a number instead.'),
-  "phone": zod.string().describe('The mobile number invited in E.164, or \"\" when it names an address.'),
+  "email": zod.string().nullish().describe('Null when the invite named a mobile number instead.'),
+  "phone": zod.string().nullish().describe('E.164. Null when the invite named an address.'),
   "token": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
   "caseId": zod.number().nullish(),

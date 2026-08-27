@@ -1,6 +1,7 @@
 // Zero-trust regression suite, rebuilt to bootstrap its own data now that the
 // platform ships empty. Same adversarial checks as before, no fixtures.
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -59,6 +60,8 @@ const aId = A.data.activeWorkspace.id,
   bId = B.data.activeWorkspace.id;
 await declareBarRegistration(call, as(`a.admin+${suffix}@a.test`));
 await declareBarRegistration(call, as(`b.admin+${suffix}@b.test`));
+await grantPreviewPlan(call, as(`a.admin+${suffix}@a.test`), aTok);
+await grantPreviewPlan(call, as(`b.admin+${suffix}@b.test`), bTok);
 
 await call("/invites", {
   token: as(`a.admin+${suffix}@a.test`),

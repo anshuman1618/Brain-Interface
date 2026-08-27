@@ -14,8 +14,11 @@ export interface SessionClaims {
   clerkId: string;
   displayName: string;
   email: string;
-  /** Verified mobile in E.164, or "". Somebody who signed up by SMS has this and no email; the two are alternatives, not a pair. */
-  phone: string;
+  /**
+     * The verified mobile in E.164, or null. The Access Denied screen needs it to name the identifier the caller actually holds — telling somebody who signed in by phone to "ask your admin to add <blank>" is the failure this replaces.
+     * @nullable
+     */
+  phone?: string | null;
   /** active   — holds at least one ACTIVE membership. pending_approval — has asked for access and is awaiting a decision. not_recognised — signed in successfully, but the verified email is on no workspace access list and no request is outstanding. Reaches nothing; the sign-in layer shows an error naming the address. */
   accessStatus: SessionClaimsAccessStatus;
   /**

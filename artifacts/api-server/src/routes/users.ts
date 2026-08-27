@@ -13,6 +13,7 @@ import {
 import { requireAuth, requireWorkspace, ctx, type AuthRequest } from "../middlewares/requireAuth";
 import { getOrCreateUser } from "../lib/jit";
 import { zodMessage } from "../lib/validation";
+import { ALL_INDIA_BAR_GRACE_MONTHS, allIndiaBarDaysLeft } from "../lib/permissions";
 
 const router: IRouter = Router();
 
@@ -25,7 +26,10 @@ router.get("/users/me", requireAuth, async (req: AuthRequest, res): Promise<void
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  res.json(GetMeResponse.parse(user));
+  // `allIndiaBarDaysLeft` is computed rather than stored, from the same helper
+  // the gate uses, so the countdown on the credentials form and the day the
+  // request starts being refused are the same calculation.
+  res.json(GetMeResponse.parse({ ...user, allIndiaBarDaysLeft: allIndiaBarDaysLeft(user) }));
 });
 
 router.patch("/users/me", requireAuth, async (req: AuthRequest, res): Promise<void> => {
@@ -89,13 +93,30 @@ router.put(
     }
 
     const now = new Date();
+
+    /*
+     * The six-month window is set ONCE, on first declaration.
+     *
+     * Re-declaring — correcting a typo in an enrolment number, adding a
+     * Certificate of Practice — must not push the deadline out again, or the
+     * requirement is unenforceable: anybody could reset it indefinitely by
+     * saving the form. `??` rather than an overwrite is the whole mechanism.
+     */
+    const allIndiaBarDueAt =
+      user.allIndiaBarDueAt ??
+      new Date(new Date(now).setMonth(now.getMonth() + ALL_INDIA_BAR_GRACE_MONTHS));
+
     const [updated] = await db
       .update(usersTable)
       .set({
         barCouncilState,
         barEnrolmentNo,
         aorNo: parsed.data.aorNo?.trim() || null,
-        barDeclaredAt: now,
+        aorHighCourtNo: parsed.data.aorHighCourtNo?.trim() || null,
+        copNo: parsed.data.copNo?.trim() || null,
+        allIndiaBarNo: parsed.data.allIndiaBarNo?.trim() || null,
+        allIndiaBarDueAt,
+        barDeclaredAt: user.barDeclaredAt ?? now,
       })
       .where(eq(usersTable.id, user.id))
       .returning();
@@ -105,6 +126,13 @@ router.put(
         barCouncilState: updated.barCouncilState,
         barEnrolmentNo: updated.barEnrolmentNo,
         aorNo: updated.aorNo ?? null,
+        aorHighCourtNo: updated.aorHighCourtNo ?? null,
+        copNo: updated.copNo ?? null,
+        allIndiaBarNo: updated.allIndiaBarNo ?? null,
+        allIndiaBarDueAt: updated.allIndiaBarDueAt,
+        // Days until it is required, so the screen can warn before the gate
+        // bites rather than only once it has. Null once supplied.
+        allIndiaBarDaysLeft: allIndiaBarDaysLeft(updated),
         // A real Date, not an ISO string: `format: date-time` in this spec
         // generates zod.date(), which validates the driver's Date instance
         // and lets res.json()'s own Date.toJSON() do the string conversion.

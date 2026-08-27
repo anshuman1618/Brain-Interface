@@ -127,6 +127,71 @@ is a failure nobody fixes. Both are `audit.read` — admin only, because
 
 ---
 
+## A mobile number is a full identity, not a second factor (2026-08-21)
+
+**Decided:** `users.phone`, a `kind:"phone"` access-list entry, invites by
+number, and a founder who can create a chamber with no email address at all.
+
+**Why it was more than a login button.** Email was the single bridge from
+_authenticated_ to _authorized_: `workspace_access_list.value` compared by
+equality against a Clerk-verified address, `reconcileAccessList` returning early
+without one, and `foundChamber` writing the founder's address as their own
+self-admitting row. Adding a phone sign-in without widening that seam produces a
+user who authenticates perfectly and reaches nothing — and a founder who creates
+a chamber and is locked out of it on their next request. That last one is the
+single most important line in `phone-admission.mjs`.
+
+**Why at all.** An Indian chamber's clerks, interns and most of its clients have
+a mobile and no work email. Requiring an address to be admitted excluded exactly
+the people a practice needs on the system.
+
+**Verified-only, exactly as for email.** `identityFromClerk` takes the number
+only when Clerk reports it verified. An unverified number is attacker-supplied
+text, and matching it against the access list would let anyone claim a
+colleague's mobile and inherit their role — the same sentence that already
+governed addresses, now governing both.
+
+**`normalisePhone` is the phone half of normalise-on-write.** Every comparison
+is a plain equality check, so `+91 98765 43210`, `098765 43210` and
+`9876543210` must collapse to one string before storage. The default country
+code is `DEFAULT_COUNTRY_CODE`, not a hardcoded `+91`: the product should be
+wrong in one configurable place rather than in a regex somebody has to find.
+
+**Email beats phone beats domain**, per workspace. Exact identifiers beat a
+blanket domain rule for the reason they always did. Email beats phone because an
+address is never reassigned to a stranger and an Indian mobile is — so where a
+chamber has recorded both for one person, the more durable identifier decides
+their role.
+
+### Number reassignment: accepted, and written down three times
+
+Indian telcos reassign a disconnected mobile after roughly ninety days. A
+standing `kind:"phone"` entry can therefore admit a **different person** later.
+Email has no equivalent failure.
+
+This was accepted deliberately rather than mitigated in code — no expiry, no
+role ceiling — because the friction of either would fall hardest on the small
+chamber this feature exists for. Accepting a risk is only honest if it is
+visible, so it is stated in the schema comment on `ACCESS_LIST_KINDS`, in the
+admin UI at the moment somebody adds a number, and in the privacy policy. The
+`lastUsedAt` column already records when an entry last admitted anybody, and the
+access-list table surfaces it, which is the signal for spotting a number that
+has gone quiet.
+
+**What phone deliberately cannot do:** the operator allowlist stays email-only.
+It is an environment variable rather than an access-list row, and a recycled
+number must never be able to reach a cross-tenant surface.
+
+### One asymmetry closed on the way past
+
+`POST /invites` applied **no** email-format validation while
+`POST /workspace/access-list` applied a regex — so garbage could be written
+through one of the two admission doors and not the other, and would then sit on
+the access list matching nothing forever. Both doors now validate the shape of
+whichever identifier they were given.
+
+---
+
 ## Case files go to object storage, and the SDK does not come with them (2026-08-20)
 
 **Found:** the live service runs on Render's free plan, which cannot mount a
@@ -2020,7 +2085,377 @@ Full working in `docs/UNIT-ECONOMICS.md`.
 
 ---
 
+## AI drafting
+
+### The chamber's own knowledge is the product; the model is not
+
+**Decided:** drafting assembles a prompt from the matter, the chamber's recorded
+observations, and past filings kept as style examples. Insights and examples are
+**workspace-scoped** and never pooled across chambers.
+
+**Why:** a general model given the same instruction writes a generic petition.
+What makes this worth paying for is that it knows the Lucknow registry returns
+an unstamped vakalatnama, because an advocate here wrote that down. Pooling
+those observations across the platform would be worth more to everyone and is
+**irreversible**, so it is not done — `chamber_insights.shared_at` exists so
+consent can be added later without moving rows across a tenant boundary.
+
+### Only what the advocate ticks leaves the server
+
+**Decided:** documents reach the model by explicit id, per draft, and every id
+is re-checked against the caller's workspace _and_ the matter it claims to be
+on. There is no "use all documents" option. What was sent is recorded in
+`draft_sources`.
+
+**Why:** this is the whole basis on which sending privileged client material to
+a third party is defensible. A choice with no record of what was chosen is not a
+control — `draft_sources` is what makes "the advocate chose" checkable, and it is
+the answer when a client asks what of theirs was used.
+
+### Retrieval is full text, not embeddings
+
+**Decided:** `to_tsvector('simple', …)` with a GIN index, ranked in SQL, with
+the forum preference applied in JavaScript.
+
+**Why:** `pg_trgm` and `pgvector` are unavailable in PGlite, which is what
+preview mode and every CI suite run on — verified, not assumed. An embedding
+retriever would be a production-only path no test could execute, the same trap
+the cause-list search avoided. At the volume one chamber writes, full text finds
+the right note and costs nothing per query.
+
+_Also:_ bound parameters inside an `ORDER BY` came back from PGlite as
+`invalid byte sequence for encoding "UTF8": 0x00`. The ordering expression is
+kept parameter-free for that reason, which is noted in `lib/ai/context.ts`.
+
+### A style example is inert until a person has checked the redaction
+
+**Decided:** an uploaded filing gets an automatic redaction pass (Haiku), and is
+excluded from every prompt until `reviewed_at` is set by a named person.
+
+**Why:** an example rides in the **cached prefix of every draft of its kind**,
+so an unreviewed one puts another client's facts in front of unrelated work
+indefinitely. The model catches every name and misses "the Kanpur consignment".
+The automatic pass makes reviewing a two-minute job; it is not the control.
+
+### The budget is derived, pessimistic, and hard
+
+**Decided:** the remaining allowance is a SUM over `ai_usage_events`, checked
+against a **worst-case** estimate before the call. Over budget is a 402, not a
+warning. Deleting a draft does not refund its spend.
+
+**Why:** there is no way to un-spend tokens, so the only place a limit can be
+enforced is in front of the call. The estimate assumes output runs to its cap,
+which sometimes refuses a draft that would have fitted — that is the right way
+round to be wrong. A budget derived from rows a chamber can delete would not be
+a budget.
+
+### Every draft carries a verification banner, prepended by the server
+
+**Decided:** the "verify before filing" line is added in `drafting.ts`, not left
+to the model's instructions.
+
+**Why:** an instruction the model usually follows is not a guarantee, and this
+is the line that stands between a first draft and a filing nobody read.
+
+### Case law is web-search verified, and unconfirmed citations say so
+
+**Decided:** the review prompt enables the `web_search` server tool and requires
+each authority to be confirmed before it is given; anything unconfirmed is
+labelled.
+
+**Why:** Claude has no Indian case-law database. Unaided it produces citations
+that look real and sometimes are not, and advocates in several countries have
+been sanctioned for filing exactly that. Search adds roughly ₹12 to a review —
+cheap against the alternative.
+
+### Pricing, and what the AI allowance costs
+
+**Decided:** Pro ₹2,499/month with a ₹600 drafting budget; Firm ₹7,999 with
+₹3,000; Trial ₹40 for the pack, routed to the light model only. Per chamber,
+flat — not per seat. Top-ups (₹500/₹1,000/₹2,500) are sold **at cost** and carry
+forward while the subscription is live.
+
+**Why:** a working Pro chamber drafting 25 petitions and 60 applications a month
+costs roughly ₹1,110 in tokens — over half of a ₹1,999 plan, which is why the
+old prices could not carry this feature. Firm's ₹3,000 is 37% of its price and
+deliberately generous: it is the plan drafting is sold on. Both are constants in
+`plans.ts`; set them from a month of `ai_usage_events`, not from this estimate.
+
+The trade taken knowingly: at-cost top-ups mean the heaviest chambers are the
+least profitable. Halving `grantMinor` is a one-line 2× markup if that matters.
+
+---
+
+## Security review, 2026-08-25
+
+A 36-point review was run against the repository and the deployed
+configuration. 27 pass, 3 fail, 4 unknown, 2 not applicable. The three failures
+are recorded here with what was wrong, because each was a control that looked
+present and was not.
+
+### The budget has to hold on every route that reaches a model
+
+**Was:** `POST /exemplars` called the redaction pass with no budget check.
+`POST /cases/:id/drafts` had one; the exemplar route did not, so a chamber whose
+allowance was exhausted could keep spending by uploading style examples instead
+of drafting.
+
+**Now:** the same pessimistic `checkBudget` runs before `anonymise()`, estimated
+against `ANONYMISE_MAX_OUTPUT` — the actual ceiling, exported for that purpose
+rather than guessed at.
+
+**The general lesson**, which is why this is here and not just in a commit
+message: "the expensive route is guarded" is not the same as "spending is
+guarded". Any new call into `lib/ai` needs the check, and the drafting suite now
+exhausts a trial pack and asserts that both routes refuse.
+
+_Side effect worth knowing:_ the preview stub used to report the token count of
+its own placeholder text, so a draft cost a third of a paisa and the budget
+could never be exhausted in any test. It now reports output as a realistic
+fraction of the ceiling. Preview spend resembles production spend instead of
+flattering it, which is what made the control testable at all.
+
+### Readiness detail is for whoever runs the service, not for everyone
+
+**Was:** `/api/readyz` and `/api/health` are mounted ahead of `clerkMiddleware`
+— correctly, a monitor must not need a session — and returned `databaseError`,
+which `describeCause` deliberately fills with the innermost driver message. For
+a connection failure that is the host and port; for a credential failure it says
+so. Plus `frontendPath`, `nodeEnv` and the commit.
+
+**Now:** in production those two fields are omitted, leaving booleans about what
+is configured. The full object moved to `GET /api/operator/readiness`, behind
+the `OPERATOR_EMAILS` allowlist, which 404s rather than 403s like the rest of
+that surface.
+
+**Why not authenticate `/readyz` itself:** it sits in front of all auth on
+purpose, and moving it behind `clerkMiddleware` would make a health check fail
+when Clerk is misconfigured — precisely when you need it to answer.
+
+### A party's document is untrusted input sitting next to a tool
+
+**Was:** document text went into the review prompt as plain text, and the review
+enables the `web_search` server tool with no domain restriction. An opposing
+party's filing — exactly what an advocate ticks for a review — could carry text
+instructing the model to search for a string built from the matter's own facts,
+which turns the search box into a way to carry privileged information out.
+
+**Now, two halves, and the second is the one that matters:**
+
+1. Document text is wrapped by `wrapUntrusted()` (`lib/ai/untrusted.ts`) in an
+   envelope it cannot end — both tags are neutralised in the body, visibly, so
+   a reader can see something was defanged. The cached prefix tells the model
+   everything in that envelope is evidence and never an instruction.
+2. `web_search` carries `allowed_domains` — four court and case-law hosts. This
+   is the containment. Wording does not stop a model being told to search for
+   something; an allowlist stops the search being worth telling it to do.
+
+`untrusted.ts` is its own module with no database import specifically so the
+escaping is a pure function with its own offline suite. A live server cannot
+show what went into a prompt, and asserting on the stub's output would be
+asserting on the stub.
+
+---
+
+## The paid gate, case access, and the brief (2026-08-27)
+
+### The chamber is never locked. Its features are.
+
+**The choice:** where to put the wall for a chamber that has not paid.
+
+A wall in front of the door is the obvious build and it is wrong. A founder
+whose card was declined would be shut out of a chamber that exists, with their
+own data behind it, and their only route back in is a support ticket. Payments
+fail for reasons that have nothing to do with the customer — a bank that times
+out, a 3-D Secure page that never returns, a window closed by accident.
+
+**So `neverPaid` is a capability gate**, sharing the allowlist a lapsed chamber
+already has. An unpaid chamber reads its own shell, its plan screen and its
+billing, and cannot open a matter, draft, or invoice. Everything needed to fix
+the situation is inside, and the person is inside with it.
+
+**Why not reuse `lapsed`:** they are the same enforcement and opposite
+sentences. "Your plan expired" to somebody who signed up ten minutes ago is
+nonsense that sends them hunting for a renewal button. Two flags, two messages,
+one allowlist.
+
+### The subscription screen sits after the bar gate, not before it
+
+The order asked for was setup → plans → credentials. The order shipped is setup
+→ bar enrolment → plans → the rest of the credentials, for a mechanical reason:
+`requireWorkspace` refuses every workspace-scoped read until enrolment is
+declared, and that includes reading the subscription. There is literally
+nothing to render on a plan screen before it.
+
+The compulsory pair — state bar council and enrolment number — was already
+taken at the door and is unchanged. What now follows payment is everything
+else: Certificate of Practice, Advocate-on-Record at either court, and the All
+India Bar number. Those are a notice on the dashboard rather than a second
+wall, because most advocates hold none of the first three and the fourth has a
+six-month statutory-style window of its own. Stopping a chamber that has just
+paid, to demand a number the person may not hold for months, would be a wall in
+front of work they had already bought.
+
+### The six-month deadline is stamped once
+
+`all_india_bar_due_at` is written on the first declaration and never moved
+(`user.allIndiaBarDueAt ?? …+6 months`). Recomputing it on save would make the
+deadline resettable by anyone who reopened the form, which is not a deadline.
+`allIndiaBarDaysLeft` is computed server-side by the same helper that enforces
+it, so the countdown and the refusal cannot disagree — a browser clock is not
+what the gate reads.
+
+### Case access replaces row scope; it does not filter it
+
+**The trap:** the obvious implementation intersects the grants with the role's
+own scope. A junior advocate's scope is `all`. Intersecting with `all` is a
+no-op, so the restriction compiles, ships, tests green against a clerk, and
+does nothing whatsoever to the junior it was built for.
+
+**So the restricted branch runs first and substitutes.** A restricted member
+sees the matters they hold a task on, plus what was granted. `case-access.mjs`
+asserts exactly this — that Beta disappears "though the junior's ROLE scope is
+`all`" — because that is the assertion the wrong implementation fails.
+
+Assigned matters are not in the tick list and cannot be removed there. A person
+given work must be able to open the file it is on, or the work is unassignable.
+
+**The grant list is sent whole**, not as add/remove: a stale tab cannot
+re-grant something an admin has just withdrawn, because the last complete
+picture wins. Every id is validated against `cases.workspace_id` first — a
+grant naming another chamber's matter writes no row rather than a row that
+resolves to nothing, because a row that means nothing is worse than no row.
+Somebody will read it as access.
+
+### `review` became `brief`, and the old name is now an error
+
+Not a rename. The review answered "what is wrong with this draft"; the brief
+answers what an advocate opens a file to get — the matter in short, the facts
+on the record, the chronology, the merits, how the other side will run it, the
+objections to anticipate, the defects to cure, the authorities, and what to
+confirm.
+
+`review` is refused with a 400 rather than quietly mapped to `brief`. A stale
+client asking for a review would otherwise be served nine sections it did not
+ask for under a name that no longer means what it did.
+
+**The output ceiling went 10k → 12k tokens**, which is a real cost: a trial's
+₹40 now buys one fewer call. That surfaced as a suite failure — a junior's
+draft refused for want of budget, which looks exactly like a junior refused for
+want of a capability. The fix was to give the role checks their own chamber on
+an untouched allowance, not to shrink the brief. An assertion that passes or
+fails on the price of a brief is not testing what it claims to.
+
+**The disclaimer is stated three times** — on the page, on every output card,
+and prepended to the body server-side. That is not redundancy. Someone who
+pastes a draft into a filing has left the page and the card behind; the only
+copy that travels with the text is the one inside it.
+
+### `POST /preview/activate-plan` writes no once-only marker
+
+Preview has no payment provider, so the suites need a way past the paid gate.
+The route is guarded like `preview/set-period-end` — 404 unless
+`isPreviewAuth() && isPreviewDatabase()`, behind `requireWorkspace`, and can
+grant a trial and nothing else.
+
+It deliberately does **not** write `users.trial_claimed_at` or
+`subscriptions.trial_used_at`. One trial per person and one per chamber are
+commercial rules about real money; consuming somebody's entitlement from a
+preview route would be a bug, and leaving both unwritten is what lets
+`plan.mjs` §4 and `subs.mjs` still reach a genuinely unclaimed trial after
+calling it.
+
+**It is not called automatically at chamber creation.** A gate is only worth
+having if it is exercised, and a suite that never meets it would not notice the
+day it stopped working — so `plan.mjs` §1 now asserts the 402 by name before
+taking a plan and opening its first matter.
+
+It inserts when there is no row to update. A chamber has no subscription row
+until it selects something; the UPDATE-only first version returned 200,
+reported `activated: true`, and changed nothing.
+
+---
+
+## The case-access restriction had to be taught to four more routes (2026-08-27)
+
+Found by pen-testing `fe8c902` rather than by review, which is the point: the
+feature's own suite proved the restriction on `/cases`, and `/cases` was never
+where it was going to fail.
+
+**The shape of the bug.** Case-access grants introduced a distinction that had
+not existed before. Until then "is this matter in my chamber" and "may I see
+this matter" were the same question for a junior advocate, whose row scope is
+`all`. Every route written against the weaker check — `caseInWorkspace`, or a
+bare `workspace_id` filter — was correct when it was written and silently
+became a hole the moment an admin could narrow somebody.
+
+Four routes reached case-scoped data without going through `visibleCaseIds` or
+`getVisibleCase`:
+
+| Route                              | What leaked                                                                                                                                                                                                                        |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /tasks/:id`                   | Task title and deadline on a walled-off matter. The LIST was scoped (`visibleTasks` → `visibleCaseIds`); the single fetch was not.                                                                                                 |
+| `GET /calendar`                    | Filtered by audience only, so every hearing in the chamber was served with the matter's name in the title.                                                                                                                         |
+| `GET`/`POST /cases/:id/drafts`     | A draft body is the matter's facts written out in full — the richest thing in the chamber to leak. POST also let a restricted member commission a brief on a matter they could not open, spending the chamber's budget to read it. |
+| `GET`/`PATCH`/`DELETE /drafts/:id` | Read, rewrite or destroy any draft in the chamber by id.                                                                                                                                                                           |
+
+**The list/detail asymmetry is the recurring one.** Three of the four scoped
+the collection and not the item. It is easy to write and it looks tested,
+because the list assertion passes.
+
+**Two of the fixes are about ordering, not scope.** `PATCH` and `DELETE` on
+`/drafts/:id` filtered in the `WHERE` clause and checked the returned row
+afterwards — so a draft outside the caller's scope was already overwritten or
+deleted by the time the handler answered 404. They now read, check, then write.
+A refusal that fires after the row is gone is not a refusal.
+
+**What held.** Tenant isolation everywhere probed (replayed workspace tokens,
+forged `X-Workspace-Id`, cross-chamber membership ids, the preview
+plan-activation route). The never-paid gate on every write, with reads still
+open so the chamber is never locked out. Self-escalation — a restricted junior
+widening their own grants, promoting themselves to admin, or self-assigning a
+task on a hidden matter to make it visible. The once-stamped All India Bar
+deadline, and writing another user's credentials.
+
+**The probe is not in the repository**; its assertions are, in
+`case-access.mjs`. A one-off script that proves a hole once is worth less than
+the assertion that stops it coming back, and the calendar assertion in
+particular was rewritten after it first passed vacuously — the junior could see
+no entries at all, so "chamber-wide entries are untouched" proved nothing. It
+now seeds an entry on the hidden matter, one on the granted matter and one
+chamber-wide, so the filter has to discriminate rather than merely return
+nothing.
+
+---
+
 ## Mobile
+
+### A lost connection to `POST /cases/:id/drafts` does not mean a lost draft
+
+**Decided:** the drafting page distinguishes a refusal the server sent from a
+connection that went away, and says so. Only the first is "could not start".
+
+**Why:** `POST /cases/:id/drafts` awaits `runDraft` and is held open for the
+whole model call — a minute or more. That is the request in the product most
+likely to be lost on a phone, and for reasons that have nothing to do with the
+server: backgrounding the app suspends the webview's network task, and a
+wifi-to-cellular handoff drops the socket outright.
+
+The server is unaffected either way. `runDraft` writes the row in `generating`
+_before_ it calls the model and sets `ready` or `failed` itself, so the work
+survives the caller. The failure mode was purely in the reader's head: told the
+draft did not start, they run it again, and the chamber pays twice for the same
+draft. An `ApiError` carries a status and is therefore the server refusing;
+anything else is the connection, and the list is what knows the truth — so the
+error path refetches it rather than asserting.
+
+**Not fixed here, and worth deciding on:** the request is synchronous at all.
+`runDraft` is already shaped like a job — pre-flight, insert, run, update — so
+splitting it after the pre-flight would let the POST return 202 immediately and
+leave the existing 2-second poll to fill the row in. That is a change to how
+drafting fails (a 402 or 404 must stay synchronous; a model error would move
+from the response body into `drafts.error`, where the list already exposes it),
+and it belongs in its own commit rather than inside a merge.
 
 ### Capacitor around the existing SPA, not a second frontend
 
@@ -2104,29 +2539,7 @@ rather than an oversight.
 
 ---
 
-## Identity
-
-### A mobile number is an identity, not a contact detail
-
-**Decided:** phone joins the access list as a third `kind`, alongside `email` and
-`domain`. Somebody can sign up, be admitted, and found a chamber holding only a
-number.
-
-**Why it stayed small:** only four surfaces decided authorization from an email
-string — the access-list matcher, `jit.ts`, the grant writers in `session.ts`,
-and the operator allowlist. Memberships, `requireWorkspace`, `capabilitiesFor`,
-`lib/scope.ts`, `billableClient()` and the access-request flow are all keyed on
-`users.id` or `clerk_id` already. And because `workspace_access_list`'s unique
-key is already `(workspace_id, kind, value)`, the new kind needed no migration.
-
-**Why `normalisePhone` is strict and total:** it is an authorization primitive.
-Two spellings of one number that resolve differently lock out somebody who was
-admitted; two different numbers that collide let one person sign in against
-another's grant. It returns `""` for anything it cannot canonicalise and callers
-refuse rather than store — a grant held in a form no sign-in could match is a row
-that silently does nothing, and the admin who wrote it has no way to tell.
-
-**No `domain` equivalent for phone.** A numbering range is not an organisation.
+## Notifications
 
 ### Push is a third channel on the machinery that already existed
 
@@ -2141,6 +2554,15 @@ one. One helper means the three channels cannot disagree about who was told what
 **Why an outbox rather than fire-and-forget:** the same reason mail has one. The
 things this system notifies about are filing deadlines and hearing dates; a
 message that failed to send has to stay visible instead of becoming a log line.
+
+**`dedupe` is opt-out, and event-driven callers must opt out.** The dedup key is
+exact message text, which is what the scheduler needs — it sweeps every half hour
+and would otherwise re-send the same T-24h reminder on each tick. It is wrong for
+the four document-request sites: asking a client for the same document twice is
+two requests, and the second one wording-identical to the first is the normal
+case. Swallowing it would leave them waiting for a request they were never told
+about. Hence `dedupe: false` at every event site, and the default left alone for
+the sweep.
 
 **One transport for two platforms:** FCM HTTP v1 delivers to iOS too, once the
 APNs key is uploaded to Firebase. Hand-rolled service-account JWT and one POST,
@@ -2172,6 +2594,22 @@ Recorded so they are not mistaken for oversights.
   does, which is the hard part, but they are not signed off.
 - **An end-to-end Razorpay test against live keys.** The signature verification
   and idempotency are tested; a real payment has not been taken.
+- **Streaming drafts token by token.** A draft is written server-side and the
+  page polls. It survives a browser that navigates away, works through any
+  proxy, and is testable in CI; SSE would look better and do none of those.
+- **OCR for scanned filings.** A scanned order yields no text and says so.
+  Claude reads images directly, so the cheap path in is page images rather than
+  an OCR stack — worth doing, not done here.
+- **A shared cross-chamber insight library.** See above: irreversible.
+- **Auto-filing anything.** Drafting a petition and lodging one are different
+  categories of act. The platform does not file, serve, or send to a client.
+- **CSRF tokens.** Auth is a bearer token, not an ambient cookie, and production
+  sends no CORS headers unless configured. `express.urlencoded` is still mounted
+  and unused; removing it would close the remaining theoretical surface.
+- **A production-mode test of the `/readyz` redaction.** Production refuses to
+  boot without a real Postgres, which CI does not have. The dev branch is
+  exercised; the production branch is verified by inspection and by the operator
+  route's own tests.
 - **A push delivered to a real handset.** The queue, the retry ladder, the tenant
   boundary and the hearing fan-out are all tested; nothing has been sent, because
   that needs a Firebase project and an APNs key.
