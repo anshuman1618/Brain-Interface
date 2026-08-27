@@ -17,6 +17,21 @@ export type AppUser = {
   /** Self-declared, see `needsBarRegistration()` in lib/permissions.ts. */
   barCouncilState: string | null;
   barEnrolmentNo: string | null;
+  /** The rest of an Indian advocate's credentials. All optional at declaration. */
+  aorNo: string | null;
+  aorHighCourtNo: string | null;
+  copNo: string | null;
+  /**
+   * All India Bar Examination certificate number, and when it stops being
+   * optional. See `barCredentialsComplete()` in lib/permissions.ts — it is
+   * requested from the start and enforced only once the date has passed.
+   */
+  allIndiaBarNo: string | null;
+  allIndiaBarDueAt: Date | null;
+  /** When bar registration was first declared. The six-month window runs from here. */
+  barDeclaredAt: Date | null;
+  /** When this person last claimed the two-month trial pack, in any chamber. */
+  trialClaimedAt: Date | null;
 };
 
 /**

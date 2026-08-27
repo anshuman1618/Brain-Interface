@@ -2257,6 +2257,125 @@ asserting on the stub.
 
 ---
 
+## The paid gate, case access, and the brief (2026-08-27)
+
+### The chamber is never locked. Its features are.
+
+**The choice:** where to put the wall for a chamber that has not paid.
+
+A wall in front of the door is the obvious build and it is wrong. A founder
+whose card was declined would be shut out of a chamber that exists, with their
+own data behind it, and their only route back in is a support ticket. Payments
+fail for reasons that have nothing to do with the customer — a bank that times
+out, a 3-D Secure page that never returns, a window closed by accident.
+
+**So `neverPaid` is a capability gate**, sharing the allowlist a lapsed chamber
+already has. An unpaid chamber reads its own shell, its plan screen and its
+billing, and cannot open a matter, draft, or invoice. Everything needed to fix
+the situation is inside, and the person is inside with it.
+
+**Why not reuse `lapsed`:** they are the same enforcement and opposite
+sentences. "Your plan expired" to somebody who signed up ten minutes ago is
+nonsense that sends them hunting for a renewal button. Two flags, two messages,
+one allowlist.
+
+### The subscription screen sits after the bar gate, not before it
+
+The order asked for was setup → plans → credentials. The order shipped is setup
+→ bar enrolment → plans → the rest of the credentials, for a mechanical reason:
+`requireWorkspace` refuses every workspace-scoped read until enrolment is
+declared, and that includes reading the subscription. There is literally
+nothing to render on a plan screen before it.
+
+The compulsory pair — state bar council and enrolment number — was already
+taken at the door and is unchanged. What now follows payment is everything
+else: Certificate of Practice, Advocate-on-Record at either court, and the All
+India Bar number. Those are a notice on the dashboard rather than a second
+wall, because most advocates hold none of the first three and the fourth has a
+six-month statutory-style window of its own. Stopping a chamber that has just
+paid, to demand a number the person may not hold for months, would be a wall in
+front of work they had already bought.
+
+### The six-month deadline is stamped once
+
+`all_india_bar_due_at` is written on the first declaration and never moved
+(`user.allIndiaBarDueAt ?? …+6 months`). Recomputing it on save would make the
+deadline resettable by anyone who reopened the form, which is not a deadline.
+`allIndiaBarDaysLeft` is computed server-side by the same helper that enforces
+it, so the countdown and the refusal cannot disagree — a browser clock is not
+what the gate reads.
+
+### Case access replaces row scope; it does not filter it
+
+**The trap:** the obvious implementation intersects the grants with the role's
+own scope. A junior advocate's scope is `all`. Intersecting with `all` is a
+no-op, so the restriction compiles, ships, tests green against a clerk, and
+does nothing whatsoever to the junior it was built for.
+
+**So the restricted branch runs first and substitutes.** A restricted member
+sees the matters they hold a task on, plus what was granted. `case-access.mjs`
+asserts exactly this — that Beta disappears "though the junior's ROLE scope is
+`all`" — because that is the assertion the wrong implementation fails.
+
+Assigned matters are not in the tick list and cannot be removed there. A person
+given work must be able to open the file it is on, or the work is unassignable.
+
+**The grant list is sent whole**, not as add/remove: a stale tab cannot
+re-grant something an admin has just withdrawn, because the last complete
+picture wins. Every id is validated against `cases.workspace_id` first — a
+grant naming another chamber's matter writes no row rather than a row that
+resolves to nothing, because a row that means nothing is worse than no row.
+Somebody will read it as access.
+
+### `review` became `brief`, and the old name is now an error
+
+Not a rename. The review answered "what is wrong with this draft"; the brief
+answers what an advocate opens a file to get — the matter in short, the facts
+on the record, the chronology, the merits, how the other side will run it, the
+objections to anticipate, the defects to cure, the authorities, and what to
+confirm.
+
+`review` is refused with a 400 rather than quietly mapped to `brief`. A stale
+client asking for a review would otherwise be served nine sections it did not
+ask for under a name that no longer means what it did.
+
+**The output ceiling went 10k → 12k tokens**, which is a real cost: a trial's
+₹40 now buys one fewer call. That surfaced as a suite failure — a junior's
+draft refused for want of budget, which looks exactly like a junior refused for
+want of a capability. The fix was to give the role checks their own chamber on
+an untouched allowance, not to shrink the brief. An assertion that passes or
+fails on the price of a brief is not testing what it claims to.
+
+**The disclaimer is stated three times** — on the page, on every output card,
+and prepended to the body server-side. That is not redundancy. Someone who
+pastes a draft into a filing has left the page and the card behind; the only
+copy that travels with the text is the one inside it.
+
+### `POST /preview/activate-plan` writes no once-only marker
+
+Preview has no payment provider, so the suites need a way past the paid gate.
+The route is guarded like `preview/set-period-end` — 404 unless
+`isPreviewAuth() && isPreviewDatabase()`, behind `requireWorkspace`, and can
+grant a trial and nothing else.
+
+It deliberately does **not** write `users.trial_claimed_at` or
+`subscriptions.trial_used_at`. One trial per person and one per chamber are
+commercial rules about real money; consuming somebody's entitlement from a
+preview route would be a bug, and leaving both unwritten is what lets
+`plan.mjs` §4 and `subs.mjs` still reach a genuinely unclaimed trial after
+calling it.
+
+**It is not called automatically at chamber creation.** A gate is only worth
+having if it is exercised, and a suite that never meets it would not notice the
+day it stopped working — so `plan.mjs` §1 now asserts the 402 by name before
+taking a plan and opening its first matter.
+
+It inserts when there is no row to update. A chamber has no subscription row
+until it selects something; the UPDATE-only first version returned 200,
+reported `activated: true`, and changed nothing.
+
+---
+
 ## Things deliberately not done
 
 Recorded so they are not mistaken for oversights.

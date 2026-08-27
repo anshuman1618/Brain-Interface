@@ -6,6 +6,7 @@
 // therefore authenticated perfectly and reached nothing. This suite is the
 // evidence that the seam was widened rather than patched at one end.
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -76,6 +77,7 @@ const founded = await call("/workspaces", {
 check("the chamber is created", founded.status === 201, `got ${founded.status}`);
 const ws = founded.data?.workspaceToken;
 await declareBarRegistration(call, byPhone(founderPhone, "Phone Founder"));
+await grantPreviewPlan(call, byPhone(founderPhone, "Phone Founder"), ws);
 
 // THE regression. foundChamber used to write only an email row, so a founder
 // with no address created a chamber and was locked out of it on the next

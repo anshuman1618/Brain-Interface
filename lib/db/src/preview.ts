@@ -575,6 +575,18 @@ CREATE TABLE IF NOT EXISTS ai_usage_events (
   CONSTRAINT ai_usage_events_dedupe_key UNIQUE (dedupe_key)
 );
 
+CREATE TABLE IF NOT EXISTS case_access_grants (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  membership_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  granted_by TEXT NOT NULL DEFAULT '',
+  granted_by_clerk_id TEXT NOT NULL DEFAULT '',
+  note TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT case_access_grants_membership_case_key UNIQUE (membership_id, case_id)
+);
+
 CREATE TABLE IF NOT EXISTS ai_topups (
   id SERIAL PRIMARY KEY,
   workspace_id INTEGER NOT NULL,
@@ -669,6 +681,17 @@ ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_number INTEGER;
 ALTER TABLE cases ADD COLUMN IF NOT EXISTS case_year INTEGER;
 ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'manual';
 ALTER TABLE calendar_entries ADD COLUMN IF NOT EXISTS cause_list_entry_id INTEGER;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS aor_high_court_no TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cop_no TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS all_india_bar_no TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS all_india_bar_due_at TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS trial_claimed_at TIMESTAMPTZ;
+ALTER TABLE workspace_memberships
+  ADD COLUMN IF NOT EXISTS case_access_restricted BOOLEAN NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS case_access_grants_membership_idx
+  ON case_access_grants (membership_id);
+CREATE INDEX IF NOT EXISTS case_access_grants_workspace_idx
+  ON case_access_grants (workspace_id);
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled_by TEXT;
 ALTER TABLE workspaces ADD COLUMN IF NOT EXISTS drafting_enabled_at TIMESTAMPTZ;

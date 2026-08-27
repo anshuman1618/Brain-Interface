@@ -33,7 +33,7 @@ import { userMessage } from "@/lib/errors";
 import { BudgetMeter } from "@/components/drafting/budget-meter";
 
 /**
- * Draft a document, or have the matter reviewed before it is filed.
+ * Draft a document, or be briefed on the matter before it is filed.
  *
  * Two buttons, one screen, because they take the same inputs: a matter, an
  * instruction, and whichever documents the advocate wants read.
@@ -44,7 +44,23 @@ import { BudgetMeter } from "@/components/drafting/budget-meter";
  * which privileged client files leave the server, so they are shown plainly,
  * default to none, and say when a document cannot be read at all. Nothing is
  * sent because it happened to be on the matter.
+ *
+ * ── The disclaimer is shown twice, and that is deliberate ───────────────
+ *
+ * Once at the top of the page, before anything is asked for, and once on every
+ * output card. The server also prepends its own banner to the body text, so a
+ * draft that is copied out of here carries the warning with it. Three places
+ * for one sentence is not redundancy: a person who pastes a draft into a
+ * filing has left all of this behind, and the only copy that follows them is
+ * the one inside the text.
  */
+
+/** Said in the advocate's own terms, not the model's. */
+const VERIFY_NOTICE =
+  "Everything on this page is machine-written and unverified. Check every citation, " +
+  "date, figure and provision against the record before you rely on it. Nothing here " +
+  "is filed, served or shown to a client — an advocate signs, and an advocate is on " +
+  "the record.";
 
 const DRAFT_KINDS = [
   "petition",
@@ -64,7 +80,7 @@ const KIND_LABEL: Record<string, string> = {
   reply: "Reply / counter-affidavit",
   notice: "Legal notice",
   letter: "Letter",
-  review: "Review",
+  brief: "Case brief",
 };
 
 /** Types the server can actually take text out of. Anything else is inert. */
@@ -188,9 +204,15 @@ function DraftBody({ draft, onChanged }: { draft: Draft; onChanged: () => void }
         </>
       ) : (
         draft.body && (
-          <pre className="mt-3 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-[var(--radius)] bg-muted/30 p-3 text-xs leading-relaxed">
-            {draft.body}
-          </pre>
+          <>
+            <pre className="mt-3 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-[var(--radius)] bg-muted/30 p-3 text-xs leading-relaxed">
+              {draft.body}
+            </pre>
+            <p className="mt-2 flex items-start gap-1.5 text-3xs leading-relaxed text-muted-foreground">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+              {VERIFY_NOTICE}
+            </p>
+          </>
         )
       )}
     </div>
@@ -239,15 +261,16 @@ export default function DraftingPage() {
     queryClient.invalidateQueries({ queryKey: getGetAiBudgetQueryKey() });
   };
 
-  const run = (which: "draft" | "review") => {
+  const run = (which: "draft" | "brief") => {
     if (activeCase === null) return;
     create.mutate(
       {
         id: activeCase,
         data: {
-          kind: which === "review" ? "review" : (kind as Draft["kind"]),
+          kind: which === "brief" ? "brief" : (kind as Draft["kind"]),
           instruction:
-            instruction.trim() || (which === "review" ? "Review this matter before we file." : ""),
+            instruction.trim() ||
+            (which === "brief" ? "Prepare a brief on this matter before the hearing." : ""),
           documentIds: picked,
         },
       },
@@ -255,7 +278,7 @@ export default function DraftingPage() {
         onSuccess: () => {
           refresh();
           toast({
-            title: which === "review" ? "Reviewing" : "Drafting",
+            title: which === "brief" ? "Preparing the brief" : "Drafting",
             description: "It will appear below as it is written.",
           });
         },
@@ -277,11 +300,19 @@ export default function DraftingPage() {
         <div>
           <h1 className="font-mono text-lg uppercase tracking-wider">Drafting</h1>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-            Prepare a first draft from this chamber&rsquo;s own records, or have a matter reviewed
-            for defects and merits before it is filed. Everything produced here is a starting point
-            for an advocate to correct and sign.
+            Prepare a first draft from this chamber&rsquo;s own records, or ask for a brief on the
+            matter before it is filed — the facts on the record, the chronology, the merits, how the
+            other side will run it, the objections to anticipate and the defects to cure.
           </p>
         </div>
+      </div>
+
+      <div
+        role="note"
+        className="flex items-start gap-2 rounded-[var(--radius)] bg-warning p-3 text-warning-foreground shadow-[var(--raise)]"
+      >
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+        <p className="text-xs leading-relaxed">{VERIFY_NOTICE}</p>
       </div>
 
       <BudgetMeter />
@@ -391,10 +422,10 @@ export default function DraftingPage() {
             variant="outline"
             className="rounded-lg"
             disabled={activeCase === null || create.isPending}
-            onClick={() => run("review")}
+            onClick={() => run("brief")}
           >
             <ScanSearch className="mr-1.5 h-3.5 w-3.5" />
-            Find defects &amp; merits
+            Brief me on this matter
           </Button>
           <Link
             href="/chamber-knowledge"

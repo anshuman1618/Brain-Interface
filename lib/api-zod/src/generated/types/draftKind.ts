@@ -17,5 +17,5 @@ export const DraftKind = {
   reply: 'reply',
   notice: 'notice',
   letter: 'letter',
-  review: 'review',
+  brief: 'brief',
 } as const;

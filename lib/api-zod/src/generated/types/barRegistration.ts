@@ -11,5 +11,21 @@ export interface BarRegistration {
   barEnrolmentNo: string;
   /** @nullable */
   aorNo?: string | null;
+  /** @nullable */
+  aorHighCourtNo?: string | null;
+  /** @nullable */
+  copNo?: string | null;
+  /** @nullable */
+  allIndiaBarNo?: string | null;
+  /**
+     * When the All India Bar number stops being optional.
+     * @nullable
+     */
+  allIndiaBarDueAt?: Date | null;
+  /**
+     * Days until it is required. Null once supplied or when no deadline is set; negative once overdue. Drives the warning before the gate bites.
+     * @nullable
+     */
+  allIndiaBarDaysLeft?: number | null;
   barDeclaredAt: Date;
 }

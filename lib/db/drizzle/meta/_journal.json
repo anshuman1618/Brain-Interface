@@ -99,6 +99,13 @@
       "when": 1787090000003,
       "tag": "0013_ai_drafting",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787090000004,
+      "tag": "0014_credentials_and_case_access",
+      "breakpoints": true
     }
   ]
 }

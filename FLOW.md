@@ -977,10 +977,104 @@ That last point is the design claim, and the evidence for it is that **all
 eleven pre-existing suites pass untouched**. The email path was extended, not
 altered.
 
-Last run: **490 checks green with `RAZORPAY_*` unset**, each suite against a
-fresh server and a fresh database. The banner was checked
+Last run: **596 checks green across sixteen API suites with `RAZORPAY_*`
+unset**, each suite against a fresh server, plus 57 browser checks and 13
+startup guards. The banner was checked
 separately in a browser across all five of its states (17 assertions), which is
 what caught the `daysLeft` rounding.
+
+### The paid gate, and the screen that answers it
+
+Two gates now stand between a new chamber and its first matter, and they are
+different in kind:
+
+```
+found chamber
+     ↓
+requireWorkspace  ── bar enrolment not declared? ──→ 403 profile_incomplete
+     ↓                                                (CompleteProfilePage)
+requireCapability ── planState.neverPaid? ─────────→ 402 payment_required
+     ↓                                                (ChoosePlanPage)
+   the work
+```
+
+`neverPaid` (`lib/quota.ts`) is `!row || (status !== "active" && startedAt ===
+null)`. It is **not** `lapsed`: lapsed means a plan was in force and ran out,
+and "your plan expired" said to somebody who signed up ten minutes ago sends
+them looking for a renewal button that does not apply. It rides the same
+allowlist a lapsed chamber gets (`CAPABILITIES_WHEN_LAPSED`), so an unpaid
+chamber still reads its own shell, its plan screen and its billing — the
+chamber is never locked, only its features.
+
+`GET /workspace/subscription` carries `neverPaid` back so the SPA gates on the
+server's own answer rather than re-deriving it. `dashboard-layout.tsx` shows
+`ChoosePlanPage` when it is true, **after** the bar gate — every
+workspace-scoped read, that one included, is refused until enrolment is
+declared, so there is nothing to render before it. "Skip for now" is component
+state, not persisted: the offer returns next session and `PlanBanner` keeps it
+standing meanwhile.
+
+Preview has no payment provider, so `POST /preview/activate-plan` puts a trial
+in force for the suites. It 404s unless `isPreviewAuth() && isPreviewDatabase()`,
+grants a trial and nothing else, and writes **neither** once-only marker
+(`users.trial_claimed_at`, `subscriptions.trial_used_at`) — which is what lets
+`plan.mjs` §4 and `subs.mjs` still reach a genuinely unclaimed trial after
+calling it. It inserts when there is no row to update: a chamber has no
+subscription row until it selects something, and an UPDATE-only version looks
+like it works and silently does nothing.
+
+### Case access — narrowing a junior or a clerk
+
+`GET`/`PUT /memberships/:id/case-access`, behind `access_control.manage`. The
+`caseAccessRestricted` flag on the membership plus rows in `case_access_grants`.
+
+In `lib/scope.ts` the restricted branch sits **before** the `assigned` branch
+and **replaces** the role's row scope rather than filtering it. A restricted
+junior's role scope is `all`; intersecting with `all` would be a no-op and the
+restriction would do nothing — which is the obvious way to write it and the
+reason it is written the other way. What a restricted member sees is: the
+matters they hold a task on, plus the ones granted explicitly. Assigned work is
+never revocable through this screen, because a person handed a task must be
+able to open the file it is on.
+
+`PUT` replaces the whole grant set rather than adding and removing, so a stale
+tab cannot re-grant a matter an admin just took away. Every id is checked
+against `cases.workspace_id` before it is written — a grant naming another
+chamber's matter writes no row at all rather than a row that means nothing.
+`senior_advocate` and `client` are refused with a 400: the first directs the
+chamber's work, the second is already confined by row scope.
+
+### Advocate credentials, and the six-month window
+
+`users` gained `aor_high_court_no`, `cop_no`, `all_india_bar_no` and
+`all_india_bar_due_at`. `barCredentialsComplete()` (`lib/permissions.ts`) is
+two tiers: state bar council and enrolment number **now**, the All India Bar
+Examination number **within six months**. The deadline is stamped once, on the
+first declaration (`user.allIndiaBarDueAt ?? …+6 months`) — a deadline that
+resets each time the form is saved is not a deadline.
+
+`GET /users/me` returns `allIndiaBarDaysLeft`, computed by the same helper the
+gate uses, so the countdown on the form and the day requests start being
+refused are one calculation. `CredentialsNotice` on the dashboard is the
+warning before it bites; it renders nothing for a clerk, a client, or anyone
+who has supplied the number.
+
+### The Case Brief replaced the Review
+
+`DRAFT_KINDS` lost `review` and gained `brief`. It is not a rename: the review
+covered defects and merits, and the brief covers the matter and a draft
+together — the matter in short, the facts on the record, the chronology, the
+merits, how the other side will run it, the objections to anticipate, the
+defects to cure, the authorities, and what to confirm. `BRIEF_RULES` in
+`lib/ai/prompts.ts` carries those headings; the output ceiling went 10k → 12k
+tokens, which is why a trial's ₹40 buys one fewer call than it did.
+
+`review` now 400s as an unknown kind, which `drafting.mjs` asserts — a stale
+client asking for one is refused outright rather than quietly served something
+else under a name it no longer means. The verify disclaimer is stated three
+times on purpose: on the page before anything is asked for, on every output
+card, and inside the body text itself, because the only copy that follows a
+draft into a filing is the one in the text.
 
 ### Known, unfixed
 

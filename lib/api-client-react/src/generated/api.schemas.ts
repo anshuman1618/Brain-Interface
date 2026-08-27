@@ -110,8 +110,36 @@ export interface UserProfile {
   barCouncilState?: string | null;
   /** @nullable */
   barEnrolmentNo?: string | null;
-  /** @nullable */
+  /**
+     * Advocate-on-Record, Supreme Court of India.
+     * @nullable
+     */
   aorNo?: string | null;
+  /**
+     * Advocate-on-Record at a High Court, where that court keeps a roll.
+     * @nullable
+     */
+  aorHighCourtNo?: string | null;
+  /**
+     * Certificate of Practice number.
+     * @nullable
+     */
+  copNo?: string | null;
+  /**
+     * All India Bar Examination certificate number.
+     * @nullable
+     */
+  allIndiaBarNo?: string | null;
+  /**
+     * When the All India Bar number stops being optional. Stamped once, on the first declaration, and never moved — a deadline that resets each time the form is saved is not a deadline.
+     * @nullable
+     */
+  allIndiaBarDueAt?: string | null;
+  /**
+     * Days until it is required. Null once supplied or when no deadline is set; negative once overdue.
+     * @nullable
+     */
+  allIndiaBarDaysLeft?: number | null;
   /** @nullable */
   barDeclaredAt?: string | null;
   createdAt: string;
@@ -226,6 +254,12 @@ export interface BarRegistrationInput {
   barEnrolmentNo: string;
   /** Supreme Court Advocate-on-Record number. Optional — most advocates never hold one. */
   aorNo?: string;
+  /** Advocate-on-Record at a High Court, where that court keeps such a roll. A different roll from the Supreme Court one, so a separate field — an advocate may hold either, both or neither. */
+  aorHighCourtNo?: string;
+  /** Certificate of Practice number, issued by the state bar council. */
+  copNo?: string;
+  /** All India Bar Examination certificate number. Optional at declaration and required within six months of it — an advocate enrolled before the examination existed may hold none, and a newly enrolled one has a window in which to sit it. */
+  allIndiaBarNo?: string;
 }
 
 export interface BarRegistration {
@@ -233,6 +267,22 @@ export interface BarRegistration {
   barEnrolmentNo: string;
   /** @nullable */
   aorNo?: string | null;
+  /** @nullable */
+  aorHighCourtNo?: string | null;
+  /** @nullable */
+  copNo?: string | null;
+  /** @nullable */
+  allIndiaBarNo?: string | null;
+  /**
+     * When the All India Bar number stops being optional.
+     * @nullable
+     */
+  allIndiaBarDueAt?: string | null;
+  /**
+     * Days until it is required. Null once supplied or when no deadline is set; negative once overdue. Drives the warning before the gate bites.
+     * @nullable
+     */
+  allIndiaBarDaysLeft?: number | null;
   barDeclaredAt: string;
 }
 
@@ -1296,6 +1346,8 @@ export interface Subscription {
      * @nullable
      */
   daysLeft?: number | null;
+  /** This chamber has never had a plan in force. Distinct from `lapsed`, which means one WAS in force and ran out — "your plan expired" is a bewildering thing to read on the day you signed up. Enforcement uses the same flag, so a client that gates on it shows the subscription screen exactly when the API would answer 402 `payment_required`. Derived, never stored: `status` may read `trialing` on a chamber that abandoned a checkout, and `startedAt` is the honest test. */
+  neverPaid?: boolean;
   /** @nullable */
   updatedBy?: string | null;
 }
@@ -1470,6 +1522,33 @@ export interface CauseListSyncRunResult {
   error?: string;
 }
 
+export type CaseAccessGrantsItem = {
+  caseId: number;
+  caseTitle: string;
+  grantedBy?: string;
+  createdAt?: string;
+};
+
+export interface CaseAccess {
+  membershipId: number;
+  role: string;
+  /** When true the member sees assigned matters PLUS the granted ones, and nothing else. When false their role's own scope applies. */
+  restricted: boolean;
+  grantedCaseIds: number[];
+  grants?: CaseAccessGrantsItem[];
+}
+
+export interface CaseAccessInput {
+  restricted: boolean;
+  /**
+     * The complete set of explicitly granted matters. Sent whole rather than as add/remove, so a stale client cannot silently re-grant a matter an admin has just taken away.
+     * @maxItems 500
+     */
+  caseIds?: number[];
+  /** @maxLength 500 */
+  note?: string;
+}
+
 /**
  * `economy` routes everything to the lighter model. It is what the trial runs on, so an evaluation cannot spend a plan's worth of tokens on one petition.
  */
@@ -1639,7 +1718,7 @@ export const DraftKind = {
   reply: 'reply',
   notice: 'notice',
   letter: 'letter',
-  review: 'review',
+  brief: 'brief',
 } as const;
 
 export type DraftStatus = typeof DraftStatus[keyof typeof DraftStatus];
@@ -1708,7 +1787,7 @@ export const DraftInputKind = {
   reply: 'reply',
   notice: 'notice',
   letter: 'letter',
-  review: 'review',
+  brief: 'brief',
 } as const;
 
 export interface DraftInput {

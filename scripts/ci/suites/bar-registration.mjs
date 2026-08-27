@@ -1,5 +1,6 @@
 // Bar registration: required for admin/senior/junior, exempt for clerk/client,
 // enforced server-side (not just a client-side gate), self-declared not verified.
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
   fail = 0;
@@ -113,6 +114,11 @@ check(
   me.data?.barCouncilState === "Bar Council of Maharashtra & Goa" && me.data?.aorNo === "AOR-4567",
   JSON.stringify({ state: me.data?.barCouncilState, aor: me.data?.aorNo }),
 );
+
+// Inviting anyone needs access_control.manage, which a chamber that has never
+// paid does not have. Taken here rather than at the top so every assertion
+// above still runs against a chamber whose only gate is the bar one.
+await grantPreviewPlan(call, as(owner), ws);
 
 section("clerk_intern and client are exempt");
 await call("/invites", {

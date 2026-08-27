@@ -129,61 +129,91 @@ cannot be carried out.`,
   letter: `Draft a professional letter on the chamber's behalf. Courteous,
 specific, and short. State what is asked for and by when.`,
 
-  review: "",
+  // A brief has no per-kind rules: BRIEF_RULES is the whole of it, and
+  // `rulesFor` returns that before it reaches this table.
+  brief: "",
 };
 
 /**
- * The review prompt — the second of the two things this feature does.
+ * The case brief — the second of the two things this feature does.
  *
- * Deliberately structured into fixed sections. An unstructured "review this"
- * produces a paragraph of encouragement; the headings below are what force the
- * specific, checkable observations an advocate can act on before filing.
+ * One output rather than several buttons, because an advocate opening a matter
+ * before a hearing wants one document, not five requests: the facts as the
+ * chamber recorded them, what is strong, what the other side will run, what
+ * will be objected to, and what to cure before filing. Splitting those into
+ * separate features would mean five prompts, five costs, and five chances for
+ * the sections to contradict each other about the same matter.
  *
- * `web_search` is enabled for this call so that suggested authorities can be
- * checked to exist. The instruction to mark unverified ones matters as much as
- * the search: the model cannot always find a genuine Indian judgment online,
- * and "I could not confirm this" is a useful answer where a silent omission is
- * not.
+ * Fixed headings, in this order, and that is load-bearing. An unstructured
+ * "analyse this matter" produces a paragraph of encouragement; the headings are
+ * what force observations specific enough for somebody to act on at nine in the
+ * evening.
+ *
+ * `web_search` is enabled for this call so authorities can be checked to exist,
+ * bounded to court and case-law hosts (see `client.ts`). Saying "I could not
+ * confirm this" is a useful answer where a silent omission is not.
  */
-export const REVIEW_RULES = `You are assisting an Indian advocate by reviewing a
-matter and, where one is given, a draft they intend to file.
+export const BRIEF_RULES = `You are preparing a CASE BRIEF for an Indian
+advocate, from their own chamber's records, before a hearing or a filing.
 ${INDIAN_PRACTICE}
 ${UNTRUSTED_DOCUMENTS}
 ${NEVER_INVENT}
 
-Return Markdown under exactly these headings, in this order:
+Return Markdown under exactly these headings, in this order. Omit none; where
+the records do not support a section, say what is missing rather than padding it.
 
-## Defects to cure before filing
-Concrete, checkable objections a registry or the other side would take.
-Limitation and the date it runs from. Court fee. Verification and affidavit.
-Joinder of necessary parties. Jurisdiction as pleaded. Annexures referred to but
-not listed. Internal inconsistencies in dates, names or figures. Where the
-chamber's records do not let you check something, say which and say what to
-check. If you find nothing, say so plainly rather than inventing an objection.
+## The matter in short
+Three or four sentences. What is in dispute, between whom, at what stage. A
+colleague picking up the file should be able to read only this and be useful.
+
+## Facts on the record
+The facts the chamber actually holds, numbered, each traceable to the matter,
+its chronology or a document supplied to you. Do not include inference here —
+this section is what can be asserted. Mark anything a pleading would need and
+the records do not contain as [TO CONFIRM: …].
+
+## Chronology
+Dates in order, one line each, with what happened. Where a date is missing and
+matters — service, limitation, the date of the impugned order — say so
+explicitly rather than leaving a gap.
 
 ## Merits
-What is strong here and why, tied to specific facts on the record.
+What is strong, and why, tied to specific facts above. Not a summary of the
+claim: an assessment of it.
 
-## Weaknesses and what the other side will say
-The arguments against, put as their best version rather than a straw one.
-Include evidentiary gaps — what the chamber does not appear to hold and would
-need.
+## How the other side will run it
+The opposing case put at its strongest, not as a straw man. Limitation,
+maintainability, jurisdiction, laches, suppression, alternative remedy — take
+each seriously where the facts admit it. Where this is a prosecution, set out
+the case the prosecution will actually advance and the evidence it rests on.
+
+## Objections to anticipate
+Specific, checkable objections likely to be taken — by the registry, by the
+other side, or by the court on its own. Court fee, verification and affidavit,
+non-joinder of necessary parties, defective vakalatnama, annexures referred to
+but not filed, jurisdiction as pleaded, limitation and any condonation needed.
+For each, say what would answer it.
+
+## Defects to cure before filing
+Only where a draft has been given to you. What a registry would object to, and
+what to do about it. If nothing, say so plainly rather than inventing something.
 
 ## Authorities to consider
-Judgments that bear on the points above. **Use the web search tool to confirm
-each citation exists and is correctly named and reported before you give it.**
-Mark any you could not confirm as "UNVERIFIED — check before relying on this".
-Never present an unconfirmed citation as settled.
+Judgments bearing on the points above. **Use the web search tool to confirm each
+citation exists and is correctly named and reported before you give it.** Mark
+any you could not confirm as "UNVERIFIED — check before relying on this". Never
+present an unconfirmed citation as settled, and never state that a judgment
+holds something you are not sure it holds.
 
 ## To confirm
-Every placeholder and every assumption you had to make.
+Every placeholder and every assumption you had to make, in one list.
 
-Be specific and be brief. A review that says "ensure compliance with applicable
-law" is worth nothing to the person reading it at nine in the evening.`;
+Be specific and be brief. A brief that says "ensure compliance with applicable
+law" is worth nothing to the person reading it.`;
 
 /** The cached prefix for a given output. */
 export function rulesFor(kind: DraftKind): string {
-  if (kind === "review") return REVIEW_RULES;
+  if (kind === "brief") return BRIEF_RULES;
   return `${DRAFTING_BASE}\n\nWHAT TO DRAFT\n${KIND_RULES[kind]}`;
 }
 

@@ -32,7 +32,7 @@ export const aiUsageEventsTable = pgTable(
     workspaceId: integer("workspace_id").notNull(),
     /** Null when the call was not for a draft — an exemplar redaction, say. */
     draftId: integer("draft_id"),
-    /** `draft` | `review` | `anonymise`. What the spend was for, for the meter's breakdown. */
+    /** `draft` | `brief` | `anonymise`. What the spend was for, for the meter's breakdown. */
     purpose: text("purpose").notNull().default("draft"),
 
     model: text("model").notNull().default(""),

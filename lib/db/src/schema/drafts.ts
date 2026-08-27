@@ -10,9 +10,10 @@ import { z } from "zod/v4";
  * only in what was asked for:
  *
  *   draft   a document: a petition, an application, a notice, a letter.
- *   review  an assessment of a draft and of the matter — curable defects the
- *           registry would object to, merits and weaknesses, and suggested
- *           case law.
+ *   brief   an assessment of the matter and, where one is given, of a draft:
+ *           the facts on the record, the chronology, the merits, how the other
+ *           side will run it, the objections to anticipate, the defects to cure
+ *           before filing, and the authorities to consider.
  *
  * ── Nothing here is a filing ────────────────────────────────────────────
  *
@@ -30,7 +31,10 @@ export const DRAFT_KINDS = [
   "reply",
   "notice",
   "letter",
-  "review",
+  // Not "review": the earlier name described one section of what this now
+  // produces. A brief covers the matter and a draft together, which is what an
+  // advocate actually opens a file to get.
+  "brief",
 ] as const;
 export type DraftKind = (typeof DRAFT_KINDS)[number];
 
@@ -43,7 +47,7 @@ export const HEAVY_KINDS: readonly DraftKind[] = [
   "petition",
   "written_statement",
   "appeal",
-  "review",
+  "brief",
 ] as const;
 
 export const DRAFT_STATUSES = ["generating", "ready", "failed", "kept"] as const;

@@ -56,6 +56,9 @@ export const AUDIT_ACTIONS = [
   "drafting.disabled",
   "drafting.exemplar_added",
   "drafting.generated",
+  // Who narrowed whose sight of which files, and when. The first question
+  // asked after "how did she see the Mehta file".
+  "member.case_access_changed",
 ] as const;
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 

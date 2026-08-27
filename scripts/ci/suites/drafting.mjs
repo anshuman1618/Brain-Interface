@@ -10,6 +10,7 @@
 // check, the spend record, the draft row, the source record, the capability
 // matrix and the tenant scoping. Only the text is invented.
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -56,6 +57,7 @@ const founded = await call("/workspaces", {
 const ws = founded.data?.workspaceToken;
 check("chamber founded", founded.status === 201, `got ${founded.status}`);
 await declareBarRegistration(call, as(owner));
+await grantPreviewPlan(call, as(owner), ws);
 
 const matter = await call("/cases", {
   token: as(owner),
@@ -268,13 +270,13 @@ check(
   JSON.stringify((draft2.data?.sources ?? []).map((s) => s.kind)),
 );
 
-const review = await call(`/cases/${matter.data.id}/drafts`, {
+const brief = await call(`/cases/${matter.data.id}/drafts`, {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { kind: "review", instruction: "Check this for defects before we file." },
+  body: { kind: "brief", instruction: "Brief me on this before we file." },
 });
-check("a review runs", review.status === 202 && review.data?.kind === "review", review.data?.kind);
+check("a case brief runs", brief.status === 202 && brief.data?.kind === "brief", brief.data?.kind);
 
 /* ─────────────── Spend ─────────────── */
 section("Every call is charged, and the meter moves");
@@ -300,13 +302,42 @@ check(
 /* ─────────────── Who may do it ─────────────── */
 section("Practice roles draft; a clerk and a client do not");
 
+// Its own chamber, on its own untouched allowance.
+//
+// This section asks who the capability matrix lets through, and the chamber
+// above has by now spent most of its forty rupees on the drafts, the brief and
+// the redaction pass. A junior refused for want of budget looks exactly like a
+// junior refused for want of a capability, and the assertion would pass or fail
+// on the price of a brief rather than on the rule it is meant to be testing.
+const roleOwner = `dr.roles+${suffix}@dr.test`;
+const roleWsRes = await call("/workspaces", {
+  token: as(roleOwner, "Roles Owner"),
+  method: "POST",
+  body: { name: `Roles Chambers ${suffix}`, role: "admin" },
+});
+const roleWs = roleWsRes.data?.workspaceToken;
+await declareBarRegistration(call, as(roleOwner));
+await grantPreviewPlan(call, as(roleOwner), roleWs);
+await call("/workspace/drafting", {
+  token: as(roleOwner),
+  wsToken: roleWs,
+  method: "POST",
+  body: { enabled: true, acknowledgement: "Read and accepted." },
+});
+const roleMatter = await call("/cases", {
+  token: as(roleOwner),
+  wsToken: roleWs,
+  method: "POST",
+  body: { title: "Roles matter", filingRef: `WP-ROLE-${suffix}` },
+});
+
 for (const [email, role, name] of [
   [junior, "junior_advocate", "Junior"],
   [clerk, "clerk_intern", "Clerk"],
 ]) {
   await call("/workspace/access-list", {
-    token: as(owner),
-    wsToken: ws,
+    token: as(roleOwner),
+    wsToken: roleWs,
     method: "POST",
     body: { kind: "email", value: email, role },
   });
@@ -314,7 +345,7 @@ for (const [email, role, name] of [
   const token = session.data?.workspaceToken;
   if (role !== "clerk_intern") await declareBarRegistration(call, as(email));
 
-  const attempt = await call(`/cases/${matter.data.id}/drafts`, {
+  const attempt = await call(`/cases/${roleMatter.data.id}/drafts`, {
     token: as(email),
     wsToken: token,
     method: "POST",
@@ -336,13 +367,13 @@ for (const [email, role, name] of [
 
 const clientEmail = `dr.client+${suffix}@client.test`;
 await call("/workspace/access-list", {
-  token: as(owner),
-  wsToken: ws,
+  token: as(roleOwner),
+  wsToken: roleWs,
   method: "POST",
-  body: { kind: "email", value: clientEmail, role: "client", caseId: matter.data.id },
+  body: { kind: "email", value: clientEmail, role: "client", caseId: roleMatter.data.id },
 });
 const clientSession = await call("/session", { token: as(clientEmail, "Client") });
-const clientDraft = await call(`/cases/${matter.data.id}/drafts`, {
+const clientDraft = await call(`/cases/${roleMatter.data.id}/drafts`, {
   token: as(clientEmail),
   wsToken: clientSession.data?.workspaceToken,
   method: "POST",
@@ -364,6 +395,7 @@ const rivalWs = await call("/workspaces", {
 });
 const rTok = rivalWs.data?.workspaceToken;
 await declareBarRegistration(call, as(rival));
+await grantPreviewPlan(call, as(rival), rTok);
 await call("/workspace/drafting", {
   token: as(rival),
   wsToken: rTok,
@@ -446,13 +478,16 @@ check(
   `got ${noInstruction.status}`,
 );
 
+// `review` rather than an invented word: it WAS a kind, and the brief replaced
+// it. A stale client still asking for one must be refused outright rather than
+// quietly served something else under a name it no longer means.
 const badKind = await call(`/cases/${matter.data.id}/drafts`, {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { kind: "affidavit_of_doom", instruction: "Draft something unknown." },
+  body: { kind: "review", instruction: "Check this for defects before we file." },
 });
-check("an unknown document kind is refused", badKind.status === 400, `got ${badKind.status}`);
+check("a retired document kind is refused", badKind.status === 400, `got ${badKind.status}`);
 
 const anon = await call(`/cases/${matter.data.id}/drafts`, {
   method: "POST",
@@ -478,6 +513,7 @@ const drained = await call("/workspaces", {
 });
 const dWs = drained.data?.workspaceToken;
 await declareBarRegistration(call, as(drainOwner));
+await grantPreviewPlan(call, as(drainOwner), dWs);
 await call("/workspace/drafting", {
   token: as(drainOwner),
   wsToken: dWs,
@@ -568,6 +604,7 @@ const hostileWs = await call("/workspaces", {
 });
 const hWs = hostileWs.data?.workspaceToken;
 await declareBarRegistration(call, as(hostileOwner));
+await grantPreviewPlan(call, as(hostileOwner), hWs);
 await call("/workspace/drafting", {
   token: as(hostileOwner),
   wsToken: hWs,

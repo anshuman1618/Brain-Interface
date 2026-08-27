@@ -1103,7 +1103,7 @@ paths:
     get:
       operationId: listDrafts
       tags: [drafting]
-      summary: Drafts and reviews prepared for this matter
+      summary: Drafts and briefs prepared for this matter
       parameters:
         - name: id
           in: path
@@ -1126,7 +1126,7 @@ paths:
     post:
       operationId: createDraft
       tags: [drafting]
-      summary: Draft a document, or review the matter
+      summary: Draft a document, or prepare a case brief
       description: >
         Returns immediately with a draft in `generating`; the work continues on
         the server and the client polls `GET /drafts/{id}`. A petition takes a
@@ -1235,6 +1235,63 @@ paths:
           description: Forbidden
         "404":
           description: No such draft in this chamber
+
+  /memberships/{id}/case-access:
+    get:
+      operationId: getCaseAccess
+      tags: [session]
+      summary: Which matters this member may see (access_control.manage only)
+      description: >
+        A junior advocate or clerk can be narrowed to the matters they are
+        assigned plus the matters named here. Off by default: an unrestricted
+        member keeps the row scope their role has always had, so switching this
+        on is a deliberate act and shipping it took access from nobody.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: The member's case access
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseAccess"
+        "403":
+          description: Forbidden
+        "404":
+          description: No such member in this chamber
+    put:
+      operationId: setCaseAccess
+      tags: [session]
+      summary: Restrict a member, and name the matters they may see (access_control.manage only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseAccessInput"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseAccess"
+        "400":
+          description: Invalid, or a role this cannot apply to
+        "403":
+          description: Forbidden
+        "404":
+          description: No such member in this chamber
 
   /workspace/access-list:
     get:
@@ -2503,6 +2560,28 @@ components:
           type: ["string", "null"]
         aorNo:
           type: ["string", "null"]
+          description: Advocate-on-Record, Supreme Court of India.
+        aorHighCourtNo:
+          type: ["string", "null"]
+          description: Advocate-on-Record at a High Court, where that court keeps a roll.
+        copNo:
+          type: ["string", "null"]
+          description: Certificate of Practice number.
+        allIndiaBarNo:
+          type: ["string", "null"]
+          description: All India Bar Examination certificate number.
+        allIndiaBarDueAt:
+          type: ["string", "null"]
+          format: date-time
+          description: >
+            When the All India Bar number stops being optional. Stamped once, on
+            the first declaration, and never moved — a deadline that resets each
+            time the form is saved is not a deadline.
+        allIndiaBarDaysLeft:
+          type: ["integer", "null"]
+          description: >
+            Days until it is required. Null once supplied or when no deadline is
+            set; negative once overdue.
         barDeclaredAt:
           type: ["string", "null"]
           format: date-time
@@ -2640,6 +2719,22 @@ components:
         aorNo:
           type: string
           description: Supreme Court Advocate-on-Record number. Optional — most advocates never hold one.
+        aorHighCourtNo:
+          type: string
+          description: >
+            Advocate-on-Record at a High Court, where that court keeps such a
+            roll. A different roll from the Supreme Court one, so a separate
+            field — an advocate may hold either, both or neither.
+        copNo:
+          type: string
+          description: Certificate of Practice number, issued by the state bar council.
+        allIndiaBarNo:
+          type: string
+          description: >
+            All India Bar Examination certificate number. Optional at
+            declaration and required within six months of it — an advocate
+            enrolled before the examination existed may hold none, and a newly
+            enrolled one has a window in which to sit it.
 
     BarRegistration:
       type: object
@@ -2651,6 +2746,21 @@ components:
           type: string
         aorNo:
           type: ["string", "null"]
+        aorHighCourtNo:
+          type: ["string", "null"]
+        copNo:
+          type: ["string", "null"]
+        allIndiaBarNo:
+          type: ["string", "null"]
+        allIndiaBarDueAt:
+          type: ["string", "null"]
+          format: date-time
+          description: When the All India Bar number stops being optional.
+        allIndiaBarDaysLeft:
+          type: ["integer", "null"]
+          description: >
+            Days until it is required. Null once supplied or when no deadline is
+            set; negative once overdue. Drives the warning before the gate bites.
         barDeclaredAt:
           type: string
           format: date-time
@@ -3592,6 +3702,16 @@ components:
           description: >
             Whole days until `currentPeriodEnd`, server-computed. Null when no
             period is running, negative once it has elapsed.
+        neverPaid:
+          type: boolean
+          description: >
+            This chamber has never had a plan in force. Distinct from `lapsed`,
+            which means one WAS in force and ran out — "your plan expired" is a
+            bewildering thing to read on the day you signed up. Enforcement uses
+            the same flag, so a client that gates on it shows the subscription
+            screen exactly when the API would answer 402 `payment_required`.
+            Derived, never stored: `status` may read `trialing` on a chamber
+            that abandoned a checkout, and `startedAt` is the honest test.
         updatedBy:
           type: ["string", "null"]
 
@@ -3784,6 +3904,58 @@ components:
         error:
           type: string
 
+    CaseAccess:
+      type: object
+      required: [membershipId, role, restricted, grantedCaseIds]
+      properties:
+        membershipId:
+          type: integer
+        role:
+          type: string
+        restricted:
+          type: boolean
+          description: >
+            When true the member sees assigned matters PLUS the granted ones,
+            and nothing else. When false their role's own scope applies.
+        grantedCaseIds:
+          type: array
+          items:
+            type: integer
+        grants:
+          type: array
+          items:
+            type: object
+            required: [caseId, caseTitle]
+            properties:
+              caseId:
+                type: integer
+              caseTitle:
+                type: string
+              grantedBy:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+
+    CaseAccessInput:
+      type: object
+      required: [restricted]
+      properties:
+        restricted:
+          type: boolean
+        caseIds:
+          type: array
+          maxItems: 500
+          items:
+            type: integer
+          description: >
+            The complete set of explicitly granted matters. Sent whole rather
+            than as add/remove, so a stale client cannot silently re-grant a
+            matter an admin has just taken away.
+        note:
+          type: string
+          maxLength: 500
+
     AiBudget:
       type: object
       required:
@@ -3970,7 +4142,7 @@ components:
           type: integer
         kind:
           type: string
-          enum: [petition, written_statement, appeal, application, reply, notice, letter, review]
+          enum: [petition, written_statement, appeal, application, reply, notice, letter, brief]
         title:
           type: string
         instruction:
@@ -4033,7 +4205,7 @@ components:
       properties:
         kind:
           type: string
-          enum: [petition, written_statement, appeal, application, reply, notice, letter, review]
+          enum: [petition, written_statement, appeal, application, reply, notice, letter, brief]
         instruction:
           type: string
           minLength: 5

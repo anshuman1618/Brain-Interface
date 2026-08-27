@@ -23,6 +23,7 @@ const SUITES = [
   ["subs", "Subscription and billing RBAC"],
   ["plan", "Plan enforcement: payment, seats, expiry"],
   ["case-restriction", "Restrict to Case ID, via both grant paths"],
+  ["case-access", "Narrowing a junior or a clerk to named matters"],
   ["bar-registration", "Bar enrolment gate for practice roles"],
   ["cause-list", "Court cause lists: fetch, match, propose, accept"],
   ["ai-untrusted", "AI: a party's document cannot escape its envelope"],

@@ -5,6 +5,7 @@ import {
   subscriptionsTable,
   paymentEventsTable,
   aiTopupsTable,
+  usersTable,
   isSubscriptionPlan,
   isBillingPeriod,
 } from "@workspace/db";
@@ -85,6 +86,19 @@ router.post(
       return;
     }
 
+    // One trial per person, ever. Checked against the buyer rather than the
+    // chamber, because founding a second chamber is the obvious way to try for
+    // a second trial and it costs nothing to do.
+    if (body.plan === "trial" && c.user.trialClaimedAt) {
+      res.status(409).json({
+        error: "trial_already_used",
+        message:
+          "The two-month trial pack can be taken once. Choose Pro or Firm to continue, " +
+          "or talk to us about a custom plan.",
+      });
+      return;
+    }
+
     // A quote-only plan has nothing to charge for, and charging for it would be
     // charging a price nobody has agreed.
     if (!activatesOnSelection(body.plan)) {
@@ -108,6 +122,9 @@ router.post(
           workspaceId: String(c.workspaceId),
           plan: body.plan,
           billingPeriod: period,
+          // Who bought it, so the webhook can record a trial against the person
+          // rather than only against the chamber.
+          boughtBy: c.user.clerkId,
         },
       });
 
@@ -530,6 +547,36 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
       updatedAt: now,
     })
     .where(eq(subscriptionsTable.workspaceId, workspaceId));
+
+  /*
+   * The trial is one per person, ever — recorded here rather than at checkout.
+   *
+   * On the USER, not the subscription: a founder who used the trial and then
+   * creates a second chamber must not get another, and a per-workspace record
+   * resets every time somebody founds one. `subscriptions.trialUsedAt` still
+   * marks the chamber; this marks the human.
+   *
+   * Written from the webhook so it records a payment that actually completed.
+   * Recording it at checkout would burn somebody's one trial on an order they
+   * abandoned at the card form.
+   */
+  if (plan === "trial") {
+    const claimant = notes["boughtBy"];
+    if (claimant) {
+      await db
+        .update(usersTable)
+        .set({ trialClaimedAt: now })
+        .where(eq(usersTable.clerkId, claimant));
+    } else {
+      // The order predates the note, or was created by hand. Worth knowing:
+      // the chamber gets its trial and the person's one-per-lifetime record
+      // was not written, so they could take another elsewhere.
+      logger.warn(
+        { workspaceId, eventId },
+        "A trial payment carried no buyer note; the per-person trial claim was not recorded",
+      );
+    }
+  }
 
   logger.info({ workspaceId, plan, eventId }, "Subscription activated by payment");
   res.json({ received: true });

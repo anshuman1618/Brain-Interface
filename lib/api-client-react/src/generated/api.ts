@@ -37,6 +37,8 @@ import type {
   CalendarEntryInput,
   CalendarEntryUpdate,
   Case,
+  CaseAccess,
+  CaseAccessInput,
   CaseInput,
   CaseUpdate,
   CauseListDecisionInput,
@@ -3675,7 +3677,7 @@ export const getListDraftsUrl = (id: number,) => {
 }
 
 /**
- * @summary Drafts and reviews prepared for this matter
+ * @summary Drafts and briefs prepared for this matter
  */
 export const listDrafts = async (id: number, options?: RequestInit): Promise<Draft[]> => {
 
@@ -3722,7 +3724,7 @@ export type ListDraftsQueryError = ErrorType<void>
 
 
 /**
- * @summary Drafts and reviews prepared for this matter
+ * @summary Drafts and briefs prepared for this matter
  */
 
 export function useListDrafts<TData = Awaited<ReturnType<typeof listDrafts>>, TError = ErrorType<void>>(
@@ -3755,7 +3757,7 @@ export const getCreateDraftUrl = (id: number,) => {
  * Returns immediately with a draft in `generating`; the work continues on the server and the client polls `GET /drafts/{id}`. A petition takes a minute or more to write, which is past the point where an HTTP request survives a proxy — and this way a browser that navigates away does not lose work the chamber has already paid for.
  *
  * Only the documents named in `documentIds` are sent, and each is re-checked against this matter and this chamber before it is read.
- * @summary Draft a document, or review the matter
+ * @summary Draft a document, or prepare a case brief
  */
 export const createDraft = async (id: number,
     draftInput: DraftInput, options?: RequestInit): Promise<Draft> => {
@@ -3805,7 +3807,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type CreateDraftMutationError = ErrorType<void>
 
     /**
- * @summary Draft a document, or review the matter
+ * @summary Draft a document, or prepare a case brief
  */
 export const useCreateDraft = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDraft>>, TError,{id: number;data: BodyType<DraftInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -4037,6 +4039,156 @@ export const useDeleteDraft = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteDraftMutationOptions(options));
+    }
+
+export const getGetCaseAccessUrl = (id: number,) => {
+
+
+
+
+  return `/api/memberships/${id}/case-access`
+}
+
+/**
+ * A junior advocate or clerk can be narrowed to the matters they are assigned plus the matters named here. Off by default: an unrestricted member keeps the row scope their role has always had, so switching this on is a deliberate act and shipping it took access from nobody.
+ * @summary Which matters this member may see (access_control.manage only)
+ */
+export const getCaseAccess = async (id: number, options?: RequestInit): Promise<CaseAccess> => {
+
+  return customFetch<CaseAccess>(getGetCaseAccessUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCaseAccessQueryKey = (id: number,) => {
+    return [
+    `/api/memberships/${id}/case-access`
+    ] as const;
+    }
+
+
+export const getGetCaseAccessQueryOptions = <TData = Awaited<ReturnType<typeof getCaseAccess>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCaseAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCaseAccessQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCaseAccess>>> = ({ signal }) => getCaseAccess(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCaseAccess>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetCaseAccessQueryResult = NonNullable<Awaited<ReturnType<typeof getCaseAccess>>>
+export type GetCaseAccessQueryError = ErrorType<void>
+
+
+/**
+ * @summary Which matters this member may see (access_control.manage only)
+ */
+
+export function useGetCaseAccess<TData = Awaited<ReturnType<typeof getCaseAccess>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getCaseAccess>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetCaseAccessQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetCaseAccessUrl = (id: number,) => {
+
+
+
+
+  return `/api/memberships/${id}/case-access`
+}
+
+/**
+ * @summary Restrict a member, and name the matters they may see (access_control.manage only)
+ */
+export const setCaseAccess = async (id: number,
+    caseAccessInput: CaseAccessInput, options?: RequestInit): Promise<CaseAccess> => {
+
+  return customFetch<CaseAccess>(getSetCaseAccessUrl(id),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(caseAccessInput)
+  }
+);}
+
+
+
+
+
+export const getSetCaseAccessMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCaseAccess>>, TError,{id: number;data: BodyType<CaseAccessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCaseAccess>>, TError,{id: number;data: BodyType<CaseAccessInput>}, TContext> => {
+
+const mutationKey = ['setCaseAccess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCaseAccess>>, {id: number;data: BodyType<CaseAccessInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  setCaseAccess(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCaseAccessMutationResult = NonNullable<Awaited<ReturnType<typeof setCaseAccess>>>
+    export type SetCaseAccessMutationBody = BodyType<CaseAccessInput>
+    export type SetCaseAccessMutationError = ErrorType<void>
+
+    /**
+ * @summary Restrict a member, and name the matters they may see (access_control.manage only)
+ */
+export const useSetCaseAccess = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCaseAccess>>, TError,{id: number;data: BodyType<CaseAccessInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof setCaseAccess>>,
+        TError,
+        {id: number;data: BodyType<CaseAccessInput>},
+        TContext
+      > => {
+      return useMutation(getSetCaseAccessMutationOptions(options));
     }
 
 export const getListAccessListUrl = () => {

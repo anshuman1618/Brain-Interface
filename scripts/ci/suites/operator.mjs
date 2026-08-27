@@ -10,6 +10,7 @@
 // it. Without it every request 404s and the suite says so rather than passing
 // vacuously.
 import { declareBarRegistration } from "../lib/bar-registration.mjs";
+import { grantPreviewPlan } from "../lib/preview-plan.mjs";
 
 const BASE = (process.env.API_BASE_URL ?? "http://localhost:5000") + "/api";
 let pass = 0,
@@ -114,6 +115,7 @@ const founded = await call("/workspaces", {
 check("chamber founded", founded.status === 201, `got ${founded.status}`);
 const ws = founded.data.workspaceToken;
 await declareBarRegistration(call, as(founder, "Founder"));
+await grantPreviewPlan(call, as(founder, "Founder"), ws);
 
 // Two requests: the first creates the user row, the second is the one that can
 // record last_seen_at against it. This is the ordering that was wrong at first

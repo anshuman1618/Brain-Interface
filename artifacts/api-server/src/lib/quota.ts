@@ -25,8 +25,22 @@ export type PlanState = {
   plan: SubscriptionPlan;
   storedPlan: SubscriptionPlan | null;
   status: string | null;
-  effectiveStatus: "active" | "lapsed";
+  effectiveStatus: "active" | "lapsed" | "unpaid";
   lapsed: boolean;
+  /**
+   * This chamber has never had a plan in force.
+   *
+   * Distinct from `lapsed`, which means one WAS in force and ran out. The two
+   * need different words on screen — "your plan expired" is bewildering to
+   * somebody who created their chamber ten minutes ago — and they route to
+   * different places: a lapsed chamber renews, an unpaid one chooses.
+   *
+   * The chamber itself always opens. What this gates is the work inside it, so
+   * a payment that fails is retried from within the product rather than from a
+   * locked door — which is the difference between a support ticket and a
+   * customer who never gets in at all.
+   */
+  neverPaid: boolean;
   periodEnd: Date | null;
   daysLeft: number | null;
 };
@@ -73,7 +87,18 @@ export async function planStateFor(workspaceId: number): Promise<PlanState> {
 
   // A plan is lapsed when the row exists, status is active, but currentPeriodEnd has passed.
   const lapsed = status === "active" && periodEnd !== null && periodEnd <= now;
-  const effectiveStatus = lapsed ? ("lapsed" as const) : ("active" as const);
+
+  // No row at all, or a row that has never been switched on: an enquiry, a
+  // selection that was never paid for, a checkout abandoned at the card form.
+  // `startedAt` is the honest test — it is written when a plan comes into
+  // force, and only then.
+  const neverPaid = !row || (status !== "active" && row.startedAt === null);
+
+  const effectiveStatus = neverPaid
+    ? ("unpaid" as const)
+    : lapsed
+      ? ("lapsed" as const)
+      : ("active" as const);
   const effectivePlan = lapsed ? FALLBACK_PLAN : plan;
 
   // Days remaining until the period end. Null if no period is set, negative
@@ -97,6 +122,7 @@ export async function planStateFor(workspaceId: number): Promise<PlanState> {
     status,
     effectiveStatus,
     lapsed,
+    neverPaid,
     periodEnd,
     daysLeft,
   };

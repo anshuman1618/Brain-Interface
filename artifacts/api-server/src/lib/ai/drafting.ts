@@ -34,7 +34,7 @@ const MAX_OUTPUT: Record<DraftKind, number> = {
   petition: 16_000,
   written_statement: 16_000,
   appeal: 14_000,
-  review: 10_000,
+  brief: 12_000,
   application: 6_000,
   reply: 8_000,
   notice: 4_000,
@@ -121,10 +121,10 @@ export async function runDraft(
         user: context.user,
         maxTokens,
         effort: effortFor(req.kind),
-        // Only the review asks the model to name authorities, so only the
-        // review pays for searches. A drafting call with search enabled would
-        // wander off to look things up nobody asked about.
-        webSearch: req.kind === "review" ? { maxUses: 8 } : undefined,
+        // Only the brief asks the model to name authorities, so only the brief
+        // pays for searches. A drafting call with search enabled would wander
+        // off to look things up nobody asked about.
+        webSearch: req.kind === "brief" ? { maxUses: 8 } : undefined,
       },
       onDelta,
     );
@@ -132,7 +132,7 @@ export async function runDraft(
     await recordSpend({
       workspaceId: req.workspaceId,
       draftId: draft.id,
-      purpose: req.kind === "review" ? "review" : "draft",
+      purpose: req.kind === "brief" ? "brief" : "draft",
       model: result.model,
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
@@ -177,7 +177,7 @@ export async function runDraft(
     await recordSpend({
       workspaceId: req.workspaceId,
       draftId: draft.id,
-      purpose: req.kind === "review" ? "review" : "draft",
+      purpose: req.kind === "brief" ? "brief" : "draft",
       model,
       inputTokens: context.estimatedInputTokens,
       outputTokens: 0,
@@ -208,6 +208,6 @@ export async function runDraft(
 /** A short label for the list view, derived rather than asked for. */
 function titleFor(kind: DraftKind, instruction: string): string {
   const first = instruction.replace(/\s+/g, " ").trim().slice(0, 70);
-  const label = kind === "review" ? "Review" : kind.replace(/_/g, " ");
+  const label = kind === "brief" ? "Case brief" : kind.replace(/_/g, " ");
   return first ? `${label}: ${first}` : label;
 }

@@ -21,8 +21,36 @@ export interface UserProfile {
   barCouncilState?: string | null;
   /** @nullable */
   barEnrolmentNo?: string | null;
-  /** @nullable */
+  /**
+     * Advocate-on-Record, Supreme Court of India.
+     * @nullable
+     */
   aorNo?: string | null;
+  /**
+     * Advocate-on-Record at a High Court, where that court keeps a roll.
+     * @nullable
+     */
+  aorHighCourtNo?: string | null;
+  /**
+     * Certificate of Practice number.
+     * @nullable
+     */
+  copNo?: string | null;
+  /**
+     * All India Bar Examination certificate number.
+     * @nullable
+     */
+  allIndiaBarNo?: string | null;
+  /**
+     * When the All India Bar number stops being optional. Stamped once, on the first declaration, and never moved — a deadline that resets each time the form is saved is not a deadline.
+     * @nullable
+     */
+  allIndiaBarDueAt?: Date | null;
+  /**
+     * Days until it is required. Null once supplied or when no deadline is set; negative once overdue.
+     * @nullable
+     */
+  allIndiaBarDaysLeft?: number | null;
   /** @nullable */
   barDeclaredAt?: Date | null;
   createdAt: Date;

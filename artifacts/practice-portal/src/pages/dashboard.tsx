@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { PlanBanner } from "@/components/plan-banner";
+import { CredentialsNotice } from "@/components/credentials-notice";
 import { DocumentRequestModal } from "@/components/document-request-modal";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { CaseFormModal } from "@/components/case-form-modal";
@@ -173,6 +174,7 @@ function StaffDashboard() {
       {/* Renders for everyone, and renders nothing when the plan is healthy.
           Only the CTA inside it is gated on billing.manage. */}
       <PlanBanner canManage={can("billing.manage")} />
+      <CredentialsNotice />
 
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
         <div>
