@@ -117,6 +117,32 @@ the app happens to satisfy by construction.
 **If every request is blocked by CORS**, `capacitor://localhost` is missing from
 the API's `CORS_ALLOWED_ORIGINS` — note it is a _different_ origin from Android's.
 
+### The one request that outlives the foreground
+
+`POST /cases/:id/drafts` awaits the model call, so it is held open for a minute
+or more — far longer than anything else the app sends. **iOS is the harsher of
+the two platforms here.** Backgrounding the app suspends the `WKWebView`
+process, which is not a throttle like Android's Doze: the URLSession task
+backing that fetch is torn down, and it does not resume when the app does. A
+wifi-to-cellular handoff ends it as well.
+
+The server does not care. `runDraft` writes the `drafts` row in `generating`
+**before** it calls the model, and sets `ready` or `failed` itself, so the work
+completes regardless of who is still listening. Recovery is TanStack Query's
+default `refetchOnWindowFocus`: resuming the app refetches the drafts list, the
+row is there, and if it is still `generating` the page's own 2-second poll takes
+over.
+
+**The symptom to recognise:** "Lost the connection — the draft may still be
+running." That toast means the socket went, not that the draft did. Running it
+again spends the chamber's AI budget on a draft that is already being written.
+
+Since the whole point is that the reader has left the app, a completion push
+would be the natural pairing — `notify()` is right there. It is deliberately not
+wired up: the request being synchronous means the draft usually lands while
+somebody is watching it, and a notification for that is clutter. It becomes the
+right call the day the POST returns 202. See the root `DECISIONS.md`.
+
 ---
 
 ## 5. Photographing a document
