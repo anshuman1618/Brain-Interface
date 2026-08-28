@@ -19,6 +19,7 @@ import {
   activatesOnSelection,
   catalogue,
   isChargeable,
+  isOffered,
   normalisePeriod,
   periodEnd,
   quote,
@@ -138,6 +139,17 @@ router.put(
     // write an unknown plan into the table.
     if (!isSubscriptionPlan(plan) || !isBillingPeriod(billingPeriod)) {
       res.status(400).json({ error: "unknown_plan" });
+      return;
+    }
+
+    // Built and priced is not the same as for sale. Pro, Firm and Custom exist
+    // and are enforced for any chamber already on one; they cannot be newly
+    // selected while they are off the storefront. See OFFERED_PLANS.
+    if (!isOffered(plan)) {
+      res.status(400).json({
+        error: "plan_not_offered",
+        message: "That plan is not currently on offer. The two-month pack is what is available.",
+      });
       return;
     }
 

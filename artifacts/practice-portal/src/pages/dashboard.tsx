@@ -36,6 +36,7 @@ import {
 import { Link, useLocation } from "wouter";
 import { PlanBanner } from "@/components/plan-banner";
 import { CredentialsNotice } from "@/components/credentials-notice";
+import { DraftingNotice } from "@/components/drafting/drafting-notice";
 import { DocumentRequestModal } from "@/components/document-request-modal";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { CaseFormModal } from "@/components/case-form-modal";
@@ -175,6 +176,7 @@ function StaffDashboard() {
           Only the CTA inside it is gated on billing.manage. */}
       <PlanBanner canManage={can("billing.manage")} />
       <CredentialsNotice />
+      <DraftingNotice />
 
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
         <div>
@@ -406,7 +408,7 @@ function StaffDashboard() {
             >
               <PenLine className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Draft a Document
+                Draft with AI
               </span>
             </button>
           )}

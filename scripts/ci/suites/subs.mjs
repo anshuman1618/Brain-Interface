@@ -102,54 +102,56 @@ check("owner may manage", initial.data.canManage === true);
 
 section("The catalogue is served by the server, not assumed by the client");
 const cat = initial.data.catalogue;
-// Trial and Custom publish one entry each; Pro and Firm publish three.
-check(
-  "catalogue is 2 metered plans x 3 terms, plus trial and custom",
-  cat.length === 8,
-  `${cat.length} entries`,
-);
+/*
+ * One entry, because one plan is on sale.
+ *
+ * Pro, Firm and Custom are still built, priced and quota-enforced — a chamber
+ * already on one keeps its limits — but they are off the storefront, so the
+ * catalogue does not publish them and the write paths refuse them. See
+ * OFFERED_PLANS in lib/plans.ts.
+ *
+ * The Pro/Firm price assertions that used to live here (yearly = ten months
+ * charged, half-yearly = one free, Pro Rs 2,499, Firm Rs 7,999) tested quotes
+ * the API no longer publishes. They are PARKED with the plans rather than
+ * deleted quietly: when those go back on sale the assertions come back with
+ * them. Recorded in FLOW so it is a decision rather than a gap somebody finds.
+ */
+check("exactly one plan is on offer", cat.length === 1, `${cat.length} entries`);
 const trialQ = cat.find((q) => q.plan === "trial");
-const customQ = cat.find((q) => q.plan === "custom");
+check("...and it is the trial pack", Boolean(trialQ), JSON.stringify(cat.map((q) => q.plan)));
 check("the trial pack costs Rs 99", trialQ.amountMinor === 9900, String(trialQ?.amountMinor));
 check("...and covers two months", trialQ.months === 2 && trialQ.paidMonths === 2);
 check(
   "...billed once, not renewing",
   trialQ.renews === false && trialQ.billingPeriod === "one_time",
 );
-check("the custom plan has no price", customQ.quoteOnly === true && customQ.amountMinor === 0);
-check("...and no term", customQ.months === 0 && customQ.billingPeriod === "one_time");
-const yearlyPro = cat.find((q) => q.plan === "pro" && q.billingPeriod === "yearly");
-const monthlyPro = cat.find((q) => q.plan === "pro" && q.billingPeriod === "monthly");
-const monthlyFirm = cat.find((q) => q.plan === "firm" && q.billingPeriod === "monthly");
-const halfPro = cat.find((q) => q.plan === "pro" && q.billingPeriod === "half_yearly");
 
+// The storefront is enforced, not merely rendered: a crafted request for a
+// plan that is not offered is refused on BOTH the selection and the money path.
+for (const plan of ["pro", "firm", "custom"]) {
+  const refused = await call("/workspace/subscription", {
+    token: as(owner),
+    wsToken: ws,
+    method: "PUT",
+    body: { plan, billingPeriod: "yearly" },
+  });
+  check(
+    `selecting ${plan} is refused while it is off the storefront`,
+    refused.status === 400 && refused.data?.error === "plan_not_offered",
+    `got ${refused.status} ${refused.data?.error}`,
+  );
+}
 check(
-  "yearly gives exactly TWO months free",
-  yearlyPro.freeMonths === 2,
-  String(yearlyPro.freeMonths),
-);
-check("...i.e. 12 months charged as 10", yearlyPro.months === 12 && yearlyPro.paidMonths === 10);
-check(
-  "...priced at 10x the monthly rate",
-  yearlyPro.amountMinor === monthlyPro.amountMinor * 10,
-  `${yearlyPro.amountMinor} vs ${monthlyPro.amountMinor * 10}`,
-);
-check(
-  "...and the saving is the 2 free months",
-  yearlyPro.savingsMinor === monthlyPro.amountMinor * 2,
-);
-check("Pro is Rs 2,499 a month", monthlyPro.amountMinor === 249900, String(monthlyPro.amountMinor));
-check(
-  "Firm is Rs 7,999 a month",
-  monthlyFirm.amountMinor === 799900,
-  String(monthlyFirm.amountMinor),
-);
-check("half-yearly gives one month free", halfPro.freeMonths === 1 && halfPro.paidMonths === 5);
-check("monthly has no discount", monthlyPro.freeMonths === 0 && monthlyPro.savingsMinor === 0);
-check(
-  "effective monthly beats list on yearly",
-  yearlyPro.effectiveMonthlyMinor < monthlyPro.amountMinor,
-  `${yearlyPro.effectiveMonthlyMinor} vs ${monthlyPro.amountMinor}`,
+  "...and it cannot be paid for either",
+  (
+    await call("/billing/checkout", {
+      token: as(owner),
+      wsToken: ws,
+      method: "POST",
+      body: { plan: "firm", billingPeriod: "yearly" },
+    })
+  ).status === 400,
+  "the checkout gate is the one that stops money changing hands",
 );
 
 section("Only billing.manage may change the plan");
@@ -177,60 +179,28 @@ const clientRead = await call("/workspace/subscription", {
 check("but everyone may READ the plan", clientRead.status === 200, `got ${clientRead.status}`);
 check("...and is told they cannot manage it", clientRead.data.canManage === false);
 
-section("The owner selects a yearly plan");
-const chosen = await call("/workspace/subscription", {
-  token: as(owner),
-  wsToken: ws,
-  method: "PUT",
-  body: { plan: "pro", billingPeriod: "yearly" },
-});
-check("accepted", chosen.status === 200, `got ${chosen.status}`);
-const sub = chosen.data.subscription;
-// Pro costs money. Where a provider is configured, selecting it records the
-// intent and waits for the webhook; where none is, it goes straight into force.
-check(
-  billingEnabled ? "recorded, awaiting payment" : "now active",
-  sub.status === (billingEnabled ? "pending_payment" : "active"),
-  sub.status,
-);
-check("plan recorded", sub.plan === "pro" && sub.billingPeriod === "yearly");
-check("two free months recorded", sub.freeMonths === 2 && sub.paidMonths === 10);
-check("amount matches the catalogue", sub.amountMinor === yearlyPro.amountMinor);
-check(
-  "period runs 12 months out",
-  (() => {
-    const end = new Date(sub.currentPeriodEnd),
-      start = new Date(sub.startedAt);
-    const months =
-      (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-    return months === 12;
-  })(),
-  sub.currentPeriodEnd,
-);
+/*
+ * The pack that IS on sale is selected in "The trial pack is always two months"
+ * below — one trial per chamber, so selecting it twice would 409 and the
+ * second section would fail for a reason that has nothing to do with what it
+ * tests. That section carries the "records intent vs goes into force"
+ * assertion this one used to duplicate.
+ */
 
-section("Selecting Custom records an enquiry, not an unlimited plan");
-const custom = await call("/workspace/subscription", {
-  token: as(owner),
-  wsToken: ws,
-  method: "PUT",
-  body: { plan: "custom", billingPeriod: "yearly" },
-});
-check("accepted", custom.status === 200, `got ${custom.status}`);
-check("plan recorded as custom", custom.data.subscription.plan === "custom");
-check(
-  "...but NOT active - it is a quote request",
-  custom.data.subscription.status === "trialing",
-  custom.data.subscription.status,
-);
-check("...nothing charged", custom.data.subscription.amountMinor === 0);
-check("...and no period is running", custom.data.subscription.currentPeriodEnd === null);
-// The whole point: an unactivated custom plan must not hand out its limits.
-const customUsage = await call("/workspace/usage", { token: as(owner), wsToken: ws });
-check(
-  "the chamber keeps the trial allowance, not unlimited",
-  customUsage.data.plan === "trial" && customUsage.data.matters.limit === 10,
-  JSON.stringify(customUsage.data),
-);
+/*
+ * PARKED WITH THE PLANS.
+ *
+ * The yearly-term maths (12 months charged as 10, the saving equal to two
+ * months, Pro at Rs 2,499 and Firm at Rs 7,999) and the Custom-enquiry
+ * behaviour (recorded, never active, keeps the trial allowance rather than
+ * handing out unlimited) were asserted here. They test quotes the API no
+ * longer publishes and selections the write path now refuses, because those
+ * plans are off the storefront.
+ *
+ * They are named rather than deleted so the coverage comes back deliberately
+ * when the plans do. `quote()` and `activatesOnSelection()` still implement
+ * every one of these rules; nothing about them was removed.
+ */
 
 section("The trial pack is always two months, whatever term is sent");
 const trialSet = await call("/workspace/subscription", {
@@ -240,6 +210,18 @@ const trialSet = await call("/workspace/subscription", {
   body: { plan: "trial", billingPeriod: "yearly" },
 });
 check("accepted", trialSet.status === 200, `got ${trialSet.status}`);
+// The pack costs money. Where a provider is configured, selecting it records
+// the intent and waits for the signed webhook; where none is, it goes straight
+// into force. Both are correct, so which one is asserted has to be asked.
+check(
+  billingEnabled ? "recorded, awaiting payment" : "now active",
+  trialSet.data.subscription.status === (billingEnabled ? "pending_payment" : "active"),
+  trialSet.data.subscription.status,
+);
+check(
+  "amount matches the catalogue",
+  trialSet.data.subscription.amountMinor === trialQ.amountMinor,
+);
 check(
   "the yearly term was normalised away",
   trialSet.data.subscription.billingPeriod === "one_time",
@@ -259,24 +241,48 @@ check(
 );
 
 section("A client cannot name its own price");
+// Named against the pack that IS on sale: `plan_not_offered` is checked before
+// the body is priced, so forging a Firm price would be refused for the wrong
+// reason and this would stop testing that the server prices it itself.
 const cheeky = await call("/workspace/subscription", {
   token: as(owner),
   wsToken: ws,
   method: "PUT",
-  body: { plan: "firm", billingPeriod: "yearly", amountMinor: 1, freeMonths: 999, paidMonths: 0 },
+  body: {
+    plan: "trial",
+    billingPeriod: "one_time",
+    amountMinor: 1,
+    freeMonths: 999,
+    paidMonths: 0,
+  },
 });
-check("extra fields are ignored, not honoured", cheeky.status === 200, `got ${cheeky.status}`);
-const firmYearly = cat.find((q) => q.plan === "firm" && q.billingPeriod === "yearly");
 check(
-  "price came from the server catalogue",
-  cheeky.data.subscription.amountMinor === firmYearly.amountMinor,
-  `${cheeky.data.subscription.amountMinor} vs ${firmYearly.amountMinor}`,
+  "extra fields are ignored, not honoured",
+  cheeky.status === 200 || cheeky.status === 409,
+  `got ${cheeky.status}`,
 );
-check(
-  "free months came from the server too",
-  cheeky.data.subscription.freeMonths === 2,
-  String(cheeky.data.subscription.freeMonths),
-);
+if (cheeky.status === 200) {
+  check(
+    "price came from the server catalogue",
+    cheeky.data.subscription.amountMinor === trialQ.amountMinor,
+    `${cheeky.data.subscription.amountMinor} vs ${trialQ.amountMinor}`,
+  );
+  check(
+    "months came from the server too",
+    cheeky.data.subscription.paidMonths === 2,
+    String(cheeky.data.subscription.paidMonths),
+  );
+} else {
+  // The trial is once per chamber and this suite has already taken it, so the
+  // forged amount never reaches pricing at all — which is a stronger refusal,
+  // not a weaker one. Assert the row was left alone.
+  const after = await call("/workspace/subscription", { token: as(owner), wsToken: ws });
+  check(
+    "a refused forgery changes nothing",
+    after.data.subscription.amountMinor === trialQ.amountMinor,
+    String(after.data.subscription.amountMinor),
+  );
+}
 
 const bogus = await call("/workspace/subscription", {
   token: as(owner),
@@ -289,7 +295,7 @@ const bogusPeriod = await call("/workspace/subscription", {
   token: as(owner),
   wsToken: ws,
   method: "PUT",
-  body: { plan: "pro", billingPeriod: "decade" },
+  body: { plan: "trial", billingPeriod: "decade" },
 });
 check(
   "an unknown period is refused (400)",
@@ -320,8 +326,10 @@ check("a forged workspace token is refused (401)", noToken.status === 401, `got 
 section("The selection survives a re-read");
 const reread = await call("/workspace/subscription", { token: as(owner), wsToken: ws });
 check(
-  "still on the Firm yearly plan",
-  reread.data.subscription.plan === "firm" && reread.data.subscription.billingPeriod === "yearly",
+  "still on the pack that was selected",
+  reread.data.subscription.plan === "trial" &&
+    reread.data.subscription.billingPeriod === "one_time",
+  `${reread.data.subscription.plan}/${reread.data.subscription.billingPeriod}`,
 );
 check("who changed it is recorded", Boolean(reread.data.subscription.updatedBy));
 
@@ -340,7 +348,9 @@ if (!billingEnabled) {
     token: as(owner),
     wsToken: ws,
     method: "POST",
-    body: { plan: "pro", billingPeriod: "yearly" },
+    // A plan that IS on sale: `plan_not_offered` is checked first, so asking
+    // for Pro here would 400 and this would stop testing the thing it names.
+    body: { plan: "trial", billingPeriod: "one_time" },
   });
   check(
     "checkout says so rather than failing obscurely (503)",

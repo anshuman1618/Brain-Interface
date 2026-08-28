@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
-import { db, subscriptionsTable, isPreviewDatabase } from "@workspace/db";
+import { db, subscriptionsTable, isPreviewDatabase, isSubscriptionPlan } from "@workspace/db";
 import { isPreviewAuth } from "../lib/preview-mode";
 import { requireWorkspace, ctx, type AuthRequest } from "../middlewares/requireAuth";
 
@@ -87,9 +87,12 @@ router.post(
  *      does not advertise its own existence.
  *   2. It is behind `requireWorkspace`, so it can only touch the caller's own
  *      workspace — the id comes from the verified context, never the body.
- *   3. It activates a TRIAL and nothing else. It cannot grant Pro or Firm, so
- *      the worst it can do to a preview database is give one chamber the
- *      allowance it would have had for ninety-nine rupees.
+ *   3. It grants a plan from the real catalogue and nothing invented. Pro and
+ *      Firm are off the public storefront (see OFFERED_PLANS) but still exist
+ *      and are still enforced, and the suites that cover seat caps, lapse and
+ *      renewal have to be able to reach them. Doing that here rather than by
+ *      widening what production sells keeps CI testing the shipped
+ *      configuration.
  *
  * It does NOT write either once-only marker — `users.trial_claimed_at` or
  * `subscriptions.trial_used_at`. One trial per person, and one per chamber, are
@@ -107,9 +110,14 @@ router.post(
       return;
     }
     const c = ctx(req);
+    const body = (req.body ?? {}) as { plan?: unknown };
+    const plan = isSubscriptionPlan(body.plan) ? body.plan : "trial";
     const now = new Date();
     const end = new Date(now);
-    end.setMonth(end.getMonth() + 2);
+    // The trial is a two-month pack; everything else is quoted monthly here,
+    // which is all these suites need — they assert on caps and expiry, not on
+    // the term.
+    end.setMonth(end.getMonth() + (plan === "trial" ? 2 : 1));
 
     // A chamber has no subscription row until it selects something — see
     // plan.mjs §1, which asserts that a row-less chamber is not treated as
@@ -117,10 +125,10 @@ router.post(
     // UPDATE looks like it works and silently does nothing, which is exactly
     // how it was got wrong the first time.
     const fields = {
-      plan: "trial",
-      billingPeriod: "one_time",
-      status: "active",
-      paidMonths: 2,
+      plan,
+      billingPeriod: "one_time" as const,
+      status: "active" as const,
+      paidMonths: plan === "trial" ? 2 : 1,
       amountMinor: 9_900,
       startedAt: now,
       currentPeriodEnd: end,
@@ -137,7 +145,7 @@ router.post(
       await db.insert(subscriptionsTable).values({ workspaceId: c.workspaceId, ...fields });
     }
 
-    res.json({ activated: true, plan: "trial", currentPeriodEnd: end.toISOString() });
+    res.json({ activated: true, plan, currentPeriodEnd: end.toISOString() });
   },
 );
 

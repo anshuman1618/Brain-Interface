@@ -224,13 +224,12 @@ check(
 // Hole 5: currentPeriodEnd was written and read by nothing, so an expired plan
 // stayed active forever. Time-travel is preview-only; see routes/preview.ts.
 section("5. A lapsed plan reads everything and writes nothing");
-const firmPut = await call("/workspace/subscription", {
-  token: as(owner),
-  wsToken: ws,
-  method: "PUT",
-  body: { plan: "firm", billingPeriod: "yearly" },
-});
-check("firm plan selected", firmPut.status === 200, `got ${firmPut.status}`);
+// Firm is built and enforced but off the storefront, so it cannot be SELECTED
+// any more — `activate()` falls through to the preview-only grant, which 404s
+// outside preview. What this section tests is expiry, which is the same
+// machinery whichever way the plan got into force.
+const firmPut = await activate("firm", "yearly");
+check("firm plan in force", firmPut.status === 200, `got ${firmPut.status}`);
 
 // Hole 1: selecting a chargeable plan used to set `active` outright, so
 // `PUT {plan:"firm"}` bought unlimited seats and matters for nothing. Which

@@ -15,6 +15,6 @@
  * worth having if it is exercised, and a suite that never sees it would not
  * notice the day it stopped working.
  */
-export async function grantPreviewPlan(call, token, wsToken) {
-  return call("/preview/activate-plan", { token, wsToken, method: "POST", body: {} });
+export async function grantPreviewPlan(call, token, wsToken, plan = "trial") {
+  return call("/preview/activate-plan", { token, wsToken, method: "POST", body: { plan } });
 }

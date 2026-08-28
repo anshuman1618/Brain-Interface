@@ -2494,6 +2494,76 @@ is worse than its absence.
 
 ---
 
+## One pack on sale, ₹90 of AI in it, and AI said out loud (2026-08-27)
+
+### The trial's AI allowance: ₹40 → ₹90
+
+Measured, not guessed. At `economy` rates a realistic two-month mix is ~10
+calls at ₹40 — one petition, two briefs, then only letters — and ~20 at ₹90,
+four petitions and four briefs with room to repeat them. 2.25× the money buys
+2× the calls and roughly 4× the heavy work, because the cheap kinds stop
+crowding out the expensive ones. One petition is not an evaluation of a product
+sold on drafting.
+
+₹90 is 91% of the ₹99 pack. Net of the payment fee there are a few rupees left
+against two months of hosting, database and storage — close to a total loss,
+accepted as the cost of acquiring a chamber. Custom keeps ₹40 on its own
+constant: a trial is a purchase that has to prove the product, a Custom
+selection is an enquiry that has paid nothing.
+
+### "Built" and "on sale" became two different things
+
+`OFFERED_PLANS = ["trial"]` in `plans.ts` is the one place that decides. The
+catalogue publishes only what is there; `PUT /workspace/subscription` and
+`POST /billing/checkout` refuse anything that is not, with 400
+`plan_not_offered`. Pro, Firm and Custom keep their prices, quotas and
+enforcement — a chamber already on one is untouched — so putting them back on
+sale is one line rather than an audit of every screen.
+
+**The checkout guard runs before the "payments not configured" 503.** Whether a
+provider exists is a deployment fact; whether a plan is for sale is a product
+one. Answering 503 for a plan nobody can buy sends an operator to look at
+Razorpay for something that has nothing to do with Razorpay.
+
+**The pricing modal renders the catalogue**, not a hardcoded `PLAN_ORDER`. The
+constant now only decides the ORDER of whatever the server returns. A hardcoded
+card list is exactly how a screen keeps advertising a plan the checkout refuses.
+
+**Parked, not deleted:** `subs.mjs` lost its Pro/Firm price assertions (yearly
+charged as ten months, Firm at ₹7,999) because they test quotes the API no
+longer publishes. `quote()` still implements every one of those rules. They come
+back when the plans do — named in the suite so it reads as a decision rather
+than a gap somebody finds later.
+
+### The suites reach Pro and Firm through the preview route, not a wider config
+
+`POST /preview/activate-plan` now takes a plan name. The alternative — an
+environment variable widening what production sells — would have CI testing a
+configuration that never ships. `lib/billing.mjs` falls back to it when the
+real path answers `plan_not_offered`, and re-reads the row afterwards rather
+than inventing a response shape, so a caller asserting on `status` sees what
+the server actually wrote.
+
+### AI had to be said out loud on the dashboard
+
+The opt-in shipped, and a chamber admin still reported the feature missing.
+Fairly: the dashboard mentioned AI nowhere. It was reachable through a tile
+labelled "Draft a Document" among nine quick actions, and two entries behind
+the three-dot menu — and the opt-in itself was inside the Subscription modal,
+behind that same menu, with nothing pointing at it.
+
+`DraftingNotice` says it on the dashboard, where people look, and only while
+drafting is off. Once on it renders nothing and the tile is enough — the same
+discipline as `PlanBanner`: a notice that is always there is furniture, and
+furniture is not read. The tile was renamed "Draft with AI"; "Draft a Document"
+reads as a form, and the thing worth naming is that a model writes it.
+
+**Shipped and unreachable is a state a feature can be in**, and no API test can
+detect it. The browser suite now asserts the dashboard says AI is off, and
+walks switching it on.
+
+---
+
 ## Things deliberately not done
 
 Recorded so they are not mistaken for oversights.

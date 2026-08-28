@@ -977,8 +977,8 @@ That last point is the design claim, and the evidence for it is that **all
 eleven pre-existing suites pass untouched**. The email path was extended, not
 altered.
 
-Last run: **612 checks green across sixteen API suites with `RAZORPAY_*`
-unset**, each suite against a fresh server, plus 60 browser checks and 13
+Last run: **613 checks green across sixteen API suites with `RAZORPAY_*`
+unset**, each suite against a fresh server, plus 61 browser checks and 13
 startup guards. The banner was checked
 separately in a browser across all five of its states (17 assertions), which is
 what caught the `daysLeft` rounding.
@@ -1118,6 +1118,20 @@ pricing modal because that is what the refusal message names. It existed as a
 route with no caller until 2026-08-27; `portal.mjs` §8 now walks the whole path
 in a browser, which is the only kind of test that can catch a working endpoint
 nobody can reach.
+
+### What is on sale, and what merely exists
+
+`OFFERED_PLANS` in `lib/plans.ts` is the single decision. `catalogue()`
+publishes only offered plans, `PUT /workspace/subscription` and
+`POST /billing/checkout` refuse the rest with 400 `plan_not_offered`, and the
+pricing modal renders the catalogue rather than its own list. Today that is the
+₹99 pack alone, with the migration add-on beside it as a service enquiry.
+
+Everything else is intact: `limitsFor()` still knows Pro and Firm, chambers on
+them keep their limits, and the suites reach those states through
+`POST /preview/activate-plan` (404 outside preview) rather than by widening
+what production sells. `subs.mjs`'s Pro/Firm price assertions are parked with
+the plans — see DECISIONS.md.
 
 ### Known, unfixed
 

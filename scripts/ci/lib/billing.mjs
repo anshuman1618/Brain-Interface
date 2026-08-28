@@ -80,6 +80,21 @@ export async function activatePlan(
     body: { plan, billingPeriod },
   });
 
+  /*
+   * Pro and Firm are built and enforced but no longer on the storefront, so
+   * selecting one answers 400 `plan_not_offered`. The suites that cover seat
+   * caps, lapse and renewal still need to reach those states, so they go
+   * through the preview-only grant — which 404s outside preview, so nothing
+   * about production changes to make CI pass.
+   */
+  if (put.status === 400 && put.data?.error === "plan_not_offered") {
+    await call("/preview/activate-plan", { token, wsToken, method: "POST", body: { plan } });
+    // Re-read rather than inventing a response shape. A caller asserting on
+    // `status` or `currentPeriodEnd` must see the row the server actually
+    // wrote, or the fallback quietly changes what the test is looking at.
+    return call("/workspace/subscription", { token, wsToken });
+  }
+
   if (paymentsOn && put.status === 200 && put.data?.subscription?.amountMinor > 0) {
     await payForPlan(base, {
       workspaceId,

@@ -191,11 +191,13 @@ export function quote(plan: SubscriptionPlan, billingPeriod: BillingPeriod): Quo
  * three selectable terms, plus one entry each for the trial pack and the quote.
  */
 export function catalogue(): Quote[] {
-  const out: Quote[] = [quote("trial", "one_time")];
+  const out: Quote[] = [];
+  if (isOffered("trial")) out.push(quote("trial", "one_time"));
   for (const plan of ["pro", "firm"] as SubscriptionPlan[]) {
+    if (!isOffered(plan)) continue;
     for (const period of SELECTABLE_PERIODS) out.push(quote(plan, period));
   }
-  out.push(quote("custom", "one_time"));
+  if (isOffered("custom")) out.push(quote("custom", "one_time"));
   return out;
 }
 
@@ -257,19 +259,61 @@ export type PlanLimits = {
 export const FALLBACK_PLAN: SubscriptionPlan = "trial";
 
 /**
- * The trial's AI allowance: ₹40 for the whole two months, Sonnet only.
+ * Which plans a chamber may actually buy today.
  *
- * Sold at a loss on purpose and capped tightly. Drafting is what will sell this
- * product, so a trial that cannot demonstrate it is not an evaluation — but the
- * pack costs ₹99 in total, so the allowance has to stay a fraction of that.
- * At `economy` rates ₹40 is roughly eight short applications.
+ * Pro, Firm and Custom are built, priced and quota-enforced, and are
+ * deliberately not on sale — the product is being taken to market as one thing:
+ * the ₹99 pack, with the migration add-on beside it as an enquiry rather than a
+ * plan.
+ *
+ * This is the ONE place that decides. `catalogue()` publishes only what is
+ * here, the write paths refuse anything that is not, and the pricing screen
+ * renders the catalogue rather than a list of its own — so putting Pro and Firm
+ * back on sale is this line, not an audit of every screen.
+ *
+ * Chambers already ON one of those plans are unaffected: this governs new
+ * selections, never enforcement. `limitsFor` still knows every plan.
+ */
+export const OFFERED_PLANS: readonly SubscriptionPlan[] = ["trial"];
+
+export function isOffered(plan: SubscriptionPlan): boolean {
+  return OFFERED_PLANS.includes(plan);
+}
+
+/**
+ * The trial's AI allowance: ₹90 for the whole two months, Sonnet only.
+ *
+ * Measured rather than guessed. At `economy` rates (Sonnet 5, and the paise-per
+ * cent constant in `lib/ai/models.ts`) a realistic two-month mix comes to:
+ *
+ *   ₹40   ~10 calls — one petition, two briefs, then only letters
+ *   ₹90   ~20 calls — four petitions, four briefs, and room to repeat them
+ *
+ * 2.25× the money buys 2× the calls and roughly 4× the heavy work, because the
+ * cheap kinds stop crowding out the expensive ones. Drafting is what sells this
+ * product and one petition is not an evaluation.
+ *
+ * The cost, stated plainly: ₹90 is 91% of the ₹99 pack. Net of the payment fee
+ * there is a handful of rupees left against two months of hosting, database and
+ * storage. The trial was always sold at a loss; this makes it close to a total
+ * one, accepted as the cost of acquiring a chamber.
  */
 const TRIAL_LIMITS: PlanLimits = {
   matters: 10,
   seats: 5,
-  aiBudgetMinor: 4_000, // ₹40, for the two-month pack rather than per month
+  aiBudgetMinor: 9_000, // ₹90, for the two-month pack rather than per month
   aiTier: "economy",
 };
+
+/**
+ * What a chamber gets while a Custom quote is being agreed.
+ *
+ * Its own constant rather than sharing the trial's, because the two are not the
+ * same kind of thing: a trial is a purchase that has to prove the product, and
+ * a Custom selection is an enquiry that has paid nothing. It does not carry the
+ * acquisition budget.
+ */
+const QUOTE_PENDING_LIMITS: PlanLimits = { ...TRIAL_LIMITS, aiBudgetMinor: 4_000 };
 
 /*
  * The paid budgets, as a share of what the plan costs:
@@ -286,7 +330,7 @@ const LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   trial: TRIAL_LIMITS,
   pro: { matters: null, seats: 10, aiBudgetMinor: 60_000, aiTier: "full" },
   firm: { matters: null, seats: null, aiBudgetMinor: 300_000, aiTier: "full" },
-  custom: TRIAL_LIMITS,
+  custom: QUOTE_PENDING_LIMITS,
 };
 
 export function limitsFor(plan: SubscriptionPlan): PlanLimits {

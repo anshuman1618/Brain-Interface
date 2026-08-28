@@ -17,6 +17,7 @@ import {
 } from "../middlewares/requireAuth";
 import {
   activatesOnSelection,
+  isOffered,
   normalisePeriod,
   periodEnd,
   quote,
@@ -71,18 +72,38 @@ router.post(
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
 
+    const body = req.body as { plan?: unknown; billingPeriod?: unknown };
+    if (!isSubscriptionPlan(body.plan) || !isBillingPeriod(body.billingPeriod)) {
+      res.status(400).json({ error: "Bad request", message: "Unknown plan or billing period." });
+      return;
+    }
+
+    /*
+     * What is asked for is checked before whether this deployment can charge.
+     *
+     * Whether a provider is configured is a deployment fact; whether a plan is
+     * for sale is a product one. Answering 503 "payments unavailable" for a
+     * plan nobody can buy would send an operator to look at Razorpay for
+     * something that has nothing to do with Razorpay.
+     *
+     * This is also the gate that matters. The selection guard on
+     * PUT /workspace/subscription can be skipped by a crafted request; a
+     * captured payment cannot be undone.
+     */
+    if (!isOffered(body.plan)) {
+      res.status(400).json({
+        error: "plan_not_offered",
+        message: "That plan is not currently on offer, so it cannot be paid for.",
+      });
+      return;
+    }
+
     if (!paymentsEnabled()) {
       res.status(503).json({
         error: "Payments unavailable",
         reason: "not_configured",
         message: "Online payment is not configured for this deployment.",
       });
-      return;
-    }
-
-    const body = req.body as { plan?: unknown; billingPeriod?: unknown };
-    if (!isSubscriptionPlan(body.plan) || !isBillingPeriod(body.billingPeriod)) {
-      res.status(400).json({ error: "Bad request", message: "Unknown plan or billing period." });
       return;
     }
 

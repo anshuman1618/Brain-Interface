@@ -453,6 +453,19 @@ if (signedIn) {
    * path a person walks: open Drafting, find it switched off, and get it on
    * without leaving the UI.
    */
+  // The dashboard has to SAY that AI exists and is off. It shipped reachable
+  // only through a tile called "Draft a Document" and two entries behind the
+  // three-dot menu, and a chamber admin reasonably concluded it had not
+  // shipped at all.
+  await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(1500);
+  const dash = await text();
+  check(
+    "the dashboard says AI drafting is available and switched off",
+    /ai drafting is available/i.test(dash),
+    dash.slice(0, 240),
+  );
+
   await page.goto(`${BASE}/drafting`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1200);
   const draftingOff = await text();

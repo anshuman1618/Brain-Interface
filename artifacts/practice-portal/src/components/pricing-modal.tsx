@@ -86,6 +86,15 @@ const PERIODS: { value: SubscriptionInputBillingPeriod; label: string; note: str
   { value: "yearly", label: "Yearly", note: "2 months free" },
 ];
 
+/**
+ * The order tiers are shown in, for the ones the server is actually offering.
+ *
+ * The list rendered below is derived from `data.catalogue`, not from this
+ * constant — the server decides what is on sale (see OFFERED_PLANS in
+ * plans.ts) and this only decides the order of whatever comes back. A
+ * hardcoded card list is how the screen would keep advertising a plan the
+ * checkout refuses.
+ */
 const PLAN_ORDER: SubscriptionInputPlan[] = ["trial", "pro", "firm", "custom"];
 
 /**
@@ -187,6 +196,13 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
     const q = quoteFor(plan);
     return (billing?.enabled ?? false) && q && q.amountMinor > 0;
   };
+
+  // What the server is actually selling, in PLAN_ORDER order.
+  const offered = PLAN_ORDER.filter((p) => (data?.catalogue ?? []).some((q) => q.plan === p));
+  // The billing-period control governs Pro and Firm. With neither on sale it
+  // governs nothing, and a control that visibly does nothing is worse than no
+  // control — its own caption says it applies to plans that are not there.
+  const showPeriods = offered.some((p) => PLAN_COPY[p].metered);
 
   const current = data?.subscription;
   const canManage = data?.canManage ?? false;
@@ -339,52 +355,58 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
                   }`
                 : current?.plan === "custom"
                   ? "A custom quote is with our team - your current allowance is unchanged"
-                  : "No plan chosen yet - start on the two-month Trial, or commit for longer and pay less"}
+                  : showPeriods
+                    ? "No plan chosen yet - start on the two-month Trial, or commit for longer and pay less"
+                    : "No plan chosen yet - the two-month pack is Rs 99, once"}
             </DialogDescription>
 
             {/* Billing period. Commit longer, pay for fewer months. */}
-            <div
-              className="flex flex-wrap items-stretch border border-border mt-5 w-fit"
-              role="group"
-              aria-label="Billing period"
-            >
-              {PERIODS.map((p) => {
-                const active = p.value === period;
-                return (
-                  <button
-                    key={p.value}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setPeriod(p.value)}
-                    className={`px-4 py-2.5 font-mono uppercase text-2xs tracking-widest border-r border-border last:border-r-0 transition-colors ${
-                      active
-                        ? "bg-foreground text-background"
-                        : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
-                    }`}
-                  >
-                    {p.label}
-                    {p.note && (
-                      <span
-                        className={`block text-3xs tracking-wider mt-0.5 ${
-                          active ? "text-background/70" : "text-primary"
-                        }`}
-                      >
-                        {p.note}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-2xs text-muted-foreground mt-2">
-              The billing period applies to Pro and Firm. Trial is a one-off two-month pack; Custom
-              is quoted.
-            </p>
+            {showPeriods && (
+              <div
+                className="flex flex-wrap items-stretch border border-border mt-5 w-fit"
+                role="group"
+                aria-label="Billing period"
+              >
+                {PERIODS.map((p) => {
+                  const active = p.value === period;
+                  return (
+                    <button
+                      key={p.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setPeriod(p.value)}
+                      className={`px-4 py-2.5 font-mono uppercase text-2xs tracking-widest border-r border-border last:border-r-0 transition-colors ${
+                        active
+                          ? "bg-foreground text-background"
+                          : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground"
+                      }`}
+                    >
+                      {p.label}
+                      {p.note && (
+                        <span
+                          className={`block text-3xs tracking-wider mt-0.5 ${
+                            active ? "text-background/70" : "text-primary"
+                          }`}
+                        >
+                          {p.note}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {showPeriods && (
+              <p className="text-2xs text-muted-foreground mt-2">
+                The billing period applies to Pro and Firm. Trial is a one-off two-month pack;
+                Custom is quoted.
+              </p>
+            )}
           </DialogHeader>
 
           {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
-              {PLAN_ORDER.map((p) => (
+              {offered.map((p) => (
                 <div key={p} className="p-8 space-y-4">
                   <Skeleton className="h-5 w-24" />
                   <Skeleton className="h-9 w-32" />
@@ -394,8 +416,12 @@ export function PricingModalProvider({ children }: { children: ReactNode }) {
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border bg-background">
-              {PLAN_ORDER.map((plan) => {
+            <div
+              className={`grid grid-cols-1 divide-y divide-border bg-background sm:divide-y-0 sm:divide-x ${
+                offered.length > 1 ? "sm:grid-cols-2 xl:grid-cols-4" : ""
+              }`}
+            >
+              {offered.map((plan) => {
                 const q = quoteFor(plan);
                 const copy = PLAN_COPY[plan];
                 const quoteOnly = q?.quoteOnly ?? false;

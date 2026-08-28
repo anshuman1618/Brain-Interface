@@ -119,8 +119,8 @@ check(
   JSON.stringify(budget.data),
 );
 check(
-  "the trial is capped at Rs 40 for the pack",
-  budget.data?.allowanceMinor === 4000,
+  "the trial is capped at Rs 90 for the pack",
+  budget.data?.allowanceMinor === 9000,
   String(budget.data?.allowanceMinor),
 );
 // A ninety-nine rupee evaluation must not be able to spend thirty of them on
@@ -624,7 +624,7 @@ section("Adding an example spends money, so it is budgeted like a draft");
 // spending by uploading examples instead of drafting. The limit is only a limit
 // if it holds on every route that can reach a model.
 //
-// A fresh chamber on the trial pack has Rs 40. Exhaust it with drafts, then
+// A fresh chamber on the trial pack has Rs 90. Exhaust it with drafts, then
 // try to add an example.
 const drainOwner = `dr.drain+${suffix}@dr.test`;
 const drained = await call("/workspaces", {
@@ -641,19 +641,38 @@ await call("/workspace/drafting", {
   method: "POST",
   body: { enabled: true },
 });
+// A deliberately heavy matter. Each draft's cost is dominated by what goes IN
+// as well as what comes out, so a big description makes a petition expensive
+// enough to exhaust the pack inside the drafting limiter's 6/min — which a
+// minimal matter no longer does now the allowance is Rs 90. Kept under the
+// 100 kb express.json default.
 const dMatter = await call("/cases", {
   token: as(drainOwner),
   wsToken: dWs,
   method: "POST",
-  body: { title: "Budget drain", filingRef: `BD-${suffix}` },
+  body: {
+    title: "Budget drain",
+    filingRef: `BD-${suffix}`,
+    description: "The impugned demand notice is disputed. ".repeat(2200),
+  },
 });
 
-// Spend it down. A petition is the most expensive kind, and the budget check
-// is PESSIMISTIC — it refuses when the worst case would not fit, not when the
-// balance reaches zero — so a trial pack runs out after a handful. The
-// drafting limiter allows six a minute, which is enough to get there.
+/*
+ * Spend it down.
+ *
+ * A petition is the most expensive kind, and the budget check is PESSIMISTIC —
+ * it refuses when the worst case would not fit, not when the balance reaches
+ * zero — so the pack runs out with money still showing.
+ *
+ * Driven off the budget rather than a fixed count. A hardcoded number of
+ * iterations is what broke when the trial allowance moved from Rs 40 to Rs 90:
+ * the loop finished, the balance was still healthy, the exemplar upload
+ * succeeded, and the test went green while proving nothing. It now stops when
+ * the refusal actually arrives, and the ceiling only exists so a bug cannot
+ * spin here forever.
+ */
 let refusedAt = 0;
-for (let i = 0; i < 6; i += 1) {
+for (let i = 0; i < 40; i += 1) {
   const r = await call(`/cases/${dMatter.data.id}/drafts`, {
     token: as(drainOwner),
     wsToken: dWs,
@@ -670,6 +689,9 @@ for (let i = 0; i < 6; i += 1) {
     refusedAt = i;
     break;
   }
+  // The drafting limiter is 6/min. A 429 is not the refusal being tested, so
+  // wait it out rather than counting it as one.
+  if (r.status === 429) await new Promise((r2) => setTimeout(r2, 61_000));
 }
 
 const drainedBudget = await call("/ai/budget", { token: as(drainOwner), wsToken: dWs });
