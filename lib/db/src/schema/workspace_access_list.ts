@@ -123,6 +123,26 @@ export function normalisePhone(raw: string): string {
   const trimmed = (raw ?? "").trim();
   if (!trimmed) return "";
 
+  // Anything that is not part of how a number is written is a refusal, not
+  // something to strip.
+  //
+  // Stripping is what a permissive normaliser does, and here it is dangerous in
+  // a specific way: "+91 98765 4321O", with a capital O for the final zero,
+  // loses one character and becomes +919876543 21 — eleven digits, a perfectly
+  // valid-looking E.164 string, and a DIFFERENT number. Admitted to an access
+  // list it grants a stranger; typed into OPERATOR_PHONES it silently makes the
+  // wrong handset an operator. Neither failure announces itself, because the
+  // result is well-formed.
+  //
+  // Punctuation people actually dial with stays allowed — spaces, +, -, (), .
+  // and / all appear in numbers printed on letterheads.
+  //
+  // Stored values are unaffected. Everything already in the database was
+  // normalised on write and is therefore bare E.164, which passes this test
+  // unchanged — so tightening the input rule cannot orphan a grant that was
+  // matching yesterday.
+  if (/[^\d\s+\-()./]/.test(trimmed)) return "";
+
   // A "+" anywhere ahead of the first digit counts as one — people write
   // "(+91) 98765 43210" and testing only index 0 would miss it, then prepend
   // the country code a second time and store a number that matches nothing.

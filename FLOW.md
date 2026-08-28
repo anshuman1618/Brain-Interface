@@ -1162,6 +1162,19 @@ The hot-path detail worth knowing: `getOrCreateUser` used to return early only
 when `email` was set. A phone-only user's finished state is `email = ""`, so
 that test sent them down the Clerk resync path on **every request**, forever.
 
+An **erased** user has neither identifier and so falls past that early return
+too — with a worse consequence than a round trip. The resync path reads "no
+identifier" as "the provider had not verified anything yet" and refills both
+from Clerk, which is where the erased address and number came back from. A
+completed `deletion_requests` row now stops it before the resync:
+
+```
+getOrCreateUser
+  ├─ email or phone present?          → return (the common case)
+  ├─ a completed erasure for this id? → return AS IS   ← erasure holds
+  └─ otherwise                        → resyncIdentity → Clerk
+```
+
 ### The native shells sit ahead of the SPA boot
 
 ```

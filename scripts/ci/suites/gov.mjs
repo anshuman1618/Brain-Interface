@@ -457,6 +457,36 @@ check(
   afterErase.data.accessStatus !== "active",
   afterErase.data?.accessStatus,
 );
+
+/*
+ * Erasure has to survive the erased person signing in again.
+ *
+ * The product does not delete the upstream Clerk account — it revokes the
+ * membership and the access-list grants and blanks the local columns. So the
+ * person can still authenticate, and this very request is the one that used to
+ * undo the erasure: `getOrCreateUser` sees a row with no email and no phone,
+ * reads that as "we never got a verified identifier" rather than "this was
+ * erased", and resyncs both straight back out of the provider.
+ *
+ * The request above already ran. Asking a second time proves the identifiers
+ * did not come back, rather than that they had not come back YET.
+ */
+const afterEraseAgain = await call("/session", { token: as(client) });
+check(
+  "...and signing in again does not restore the erased address",
+  !afterEraseAgain.data?.email,
+  `email came back as ${JSON.stringify(afterEraseAgain.data?.email)}`,
+);
+check(
+  "...nor the erased number",
+  !afterEraseAgain.data?.phone,
+  `phone came back as ${JSON.stringify(afterEraseAgain.data?.phone)}`,
+);
+check(
+  "...and they are still refused",
+  afterEraseAgain.data?.accessStatus !== "active",
+  afterEraseAgain.data?.accessStatus,
+);
 const auditAfter = await call("/workspace/audit", { token: as(owner), wsToken: ws });
 check(
   "the erasure itself is logged",
