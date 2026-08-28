@@ -1,3 +1,4 @@
+import { guardIdParams, parseId } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
 import { db, deviceTokensTable } from "@workspace/db";
@@ -5,6 +6,9 @@ import { RegisterDeviceBody } from "@workspace/api-zod";
 import { requireWorkspace, ctx, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 /**
  * Where a phone says "notifications for this chamber can reach me here".
@@ -76,8 +80,8 @@ router.post("/devices", requireWorkspace, async (req: AuthRequest, res): Promise
  */
 router.delete("/devices/:id", requireWorkspace, async (req: AuthRequest, res): Promise<void> => {
   const c = ctx(req);
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) {
+  const id = parseId(req.params["id"]);
+  if (id === null) {
     res.status(400).json({ error: "invalid_request", message: "Invalid id." });
     return;
   }

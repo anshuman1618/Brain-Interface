@@ -1,3 +1,4 @@
+import { guardIdParams, parseId } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
 import { db, calendarEntriesTable, casesTable, usersTable, audienceIncludes } from "@workspace/db";
@@ -20,6 +21,9 @@ import { caseInWorkspace, visibleCaseIds } from "../lib/scope";
 import { displayRole, isWorkspaceRole } from "../lib/permissions";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 /**
  * The master calendar.
@@ -193,8 +197,8 @@ router.patch(
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
 
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
@@ -257,8 +261,8 @@ router.delete(
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
 
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }

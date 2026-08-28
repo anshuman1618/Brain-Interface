@@ -50,7 +50,7 @@ router.post(
 
     const c = ctx(req);
     const daysFromNow = Number(req.body?.daysFromNow ?? -1);
-    if (!Number.isFinite(daysFromNow)) {
+    if (daysFromNow === null) {
       res.status(400).json({ error: "daysFromNow must be a number" });
       return;
     }

@@ -1,3 +1,4 @@
+import { guardIdParams, parseId } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, feedbackTable, casesTable } from "@workspace/db";
@@ -17,6 +18,9 @@ import {
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 async function view(row: typeof feedbackTable.$inferSelect) {
   const [c] = await db.select().from(casesTable).where(eq(casesTable.id, row.caseId));
@@ -83,7 +87,7 @@ router.post(
     }
 
     const rating = Number(parsed.data.rating);
-    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    if (rating === null || rating < 1 || rating > 5) {
       res.status(400).json({ error: "Rating must be a whole number from 1 to 5." });
       return;
     }
@@ -133,8 +137,8 @@ router.post(
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
 
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }

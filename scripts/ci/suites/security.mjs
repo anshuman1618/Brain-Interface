@@ -460,5 +460,98 @@ check(
   `got ${goodUser.status} ${JSON.stringify(goodUser.data)}`,
 );
 
+/* ── A malformed id is refused, never handed to the database ──────────────── */
+section("An id that cannot exist is refused before it reaches a query");
+
+/*
+ * Found by probing rather than by reading, which is why it is pinned here.
+ *
+ * Two spellings got through. `drafting.ts` parsed `Number(req.params.id)` with
+ * no check at all, so "abc" arrived as NaN. Everywhere else guarded with
+ * `Number.isInteger`, which passes 9007199254740993 — an integer to JavaScript,
+ * and eleven digits wider than the `integer` column it was about to be compared
+ * against. Both ended the same way: `invalid input syntax for type integer`,
+ * surfaced as a 500.
+ *
+ * A 500 here is worth closing for two reasons beyond tidiness. It tells a prober
+ * their input reached the database, and it buries genuine faults under noise
+ * that anyone can generate from a URL bar.
+ *
+ * The routes below are deliberately a mix: some validate with `parseId`, some
+ * with the GENERATED zod params (which cannot express "integer" — orval renders
+ * `type: integer` as `zod.coerce.number()`), and those are covered by the
+ * `router.param` guard instead. Both mechanisms have to hold.
+ */
+const adminToken = as(`a.admin+${suffix}@a.test`);
+const MALFORMED = [
+  ["1.5", "a decimal"],
+  ["9007199254740993", "past MAX_SAFE_INTEGER"],
+  ["2147483648", "one past the int4 ceiling"],
+  ["abc", "not a number"],
+  ["-1", "negative"],
+  ["0", "zero — every table's identity starts at 1"],
+  ["1e3", "exponent notation"],
+  ["null", "the string null"],
+];
+const ID_ROUTES = [
+  ["GET", "/cases/ID", undefined],
+  ["GET", "/cases/ID/timeline", undefined],
+  ["GET", "/cases/ID/documents", undefined],
+  ["GET", "/tasks/ID", undefined],
+  ["POST", "/tasks/ID/complete", {}],
+  ["GET", "/consultations/ID", undefined],
+  ["GET", "/invoices/ID", undefined],
+  ["GET", "/drafts/ID", undefined],
+  ["DELETE", "/insights/ID", undefined],
+  ["GET", "/documents/ID/content", undefined],
+  ["GET", "/memberships/ID/case-access", undefined],
+];
+
+let idFailures = [];
+for (const [method, tpl, body] of ID_ROUTES) {
+  for (const [value, why] of MALFORMED) {
+    const r = await call(tpl.replace("ID", value), {
+      token: adminToken,
+      wsToken: aTok,
+      method,
+      body,
+    });
+    if (r.status >= 500) idFailures.push(`${method} ${tpl.replace("ID", value)} (${why}) -> 500`);
+  }
+}
+check(
+  `no malformed id produces a server error (${ID_ROUTES.length} routes x ${MALFORMED.length} spellings)`,
+  idFailures.length === 0,
+  idFailures.slice(0, 6).join(" ; "),
+);
+
+/*
+ * The same rule for the header that selects the workspace.
+ *
+ * A present-but-unreadable `X-Workspace-Id` used to fall through to "your only
+ * membership", so the server answered 200 from a DIFFERENT workspace than the
+ * one asked for. `X-Workspace-Id: undefined` is the ordinary shape of a
+ * client-side bug, and it read and wrote the wrong chamber for anyone in one
+ * chamber while 403ing for anyone in two — the worst combination, because the
+ * people who would notice are the ones it refuses.
+ */
+const headerFailures = [];
+for (const value of ["undefined", "null", "NaN", "1.5", "-1", "0", "1 OR 1=1", "1 2", "1e9"]) {
+  const r = await call("/cases", { token: adminToken, wsId: value });
+  if (r.status === 200) headerFailures.push(`${JSON.stringify(value)} -> 200`);
+}
+check(
+  "an unreadable X-Workspace-Id is refused rather than falling back to a different workspace",
+  headerFailures.length === 0,
+  headerFailures.join(" ; "),
+);
+
+const goodHeader = await call("/cases", { token: adminToken, wsToken: aTok });
+check(
+  "...while a well-formed request still works",
+  goodHeader.status === 200,
+  `got ${goodHeader.status}`,
+);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
