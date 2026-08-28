@@ -1,7 +1,13 @@
 import { getAuth, clerkClient } from "@clerk/express";
 import type { Request } from "express";
-import { db, usersTable, normaliseEmail, normalisePhone } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import {
+  db,
+  usersTable,
+  deletionRequestsTable,
+  normaliseEmail,
+  normalisePhone,
+} from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 import { isPreviewAuth, previewClerkId, previewIdentityFromRequest } from "./preview-mode";
 
 export type AppUser = {
@@ -92,9 +98,27 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
     // the database alone — no Clerk round trip on the hot path. Either one will
     // do: the access list matches on whichever the person actually has.
     if (existing[0].email || existing[0].phone) return existing[0];
-    // Neither means the first sign-in happened before the provider had a
-    // verified anything. Nothing re-read it afterwards, so the user stayed on
-    // the access-denied screen for good even once they had verified. Try again.
+    // Neither can mean one of two opposite things, and they must not be treated
+    // alike.
+    //
+    // An ERASED user also has neither, because that is what erasure does —
+    // routes/governance.ts blanks both columns. Clerk still holds the account:
+    // the product revokes the membership and the access-list grants, it does not
+    // delete the identity upstream. So the person can still authenticate, and
+    // without this check the very next request would resync their address and
+    // number straight back out of Clerk and into the row that was erased.
+    // Erasure has to survive the erased person signing in again, or it is not
+    // erasure. It also spares them a Clerk round trip on every single request,
+    // which is the cost this early return exists to avoid.
+    //
+    // Checked without a workspace filter, matching what erasure itself does: the
+    // users row is global, so one chamber completing an erasure blanks it
+    // everywhere. That is pre-existing behaviour and this follows it rather than
+    // quietly disagreeing with it.
+    if (await wasErased(existing[0].id)) return existing[0];
+    // Otherwise the first sign-in happened before the provider had a verified
+    // anything. Nothing re-read it afterwards, so the user stayed on the
+    // access-denied screen for good even once they had verified. Try again.
     return (await resyncIdentity(req, existing[0])) ?? existing[0];
   }
 
@@ -166,6 +190,18 @@ async function insertUser(
 
   const [winner] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
   return winner ?? null;
+}
+
+/** Has any chamber completed an erasure of this user? See the caller for why. */
+async function wasErased(userId: number): Promise<boolean> {
+  const rows = await db
+    .select({ id: deletionRequestsTable.id })
+    .from(deletionRequestsTable)
+    .where(
+      and(eq(deletionRequestsTable.userId, userId), eq(deletionRequestsTable.status, "completed")),
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 /**
