@@ -69,6 +69,48 @@ for (const [input, why] of [
 // far worse than "", because it gets stored and then matches nothing forever.
 check("no input ever yields a bare +", normalisePhone("+") === "");
 
+/* ─────────────── A stray letter is a refusal, not a strip ─────────────── */
+section("A character that is not part of a number is refused, never removed");
+
+/*
+ * The dangerous case is not "abc" — nobody types that. It is one wrong
+ * character inside an otherwise correct number, which a stripping normaliser
+ * turns into a shorter number that is still valid E.164 and belongs to
+ * somebody else. Silent, well-formed, and wrong: on an access list it admits a
+ * stranger, in OPERATOR_PHONES it makes the wrong handset an operator.
+ */
+for (const [input, why] of [
+  ["+91 98765 4321O", "capital O typed for the final zero"],
+  ["+91 98765 4321l", "lowercase L typed for a one"],
+  ["9876543210 ext 4", "an extension is not part of the number"],
+  ["+91 98765 43210 (Rahul)", "a name pasted in with the number"],
+  ["1-800-FLOWERS", "a vanity number is not dialable as typed"],
+  ["+91 98765 43210; +91 98765 43211", "two numbers in one field"],
+]) {
+  check(
+    `${JSON.stringify(input)} is refused (${why})`,
+    normalisePhone(input) === "",
+    normalisePhone(input),
+  );
+}
+
+// Proof the refusal is doing real work: stripped instead, this one is valid.
+check(
+  "...and the O-for-zero case would otherwise have become a different valid number",
+  normalisePhone("+91 98765 4321O") !== "+9198765432" && normalisePhone("+91 98765 4321O") === "",
+  normalisePhone("+91 98765 4321O"),
+);
+
+// The punctuation people genuinely dial with must still pass — a rule that
+// rejected these would lock out numbers copied off a letterhead.
+for (const form of ["+91 (98765) 43210", "+91.98765.43210", "+91/98765/43210"]) {
+  check(
+    `${JSON.stringify(form)} is still accepted`,
+    normalisePhone(form) === "+919876543210",
+    normalisePhone(form),
+  );
+}
+
 /* ─────────────── The default country code is configurable ─────────────── */
 section("The assumed country code is configuration, not a hardcoded +91");
 

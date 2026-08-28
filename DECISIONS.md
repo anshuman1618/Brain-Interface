@@ -157,6 +157,44 @@ is a plain equality check, so `+91 98765 43210`, `098765 43210` and
 code is `DEFAULT_COUNTRY_CODE`, not a hardcoded `+91`: the product should be
 wrong in one configurable place rather than in a regex somebody has to find.
 
+**It refuses a stray character rather than stripping it.** It used to delete
+every non-digit, which is the obvious thing to do and is wrong here in a
+specific way: `+91 98765 4321O`, with a capital O typed for the final zero,
+loses a character and becomes an eleven-digit, perfectly valid, _different_
+E.164 number. Nothing announces the substitution, because the result is
+well-formed — on an access list it admits a stranger, and in `OPERATOR_PHONES`
+it makes the wrong handset an operator of every chamber. Anything outside
+digits, space, `+`, `-`, `(`, `)`, `.` and `/` is now `""`. Those punctuation
+forms stay allowed because a rule that rejected a number copied off a letterhead
+would be its own lockout. Stored values are unaffected: they were normalised on
+write and are bare E.164, which passes unchanged, so the tightening cannot
+orphan a grant that was matching yesterday.
+
+### Erasure is a recorded fact, not two empty columns
+
+**Decided:** `getOrCreateUser` checks for a completed `deletion_requests` row
+before it tries to repair an identity from Clerk.
+
+**Why:** erasure blanks `users.email` and `users.phone`, and the product does
+not delete the upstream Clerk account — it revokes the membership and the
+access-list grants. So the erased person can still authenticate, and an empty
+row means two opposite things: "erased", or "the provider had not verified
+anything at first sign-in, try again". The resync path assumed the second and
+put the address and number straight back.
+
+Access was never restored — the membership and grants stay revoked, and the
+person still reaches nothing. What came back was the personal data, which for a
+DPDP erasure is the part that matters and the reason the existing test missed
+it: it asserted the account reaches nothing, which stayed true throughout.
+
+**Checked without a workspace filter,** matching what erasure itself does. The
+`users` row is global, so one chamber completing an erasure blanks it
+everywhere; this follows that rather than quietly disagreeing with it.
+
+**A side benefit worth naming:** an erased user was making a Clerk round trip on
+every single request, because they fell past the early return on every one. That
+early return exists to avoid exactly that.
+
 **Email beats phone beats domain**, per workspace. Exact identifiers beat a
 blanket domain rule for the reason they always did. Email beats phone because an
 address is never reassigned to a stranger and an Indian mobile is — so where a
