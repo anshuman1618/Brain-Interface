@@ -182,7 +182,11 @@ router.post("/cases",
    memberships → **403 `no_active_membership`** (the Pending Approval screen).
 3. `requestedWorkspaceId(req)` → reads the `x-workspace-token` header, an
    HMAC-signed token (`lib/workspace-token.ts`). Invalid → **401
-   `invalid_workspace_token`**.
+   `invalid_workspace_token`**. Failing that, `x-workspace-id`, through
+   `parseId` — present but unreadable → **400 `invalid_workspace_id`**, never a
+   fall-through to the caller's only membership. Absent entirely is the one case
+   that still falls back, and only when there is exactly one membership to fall
+   back to.
 4. Matches the requested workspace against the memberships just read.
    No match → **403 `not_a_member`** or **`workspace_not_selected`**.
 5. Builds `req.ctx` — user, workspace, role, capabilities, and the case/task

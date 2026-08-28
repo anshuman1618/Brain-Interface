@@ -36,9 +36,12 @@ import { checkQuota, quotaMessage, usageFor } from "../lib/quota";
 import { screenForConflicts } from "../lib/conflicts";
 import { recordAudit } from "../lib/audit";
 import { CheckConflictsBody } from "@workspace/api-zod";
-import { zodMessage } from "../lib/validation";
+import { guardIdParams, zodMessage } from "../lib/validation";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 /**
  * Screen a party before committing to a matter, so the advocate sees the

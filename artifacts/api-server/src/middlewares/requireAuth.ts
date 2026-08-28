@@ -12,6 +12,7 @@ import {
   isCapabilityAllowedWhenLapsed,
 } from "../lib/permissions";
 import { verifyWorkspaceToken } from "../lib/workspace-token";
+import { parseId } from "../lib/validation";
 import { touchLastSeen } from "../lib/last-seen";
 import { planStateFor, type PlanState } from "../lib/quota";
 
@@ -100,20 +101,29 @@ export const requireAuth = (req: AuthRequest, res: Response, next: NextFunction)
  * turn a forged or expired token into a successful request against *some*
  * workspace, which is exactly the kind of quiet downgrade that hides an attack.
  */
-type WorkspaceSelection = { workspaceId: number | null } | { invalidToken: true };
+type WorkspaceSelection = { workspaceId: number | null } | { invalid: "token" | "id" };
 
 function requestedWorkspaceId(req: Request): WorkspaceSelection {
   const rawToken = req.header("x-workspace-token");
   if (rawToken) {
     const claims = verifyWorkspaceToken(rawToken);
-    if (!claims) return { invalidToken: true };
+    if (!claims) return { invalid: "token" };
     return { workspaceId: claims.wsId };
   }
 
   const header = req.header("x-workspace-id");
   if (header) {
-    const parsed = Number(header);
-    if (Number.isInteger(parsed) && parsed > 0) return { workspaceId: parsed };
+    // A header that is present but unreadable is a hard failure, for the same
+    // reason an unverifiable token is: the caller asked for a specific
+    // workspace and this server has no idea which. Falling through to the
+    // single-membership default would answer from a DIFFERENT workspace than
+    // the one that was asked for, and answer it 200 — which is how
+    // `X-Workspace-Id: undefined`, the ordinary shape of a client-side bug,
+    // silently reads and writes the wrong chamber for anyone in one chamber
+    // and 403s only for people in two.
+    const parsed = parseId(header);
+    if (parsed === null) return { invalid: "id" };
+    return { workspaceId: parsed };
   }
 
   return { workspaceId: null };
@@ -251,11 +261,19 @@ export const requireWorkspace = async (
   }
 
   const selection = requestedWorkspaceId(req);
-  if ("invalidToken" in selection) {
-    res.status(401).json({
-      error: "Unauthorized",
-      reason: "invalid_workspace_token",
-      message: "The workspace token is invalid or has expired. Switch workspace again.",
+  if ("invalid" in selection) {
+    if (selection.invalid === "token") {
+      res.status(401).json({
+        error: "Unauthorized",
+        reason: "invalid_workspace_token",
+        message: "The workspace token is invalid or has expired. Switch workspace again.",
+      });
+      return;
+    }
+    res.status(400).json({
+      error: "Bad Request",
+      reason: "invalid_workspace_id",
+      message: "X-Workspace-Id must be a positive integer.",
     });
     return;
   }

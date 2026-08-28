@@ -1,3 +1,4 @@
+import { guardIdParams, parseId } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
 import { db, documentRequestsTable, usersTable, casesTable } from "@workspace/db";
@@ -14,6 +15,9 @@ import { displayRole } from "../lib/permissions";
 import { notify } from "../lib/notify";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 /**
  * Both sides of a request are surfaced: who it is addressed to and who raised
@@ -137,8 +141,8 @@ router.patch(
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
 
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }

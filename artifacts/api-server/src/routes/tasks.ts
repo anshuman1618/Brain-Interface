@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { guardIdParams } from "../lib/validation";
 import { eq } from "drizzle-orm";
 import { db, tasksTable, usersTable, delayLogsTable } from "@workspace/db";
 import {
@@ -32,6 +33,9 @@ import { addTimelineEvent } from "../lib/timeline";
 import { caseInWorkspace, getVisibleCase, visibleCaseIds, visibleTasks } from "../lib/scope";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 async function enrichTask(t: typeof tasksTable.$inferSelect) {
   let assigneeName: string | null = null;
