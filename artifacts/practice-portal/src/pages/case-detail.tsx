@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import {
   useGetCase,
   useUpdateCase,
@@ -26,6 +26,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { formatDateTime } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useSession } from "@/lib/session";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -58,12 +59,15 @@ import {
   FileLock2,
   Upload,
   Download,
+  ScanSearch,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TimeLogPanel } from "@/components/time-log-panel";
 import { CaseCourtIdentity } from "@/components/case-court-identity";
 
 export default function CaseDetailPage() {
+  const [, navigate] = useLocation();
+  const { can } = useSession();
   const { id } = useParams();
   const caseId = parseInt(id || "0");
   const queryClient = useQueryClient();
@@ -294,6 +298,37 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </div>
+
+      {/*
+        AI analysis, on the matter it analyses.
+
+        The brief was only reachable from the Drafting page, where you pick a
+        matter from a dropdown before you can ask anything about it. That is
+        backwards: the moment you want a matter analysed is while you are
+        looking at it. `/drafting/:caseId` already accepted a matter in the
+        URL — nothing linked to it.
+      */}
+      {can("drafting.use") && (
+        <div className="flex flex-col gap-3 rounded-lg bg-card p-4 shadow-sm sm:flex-row sm:items-center">
+          <ScanSearch className="h-5 w-5 shrink-0 text-primary" aria-hidden="true" />
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-xs uppercase tracking-wider">AI analysis of this matter</p>
+            <p className="mt-0.5 text-2xs text-muted-foreground">
+              The facts on the record, a chronology, the merits, how the other side will run it, the
+              objections to anticipate, the defects to cure before filing, and authorities to
+              consider. Machine-written and unverified — check it before you rely on it.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="shrink-0 rounded-lg"
+            onClick={() => navigate(`/drafting/${caseData.id}`)}
+          >
+            <ScanSearch className="mr-1.5 h-3.5 w-3.5" />
+            Analyse this matter
+          </Button>
+        </div>
+      )}
 
       <CaseCourtIdentity caseData={caseData} />
 

@@ -500,6 +500,34 @@ if (signedIn) {
     );
   }
 
+  /*
+   * AI analysis has to be reachable FROM a matter.
+   *
+   * The brief was only on the Drafting page, behind a matter dropdown — so the
+   * moment you actually want a matter analysed, while looking at it, there was
+   * nothing to click. `/drafting/:caseId` accepted a matter in the URL the
+   * whole time and nothing linked to it.
+   */
+  const firstCase = await page.goto(`${BASE}/cases`, { waitUntil: "networkidle" });
+  void firstCase;
+  await page.waitForTimeout(1200);
+  const caseLink = page.locator('a[href^="/cases/"]').first();
+  if (await caseLink.count()) {
+    await caseLink.click();
+    await page.waitForTimeout(1500);
+    const analyse = page.getByRole("button", { name: /analyse this matter/i });
+    check("a matter offers AI analysis of itself", (await analyse.count()) > 0, page.url());
+    if (await analyse.count()) {
+      await analyse.first().click();
+      await page.waitForTimeout(1500);
+      check(
+        "...which opens the analysis with that matter already chosen",
+        /\/drafting\/\d+/.test(page.url()),
+        page.url(),
+      );
+    }
+  }
+
   expectingRefusal = true;
   await page.goto(`${BASE}/operator`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1500);

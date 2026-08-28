@@ -978,7 +978,7 @@ eleven pre-existing suites pass untouched**. The email path was extended, not
 altered.
 
 Last run: **613 checks green across sixteen API suites with `RAZORPAY_*`
-unset**, each suite against a fresh server, plus 61 browser checks and 13
+unset**, each suite against a fresh server, plus 63 browser checks and 13
 startup guards. The banner was checked
 separately in a browser across all five of its states (17 assertions), which is
 what caught the `daysLeft` rounding.
@@ -1093,6 +1093,24 @@ calendar entry, validating an access-list `caseId`) and for admin aggregates
 `fe8c902` happened — see DECISIONS.md. A new route that returns anything
 derived from a matter uses one of the top two, and a route that scopes its list
 must scope its `:id` fetch with the same helper.
+
+### Where the AI analysis is, and why it moved
+
+The Case Brief is the analysis feature: the matter in short, the facts on the
+record, a chronology, the merits, how the other side will run it, the
+objections to anticipate, the defects to cure before filing, and the
+authorities to consider. It is a `brief` draft kind — same route, same budget,
+same source record as a petition.
+
+It shipped as a second button on `/drafting`, behind a matter dropdown. That is
+backwards: the moment somebody wants a matter analysed is while they are
+looking at it. `/drafting/:caseId` already accepted a matter in the URL and
+nothing linked to it, so the deep link existed and was unreachable — the same
+shape as the drafting opt-in that had a route and no caller.
+
+`case-detail.tsx` now carries an "Analyse this matter" panel that navigates
+there, and `portal.mjs` §8 asserts the path: open a matter, find the offer,
+click it, land on the analysis with that matter already chosen.
 
 ### AI drafting: three gates, in order
 

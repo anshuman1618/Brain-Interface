@@ -298,7 +298,7 @@ export default function DraftingPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-mono text-lg uppercase tracking-wider">Drafting</h1>
+          <h1 className="font-mono text-lg uppercase tracking-wider">Drafting &amp; AI analysis</h1>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
             Prepare a first draft from this chamber&rsquo;s own records, or ask for a brief on the
             matter before it is filed — the facts on the record, the chronology, the merits, how the
@@ -425,7 +425,7 @@ export default function DraftingPage() {
             onClick={() => run("brief")}
           >
             <ScanSearch className="mr-1.5 h-3.5 w-3.5" />
-            Brief me on this matter
+            Analyse this matter
           </Button>
           <Link
             href="/chamber-knowledge"
