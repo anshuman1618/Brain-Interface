@@ -1,3 +1,4 @@
+import { guardIdParams, parseId } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import {
@@ -29,6 +30,9 @@ import { visibleCaseIds } from "../lib/scope";
 
 const router: IRouter = Router();
 
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
+
 /* ── Audit log ───────────────────────────────────────────────────────────── */
 
 router.get(
@@ -38,7 +42,7 @@ router.get(
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
     const raw = Number(req.query["limit"]);
-    const limit = Number.isFinite(raw) ? Math.min(Math.max(raw, 1), 200) : 100;
+    const limit = raw !== null ? Math.min(Math.max(raw, 1), 200) : 100;
 
     const rows = await db
       .select()
@@ -248,9 +252,9 @@ router.patch(
   requireCapability("privacy.manage"),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const id = Number(req.params["id"]);
+    const id = parseId(req.params["id"]);
     const body = DecideErasureBody.safeParse(req.body);
-    if (!Number.isFinite(id) || !body.success) {
+    if (id === null || !body.success) {
       res.status(400).json({ error: "invalid_request" });
       return;
     }

@@ -2224,6 +2224,68 @@ least profitable. Halving `grantMinor` is a one-line 2× markup if that matters.
 
 ---
 
+## Penetration test, 2026-08-28
+
+A live adversarial probe rather than a reading: two chambers, a junior narrowed
+to one matter, a client pinned to another, and ~120 attacks run against a running
+server. **Every isolation control held.** No cross-tenant read or write, no
+row-scope bypass, no privilege escalation, no mass assignment, no leak of a
+firm-internal document to a client, no forged or replayed workspace token.
+
+The parameters are bound (`$1`), so nothing below is an injection. Two defects
+were found, and both are the same underlying mistake: a value that had been
+validated _enough to be a number_ but not _enough to be an id_.
+
+### A malformed id must not reach the database
+
+**Was:** `drafting.ts` did `Number(req.params["id"])` with no check at all, so
+`/drafts/abc` sent `NaN` to Postgres. Everywhere else guarded with
+`Number.isInteger`, which is not the same question: `9007199254740993` is an
+integer as far as JavaScript is concerned and eleven digits wider than the
+`integer` column it was about to be compared against. Both ended as
+`invalid input syntax for type integer` — a 500.
+
+**Now:** one `parseId` in `lib/validation.ts`, digits-only and range-checked
+against int4, used at every site that parses a path parameter by hand.
+
+**And a second mechanism, because a third of the routes do not parse by hand.**
+`cases`, `tasks`, `consultations` and `documents` validate with the GENERATED
+zod params, and those cannot be tightened: the spec says `type: integer`, orval
+renders it `zod.coerce.number()`, and no combination of `format` or `minimum`
+makes it reject `1.5` (`minimum` yields `.min()`; nothing yields `.int()`). So
+those routers register `guardIdParams`, which is `router.param` — chosen over a
+blanket middleware because it fires only when a route carrying that parameter
+actually matches, leaving `/cases/conflict-check`, `/invoices/unbilled` and
+`/tasks/overdue` alone.
+
+**Why a 500 is worth closing** even though nothing leaks: it tells a prober that
+their input reached the database, and it buries real faults under noise anybody
+can generate from a URL bar.
+
+### An unreadable workspace header selected a different workspace
+
+**Was:** `X-Workspace-Id` that failed to parse fell through to "the caller's only
+membership", so the server answered **200 from a different workspace than the one
+asked for**. `X-Workspace-Id: undefined` is the ordinary shape of a client-side
+bug, and this is the worst way to absorb it: silent success for anyone in one
+chamber, a 403 for anyone in two. The people who would report it are exactly the
+ones it refuses.
+
+**Now:** a present-but-unreadable header is a 400, matching the rule the file
+already applied to tokens — _"a token that is present but does not verify is a
+hard failure, not something to fall past"_. The same sentence was always true of
+the id and was not enforced for it.
+
+### Not a finding: any member may read the chamber's plan
+
+`GET /workspace/subscription` answers to any member, and that is deliberate — the
+plan governs everyone's limits, every 402 in the product already reveals it, and
+the non-admin half of the plan screen needs it. The response is an explicit
+projection carrying no payment identifiers. Recorded because it looks like a
+finding from outside and is not.
+
+---
+
 ## Security review, 2026-08-25
 
 A 36-point review was run against the repository and the deployed

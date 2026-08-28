@@ -1,3 +1,4 @@
+import { parseId } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import {
@@ -405,7 +406,10 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
   // "authorized" would activate a plan whose money can still fail to arrive.
   const isPaid = eventType === "payment.captured" || eventType === "order.paid";
   const notes = orderEntity?.notes ?? {};
-  const workspaceId = Number(notes["workspaceId"]);
+  // Through the same parser as a path id, and for a stronger reason: this one
+  // is echoed back by Razorpay from the order we created, so it is outside our
+  // process between the two. It is still only a claim when it returns.
+  const workspaceId = parseId(notes["workspaceId"]);
   const orderId = orderEntity?.id ?? paymentEntity?.order_id ?? null;
   const paidMinor = paymentEntity?.amount ?? orderEntity?.amount ?? null;
   const refundEntity = event.payload?.refund?.entity;
@@ -442,7 +446,7 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
   const packCode = notes["aiTopup"];
   if (packCode) {
     const pack = topupPack(packCode);
-    if (!Number.isInteger(workspaceId) || !pack) {
+    if (workspaceId === null || !pack) {
       await recordEvent({
         ...base,
         workspaceId: null,
@@ -487,7 +491,7 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
 
   const plan = notes["plan"];
   const period = notes["billingPeriod"];
-  if (!Number.isInteger(workspaceId) || !isSubscriptionPlan(plan) || !isBillingPeriod(period)) {
+  if (workspaceId === null || !isSubscriptionPlan(plan) || !isBillingPeriod(period)) {
     await recordEvent({
       ...base,
       workspaceId: null,

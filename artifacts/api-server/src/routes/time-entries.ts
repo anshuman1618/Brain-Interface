@@ -14,9 +14,12 @@ import {
   type AuthRequest,
 } from "../middlewares/requireAuth";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
-import { zodMessage } from "../lib/validation";
+import { guardIdParams, zodMessage } from "../lib/validation";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 /** Whole minutes elapsed since a timer started. Never negative. */
 function elapsedMinutes(startedAt: Date): number {

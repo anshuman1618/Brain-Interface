@@ -1,3 +1,4 @@
+import { guardIdParams, parseId } from "../lib/validation";
 import { Router, raw, type IRouter } from "express";
 import { and, eq, inArray } from "drizzle-orm";
 import { db, documentsTable, documentRequestsTable, casesTable } from "@workspace/db";
@@ -26,6 +27,9 @@ import * as blobs from "../lib/blob-store";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+// Every :caseId/:docId/:id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "caseId", "docId", "id");
 
 /**
  * The document vault is bi-directional: the same table holds files the chamber
@@ -229,8 +233,8 @@ router.post(
   raw({ type: () => true, limit: blobs.maxUploadBytes() }),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const caseId = Number(req.params["caseId"]);
-    if (!Number.isFinite(caseId) || !(await getVisibleCase(c, caseId))) {
+    const caseId = parseId(req.params["caseId"]);
+    if (caseId === null || !(await getVisibleCase(c, caseId))) {
       res.status(404).json({ error: "Case not found" });
       return;
     }
@@ -372,8 +376,8 @@ router.get(
   requireCapability("documents.read"),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const id = Number(req.params["id"]);
-    if (!Number.isFinite(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(404).json({ error: "Not found" });
       return;
     }

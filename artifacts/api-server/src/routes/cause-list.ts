@@ -23,12 +23,15 @@ import {
   ctx,
   type AuthRequest,
 } from "../middlewares/requireAuth";
-import { zodMessage } from "../lib/validation";
+import { guardIdParams, parseId, zodMessage } from "../lib/validation";
 import { adapterFor } from "../lib/cause-list/registry";
 import { acceptMatch, dismissMatch } from "../lib/cause-list/decide";
 import { courtByCode, syncCourt } from "../lib/cause-list/sync";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 /**
  * Courts, for the picker on a matter.
@@ -168,8 +171,8 @@ router.post(
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
 
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }

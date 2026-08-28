@@ -1,9 +1,13 @@
+import { guardIdParams, parseId } from "../lib/validation";
 import { Router, type IRouter } from "express";
 import { eq, and, desc } from "drizzle-orm";
 import { db, notificationsTable } from "@workspace/db";
 import { requireAuth, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 router.get("/notifications", requireAuth, async (req: AuthRequest, res): Promise<void> => {
   const rows = await db
@@ -19,8 +23,8 @@ router.post(
   "/notifications/:id/read",
   requireAuth,
   async (req: AuthRequest, res): Promise<void> => {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }

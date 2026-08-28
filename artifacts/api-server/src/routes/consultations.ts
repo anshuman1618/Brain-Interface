@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { guardIdParams } from "../lib/validation";
 import { eq, inArray, and, SQL } from "drizzle-orm";
 import { db, consultationsTable } from "@workspace/db";
 import {
@@ -22,6 +23,9 @@ import { addTimelineEvent } from "../lib/timeline";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 // Consultations are reachable only through cases the caller can already see, so
 // the visible-case list is the tenant *and* row boundary in one.

@@ -27,7 +27,7 @@ import {
   type AuthRequest,
   type WorkspaceContext,
 } from "../middlewares/requireAuth";
-import { zodMessage } from "../lib/validation";
+import { guardIdParams, parseId, zodMessage } from "../lib/validation";
 import { recordAudit } from "../lib/audit";
 import { renderInvoicePdf } from "../lib/invoice-pdf";
 import {
@@ -42,6 +42,9 @@ import {
 } from "../lib/invoice-number";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 /**
  * Invoicing is admin-only.
@@ -400,8 +403,8 @@ router.post("/invoices", ...requireBilling, async (req: AuthRequest, res): Promi
 // ── read one ────────────────────────────────────────────────────────────────
 router.get("/invoices/:id", ...requireBilling, async (req: AuthRequest, res): Promise<void> => {
   const c = ctx(req);
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id)) {
+  const id = parseId(req.params["id"]);
+  if (id === null) {
     res.status(400).json({ error: "invalid_request" });
     return;
   }
@@ -416,9 +419,9 @@ router.get("/invoices/:id", ...requireBilling, async (req: AuthRequest, res): Pr
 // ── edit a draft ────────────────────────────────────────────────────────────
 router.patch("/invoices/:id", ...requireBilling, async (req: AuthRequest, res): Promise<void> => {
   const c = ctx(req);
-  const id = Number(req.params.id);
+  const id = parseId(req.params["id"]);
   const parsed = UpdateInvoiceBody.safeParse(req.body);
-  if (!Number.isInteger(id) || !parsed.success) {
+  if (id === null || !parsed.success) {
     res.status(400).json({
       error: "invalid_request",
       message: parsed.success ? undefined : zodMessage(parsed.error),
@@ -485,8 +488,12 @@ router.patch("/invoices/:id", ...requireBilling, async (req: AuthRequest, res): 
 // ── delete a draft ──────────────────────────────────────────────────────────
 router.delete("/invoices/:id", ...requireBilling, async (req: AuthRequest, res): Promise<void> => {
   const c = ctx(req);
-  const id = Number(req.params.id);
-  const loaded = Number.isInteger(id) ? await loadInvoice(c, id) : null;
+  const id = parseId(req.params["id"]);
+  if (id === null) {
+    res.status(404).json({ error: "Invoice not found" });
+    return;
+  }
+  const loaded = await loadInvoice(c, id);
   if (!loaded) {
     res.status(404).json({ error: "Invoice not found" });
     return;
@@ -525,8 +532,12 @@ router.post(
   ...requireBilling,
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const id = Number(req.params.id);
-    const loaded = Number.isInteger(id) ? await loadInvoice(c, id) : null;
+    const id = parseId(req.params["id"]);
+    if (id === null) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+    const loaded = await loadInvoice(c, id);
     if (!loaded) {
       res.status(404).json({ error: "Invoice not found" });
       return;
@@ -611,9 +622,9 @@ router.post(
   ...requireBilling,
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const id = Number(req.params.id);
+    const id = parseId(req.params["id"]);
     const parsed = SetInvoiceStatusBody.safeParse(req.body);
-    if (!Number.isInteger(id) || !parsed.success) {
+    if (id === null || !parsed.success) {
       res.status(400).json({
         error: "invalid_request",
         message: parsed.success ? undefined : zodMessage(parsed.error),
@@ -665,8 +676,12 @@ router.post(
 // ── PDF ─────────────────────────────────────────────────────────────────────
 router.get("/invoices/:id/pdf", ...requireBilling, async (req: AuthRequest, res): Promise<void> => {
   const c = ctx(req);
-  const id = Number(req.params.id);
-  const loaded = Number.isInteger(id) ? await loadInvoice(c, id) : null;
+  const id = parseId(req.params["id"]);
+  if (id === null) {
+    res.status(404).json({ error: "Invoice not found" });
+    return;
+  }
+  const loaded = await loadInvoice(c, id);
   if (!loaded) {
     res.status(404).json({ error: "Invoice not found" });
     return;

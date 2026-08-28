@@ -44,7 +44,7 @@ import {
   type AuthRequest,
 } from "../middlewares/requireAuth";
 import { getOrCreateUser, type AppUser } from "../lib/jit";
-import { zodMessage } from "../lib/validation";
+import { guardIdParams, parseId, zodMessage } from "../lib/validation";
 import { displayRole, isWorkspaceRole, needsBarRegistration } from "../lib/permissions";
 import { mintWorkspaceToken, verifyWorkspaceToken } from "../lib/workspace-token";
 import { reconcileAccessList } from "../lib/access-list";
@@ -53,6 +53,9 @@ import { assertSeatAvailable, checkQuota, quotaMessage, usageFor } from "../lib/
 import { caseInWorkspace } from "../lib/scope";
 
 const router: IRouter = Router();
+
+// Every :id on this router must be a real int4 before it reaches a query.
+guardIdParams(router, "id");
 
 function workspaceView(w: Workspace) {
   return { id: w.id, slug: w.slug, name: w.name, kind: w.kind };
@@ -150,8 +153,11 @@ router.get("/session", requireAuth, async (req: AuthRequest, res): Promise<void>
   }
 
   const claims = verifyWorkspaceToken(req.header("x-workspace-token") ?? undefined);
-  const headerId = Number(req.header("x-workspace-id"));
-  const requested = claims?.wsId ?? (Number.isInteger(headerId) ? headerId : null);
+  // `Number(undefined)` is NaN, and `NaN !== null`, so the old ternary here was
+  // always true and passed NaN down as the requested workspace. It happened to
+  // behave, because nothing equals NaN and the lookup fell through to the
+  // single-membership default — but only by accident.
+  const requested = claims?.wsId ?? parseId(req.header("x-workspace-id"));
 
   res.json(GetSessionResponse.parse(await buildSessionClaims(user.id, requested)));
 });
@@ -515,8 +521,8 @@ router.post(
   requireCapability("access_control.manage"),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
@@ -763,8 +769,8 @@ router.delete(
   requireCapability("access_control.manage"),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
@@ -826,8 +832,8 @@ router.patch(
   requireCapability("team.manage"),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
+    const id = parseId(req.params["id"]);
+    if (id === null) {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
@@ -962,7 +968,8 @@ router.get(
   requireCapability("access_control.manage"),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const access = await caseAccessFor(c.workspaceId, Number(req.params["id"]));
+    const membershipId = parseId(req.params["id"]);
+    const access = membershipId === null ? null : await caseAccessFor(c.workspaceId, membershipId);
     if (!access) {
       res.status(404).json({ error: "No such member in this chamber." });
       return;
@@ -982,7 +989,11 @@ router.put(
       return;
     }
     const c = ctx(req);
-    const membershipId = Number(req.params["id"]);
+    const membershipId = parseId(req.params["id"]);
+    if (membershipId === null) {
+      res.status(404).json({ error: "No such member in this chamber." });
+      return;
+    }
 
     const [membership] = await db
       .select()
