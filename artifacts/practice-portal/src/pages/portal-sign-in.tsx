@@ -335,6 +335,32 @@ export default function PortalSignInPage() {
             </form>
           )}
 
+          {/*
+           * Section 5 of the DPDP Act wants the notice GIVEN at the point
+           * personal data is collected, not merely reachable from somewhere on
+           * the site. A link in the page footer is not that: it sits below the
+           * fold, in the same row as the terms, and nothing connects it to the
+           * act of typing an address in.
+           *
+           * So it sits here, under the control that submits, and outside the
+           * `chosen` branch — because choosing Google collects an address just
+           * as much as typing one does, and a notice that only appears on the
+           * email path would miss most people.
+           *
+           * It is stated, not consented to with a checkbox. The lawful basis
+           * for admitting someone to a chamber they were invited to is the
+           * contract, not consent, and a tickbox implying otherwise would
+           * misdescribe our own position.
+           */}
+          <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
+            Signing in gives us your name and the address or number you sign in with, so we can
+            admit you to your chamber and keep its accountability record. Read the{" "}
+            <a href="/legal/notice" className="underline underline-offset-2 hover:text-foreground">
+              Data Protection Notice
+            </a>{" "}
+            for what we do with it and how to have it corrected or erased.
+          </p>
+
           {previewMode && (
             <div className="mt-8 rounded-lg bg-warning px-4 py-3">
               <p className="text-xs text-warning-foreground leading-relaxed">

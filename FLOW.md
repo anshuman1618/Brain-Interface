@@ -1282,10 +1282,13 @@ So: sign in yourself first, found the chamber, then invite from within the app.
 
 These are honest blockers, not polish:
 
-1. **Have counsel review `docs/legal/*`.** They are drafts with
-   `[SQUARE BRACKET]` placeholders and are surfaced to users at `/legal/*`. They
-   describe what the software actually does — but they are not signed off, and
-   they name your entity.
+1. **Have counsel review `docs/legal/*`.** They are filled in now — sole
+   proprietorship, Anshuman Chauhan as Grievance Officer, one contact address —
+   and one placeholder remains, `[PLACE OF BUSINESS]`, which also fixes the
+   court named in Terms §13. They describe what the software actually does, but
+   they are not signed off. **Read `docs/legal/compliance-register.md` first:**
+   its §0 lists four items that outrank everything else here, three of them
+   about losing data rather than about law.
 2. **Take one real payment end to end** if you are charging. Signature
    verification and idempotency are tested; a live transaction is not.
 3. **Set `ERROR_WEBHOOK_URL`.** Unset, you find out about faults from a customer.

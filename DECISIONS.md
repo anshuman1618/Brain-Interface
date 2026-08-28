@@ -2573,9 +2573,8 @@ Recorded so they are not mistaken for oversights.
 - **Object storage for documents.** A Render disk is roughly 16× the cost of R2
   at volume, and pins the service to one instance because Render disks cannot be
   shared. It is the simplest starting point, not the cheapest one.
-- **Counsel review of the legal drafts.** `docs/legal/*` are drafts with
-  `[SQUARE BRACKET]` placeholders. They describe what the software actually
-  does, which is the hard part, but they are not signed off.
+- **Counsel review of the legal drafts.** `docs/legal/*` are filled in but not
+  signed off. One placeholder remains, `[PLACE OF BUSINESS]`.
 - **An end-to-end Razorpay test against live keys.** The signature verification
   and idempotency are tested; a real payment has not been taken.
 - **Streaming drafts token by token.** A draft is written server-side and the
@@ -2594,3 +2593,69 @@ Recorded so they are not mistaken for oversights.
   boot without a real Postgres, which CI does not have. The dev branch is
   exercised; the production branch is verified by inspection and by the operator
   route's own tests.
+
+---
+
+## The legal documents describe the deployment, so four of them had to change
+
+**Decision:** filling in `docs/legal/*` meant correcting four statements that
+were true of a template and false of this system, rather than only replacing
+bracketed blanks. A fifth omission — the AI provider — was added.
+
+**Why:** `docs/legal/README.md` already carried the rule, and it cuts both ways:
+a document describing behaviour the code does not have is a written admission,
+not a protection. Every one of these was a sentence a chamber's counsel could
+have held up against the running system.
+
+- **"Backups are retained for 30 days"**, and the DPA's "automated backups with
+  point-in-time recovery; restores tested". The database is a Render `free`
+  instance with neither, and it expires on 9 September 2026. Both documents now
+  state the absence and say what changes when it is fixed.
+- **"Sign-in events — 12 months."** There is no such table. Clerk holds sign-in
+  records; `audit_events` holds what was done afterwards.
+- **"Audit records — 24 months."** Nothing deletes them, deliberately: the table
+  is append-only, which is the property that makes it evidence. Naming a
+  retention period would have required either a deletion job that destroys that
+  property, or a false sentence. It now says life of the chamber, with the
+  reason.
+- **"8 years for tax."** Six is what the Income-tax Act and §36 CGST require of
+  a proprietorship. The longer figure was not the safer one — holding personal
+  data past its purpose is the thing the Act objects to.
+- **Anthropic was absent from both subprocessor tables.** AI drafting sends
+  matter facts and document text to a third country. The audit actions
+  `drafting.enabled` and `drafting.generated` were built as the consent record
+  for exactly this, and the documents did not mention that the disclosure
+  happened at all. It is now described in full in both, including that a case
+  brief may send web-search queries and that documents never are.
+
+**Also decided:** deletion at the end of the 60-day export window is done by
+hand and both documents now say so. The alternative was to write a retention
+job to make the sentence true. That job would delete chambers' data on a
+schedule nobody has yet reviewed, which is a worse first version than an honest
+paragraph.
+
+**A sole proprietorship publishes one address, not four.** Support, privacy,
+grievance and security all reach `anshumanchauhan0661@gmail.com`, and the Terms
+say so rather than listing four aliases that would imply a support organisation.
+The Grievance Officer under §13(3) of the DPDP Act is named: Anshuman Chauhan.
+
+**Two numbers were chosen, not decided by the owner**, and both are flagged in
+`docs/legal/compliance-register.md` §3: a 7-day full refund on the trial pack,
+and 48 hours to acknowledge a grievance against 30 days to answer it. A
+published refund policy is required both by the Consumer Protection
+(E-Commerce) Rules 2020 and by Razorpay before it activates a live account, so
+leaving it absent was not the neutral option.
+
+**The §5 notice moved into the sign-in screen.** The Act wants the notice given
+at the point of collection; a link in the page footer, below the fold and in the
+same row as the terms, is not that. It is now a paragraph under the submit
+control, outside the provider branch — choosing Google discloses an address just
+as typing one does. It is stated rather than consented to with a checkbox,
+because the basis for admitting an invited member is the contract, and a tickbox
+would misdescribe our own position.
+
+**`docs/legal/compliance-register.md` is new** and is not served to users. It
+records what is implemented, what only the owner can decide, what needs counsel,
+and what is an ongoing duty with no code behind it — CERT-In's 6-hour reporting
+and 180-day Indian log retention being the two live obligations nothing in the
+system currently meets.

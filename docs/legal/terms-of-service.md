@@ -2,17 +2,22 @@
 
 **LEX Practice**
 
-Last updated: [DATE] · Version 1.0
+Last updated: 28 August 2026 · Version 1.0
 
-> **Draft pending review by counsel.** Placeholders in square brackets must be
-> completed before publication. See `docs/legal/README.md`.
+> **Draft pending review by counsel.** One placeholder remains —
+> `[PLACE OF BUSINESS]`, which also fixes the court named in §13. See
+> `docs/legal/README.md`.
 
 ## 1. Who these terms are between
 
-These terms form an agreement between **[LEGAL ENTITY NAME]**, a company
-incorporated in India ([CIN]), with its registered office at [REGISTERED
-ADDRESS] ("we", "us", "LEX Practice"), and the chamber, firm or sole
-practitioner that subscribes to the Service ("you", "the Chamber").
+These terms form an agreement between **Anshuman Chauhan**, a sole proprietor
+carrying on business in India under the name **LEX Practice**, with a principal
+place of business at [PLACE OF BUSINESS] ("we", "us", "LEX Practice"), and the
+chamber, firm or sole practitioner that subscribes to the Service ("you", "the
+Chamber").
+
+LEX Practice is a proprietorship, not a company. It has no CIN, and the
+proprietor is personally liable for its obligations — subject to §11.
 
 By creating a chamber, accepting an invitation, or using the Service, you agree
 to these terms. If you are agreeing on behalf of a firm, you confirm you are
@@ -79,30 +84,45 @@ to serious risk. We will tell you why, and restore access once it is resolved.
 
 ## 6. Plans, fees and taxes
 
-Current plans and prices are shown in the Service and at [PRICING URL].
+Current plans and prices are shown in the Service, on the plan screen, before
+you are asked to pay. That screen is the price list; there is no separate one.
 
-- **Trial.** ₹99 covers two months. It runs for that period and stops; it does
-  not renew and does not roll into a paid plan on its own.
-- **Pro and Firm.** Charged monthly, half-yearly or yearly, in advance. Longer
-  terms are charged for fewer months — twelve billed as ten, six billed as five.
-- **Custom.** Priced by written quotation. Nothing in the Service activates a
-  custom plan; selecting it records an enquiry only.
+- **Trial pack — the only plan on sale today.** ₹99 covers two months. It runs
+  for that period and stops. **It does not renew**, it does not roll into a paid
+  plan, and no payment instruction is retained against it. One trial per person
+  and one per chamber, ever.
+- **When it ends**, the chamber becomes read-only: everything already in it stays
+  readable and exportable, and no new matters can be opened. There is nothing to
+  buy at that point — write to us and we will arrange what you need.
+- **Larger plans exist and are not offered for self-service purchase.** Where we
+  agree one in writing, that written arrangement sets its price, term and limits,
+  and prevails over this section.
 - **Taxes.** Prices are exclusive of GST and any other applicable tax, which is
-  added at the prevailing rate.
+  added at the prevailing rate if and when we are registered for it. Where we are
+  not registered, no GST is charged and none may be claimed as input credit.
 - **Payment.** Taken by our payment processor. We do not receive or store your
   card details.
 
-**Renewal.** Paid plans renew automatically at the end of each term at the
-then-current price. We will give you at least [30] days' notice by email before
-any price increase takes effect. You may cancel at any time before renewal.
+**Renewal.** Nothing currently on sale renews. If we later offer a renewing
+plan, we will give you at least **30 days' notice** by email before any price
+increase takes effect, and you may cancel at any time before renewal.
 
 **Non-payment.** If a payment fails we will tell you and retry. If it remains
-unpaid after [14] days we may downgrade the chamber to trial limits. We will not
+unpaid after **14 days** we may reduce the chamber to read-only. We will not
 delete your data for non-payment without the notice in §9.
 
-**Refunds.** Fees are non-refundable except where required by law, or where we
-have materially failed to provide the Service and cannot put it right within a
-reasonable period.
+**Cancellation and refunds.**
+
+- **Within 7 days of paying for the trial pack**, you may cancel for any reason
+  and we will refund it in full, provided the chamber has not yet opened a
+  matter. Ask at the address in §14.
+- **After that**, fees are non-refundable, except where required by law or where
+  we have materially failed to provide the Service and cannot put it right within
+  a reasonable period — in which case we refund the unused part of the term.
+- **Refunds are returned to the instrument they were paid from**, through our
+  payment processor, normally within 7 working days of our agreeing to them. We
+  do not refund in cash or to a different account.
+- Cancelling does not delete your chamber. §9 governs what happens to the data.
 
 ## 7. Plan limits
 
@@ -125,23 +145,27 @@ agreement.
 **You may cancel at any time**, effective at the end of the paid term. We do not
 pro-rate part terms unless required by law.
 
-**We may terminate** for material breach you do not remedy within [30] days of
+**We may terminate** for material breach you do not remedy within **30 days** of
 written notice, or immediately for the conduct in §5.
 
-**Getting your data out.** For **[60] days** after termination you may export
-your chamber's data via the Service or by asking us. After that period we delete
-it, other than anything we must retain by law or that exists in routine backups,
-which age out on their normal cycle.
+**Getting your data out.** For **60 days** after termination you may export your
+chamber's data — from the Service while it is still readable, or by asking us at
+the address in §14. After that period we delete it, other than anything we must
+retain by law or that exists in a backup, which is destroyed on its own cycle.
+
+Deletion at the end of that window is carried out by us on request or on review,
+not by an automated job. If the 60 days matter to you, ask, and we will confirm
+in writing when it is done.
 
 We will not hold your data hostage over a payment dispute.
 
 ## 10. Changes to the Service and to these terms
 
 We may change the Service. We will not remove a material feature you rely on
-without at least [30] days' notice, and you may cancel and receive a pro-rated
+without at least **30 days'** notice, and you may cancel and receive a pro-rated
 refund of the unused term if we do.
 
-We may change these terms on [30] days' notice by email and in the Service.
+We may change these terms on **30 days'** notice by email and in the Service.
 Continuing to use it after that is acceptance. If a change materially reduces
 your rights, you may cancel and receive a pro-rated refund.
 
@@ -160,9 +184,13 @@ Subject to that:
   missed limitation period, an undetected conflict, a filing not made. §2 is
   the reason: those judgements are yours, and the Service does not make them.
 
-> **Counsel to review.** The cap above is a placeholder. For a product holding
-> privileged material, the negotiated position is often materially different,
-> and professional indemnity cover should be considered alongside it.
+> **Counsel to review.** Read that cap against the price. A chamber on the ₹99
+> trial pack caps our liability at ₹99 — for a system holding privileged
+> material. A court may decline to enforce a cap that low as unconscionable, and
+> a chamber's own professional indemnity insurer may refuse to accept it. The
+> proprietor is personally liable for whatever the cap does not exclude (§1),
+> which is the reason to take advice on this clause and on indemnity cover
+> before taking money, not after.
 
 ## 12. Indemnity
 
@@ -172,24 +200,36 @@ Service itself infringes a third party's intellectual property in India.
 
 ## 13. Governing law
 
-These terms are governed by the laws of India. The courts at **[CITY]** have
-exclusive jurisdiction, save that either party may seek urgent injunctive relief
-anywhere.
+These terms are governed by the laws of India. The courts at the place of our
+business — **[PLACE OF BUSINESS]**, as stated in §1 — have exclusive
+jurisdiction, save that either party may seek urgent injunctive relief anywhere.
 
-[OPTIONAL: arbitration clause under the Arbitration and Conciliation Act 1996,
-seat at [CITY], one arbitrator, proceedings in English.]
+Nothing in this section takes away a consumer's right to complain to a District,
+State or National Consumer Disputes Redressal Commission where the Consumer
+Protection Act 2019 allows it, or to approach the Data Protection Board of India
+under §14 of the [Privacy Policy](/legal/privacy).
 
 ## 14. Contact
 
-| For                      | Contact           |
-| ------------------------ | ----------------- |
-| General and billing      | [SUPPORT EMAIL]   |
-| Privacy and data rights  | [PRIVACY EMAIL]   |
-| Grievance Officer (DPDP) | [GRIEVANCE EMAIL] |
-| Security disclosures     | [SECURITY EMAIL]  |
+One person answers all four of these. LEX Practice is a proprietorship, and
+publishing four addresses that reach the same inbox would suggest a support
+organisation that does not exist.
 
-We aim to acknowledge security reports within [2] working days. We will not
-pursue action against good-faith research that respects other customers' data.
+| For                      | Contact                       |
+| ------------------------ | ----------------------------- |
+| General and billing      | anshumanchauhan0661@gmail.com |
+| Privacy and data rights  | anshumanchauhan0661@gmail.com |
+| Grievance Officer (DPDP) | anshumanchauhan0661@gmail.com |
+| Security disclosures     | anshumanchauhan0661@gmail.com |
+
+The Grievance Officer is **Anshuman Chauhan**, the proprietor. Put "GRIEVANCE",
+"PRIVACY" or "SECURITY" at the front of the subject line and it will be handled
+as such.
+
+**Response times we hold ourselves to.** A grievance is acknowledged within
+**48 hours** and resolved within **30 days**. A security report is acknowledged
+within **2 working days**. We will not pursue action against good-faith research
+that respects other customers' data.
 
 ## 15. General
 

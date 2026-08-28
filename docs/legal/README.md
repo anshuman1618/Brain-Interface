@@ -1,6 +1,7 @@
 # Legal documents
 
-Four documents, served to users at `/legal/<slug>` by the API server:
+Four documents, served to users at `/legal/<slug>` by the API server, and a
+fifth that is for you rather than for them:
 
 | File                           | Slug      | Who it binds                                    |
 | ------------------------------ | --------- | ----------------------------------------------- |
@@ -8,29 +9,72 @@ Four documents, served to users at `/legal/<slug>` by the API server:
 | `privacy-policy.md`            | `privacy` | You and every individual whose data you hold    |
 | `dpdp-notice.md`               | `notice`  | Shown at the point personal data is collected   |
 | `data-processing-agreement.md` | `dpa`     | You as Data Processor, the chamber as Fiduciary |
+| `compliance-register.md`       | —         | Not served. What you owe, and whether you do it |
 
-## What has already been filled in
+**Start with `compliance-register.md`.** Its §0 lists four things that outrank
+everything else, three of which are about to cost you data rather than a fine.
 
-The subprocessor tables in `privacy-policy.md` and
-`data-processing-agreement.md` are complete, because they are facts about the
-deployment rather than decisions: hosting and the database are Render Services,
-Inc., both in Render's **Singapore** region (verified against the live service
-and Postgres instance), payment is Razorpay, and identity is Clerk.
+## What is filled in
 
-Two cells in those tables are deliberately still open:
+The entity is a **sole proprietorship**: Anshuman Chauhan, trading as LEX
+Practice. There is no CIN and the documents no longer imply one. The
+**Grievance Officer is Anshuman Chauhan**, published in all four documents with
+`anshumanchauhan0661@gmail.com`, which is also the single address for support,
+privacy and security — a proprietorship publishing four addresses to one inbox
+would be pretending to be a support organisation, so the Terms say so instead.
 
-- **Clerk's location.** Clerk's data residency depends on the instance tier and
-  is not something to state from memory in a privacy policy. Confirm it with
-  Clerk and fill it in — it also determines what the "Transfers outside India"
-  paragraph has to say.
-- **The email provider.** None is engaged: `SMTP_HOST` is unset, so reminders
-  and erasure notices are recorded and not sent. Fill the row in when that
-  changes; do not fill it in before.
+Subprocessor tables are complete: Render for hosting and the database, both in
+**Singapore**; Razorpay in India; Clerk and **Anthropic** in the United States.
+"Transfers outside India" now itemises what goes where rather than asking to be
+completed.
 
-Everything still bracketed is a decision only you can make: the entity name and
-CIN, the registered office, the governing-law seat, the Grievance Officer's
-name and contact details, the four contact addresses, and the retention and
-notice periods shown as `[30]`, `[12]`, `[24]` and `[8]`.
+**Anthropic was missing entirely and has been added.** AI drafting sends matter
+facts and document text to a third country, and a privacy policy that did not
+mention it was the largest inaccuracy in this directory. Both tables now carry
+it, with the off-by-default behaviour and the audit record described.
+
+**One placeholder remains: `[PLACE OF BUSINESS]`**, in six places across the
+Terms and the Privacy Policy. It is also the court named in Terms §13 and the
+address the e-commerce rules require you to display. One find-and-replace.
+
+The email provider row stays `[NOT YET ENGAGED]` deliberately: `SMTP_HOST` is
+unset, so reminders and erasure notices are recorded and not sent. Fill it in
+when that changes, not before.
+
+## What was corrected, and why it matters
+
+Four statements were true of a template and false of this system. They were
+changed rather than left, because the rule at the bottom of this file cuts both
+ways:
+
+- **"Backups are retained for 30 days"** and **"automated backups with
+  point-in-time recovery; restores tested"**. The database is a Render `free`
+  instance: no backups, no PITR, and it **expires on 9 September 2026**. Both
+  documents now state the absence plainly and say what will change when it is
+  fixed.
+- **"Sign-in events — kept 12 months."** There is no such table. Clerk holds
+  sign-in records; we hold the audit trail of what was done afterwards. The row
+  was replaced with the truth.
+- **"Audit records — 24 months."** Nothing deletes them, by design — the table
+  is append-only, which is what makes it evidence. It now says life of the
+  chamber, and explains why.
+- **"8 years for tax."** Six is what the Income-tax Act and §36 CGST require of
+  a proprietorship. Keeping personal data two years past its purpose is the
+  thing the DPDP Act objects to, so the longer figure was not the safer one.
+
+Deletion at the end of the 60-day export window is done by hand; no scheduled
+job performs it. Both documents now say so rather than describing an automation
+that does not exist.
+
+## Numbers I chose, which are yours to change
+
+- **7 days, full refund on the trial pack** if no matter has been opened
+  (Terms §6). A published refund policy is required by the e-commerce rules and
+  by Razorpay before it activates a live account, so its absence was not a
+  neutral option. The window is a commercial decision and one paragraph to edit.
+- **48 hours to acknowledge, 30 days to answer** a grievance. The e-commerce
+  rules set the outer limits; these are inside them and achievable by one
+  person.
 
 ## Read this before you publish them
 
@@ -43,9 +87,8 @@ the product. It does not make them sufficient for your business.
 **A qualified lawyer must review them before you accept a single rupee.** In
 particular:
 
-- Every `[SQUARE BRACKET]` is a placeholder you must fill in. The documents will
-  not make sense until you do, and some of them (the entity name, the grievance
-  officer, the governing-law seat) have legal consequence.
+- `[PLACE OF BUSINESS]` is the last placeholder, and it fixes the
+  governing-law seat as well as the address. Fill it in before publishing.
 - The limitation-of-liability and indemnity clauses are the ones your counsel
   will most want to change. The numbers in them are placeholders chosen to be
   obviously provisional, not commercially negotiated positions.
@@ -73,3 +116,12 @@ Specific couplings to watch:
 - **Truncated IP addresses** (`privacy-policy.md`) — matches `truncateIp()`.
 - **Subprocessor list** (`dpa.md`) — matches what the deployment actually uses.
   Adding a service means adding a row and giving notice.
+- **AI drafting off by default** (`privacy-policy.md`, `dpa.md` §5) — matches
+  `workspaces.drafting_enabled`, and the audit actions `drafting.enabled` and
+  `drafting.generated` are the consent record the documents point to. If
+  drafting ever becomes on-by-default, both documents are wrong that day.
+- **No backups** (`privacy-policy.md` "Retention", `dpa.md` §4 and §7) — matches
+  a Render `free` Postgres plan. Moving to a paid plan makes three paragraphs
+  and `compliance-register.md` item 0.2 wrong at once. Change them together.
+- **The sign-in notice** (`dpdp-notice.md`) — matches the paragraph beneath the
+  submit control in `pages/portal-sign-in.tsx`. Removing it breaks the §5 claim.
