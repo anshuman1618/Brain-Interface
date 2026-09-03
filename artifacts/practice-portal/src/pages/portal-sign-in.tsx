@@ -352,14 +352,23 @@ export default function PortalSignInPage() {
            * contract, not consent, and a tickbox implying otherwise would
            * misdescribe our own position.
            */}
-          <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
-            Signing in gives us your name and the address or number you sign in with, so we can
-            admit you to your chamber and keep its accountability record. Read the{" "}
-            <a href="/legal/notice" className="underline underline-offset-2 hover:text-foreground">
-              Data Protection Notice
-            </a>{" "}
-            for what we do with it and how to have it corrected or erased.
-          </p>
+          <div className="mt-6">
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Signing in gives us your name and the address or number you sign in with, so we can
+              admit you to your chamber and keep its accountability record.
+            </p>
+            {/* Its own line rather than a link inside the sentence above. An
+                inline link takes the height of the line box — 14px here — and
+                no amount of padding changes that, because padding on an inline
+                box does not affect layout. On a phone that is not something a
+                thumb can hit. */}
+            <a
+              href="/legal/notice"
+              className="inline-flex items-center min-h-10 text-xs underline underline-offset-4 text-muted-foreground hover:text-foreground"
+            >
+              What we do with it, and how to have it corrected or erased
+            </a>
+          </div>
 
           {previewMode && (
             <div className="mt-8 rounded-lg bg-warning px-4 py-3">
@@ -375,13 +384,22 @@ export default function PortalSignInPage() {
       </main>
       {/* Readable before anyone signs in, which is the point of them. */}
       <footer className="border-t border-border px-6 py-5 flex flex-wrap justify-center gap-x-6 gap-y-2 text-2xs font-mono uppercase tracking-widest text-muted-foreground">
-        <a href="/legal/terms" className="hover:text-foreground py-2.5 px-1">
+        <a
+          href="/legal/terms"
+          className="hover:text-foreground inline-flex items-center min-h-10 px-1"
+        >
           Terms of Service
         </a>
-        <a href="/legal/privacy" className="hover:text-foreground py-2.5 px-1">
+        <a
+          href="/legal/privacy"
+          className="hover:text-foreground inline-flex items-center min-h-10 px-1"
+        >
           Privacy Policy
         </a>
-        <a href="/legal/notice" className="hover:text-foreground py-2.5 px-1">
+        <a
+          href="/legal/notice"
+          className="hover:text-foreground inline-flex items-center min-h-10 px-1"
+        >
           Data Protection Notice
         </a>
       </footer>

@@ -228,8 +228,11 @@ two values rather than twenty. Those primitives are wired into Tailwind's
 
 Routes and nav both live in
 `components/layout/dashboard-layout.tsx`; pages are lazy-loaded and guarded with
-`<RequireCapability>`. Nav items are inside a dropdown, not visible links —
-browser tests must open **"Open navigation menu"** first.
+`<RequireCapability>`. Nav is a **permanent labelled sidebar from `lg` up** and a
+slide-over below it, both rendering the same `NavList`. Browser tests should
+anchor on `nav[aria-label="Main"]`, which exists in both — the
+**"Open navigation menu"** button is `lg:hidden`, so a test that looks for it at
+a desktop viewport will not find it.
 
 Use `userMessage()` from `lib/errors.ts` for anything shown to a user.
 `ApiError.message` is written for a console and leads with the status code.

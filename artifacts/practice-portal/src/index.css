@@ -386,3 +386,75 @@
     inset: -1px;
   }
 }
+
+/* ── Landing page motion ─────────────────────────────────────────────────────
+ *
+ * Scoped to `[data-landing]` on purpose. Motion was wanted on the public front
+ * door and NOT inside the app: a practice tool somebody has open all day should
+ * never make them wait on an animation to read a cause list. Nothing in here
+ * can reach a signed-in screen, because nothing else carries that attribute.
+ *
+ * Every rule is behind `prefers-reduced-motion: no-preference`, which is the
+ * safe direction round — the default is stillness, and motion is added only for
+ * a reader who has not asked to be spared it. Written that way rather than as a
+ * `reduce` override so that a new animation added below is inert by default
+ * until someone puts it inside this block.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  /* Entrance. `.rise` starts low and transparent; `.shown` is the resting
+     state, applied on mount so the transition runs once. Staggering is done
+     with an inline --d rather than nth-child, so the order survives an element
+     being added in the middle. */
+  [data-landing] .rise {
+    opacity: 0;
+    transform: translate3d(0, 1.25rem, 0);
+    transition:
+      opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--d, 0ms);
+  }
+  [data-landing] .rise.shown {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* The soft colour field behind the hero. Two blurred blobs already existed
+     and were static; this drifts them slowly enough to be felt rather than
+     watched. 24s and 31s are deliberately coprime, so the pair never settles
+     into a visible repeating beat. */
+  [data-landing] .drift-a {
+    animation: landing-drift-a 24s ease-in-out infinite alternate;
+  }
+  [data-landing] .drift-b {
+    animation: landing-drift-b 31s ease-in-out infinite alternate;
+  }
+
+  /* Cards lift toward the reader on hover. Transform only — animating
+     box-shadow alone forces paint on every frame. */
+  [data-landing] .lift {
+    transition:
+      transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  [data-landing] .lift:hover {
+    transform: translate3d(0, -3px, 0);
+  }
+}
+
+@keyframes landing-drift-a {
+  from {
+    transform: translate3d(33%, -50%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(26%, -44%, 0) scale(1.08);
+  }
+}
+
+@keyframes landing-drift-b {
+  from {
+    transform: translate3d(-33%, 33%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(-26%, 27%, 0) scale(1.1);
+  }
+}

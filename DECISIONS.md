@@ -2721,3 +2721,56 @@ the cumulative chamber-founding across suites exceeds the per-address budget.
 Measured before and after these changes, so it is a pre-existing property of
 running them all against one process — which is what CLAUDE.md means by
 "restart the server between suites", and why CI runs them as separate jobs.
+
+---
+
+## Navigation, a greeting, and motion that stays on the front door
+
+**The three-dot menu is gone.** Up to fifteen destinations lived behind one
+button on a 64px rail, so every navigation cost a click and a moment's recall,
+and none of the destinations was visible until you asked. On a tool somebody has
+open all day that is the wrong trade. It is now a permanent 224px labelled
+sidebar from `lg` up, and the same list in a slide-over below that, both
+rendering one `NavList` — fifteen entries in two copies is one place to forget.
+Labels rather than icons because the list is long and two of the entries are
+different calendars: no icon distinguishes "Master Calendar" from "Court
+Listings".
+
+**This broke the browser suite in a way worth recording.** `portal.mjs` proved
+it had reached the application by finding the button named "Open navigation
+menu". That button is now `lg:hidden`, so the check failed at 1280px against a
+working dashboard — a landmark that exists at only some viewports is not a
+landmark. It anchors on `nav[aria-label="Main"]` now, which the sidebar and the
+slide-over both render.
+
+**The dashboard greets the reader by name.** "Good morning, Anshuman" replaces
+"Status Overview", with the chamber, the day and the refresh cadence beneath it.
+A heading that names the screen you are already looking at is the least useful
+line on a page. `lib/greeting.ts` holds it: the hours are read from the reader's
+own clock, and the salutation drops the name rather than greeting somebody by
+the email address `displayName` falls back to when a provider supplied no name.
+Clients get the same greeting on their portal — someone signing in to read their
+own matter is a person arriving, not a lesser case of one.
+
+**Motion is on the landing page and nowhere else, by decision.** Every rule is
+scoped to `[data-landing]` and sits inside
+`@media (prefers-reduced-motion: no-preference)` — written that way round so the
+default is stillness and a rule added later is inert until somebody deliberately
+puts it in that block. A practice tool should never make a reader wait on an
+animation to see a cause list.
+
+**Two touch-target bugs, one pre-existing.** The suite floors interactive
+elements at 36px, and the legal links in three footers were 14px: `py-2.5` on an
+**inline** `<a>` changes nothing, because vertical padding on an inline box does
+not affect layout. `inline-flex` plus a min-height fixes all three. The new §5
+notice on the sign-in screen had the same problem in its own way — a link inside
+running prose cannot be given a thumb-sized box at all, so it became its own
+line beneath the sentence.
+
+**And the browser suite now exits 0 when it passes.** It was reporting "63
+passed, 0 failed" and exiting 1, because the 402s a chamber gets before it takes
+a plan are logged by the browser as console errors and the suite fails on those.
+Suppressed for exactly that window with the `expectingRefusal` flag already
+there for the operator check, rather than by filtering 402 everywhere — an
+unexpected 402 after a plan is in force is a real bug and must still be seen. A
+suite that reports no failures and exits non-zero is one people learn to ignore.

@@ -328,6 +328,20 @@ if (/bar council|enrolment/i.test(await text())) {
  * of empty error states. The trial is taken through the real pricing modal,
  * which also puts that modal in front of a browser at every width.
  */
+/*
+ * The 402s from here to the moment the trial is taken are the paid gate doing
+ * its job, not a fault.
+ *
+ * A chamber with no plan gets 402 from every module endpoint, and the browser
+ * logs each one as "Failed to load resource" — a console error like any other.
+ * The suite exits non-zero on console errors, so it reported "0 failed" and
+ * still exited 1, which is the shape of result that teaches people to stop
+ * reading it. Suppressed for exactly this window, using the same flag the
+ * operator check uses, rather than by filtering 402 everywhere — an
+ * unexpected 402 after a plan is in force is a real bug and must still be seen.
+ */
+expectingRefusal = true;
+
 const onPlanScreen = /choose how it runs|has not started a plan/i.test(await text());
 check("the subscription screen follows chamber setup", onPlanScreen, (await text()).slice(0, 200));
 
@@ -372,12 +386,23 @@ if (onPlanScreen) {
   await page.waitForTimeout(1500);
 }
 
+// The plan is in force from here on, so any refusal after this point is real.
+expectingRefusal = false;
+
 const inApp = await text();
 // Positive, not negative: "does not say sign in" was also true of the Access
 // Denied screen, which is how a chamber that was never founded passed as a
-// dashboard and every viewport check below measured the wrong page. The nav
-// button exists only inside the application shell.
-const signedIn = (await page.getByRole("button", { name: /Open navigation menu/i }).count()) > 0;
+// dashboard and every viewport check below measured the wrong page.
+//
+// The landmark is the main nav, not the menu button. Navigation used to be a
+// dropdown behind "Open navigation menu" at every width; it is now a permanent
+// labelled sidebar from lg up, and that button exists only below lg. Anchoring
+// on the button therefore made this check pass or fail on viewport width — it
+// failed here at 1280px against a perfectly working dashboard. `nav[aria-
+// label="Main"]` is rendered by the sidebar and by the slide-over alike.
+const signedIn =
+  (await page.locator('nav[aria-label="Main"]').count()) > 0 ||
+  (await page.getByRole("button", { name: /Open navigation menu/i }).count()) > 0;
 check("reached the application", signedIn, `${page.url()} — ${inApp.slice(0, 220)}`);
 
 if (signedIn) {
@@ -405,9 +430,14 @@ if (signedIn) {
    * The only way to catch it is to open one and look, so this opens one.
    */
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.getByRole("button", { name: /Open navigation menu/i }).click();
-  await page.waitForTimeout(300);
-  await page.getByRole("menuitem", { name: /^Cases$/i }).click();
+  // At 1280 the sidebar is on screen and its links are ordinary anchors, so
+  // there is nothing to open first and no menuitem role to match. Scoped to the
+  // nav so "Cases" here cannot accidentally match a heading or a card on the
+  // dashboard behind it.
+  await page
+    .locator('nav[aria-label="Main"]')
+    .getByRole("link", { name: /^Cases$/ })
+    .click();
   await page.waitForTimeout(1200);
   await page
     .getByRole("button", { name: /new case file|open new case|new case/i })

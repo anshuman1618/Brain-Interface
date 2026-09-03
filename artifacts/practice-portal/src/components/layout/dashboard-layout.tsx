@@ -52,26 +52,104 @@ import {
   ShieldCheck,
   FileText,
   Star,
-  MoreVertical,
+  Menu,
   History,
   Receipt,
   PenLine,
   Lightbulb,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PricingModalProvider, usePricingModal } from "@/components/pricing-modal";
 import { useGetSubscription, getGetSubscriptionQueryKey } from "@workspace/api-client-react";
 import { NotificationBell } from "@/components/notification-bell";
 import { GlobalSearch } from "@/components/global-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ErrorBoundary } from "@/components/error-boundary";
+
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+/**
+ * The destination list, rendered identically in the permanent sidebar and in
+ * the mobile slide-over.
+ *
+ * One component rather than two copies: the list is fifteen entries long and
+ * grows, and a second copy is a second place to forget. `onNavigate` is what
+ * the slide-over passes to close itself on selection; the permanent sidebar
+ * omits it, because there is nothing to close.
+ *
+ * `min-h-11` on every row is a 44px touch target, which is the reason the rows
+ * are taller than the type strictly needs.
+ */
+function NavList({
+  items,
+  activeHref,
+  canManageBilling,
+  onNavigate,
+  onOpenPricing,
+  onSignOut,
+}: {
+  items: NavItem[];
+  activeHref?: string;
+  canManageBilling: boolean;
+  onNavigate?: () => void;
+  onOpenPricing: () => void;
+  onSignOut: () => void;
+}) {
+  const row =
+    "flex items-center gap-3 min-h-11 px-3 rounded-[var(--radius)] text-sm w-full text-left";
+
+  return (
+    <nav aria-label="Main" className="flex-1 overflow-y-auto px-2 py-3 flex flex-col gap-0.5">
+      {items.map((item) => {
+        const isActive = item.href === activeHref;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            aria-current={isActive ? "page" : undefined}
+            className={`${row} ${
+              isActive
+                ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/60"
+            }`}
+          >
+            <item.icon className="h-4 w-4 shrink-0" />
+            <span className="truncate">{item.label}</span>
+          </Link>
+        );
+      })}
+
+      {canManageBilling && (
+        <>
+          <div className="my-2 border-t border-sidebar-border" />
+          <button
+            type="button"
+            onClick={onOpenPricing}
+            className={`${row} text-sidebar-foreground hover:bg-sidebar-accent/60`}
+          >
+            <CreditCard className="h-4 w-4 shrink-0" />
+            <span className="truncate">Subscription</span>
+          </button>
+        </>
+      )}
+
+      <div className="my-2 border-t border-sidebar-border" />
+      <button
+        type="button"
+        onClick={onSignOut}
+        className={`${row} text-destructive hover:bg-destructive/10`}
+      >
+        <LogOut className="h-4 w-4 shrink-0" />
+        <span className="truncate">Sign out</span>
+      </button>
+    </nav>
+  );
+}
 
 function DashboardLayoutContent() {
   const {
@@ -108,6 +186,8 @@ function DashboardLayoutContent() {
    * it in front of them meanwhile.
    */
   const [skippedPlan, setSkippedPlan] = useState(false);
+  // Only the slide-over below lg uses this; the permanent sidebar is always open.
+  const [navOpen, setNavOpen] = useState(false);
   const { data: subscriptionState } = useGetSubscription({
     query: {
       queryKey: getGetSubscriptionQueryKey(),
@@ -237,98 +317,91 @@ function DashboardLayoutContent() {
       <PreviewBar />
       <div className="flex min-h-screen bg-background text-foreground">
         {/*
-          Navigation lives behind the three-dot button on this rail rather than
-          in a permanently expanded list. The rail keeps the menu anchored to a
-          fixed spot on the left, so the destination list is always one click
-          from the same place no matter which page is open.
+          Navigation is a labelled list, not a menu behind a button.
+
+          It used to be a three-dot dropdown on a 64px rail. That kept the rail
+          narrow, and cost a click and a moment's recall before every single
+          navigation — on a tool somebody has open all day, with up to fifteen
+          destinations, none of which were visible until you asked. Labels beat
+          icons for a list this long: "Cause list" and "Calendar" are two
+          different calendars, and no icon distinguishes them.
+
+          Sticky and exactly one viewport tall, with the list scrolling inside
+          it, so the identity block at the bottom stays reachable on a long page
+          rather than being pushed below the fold.
         */}
-        {/* Sticky and exactly one viewport tall: the menu button and the
-            signed-in identity must both stay reachable on a long page, which
-            they would not be if the rail grew with the content and pushed the
-            avatar below the fold. */}
-        <aside className="w-12 sm:w-16 border-r border-border bg-sidebar shrink-0 flex flex-col items-center sticky top-0 h-dvh z-20">
-          <div className="h-14 sm:h-16 flex items-center justify-center border-b border-sidebar-border w-full">
-            <Link href="/dashboard" title="LEX Practice">
-              <div className="h-8 w-8 sm:h-9 sm:w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-3xs sm:text-xs">
+        <aside className="hidden lg:flex w-56 border-r border-border bg-sidebar shrink-0 flex-col sticky top-0 h-dvh z-20">
+          <div className="h-16 flex items-center gap-2.5 px-4 border-b border-sidebar-border shrink-0">
+            <Link href="/dashboard" title="LEX Practice" className="flex items-center gap-2.5">
+              <div className="h-9 w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-xs shrink-0">
                 LEX
               </div>
+              <span className="font-mono font-bold tracking-tight text-sm">PRACTICE</span>
             </Link>
           </div>
 
-          <div className="py-4">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="h-11 w-11 flex items-center justify-center text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground transition-colors"
-                  aria-label="Open navigation menu"
-                >
-                  <MoreVertical className="h-5 w-5" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side="right"
-                align="start"
-                sideOffset={8}
-                collisionPadding={8}
-                className="w-[min(15rem,calc(100vw-4.5rem))] rounded-lg"
-              >
-                <DropdownMenuLabel className="font-mono text-3xs uppercase tracking-widest text-muted-foreground">
-                  Go to
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {navItems.map((item) => {
-                  const isActive = item.href === activeItem?.href;
-                  return (
-                    <DropdownMenuItem key={item.href} asChild>
-                      <Link
-                        href={item.href}
-                        className={`flex items-center gap-3 cursor-pointer rounded-lg min-h-11 ${
-                          isActive ? "bg-accent font-semibold text-accent-foreground" : ""
-                        }`}
-                      >
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        {item.label}
-                      </Link>
-                    </DropdownMenuItem>
-                  );
-                })}
+          <NavList
+            items={navItems}
+            activeHref={activeItem?.href}
+            canManageBilling={can("billing.manage")}
+            onOpenPricing={() => setPricingModalOpen(true)}
+            onSignOut={() => signOut()}
+          />
 
-                {can("billing.manage") && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={() => setPricingModalOpen(true)}
-                      className="flex items-center gap-3 cursor-pointer rounded-lg min-h-11"
-                    >
-                      <CreditCard className="h-4 w-4 shrink-0" />
-                      Subscription
-                    </DropdownMenuItem>
-                  </>
-                )}
-
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() => signOut()}
-                  className="flex items-center gap-3 cursor-pointer rounded-lg min-h-11 text-destructive focus:text-destructive"
-                >
-                  <LogOut className="h-4 w-4 shrink-0" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* Identity stays visible on the rail: which account you are signed in
-              as should never require opening a menu to discover. */}
-          <div className="mt-auto pb-4 flex flex-col items-center gap-2">
-            <div
-              className="h-9 w-9 bg-muted flex items-center justify-center text-xs font-medium uppercase"
-              title={`${displayName} - ${displayRole}`}
-            >
+          {/* Identity stays visible: which account you are signed in as should
+              never require opening anything to discover. */}
+          <div className="border-t border-sidebar-border px-3 py-3 flex items-center gap-2.5 shrink-0">
+            <div className="h-8 w-8 bg-muted flex items-center justify-center text-xs font-medium uppercase shrink-0">
               {initial}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium truncate">{displayName}</p>
+              <p className="text-3xs font-mono uppercase tracking-wider text-muted-foreground truncate">
+                {displayRole}
+              </p>
             </div>
           </div>
         </aside>
+
+        {/* Below lg the sidebar would eat the page, so it becomes a slide-over
+            opened from the header. Same list, same component — a second copy
+            would drift from the first the next time an item is added. */}
+        <Sheet open={navOpen} onOpenChange={setNavOpen}>
+          <SheetContent side="left" className="w-64 p-0 bg-sidebar flex flex-col gap-0">
+            <SheetHeader className="h-16 px-4 border-b border-sidebar-border flex-row items-center gap-2.5 space-y-0 shrink-0">
+              <div className="h-9 w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-xs shrink-0">
+                LEX
+              </div>
+              <SheetTitle className="font-mono font-bold tracking-tight text-sm">
+                PRACTICE
+              </SheetTitle>
+            </SheetHeader>
+
+            <NavList
+              items={navItems}
+              activeHref={activeItem?.href}
+              canManageBilling={can("billing.manage")}
+              onNavigate={() => setNavOpen(false)}
+              onOpenPricing={() => {
+                setNavOpen(false);
+                setPricingModalOpen(true);
+              }}
+              onSignOut={() => signOut()}
+            />
+
+            <div className="border-t border-sidebar-border px-3 py-3 flex items-center gap-2.5 shrink-0">
+              <div className="h-8 w-8 bg-muted flex items-center justify-center text-xs font-medium uppercase shrink-0">
+                {initial}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-medium truncate">{displayName}</p>
+                <p className="text-3xs font-mono uppercase tracking-wider text-muted-foreground truncate">
+                  {displayRole}
+                </p>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col min-w-0">
@@ -350,8 +423,19 @@ function DashboardLayoutContent() {
           */}
           <header className="min-h-14 sm:h-16 border-b border-border bg-background flex items-center gap-2 sm:gap-4 px-3 sm:px-6 z-30 sticky top-0 justify-between">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-              {/* The switcher moves up here now that the sidebar is a rail. It
-                  is a tenant boundary, not a nav item, so it stays in sight. */}
+              {/* Opens the slide-over. Hidden at lg and up, where the sidebar is
+                  permanently on screen and a button to reveal it would do
+                  nothing. */}
+              <button
+                type="button"
+                onClick={() => setNavOpen(true)}
+                aria-label="Open navigation menu"
+                className="lg:hidden h-11 w-11 -ml-2 flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              {/* The switcher lives up here rather than in the sidebar: it is a
+                  tenant boundary, not a destination, so it stays in sight. */}
               <div className="w-40 lg:w-56 shrink-0 hidden xs:block">
                 <WorkspaceSwitcher />
               </div>
@@ -528,16 +612,25 @@ function DashboardLayoutContent() {
 function LegalFooter() {
   return (
     <footer className="border-t border-border px-4 sm:px-6 py-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-2xs font-mono uppercase tracking-widest text-muted-foreground">
-      <a href="/legal/terms" className="hover:text-foreground py-2.5 px-1">
+      <a
+        href="/legal/terms"
+        className="hover:text-foreground inline-flex items-center min-h-10 px-1"
+      >
         Terms
       </a>
-      <a href="/legal/privacy" className="hover:text-foreground py-2.5 px-1">
+      <a
+        href="/legal/privacy"
+        className="hover:text-foreground inline-flex items-center min-h-10 px-1"
+      >
         Privacy
       </a>
-      <a href="/legal/notice" className="hover:text-foreground py-2.5 px-1">
+      <a
+        href="/legal/notice"
+        className="hover:text-foreground inline-flex items-center min-h-10 px-1"
+      >
         Data notice
       </a>
-      <a href="/legal/dpa" className="hover:text-foreground py-2.5 px-1">
+      <a href="/legal/dpa" className="hover:text-foreground inline-flex items-center min-h-10 px-1">
         Processing
       </a>
     </footer>
