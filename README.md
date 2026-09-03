@@ -89,6 +89,8 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the two supported hosting topologies
 | `lib/api-spec`              | OpenAPI spec — the source of truth for the API contract             |
 | `lib/api-zod`               | Zod validators generated from the spec                              |
 | `lib/api-client-react`      | React Query hooks generated from the spec                           |
+| `scripts/ci`                | Integration suites, browser suites, and the startup guards          |
+| `docs/legal`                | Terms, privacy policy, DPDP notice, DPA — served at `/legal/<slug>` |
 
 `lib/api-zod` and `lib/api-client-react` are **generated**. After changing
 `lib/api-spec/openapi.yaml`, regenerate rather than editing them by hand:

@@ -724,17 +724,17 @@ what keeps the popup and the number in agreement.
 
 ### Layout stacking — the sticky header and the feedback button
 
-| File                                                      | Change                                                                                                                    |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `practice-portal/.../layout/dashboard-layout.tsx`         | Header `z-10` → `z-30`; the scroll container gains `isolate`. Page content used to paint over the header on every scroll. |
-| `practice-portal/src/components/beta-feedback-widget.tsx` | `left-4` → `left-4 sm:left-20` (clears the rail), `z-40` → `z-20`, label revealed on hover/focus instead of always shown. |
+| File                                                      | Change                                                                                                                                                                                                          |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `practice-portal/.../layout/dashboard-layout.tsx`         | Header `z-10` → `z-30`; the scroll container gains `isolate`. Page content used to paint over the header on every scroll.                                                                                       |
+| `practice-portal/src/components/beta-feedback-widget.tsx` | `left-4` → `left-4 sm:left-20` (cleared the rail), `z-40` → `z-20`, label revealed on hover/focus instead of always shown. **Superseded:** now `lg:left-60` — see "Navigation became a labelled sidebar" below. |
 
 The stacking ladder is now deliberate rather than accidental:
 
 ```
 Radix portals (dialogs, dropdowns)   above everything, portalled to <body>
 header                        z-30   sticky, owns the search dropdown's context
-sidebar rail                  z-20
+sidebar (or its slide-over)   z-20
 feedback widget               z-20   fixed, must never outrank the chrome
 page content                  —      isolated inside the scroll container
 ```
@@ -1161,6 +1161,38 @@ them keep their limits, and the suites reach those states through
 `POST /preview/activate-plan` (404 outside preview) rather than by widening
 what production sells. `subs.mjs`'s Pro/Firm price assertions are parked with
 the plans — see DECISIONS.md.
+
+### Navigation became a labelled sidebar
+
+| File                                                      | Change                                                                                                                                                |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `practice-portal/.../layout/dashboard-layout.tsx`         | The 64px rail with a three-dot `DropdownMenu` is now a `w-56` sidebar (`hidden lg:flex`) plus a `Sheet` slide-over below `lg`. Both render `NavList`. |
+| `practice-portal/src/components/beta-feedback-widget.tsx` | `sm:left-20` → `lg:left-60`. The offset tracks the sidebar width and must move with it.                                                               |
+| `practice-portal/src/pages/dashboard.tsx`                 | "Status Overview" → `greet(displayName)`, on both the staff and the client dashboard.                                                                 |
+| `practice-portal/src/lib/greeting.ts`                     | New. Time-of-day salutation from the reader's own clock; first word of the display name, or no name at all when it is an email address.               |
+| `scripts/ci/browser/portal.mjs`                           | Anchors on `nav[aria-label="Main"]`, not the menu button.                                                                                             |
+
+**Two couplings a future change will trip over.**
+
+The **feedback button's left offset is a hardcoded copy of the sidebar width.**
+It was `sm:left-20` for the 64px rail; when the sidebar became 224px the button
+landed on top of the "Subscription" row. Nothing in any suite measures whether
+one fixed element covers another — a screenshot found it. Change `w-56` and this
+moves with it.
+
+The **"Open navigation menu" button is now `lg:hidden`**, so it does not exist at
+a desktop viewport. `portal.mjs` used it as proof it had reached the application
+and failed at 1280px against a working dashboard. Anything asserting on the app
+shell uses `nav[aria-label="Main"]`, which the sidebar and the slide-over both
+render. CLAUDE.md carries the same warning.
+
+### Motion is scoped to the landing page
+
+Every animation rule lives in `index.css` under `[data-landing]`, inside
+`@media (prefers-reduced-motion: no-preference)`. That way round deliberately:
+the default is stillness, and a rule added later is inert until somebody puts it
+inside that block. Nothing in the signed-in application moves — a practice tool
+should not make a reader wait on an animation to see a cause list.
 
 ### Known, unfixed
 

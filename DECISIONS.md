@@ -1500,6 +1500,11 @@ isolation, not a reproduction of a bug that was occurring.
 (`sm:left-20`), dropped from `z-40` to `z-20`, and reduced to an icon that
 reveals its label on hover or focus.
 
+> **Superseded in part.** The rail is now a 224px labelled sidebar and the
+> offset is `lg:left-60`. The lesson this entry did not draw is at the bottom of
+> this file: the offset is a hardcoded copy of the sidebar's width, so widening
+> one silently puts the button on top of a real control.
+
 **Why:** it was the one permanently visible control on every screen and it
 outranked the header, which is the wrong priority for the least important thing
 on the page — and at `left-4` it sat on top of the navigation rail. It stays for
@@ -2774,3 +2779,31 @@ Suppressed for exactly that window with the `expectingRefusal` flag already
 there for the operator check, rather than by filtering 402 everywhere — an
 unexpected 402 after a plan is in force is a real bug and must still be seen. A
 suite that reports no failures and exits non-zero is one people learn to ignore.
+
+---
+
+## A fixed element's offset is a copy of another element's width
+
+**The bug:** widening the sidebar from 64px to 224px put the floating feedback
+button squarely on top of its "Subscription" row. The button was pinned at
+`sm:left-20` — a number chosen to clear the old rail, written down nowhere near
+the rail, and not derived from it.
+
+**Fixed** with `lg:left-60`, and the comment at both ends now says the offset
+tracks the sidebar and must move with it.
+
+**Worth recording because of how it was found.** No check caught it: `check`
+and `build` pass, every API suite passes, and the browser suite passes 63 of 63
+— nothing in any of them measures whether one fixed element covers another. It
+was visible the moment a screenshot was taken, and invisible until then.
+
+The general shape: **a layout constant that encodes another component's
+dimension is a coupling with no compiler and no test behind it.** The honest
+options are to derive it (a CSS variable both sides read) or to comment it at
+both ends and accept the manual link. This took the second, because one
+consumer does not justify the indirection — but the next one would.
+
+**The same class, one screen over.** `portal.mjs` proved it had reached the
+application by finding the "Open navigation menu" button, which is now
+`lg:hidden`. A landmark that exists at only some viewports is not a landmark,
+and the check failed at 1280px against a perfectly working dashboard.
