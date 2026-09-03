@@ -460,5 +460,86 @@ check(
   `got ${goodUser.status} ${JSON.stringify(goodUser.data)}`,
 );
 
+/* ─────────────── The limiter's key is not the caller's to choose ────────── */
+section("A forged X-Forwarded-For does not buy a fresh rate-limit budget");
+
+// X-Forwarded-For is append-only: each proxy adds the address it received the
+// connection from, so the RIGHTMOST entry is the one our own proxy observed and
+// the only one no client can write. `clientKey` used to take [0], which is the
+// entry the caller supplies — rotating it gave a new bucket every request and
+// /api/session, the endpoint that stops address enumeration and one-time-code
+// spam, counted nothing.
+//
+// This runs LAST in the suite deliberately: it exhausts the auth bucket for
+// this address, and everything after it would fail setup with a 429 that looks
+// like a broken feature. See the note in CLAUDE.md about restarting between
+// suites.
+const AUTH_MAX = 30;
+const spoofEmail = `xff+${suffix}@x.test`;
+let served = 0;
+let refused = 0;
+let retryAfter = 0;
+for (let i = 0; i < AUTH_MAX + 10; i++) {
+  const res = await fetch(`${BASE}/session`, {
+    headers: {
+      authorization: `Bearer ${as(spoofEmail, "XFF")}`,
+      // A different fake address every time. If the leftmost entry were still
+      // the key, every one of these would land in its own empty bucket.
+      "x-forwarded-for": `10.9.${i}.${i}`,
+    },
+  });
+  if (res.status === 429) {
+    refused++;
+    retryAfter = Math.max(retryAfter, Number(res.headers.get("retry-after")) || 0);
+  } else {
+    served++;
+  }
+}
+check(
+  "rotating the header still runs out of budget",
+  refused > 0,
+  `${refused} of ${AUTH_MAX + 10} refused — 0 means the key is still caller-controlled`,
+);
+// The counterpart, so the check above cannot pass for the wrong reason: a
+// limiter that refused everything from the first request would satisfy it while
+// being broken in the other direction. The budget has to be spent, not absent.
+check(
+  "...and the budget was spent rather than absent",
+  served > 0,
+  `${served} served before the first refusal`,
+);
+
+// What this can and cannot prove HERE. Outside production `TRUST_PROXY`
+// defaults to 0, because nothing fronts this process and a chain of length one
+// is pure forgery — read from either end, it is the caller's own value. In
+// production it defaults to 1 and the rightmost entry is the address Render
+// appended, which no caller can write. The assertion holds under both, which is
+// the point: what is being tested is "a caller cannot choose their own key",
+// not the parsing detail underneath it.
+//
+// The /session limiter is keyed by ADDRESS, not per user — that is what makes
+// it a defence against enumeration, and it means this section spends the budget
+// for every caller on this machine. `run-suites.mjs` puts `security` FIRST and
+// then runs fifteen more suites against the same server, so leaving the bucket
+// empty fails all of them at setup with a 429 that looks like a broken feature.
+//
+// So wait the window out rather than leaving that for the next suite to
+// discover. The delay comes from the limiter's own Retry-After header rather
+// than a hardcoded 60, so changing the window does not silently reintroduce
+// the problem.
+if (refused > 0) {
+  const waitMs = (retryAfter || 60) * 1000 + 1000;
+  console.log(`  (waiting ${Math.round(waitMs / 1000)}s for the auth window to reset)`);
+  await new Promise((r) => setTimeout(r, waitMs));
+  const after = await fetch(`${BASE}/session`, {
+    headers: { authorization: `Bearer ${as(`xff3+${suffix}@x.test`, "XFF3")}` },
+  });
+  check(
+    "...and the window reopens afterwards, so the next suite starts clean",
+    after.status !== 429,
+    `got ${after.status}`,
+  );
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

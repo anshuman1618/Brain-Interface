@@ -2659,3 +2659,65 @@ records what is implemented, what only the owner can decide, what needs counsel,
 and what is an ongoing duty with no code behind it — CERT-In's 6-hour reporting
 and 180-day Indian log retention being the two live obligations nothing in the
 system currently meets.
+
+---
+
+## Two ways round a boundary, found by auditing rather than by a report
+
+**Both were the same shape:** a check that answered a _neighbouring_ question to
+the one that mattered, and had been correct until a feature moved the boundary.
+
+### A document request reached a matter the caller could not see
+
+`POST /document-requests` validated its `caseId` with `caseInWorkspace`, which
+asks only whether the matter belongs to this chamber. That was the same question
+as "may I see it" until case-access grants existed, and has not been since. Both
+roles that can be narrowed — junior advocate and clerk — hold
+`document_requests.create`, so a junior restricted away from a matter, or a
+clerk holding no task on one, could attach a request to it and address that
+request to the chamber's client. It also answered 201 for a real hidden id and
+404 for one that does not exist, which enumerates a chamber's matters from
+outside them.
+
+`GET /document-requests` had the other half: staff saw every request in the
+chamber, and `enrich()` resolves `caseTitle`, so a narrowed junior was handed
+the titles of matters they had been kept out of.
+
+Both now go through `getVisibleCase` / `visibleCaseIds`. This is the fifth and
+sixth route of this class; the lesson is recorded again because it keeps
+recurring: **`caseInWorkspace` and `workspaceCaseIds` are for callers whose row
+scope is `all` and cannot be narrowed.** Anything reachable by a junior or a
+clerk needs the scoped helpers.
+
+### The rate limiter let the caller choose its own key
+
+`clientKey` read `X-Forwarded-For` and took entry `[0]`. The header is
+append-only — each proxy adds the address it received the connection from — so
+the **rightmost** entry is the one our proxy observed and the only one no client
+can write. Everything left of it came from the caller. Render appends, so
+`X-Forwarded-For: 10.9.1.1` arrives as `10.9.1.1, <real client>` and the forgery
+won. Rotating the header gave a fresh bucket every request: measured at 40
+requests against a 30/min budget with none refused, against 24 refused for the
+same run without the header.
+
+That budget on `/api/session` is what stops address enumeration and one-time-code
+spam, so it was not enforcing anything. `lib/audit.ts` read the same header the
+same way, which let an attacker write a plausible address of their choosing into
+the chamber's append-only accountability record.
+
+**The fix is not only "read from the right".** Reading from the right of a
+one-element chain still reads the caller, because nothing appended to it. So
+`TRUST_PROXY` now defaults to **1 in production and 0 everywhere else** — a hop
+count is only safe when that many proxies genuinely add an entry, and outside
+production nothing fronts this process. Both call sites share
+`lib/client-address.ts` so there is one place to be wrong.
+
+**A note on `run-suites.mjs`.** The new rate-limit section deliberately empties
+the shared `auth` bucket, and waits out the window afterwards using the
+limiter's own `Retry-After` rather than a hardcoded 60, so the suites that
+follow start clean. That does not make the runner green: 9 of its 16 suites
+already fail against a single long-lived server for the same reason, because
+the cumulative chamber-founding across suites exceeds the per-address budget.
+Measured before and after these changes, so it is a pre-existing property of
+running them all against one process — which is what CLAUDE.md means by
+"restart the server between suites", and why CI runs them as separate jobs.

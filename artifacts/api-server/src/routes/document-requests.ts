@@ -15,7 +15,7 @@ import {
   ctx,
   type AuthRequest,
 } from "../middlewares/requireAuth";
-import { caseInWorkspace } from "../lib/scope";
+import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { displayRole } from "../lib/permissions";
 
 const router: IRouter = Router();
@@ -59,7 +59,15 @@ router.get(
       .select()
       .from(documentRequestsTable)
       .where(and(...conditions));
-    const enriched = await Promise.all(rows.map(enrich));
+
+    // Row scope, applied after the workspace filter and for the same reason the
+    // create path needs it. `enrich` resolves `caseTitle`, so a staff-wide list
+    // handed a narrowed junior the titles of every matter they had been kept
+    // out of. A request pinned to no matter is chamber business and stays.
+    const allowed = new Set(await visibleCaseIds(c));
+    const visible = rows.filter((r) => r.caseId === null || allowed.has(r.caseId));
+
+    const enriched = await Promise.all(visible.map(enrich));
     res.json(enriched);
   },
 );
@@ -94,7 +102,16 @@ router.post(
       return;
     }
 
-    if (parsed.data.caseId != null && !(await caseInWorkspace(c, parsed.data.caseId))) {
+    // `getVisibleCase`, not `caseInWorkspace`. The weaker check asks only
+    // whether the matter belongs to this chamber, which was the same question
+    // as "may I see it" before case-access grants existed and has not been
+    // since. Both roles that can be narrowed — junior advocate and clerk —
+    // hold `document_requests.create`, so the weaker check let a junior
+    // restricted away from a matter, and a clerk holding no task on it, attach
+    // a request to it and address that request to the chamber's client. It also
+    // answered 404 for an id that does not exist and 201 for one that does,
+    // which is a clean way to enumerate a chamber's matters from outside them.
+    if (parsed.data.caseId != null && !(await getVisibleCase(c, parsed.data.caseId))) {
       res.status(404).json({ error: "Case not found" });
       return;
     }

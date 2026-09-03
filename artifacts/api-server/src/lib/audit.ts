@@ -1,6 +1,7 @@
 import type { Request } from "express";
 import { db, auditEventsTable, type AuditAction } from "@workspace/db";
 import { logger } from "./logger";
+import { clientAddress } from "./client-address";
 import type { WorkspaceContext } from "../middlewares/requireAuth";
 
 /**
@@ -57,9 +58,11 @@ export async function recordAudit(
       entityType: input.entityType ?? "",
       entityId: input.entityId == null ? null : String(input.entityId),
       summary: input.summary,
-      ip: truncateIp(
-        (req.headers["x-forwarded-for"] as string | undefined) ?? req.socket?.remoteAddress,
-      ),
+      // Not the raw header: `clientAddress` reads the forwarded chain from the
+      // right, so the address recorded here is the one our proxy observed
+      // rather than one the caller wrote. An audit log that stores an
+      // attacker-chosen address is worse than one that stores none.
+      ip: truncateIp(clientAddress(req)),
     });
   } catch (err) {
     logger.error({ err, action: input.action }, "Failed to write audit event");

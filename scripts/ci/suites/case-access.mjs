@@ -483,5 +483,151 @@ check(
     .status === 404,
 );
 
+/* ─────────────── Reaching a hidden matter sideways ─────────────── */
+section("A document request is not a way round the restriction");
+
+// The restriction is enforced in visibleCaseIds / getVisibleCase. Anything that
+// reached case-scoped data another way was outside it, and POST
+// /document-requests did: it validated caseId with `caseInWorkspace`, which
+// asks only "is this matter in my chamber". Both roles that CAN be narrowed
+// hold document_requests.create, so both could attach a request to a matter
+// they were kept out of — and tell a real hidden id from a nonexistent one by
+// the status code.
+//
+// A client is needed to address a request to, and a client access-list entry
+// must be pinned to a matter, so this one is pinned to the matter the junior
+// legitimately holds.
+// Sections above left the junior restricted with NO grants (the foreign-matter
+// case), so re-establish a known state: granted Alpha, assigned Gamma, kept out
+// of Beta. Asserted rather than assumed — the whole section is meaningless if
+// Beta turns out to be visible.
+await call(`/memberships/${juniorM}/case-access`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "PUT",
+  body: { restricted: true, caseIds: [alpha.data.id] },
+});
+const drJ = (await call("/session", { token: as(junior, "Junior") })).data;
+check(
+  "the junior is back to Alpha granted and Beta hidden",
+  (await call(`/cases/${alpha.data.id}`, { token: as(junior), wsToken: drJ.workspaceToken }))
+    .status === 200 &&
+    (await call(`/cases/${beta.data.id}`, { token: as(junior), wsToken: drJ.workspaceToken }))
+      .status === 404,
+);
+
+const drClient = `ca.client+${suffix}@ca.test`;
+await call("/workspace/access-list", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { kind: "email", value: drClient, role: "client", caseId: alpha.data.id },
+});
+await call("/session", { token: as(drClient, "Client") });
+const clientRow = (await call("/workspace/members", { token: as(owner), wsToken: ws })).data?.find(
+  (m) => m.email === drClient,
+);
+check("a client exists to address a request to", Boolean(clientRow?.userId));
+
+// The junior is restricted to alpha at this point; beta and gamma are hidden.
+const drBody = (caseId) => ({
+  clientId: clientRow?.userId,
+  documentName: "Bank statements",
+  caseId,
+});
+
+const juniorHidden = await call("/document-requests", {
+  token: as(junior),
+  wsToken: drJ.workspaceToken,
+  method: "POST",
+  body: drBody(beta.data.id),
+});
+check(
+  "a restricted junior cannot raise one against a matter they cannot see",
+  juniorHidden.status === 404,
+  `got ${juniorHidden.status}`,
+);
+
+const juniorOwn = await call("/document-requests", {
+  token: as(junior),
+  wsToken: drJ.workspaceToken,
+  method: "POST",
+  body: drBody(alpha.data.id),
+});
+check(
+  "...but can against the one they were granted",
+  juniorOwn.status === 201,
+  `got ${juniorOwn.status} ${JSON.stringify(juniorOwn.data)}`,
+);
+
+// The oracle is the point: a hidden id and an id that does not exist must be
+// indistinguishable. Comparing the two statuses is what makes this a real
+// assertion rather than "404 was returned", which a broken route also does.
+const juniorBogus = await call("/document-requests", {
+  token: as(junior),
+  wsToken: drJ.workspaceToken,
+  method: "POST",
+  body: drBody(999_999),
+});
+check(
+  "...and a hidden matter is indistinguishable from one that does not exist",
+  juniorHidden.status === juniorBogus.status,
+  `hidden ${juniorHidden.status} vs absent ${juniorBogus.status}`,
+);
+
+// The clerk was restricted to BETA above, so Gamma is their hidden matter —
+// not Beta. Getting this wrong is how the assertion passes for the wrong
+// reason: a clerk refused on a matter they were granted would prove the route
+// is broken, not that it is safe.
+const clerkHidden = await call("/document-requests", {
+  token: as(clerk),
+  wsToken: clerkS.workspaceToken,
+  method: "POST",
+  body: drBody(gamma.data.id),
+});
+check(
+  "a clerk is refused against the matter they were kept out of",
+  clerkHidden.status === 404,
+  `got ${clerkHidden.status}`,
+);
+const clerkGranted = await call("/document-requests", {
+  token: as(clerk),
+  wsToken: clerkS.workspaceToken,
+  method: "POST",
+  body: drBody(beta.data.id),
+});
+check(
+  "...and allowed against the one they were granted",
+  clerkGranted.status === 201,
+  `got ${clerkGranted.status}`,
+);
+
+// And the list. `enrich` resolves caseTitle, so an unfiltered staff list handed
+// a narrowed junior the titles of matters they had been kept out of. The
+// admin's own list is checked alongside it, because a filter that returned
+// nothing to anybody would pass the junior assertion on its own.
+const adminList = await call("/document-requests", { token: as(owner), wsToken: ws });
+const juniorList = await call("/document-requests", {
+  token: as(junior),
+  wsToken: drJ.workspaceToken,
+});
+const adminOnBeta = (adminList.data ?? []).filter((r) => r.caseId === beta.data.id);
+const juniorOnBeta = (juniorList.data ?? []).filter((r) => r.caseId === beta.data.id);
+check(
+  "the admin sees the requests raised against the hidden matter",
+  adminOnBeta.length > 0,
+  `admin saw ${adminOnBeta.length}`,
+);
+check(
+  "...and the restricted junior sees none of them",
+  juniorOnBeta.length === 0,
+  JSON.stringify(juniorOnBeta.map((r) => r.caseTitle)),
+);
+check(
+  "...but still sees the one on their own matter",
+  (juniorList.data ?? []).some((r) => r.caseId === alpha.data.id),
+  JSON.stringify((juniorList.data ?? []).map((r) => r.caseId)),
+);
+
 console.log(`\n${fail === 0 ? "✓" : "✗"} ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

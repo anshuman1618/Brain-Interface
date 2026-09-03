@@ -1,6 +1,7 @@
 import type { RequestHandler, Request } from "express";
 import { logger } from "../lib/logger";
 import { resolveClerkId } from "../lib/jit";
+import { clientAddress } from "../lib/client-address";
 
 /**
  * A fixed-window rate limiter, in process memory.
@@ -36,14 +37,15 @@ function sweep(now: number): void {
 }
 
 /**
- * Trust the proxy's first hop only when we are actually behind one. Taking the
- * whole X-Forwarded-For chain would let a client prepend a fake address and
- * rotate its own key at will.
+ * Which address this request counts against.
+ *
+ * `clientAddress` reads X-Forwarded-For from the right, which is the whole
+ * point — see the comment there. Keying on the leftmost entry, as this did,
+ * let a client rotate the header and get a fresh budget every request, so the
+ * sign-in limit counted nothing.
  */
 function clientKey(req: Request): string {
-  const behindProxy = process.env["TRUST_PROXY"] !== "off";
-  const fwd = (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0]?.trim();
-  return (behindProxy && fwd) || req.socket?.remoteAddress || "unknown";
+  return clientAddress(req) || "unknown";
 }
 
 export type LimitOptions = {

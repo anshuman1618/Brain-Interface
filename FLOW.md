@@ -1094,6 +1094,17 @@ calendar entry, validating an access-list `caseId`) and for admin aggregates
 derived from a matter uses one of the top two, and a route that scopes its list
 must scope its `:id` fetch with the same helper.
 
+**A sharper rule, after two more of these were found in `document-requests.ts`:
+the bottom two are only safe on a path no narrowable role can reach.** "Write,
+not read" was the wrong test — a write that accepts a `caseId` and answers
+differently for a real one is a read of whether that matter exists, and the
+request it creates then sits on a matter the author cannot open. The remaining
+`caseInWorkspace` call sites are safe because each needs `calendar.write`,
+`tasks.write` or `access_control.manage`, and `requireAuth.ts` applies
+`caseAccessRestricted` **only** to `junior_advocate` and `clerk_intern` — who
+hold none of those. Add that capability to a narrowable role and those call
+sites become bugs the same day.
+
 ### Where the AI analysis is, and why it moved
 
 The Case Brief is the analysis feature: the matter in short, the facts on the
