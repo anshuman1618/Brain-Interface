@@ -1,7 +1,7 @@
 # Legal documents
 
-Four documents, served to users at `/legal/<slug>` by the API server, and a
-fifth that is for you rather than for them:
+Four documents, served to users at `/legal/<slug>` by the API server, and two
+that are for you rather than for them:
 
 | File                           | Slug      | Who it binds                                    |
 | ------------------------------ | --------- | ----------------------------------------------- |
@@ -10,9 +10,14 @@ fifth that is for you rather than for them:
 | `dpdp-notice.md`               | `notice`  | Shown at the point personal data is collected   |
 | `data-processing-agreement.md` | `dpa`     | You as Data Processor, the chamber as Fiduciary |
 | `compliance-register.md`       | —         | Not served. What you owe, and whether you do it |
+| `breach-runbook.md`            | —         | Not served. What to do in the first hour        |
 
 **Start with `compliance-register.md`.** Its §0 lists four things that outrank
 everything else, three of which are about to cost you data rather than a fine.
+
+**`breach-runbook.md` is the one to have read _before_ you need it.** Three
+statutory clocks start the moment you become aware of an incident, and the
+shortest is six hours.
 
 ## What is filled in
 

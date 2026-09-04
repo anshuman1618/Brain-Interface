@@ -1334,7 +1334,17 @@ These are honest blockers, not polish:
    about losing data rather than about law.
 2. **Take one real payment end to end** if you are charging. Signature
    verification and idempotency are tested; a live transaction is not.
-3. **Set `ERROR_WEBHOOK_URL`.** Unset, you find out about faults from a customer.
+3. **Set `ERROR_WEBHOOK_URL`, then prove it delivers.** Unset, you find out
+   about faults from a customer — and the server now warns about it at every
+   production boot, because a service with no alerting runs perfectly and
+   nothing else will ever mention it.
+   `pnpm --filter @workspace/api-server run check-error-webhook` sends one
+   labelled test report and exits non-zero if it did not arrive. A revoked URL,
+   or one pointed at a channel nobody reads, is indistinguishable from a working
+   one until the first incident.
+   **Read `docs/legal/breach-runbook.md` before you need it** — three statutory
+   clocks start when you become aware of an incident and the shortest is six
+   hours.
 4. **Decide the file-storage story.** A Render disk pins the service to one
    instance, because Render disks cannot be shared. Moving to Cloudflare R2 is
    roughly 16× cheaper at volume and unblocks a second replica.

@@ -313,7 +313,32 @@ minute and de-duplicated, carrying the message and stack frames only — never
 request bodies or chamber content.
 
 Unset, faults are logged and nothing is forwarded, which in practice means you
-learn about them from a customer.
+learn about them from a customer. The server warns about this at every boot in
+production — it is a warning rather than a refusal, because the service runs
+perfectly well without alerting, which is exactly the problem.
+
+**Verify it before you need it.** A webhook URL that was revoked, or pointed at
+a channel nobody reads, looks identical to a working one until the first
+incident:
+
+```bash
+ERROR_WEBHOOK_URL=https://hooks.slack.com/services/... \
+  pnpm --filter @workspace/api-server run check-error-webhook
+```
+
+It sends one clearly-labelled test message in the shape a real report takes, and
+exits non-zero if delivery failed — so it can gate a deploy script rather than
+only be read by eye. A 200 means the endpoint accepted it, not that a human saw
+it, so go and look at the channel.
+
+Getting a URL takes about a minute: Slack (api.slack.com/messaging/webhooks →
+create an app → Incoming Webhooks → add to a channel) or Discord (channel
+settings → Integrations → New Webhook → Copy URL). Anything accepting an https
+JSON POST works; the body carries a `text` field, which is what both render.
+
+**What to do when one of these fires** is `docs/legal/breach-runbook.md`, and
+the time to read it is now. Three statutory clocks start when you become aware
+of an incident and the shortest is six hours.
 
 ### 4e. The operator view
 
@@ -647,7 +672,10 @@ Everything here should be true before the first real client signs in.
 - [ ] Automated backups on, and one restore tested
 - [ ] `FILE_ENCRYPTION_KEY` set, and backed up somewhere other than the volume
 - [ ] An unsigned POST to `/api/billing/webhook` returns 400
-- [ ] `ERROR_WEBHOOK_URL` set, and a deliberate error seen arriving
+- [ ] `ERROR_WEBHOOK_URL` set, and a deliberate error seen arriving —
+      `pnpm --filter @workspace/api-server run check-error-webhook` sends one
+- [ ] A CERT-In portal account registered, before you need it in six hours
+- [ ] `docs/legal/breach-runbook.md` read once while nothing is wrong
 - [ ] The legal documents at `/legal/terms` and `/legal/privacy` reviewed by
       counsel and their placeholders filled in
 - [ ] TLS terminated; HTTP redirects to HTTPS

@@ -2807,3 +2807,54 @@ consumer does not justify the indirection — but the next one would.
 application by finding the "Open navigation menu" button, which is now
 `lg:hidden`. A landmark that exists at only some viewports is not a landmark,
 and the check failed at 1280px against a perfectly working dashboard.
+
+---
+
+## The breach runbook, and making the alerting provable
+
+**Two failures with the same shape:** a control that is described as existing,
+runs perfectly while doing nothing, and is only discovered to be absent at the
+worst possible moment.
+
+**`docs/legal/breach-runbook.md` is new.** The Privacy Policy and the DPA both
+commit to notification deadlines — 6 hours to CERT-In, 48 to affected chambers,
+72 to the Data Protection Board — and there was nothing behind those sentences.
+The runbook is written to be used under pressure rather than read: the first-hour
+checklist comes before the explanation, capture comes before containment, and
+the CERT-In and chamber notifications are fill-in templates rather than advice
+about writing one.
+
+Three decisions inside it worth naming:
+
+- **Preserve before you contain**, with a stated exception for data actively
+  leaving. There are no database backups and uploaded files do not survive a
+  redeploy, so the instinct to "restart and see" destroys the only evidence
+  there is. That is a consequence of compliance-register §0.2 and §0.3, and the
+  runbook says so rather than giving the advice unexplained.
+- **Report to CERT-In on suspicion.** Six hours is shorter than the time it
+  takes to understand an incident, deliberately. A report that turns out to be
+  nothing costs an email; a late one is a separate statutory breach.
+- **A closing section on what the runbook assumes**, including that the audit
+  log records privileged _actions_ and not reads — so "who looked at this file"
+  is not answerable. Better said in advance than discovered mid-incident.
+
+**`ERROR_WEBHOOK_URL` was unverifiable and silent.** DEPLOYMENT.md's checklist
+already asked for "a deliberate error seen arriving" and gave no way to produce
+one short of breaking production. Two additions:
+
+- `scripts/check-error-webhook.mjs` sends one clearly-labelled test report in
+  the shape a real one takes, and exits non-zero on failure so it can gate a
+  deploy rather than only be read by eye. It duplicates the reporter's payload
+  literal rather than importing it: `reportError` rate-limits, de-duplicates and
+  swallows delivery failures, all three right in production and all three wrong
+  when the only question is whether this specific POST arrived.
+- A **preflight warning** when it is unset or not https. A warning, not a
+  refusal — the service genuinely runs without alerting, which is exactly why
+  nothing else would ever tell you. The not-https case matters as much as the
+  unset one: the reporter silently ignores such a URL, which looks identical to
+  working. `startup-guards.mjs` asserts the warning is a warning and not fatal,
+  the same shape as the `WORKSPACE_TOKEN_SECRET` check beside it.
+
+Verified against a local HTTPS endpoint with a trusted certificate: unset → 1,
+non-https → 1, https that refuses → 1 with the status echoed, and delivery →
+0 with the body arriving intact and the URL's secret path redacted in the log.

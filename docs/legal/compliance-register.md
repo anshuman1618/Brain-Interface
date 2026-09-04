@@ -71,12 +71,12 @@ These bind any body corporate providing services in India, with no revenue or
 size threshold. They are the obligation most often missed by a small platform,
 and two of them we do not currently meet.
 
-| Direction | Obligation                                                                   | Where it stands                                                                                                               | Status |
-| --------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------ |
-| (i)       | Synchronise system clocks to NIC or NPL time                                 | Render's hosts, not ours to set. Note the reliance and move on.                                                               | Done   |
-| (ii)      | Report listed cyber incidents to CERT-In **within 6 hours** of noticing them | Committed in the Privacy Policy. **No runbook, no CERT-In account, no rehearsed contact path.**                               | Owner  |
-| (iv)      | Retain ICT logs for **180 days**, **within India**                           | Logs live with Render in **Singapore**, and application logs are not retained for 180 days at all. **This is a genuine gap.** | Owner  |
-| (v)       | KYC and records for subscribers, retained 5 years                            | Chamber and member records are retained for the life of the chamber; billing records for 6 years.                             | Done   |
+| Direction | Obligation                                                                   | Where it stands                                                                                                                                       | Status |
+| --------- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| (i)       | Synchronise system clocks to NIC or NPL time                                 | Render's hosts, not ours to set. Note the reliance and move on.                                                                                       | Done   |
+| (ii)      | Report listed cyber incidents to CERT-In **within 6 hours** of noticing them | Runbook written (`breach-runbook.md` §3, with the address and a fill-in template). **Still no CERT-In portal account** — register before you need it. | Owner  |
+| (iv)      | Retain ICT logs for **180 days**, **within India**                           | Logs live with Render in **Singapore**, and application logs are not retained for 180 days at all. **This is a genuine gap.**                         | Owner  |
+| (v)       | KYC and records for subscribers, retained 5 years                            | Chamber and member records are retained for the life of the chamber; billing records for 6 years.                                                     | Done   |
 
 **On direction (iv).** Meeting it means shipping application logs to a store in
 an Indian region and keeping 180 days of them. It is a day of work and a small
@@ -149,11 +149,16 @@ Three clocks start at the same moment and none of them is long:
 3. **48 hours** — tell every affected chamber, per DPA §3, so it can meet its
    own 72-hour duty as Fiduciary.
 
-None of this is automated and none of it should be improvised at the time. What
-is needed is a one-page runbook naming who is called, what is captured before
-anything is restarted, where the audit log is read from, and the CERT-In
-reporting address — written now, while nothing is on fire. **It does not exist
-yet.**
+None of this is automated and none of it should be improvised at the time.
+**`breach-runbook.md` in this directory is that runbook** — what to capture
+before anything is restarted, in what order, the CERT-In address and template,
+the chamber and Board notifications, and an incident log to fill in as you go.
+
+Two things it depends on that are still Owner items: a **CERT-In portal account
+registered in advance** (creating one during an incident costs an hour you do
+not have), and `ERROR_WEBHOOK_URL` **set and verified** — otherwise the first
+notice of a fault is a customer's phone call. Verify with
+`pnpm --filter @workspace/api-server run check-error-webhook`.
 
 ## 7. Bar Council of India, and the professional line
 

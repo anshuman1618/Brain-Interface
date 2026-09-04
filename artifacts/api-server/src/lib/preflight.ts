@@ -87,6 +87,26 @@ export function inspectProductionConfig(): Preflight {
     });
   }
 
+  // Not fatal — the service runs perfectly well without it, which is exactly
+  // why this needs saying out loud. Unset, every fault is logged and nothing is
+  // forwarded, so the first report of an outage is a chamber's phone call. That
+  // is a state you can sit in for weeks without noticing, because the symptom
+  // of "no alerting" is silence and so is the symptom of "no faults".
+  const errorWebhook = process.env["ERROR_WEBHOOK_URL"]?.trim();
+  if (!errorWebhook) {
+    warnings.push({
+      key: "ERROR_WEBHOOK_URL",
+      why: "unset — faults are logged and forwarded nowhere, so you will hear about them from a customer. See DEPLOYMENT.md §4d",
+    });
+  } else if (!/^https:\/\//i.test(errorWebhook)) {
+    // Silently ignored by the reporter otherwise, which looks identical to
+    // working right up until the first incident.
+    warnings.push({
+      key: "ERROR_WEBHOOK_URL",
+      why: "is not https, so the error reporter IGNORES it and forwards nothing. Verify with `pnpm --filter @workspace/api-server run check-error-webhook`",
+    });
+  }
+
   return { problems, warnings };
 }
 

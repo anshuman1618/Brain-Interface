@@ -9,7 +9,8 @@
     "start": "node --enable-source-maps ./dist/index.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "encrypt-existing": "node ./scripts/encrypt-existing-files.mjs",
-    "check-storage": "node ./scripts/check-storage.mjs"
+    "check-storage": "node ./scripts/check-storage.mjs",
+    "check-error-webhook": "node ./scripts/check-error-webhook.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

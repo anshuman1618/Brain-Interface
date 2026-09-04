@@ -99,6 +99,14 @@ console.log("\n== Every missing production setting is reported in one go");
     "warns about WORKSPACE_TOKEN_SECRET without making it fatal",
     /WORKSPACE_TOKEN_SECRET/.test(out) && !/\d\. WORKSPACE_TOKEN_SECRET/.test(out),
   );
+  // Same shape, and for the same reason: a service with no alerting runs
+  // perfectly, so nothing else will ever tell you it is unset. The numbered-
+  // list check is what distinguishes "warned about" from "refused to start" —
+  // fatal problems are printed as "1. KEY", warnings are not.
+  check(
+    "warns about ERROR_WEBHOOK_URL without making it fatal",
+    /ERROR_WEBHOOK_URL/.test(out) && !/\d\. ERROR_WEBHOOK_URL/.test(out),
+  );
   check("points at the blueprint", /render\.yaml blueprint/.test(out));
 }
 
