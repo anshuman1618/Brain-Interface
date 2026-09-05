@@ -2965,3 +2965,54 @@ cannot be got wrong, cannot be dismissed by accident, and never returns.
 Held until `summaryLoading` clears. Rendering it during the first load would
 flash the first-run panel at every existing chamber on every refresh, which is a
 worse bug than the one being fixed.
+
+---
+
+## Typography: the monospace stamp keeps one job
+
+**Decided:** mono / uppercase / wide-tracking survives on **section eyebrows and
+table headers**. Card titles, tile labels, inline links and metadata lines
+become sentence-case sans.
+
+**Why:** it was doing every job at once — "ACTIVE CASES", "QUICK ACTIONS",
+"DRAFT WITH AI" and the date line all shouted equally, so nothing was
+emphasised and the monospace read as decoration rather than structure. With the
+stat titles quiet, the _numbers_ become the loudest thing on the row, which is
+what a dashboard is for.
+
+**The counter-argument, recorded because it is real:** that stamp is the most
+distinctive thing the product has, and a legal-instrument register suits it.
+Restricting it costs some of that. Chosen from a side-by-side of the same
+chamber, same matter, same viewport, rather than in the abstract.
+
+**Scope, stated honestly.** This covers the dashboard in full and the eighteen
+`CardTitle`s across every page — four distinct class strings, mechanically
+identical, so the metric cards on KPI, invoices and the rest match. It does
+**not** cover every one of the ~250 mono-uppercase occurrences in 45 files:
+that is a rule requiring judgement per site, not a find-and-replace, and doing
+it blind would flatten the eyebrows the rule keeps. The remainder is a
+deliberate follow-up, not an oversight.
+
+## Two ways the browser suite was blind
+
+**A console error named no URL.** "Failed to load resource: 402" is enough to
+fail the suite and not enough to fix it — the first stray 402 cost a debugging
+round to locate. The suite now records every 4xx/5xx `/api/` response with its
+URL, status and whether it fell inside a deliberate-refusal window, and prints
+them at the end. The next one explains itself.
+
+**The refusal window opened too late.** It began at the plan screen, but a
+chamber exists — and has no plan — from the moment it is founded, and the shell
+renders in between: the bar gate, and briefly the dashboard behind it. Anything
+plan-gated mounting in that span answers 402 correctly, and `/api/ai/budget`
+does. The window now opens at founding. This surfaced because the notice strip
+changed when that query fires; the window was always drawn a little short.
+
+**And one assertion had to move rather than be deleted.** "The dashboard says
+AI drafting is available and switched off" read the page text, and the notice is
+now behind a click. The suite opens the strip first — the notice being one click
+away is the deliberate trade — and a **new** assertion checks the "Draft with
+AI" tile is on the dashboard without opening anything, so drafting can never
+become reachable only from inside a collapsed strip. That was the original
+complaint that made drafting discoverable in the first place, and it should not
+be possible to undo it silently.

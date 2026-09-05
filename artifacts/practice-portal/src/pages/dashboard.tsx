@@ -220,8 +220,8 @@ function StaffDashboard() {
               the least useful line on the page; the chamber, the day and the
               refresh cadence underneath carry the orientation it was doing. */}
           <h2 className="text-3xl font-bold tracking-tight mb-1">{greet(displayName)}</h2>
-          <p className="text-muted-foreground font-mono text-sm uppercase tracking-wider">
-            {activeWorkspace?.name} &middot; {todayLong()} &middot; Auto-refresh 30s
+          <p className="text-muted-foreground text-sm">
+            {activeWorkspace?.name} &middot; {todayLong()} &middot; Refreshes every 30s
           </p>
         </div>
         {/* Filing a matter is the first thing a chamber does, and it used to
@@ -337,8 +337,8 @@ function StaffDashboard() {
           >
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
-                  <Briefcase className="h-4 w-4" /> Active Cases
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" /> Active cases
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -357,7 +357,7 @@ function StaffDashboard() {
                       <button
                         type="button"
                         onClick={() => setCaseFormOpen(true)}
-                        className="text-xs font-mono uppercase tracking-wider text-primary hover:underline text-left"
+                        className="text-sm text-primary hover:underline text-left"
                       >
                         File your first case →
                       </button>
@@ -374,8 +374,8 @@ function StaffDashboard() {
           >
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
-                  <CheckSquare className="h-4 w-4" /> Pending Tasks
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <CheckSquare className="h-4 w-4" /> Pending tasks
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -396,8 +396,8 @@ function StaffDashboard() {
           >
             <Card className="bg-destructive/10 text-destructive">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium uppercase font-mono tracking-wider flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" /> Overdue Tasks
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" /> Overdue tasks
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -417,8 +417,8 @@ function StaffDashboard() {
           >
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
-                  <Calendar className="h-4 w-4" /> Next Hearing
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Calendar className="h-4 w-4" /> Next hearing
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -509,7 +509,9 @@ function StaffDashboard() {
         clearest possible contradiction of that.
       */}
       <div className="pt-4 border-t border-border">
-        <h3 className="text-xl font-bold tracking-tight mb-4 uppercase font-mono">Quick Actions</h3>
+        <h3 className="text-2xs font-mono font-bold uppercase tracking-widest text-muted-foreground mb-4">
+          Quick actions
+        </h3>
         {/* Five columns at lg, not four: with five tiles a four-column grid
             orphans the last one onto a row of its own, which reads as an
             afterthought rather than a set. */}
@@ -517,18 +519,14 @@ function StaffDashboard() {
           {can("cases.write") && (
             <button onClick={() => setCaseFormOpen(true)} className={quickActionTile}>
               <Briefcase className="h-8 w-8" />
-              <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                File a new matter
-              </span>
+              <span className="text-sm font-medium text-center">File a new matter</span>
             </button>
           )}
 
           {can("tasks.write") && (
             <button onClick={() => setTaskFormOpen(true)} className={quickActionTile}>
               <Plus className="h-8 w-8" />
-              <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Create / assign task
-              </span>
+              <span className="text-sm font-medium text-center">Create / assign task</span>
             </button>
           )}
 
@@ -537,27 +535,21 @@ function StaffDashboard() {
           {can("drafting.use") && (
             <button onClick={() => setLocation("/drafting")} className={quickActionTile}>
               <PenLine className="h-8 w-8" />
-              <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Draft with AI
-              </span>
+              <span className="text-sm font-medium text-center">Draft with AI</span>
             </button>
           )}
 
           {can("calendar.read") && (
             <button onClick={() => setLocation("/calendar")} className={quickActionTile}>
               <Calendar className="h-8 w-8" />
-              <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Master calendar
-              </span>
+              <span className="text-sm font-medium text-center">Master calendar</span>
             </button>
           )}
 
           {can("cases.write") && (
             <button onClick={() => setDocRequestOpen(true)} className={quickActionTile}>
               <FileText className="h-8 w-8" />
-              <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Request a client document
-              </span>
+              <span className="text-sm font-medium text-center">Request a client document</span>
             </button>
           )}
         </div>
@@ -611,7 +603,7 @@ function StaffDashboard() {
 
         <div>
           <h3 className="text-xl font-bold tracking-tight mb-4 flex items-center gap-2">
-            <Activity className="h-5 w-5 text-muted-foreground" /> Pending Tasks
+            <Activity className="h-5 w-5 text-muted-foreground" /> Pending tasks
           </h3>
           {tasksLoading ? (
             <div className="space-y-4">

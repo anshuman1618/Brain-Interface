@@ -68,6 +68,20 @@ page.on("console", (m) => {
   if (m.type() === "error" && !expectingRefusal) consoleErrors.push(m.text());
 });
 page.on("requestfailed", (r) => failedRequests.push(`${r.failure()?.errorText} ${r.url()}`));
+/*
+ * A console error says only "Failed to load resource: 402" — not which one.
+ * That is enough to fail the suite and not enough to fix it, which cost a
+ * debugging round the first time a stray 402 appeared. Recording the URL and
+ * status alongside makes the next one self-explaining.
+ */
+const refusedResponses = [];
+page.on("response", (r) => {
+  if (r.status() >= 400 && r.url().includes("/api/")) {
+    refusedResponses.push(
+      `${r.status()} ${r.url().replace(BASE, "")}${expectingRefusal ? "  (expected)" : ""}`,
+    );
+  }
+});
 
 const text = () => page.locator("body").innerText();
 
@@ -295,6 +309,18 @@ check(
  * this one. Skipping that click leaves the suite sizing the Access Denied page
  * and calling it the dashboard, which is what it did until this was fixed.
  */
+/*
+ * The paid-gate window opens HERE, not at the plan screen below.
+ *
+ * A chamber exists from the moment it is founded and has no plan until the
+ * trial is taken, and the application shell renders in between — the bar gate,
+ * and briefly the dashboard behind it. Anything plan-gated that mounts in that
+ * span answers 402 correctly, and `/api/ai/budget` does. Opening the window at
+ * the plan screen left that one request outside it, which failed the suite with
+ * "0 failed" and a console error naming no URL.
+ */
+expectingRefusal = true;
+
 const startFounding = page.getByRole("button", { name: /create a chamber/i });
 if (await startFounding.count()) {
   await startFounding.first().click();
@@ -329,6 +355,9 @@ if (/bar council|enrolment/i.test(await text())) {
  * which also puts that modal in front of a browser at every width.
  */
 /*
+ * (The suppression window opened earlier — see the note above the founding
+ * block. Kept here for the explanation.)
+ *
  * The 402s from here to the moment the trial is taken are the paid gate doing
  * its job, not a fault.
  *
@@ -340,8 +369,6 @@ if (/bar council|enrolment/i.test(await text())) {
  * operator check uses, rather than by filtering 402 everywhere — an
  * unexpected 402 after a plan is in force is a real bug and must still be seen.
  */
-expectingRefusal = true;
-
 const onPlanScreen = /choose how it runs|has not started a plan/i.test(await text());
 check("the subscription screen follows chamber setup", onPlanScreen, (await text()).slice(0, 200));
 
@@ -487,9 +514,25 @@ if (signedIn) {
   // only through a tile called "Draft a Document" and two entries behind the
   // three-dot menu, and a chamber admin reasonably concluded it had not
   // shipped at all.
+  //
+  // The three notices now live behind a strip that opens on click, so this
+  // opens it — the notice being one click away rather than always on screen is
+  // the deliberate trade, and the assertion is that it is THERE, not that it is
+  // unavoidable. What is still unavoidable is the sidebar's "Drafting" entry
+  // and the "Draft with AI" tile, both checked below.
   await page.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1500);
+  const strip = page.getByRole("button", { name: /things? needs? your attention/i });
+  if (await strip.count()) {
+    await strip.first().click();
+    await page.waitForTimeout(400);
+  }
   const dash = await text();
+  check(
+    "...and the Draft with AI tile is on the dashboard without opening anything",
+    /draft with ai/i.test(dash),
+    dash.slice(0, 160),
+  );
   check(
     "the dashboard says AI drafting is available and switched off",
     /ai drafting is available/i.test(dash),
@@ -602,6 +645,8 @@ console.log(`\nConsole errors: ${consoleErrors.length}`);
 if (consoleErrors.length) console.log(consoleErrors.slice(0, 5).join("\n"));
 console.log(`Failed requests: ${failedRequests.length}`);
 if (failedRequests.length) console.log(failedRequests.slice(0, 5).join("\n"));
+console.log(`Refused API responses: ${refusedResponses.length}`);
+if (refusedResponses.length) console.log(refusedResponses.slice(0, 10).join("\n"));
 
 await browser.close();
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -53,8 +53,8 @@ export default function KpiPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider font-mono flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" /> SLA Adherence
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <CheckCircle className="h-4 w-4" /> SLA adherence
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -65,8 +65,8 @@ export default function KpiPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider font-mono flex items-center gap-2">
-              <Clock className="h-4 w-4" /> Avg Turnaround
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4" /> Avg turnaround
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -80,8 +80,8 @@ export default function KpiPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider font-mono flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" /> Total Cases
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" /> Total cases
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -92,8 +92,8 @@ export default function KpiPage() {
 
         <Card className="bg-destructive/10 text-destructive">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium uppercase tracking-wider font-mono flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" /> Overdue Tasks
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" /> Overdue tasks
             </CardTitle>
           </CardHeader>
           <CardContent>

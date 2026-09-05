@@ -116,7 +116,7 @@ function Metric({
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           {label} <Define id={definitionId} />
         </CardTitle>
       </CardHeader>
@@ -227,7 +227,7 @@ export function ChamberPerformance() {
         />
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               Past-date hearings <Define id="overdue" />
             </CardTitle>
           </CardHeader>
@@ -242,7 +242,7 @@ export function ChamberPerformance() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               Open matters
             </CardTitle>
           </CardHeader>
@@ -255,7 +255,7 @@ export function ChamberPerformance() {
       {/* ---- ageing ---- */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
             Ageing of open matters <Define id="ageing" />
           </CardTitle>
         </CardHeader>
@@ -311,7 +311,7 @@ export function ChamberPerformance() {
             />
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   Billable share <Define id="billable" />
                 </CardTitle>
               </CardHeader>
@@ -334,7 +334,7 @@ export function ChamberPerformance() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   Hours by matter priority <Define id="category" />
                 </CardTitle>
               </CardHeader>
@@ -356,7 +356,7 @@ export function ChamberPerformance() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   Hours by member <Define id="member" />
                 </CardTitle>
               </CardHeader>
