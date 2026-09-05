@@ -458,3 +458,105 @@
     transform: translate3d(-26%, 27%, 0) scale(1.1);
   }
 }
+
+/* ── Scrollbars ──────────────────────────────────────────────────────────────
+ *
+ * There was no scrollbar styling at all, so every scroll container in the app
+ * drew the operating system's default: a wide grey trough against a warm cream
+ * ground, in the one part of the interface the design system could not reach.
+ * Twenty-four native `overflow-*` containers looked borrowed; the twenty-seven
+ * Radix `ScrollArea`s beside them were already themed, which made the mismatch
+ * worse rather than better.
+ *
+ * Three separate problems, and only one of them is the colour:
+ *
+ * 1. **The jump.** A scrollbar appearing when content grows past the fold
+ *    narrows the viewport, and everything centred in it slides sideways. That
+ *    is the "abrupt" you feel rather than see. `scrollbar-gutter: stable`
+ *    reserves the space whether or not a bar is drawn, so nothing moves.
+ * 2. **Scroll chaining.** Reaching the end of an inner list handed the wheel to
+ *    the page behind it, so a dropdown or a table would scroll the whole
+ *    dashboard out from under the cursor. `overscroll-behavior: contain` stops
+ *    at the boundary.
+ * 3. **The colour.** Thin, on the palette, and quiet at rest.
+ *
+ * Both syntaxes are here on purpose: `scrollbar-width`/`scrollbar-color` is the
+ * standard and is what Firefox reads; `::-webkit-scrollbar` is what Chrome and
+ * Safari read. Neither alone covers the browsers an advocate actually uses.
+ * `color-scheme` is already declared per theme above, which is what keeps the
+ * corner and the buttons in step.
+ */
+
+* {
+  scrollbar-width: thin;
+  /* thumb, then track. `transparent` track means the container's own ground
+     shows through, so a scrollbar over a card and one over the page do not
+     need separate rules. */
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border-radius: 999px;
+  /* Drawn inside a transparent border so the thumb reads as ~6px with room to
+     breathe, while the hit area stays the full 10px — a 6px-wide target is not
+     something to ask a person to grab. */
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.55);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/*
+ * The gutter is reserved only where a jump would actually be felt: the page
+ * itself, and containers that opt in with `data-scroll`.
+ *
+ * Not on every `.overflow-y-auto`. `scrollbar-gutter: stable` reserves the
+ * space whether or not the content overflows, so applying it to all twenty-one
+ * of them would inset the right edge of several small lists — the sidebar nav
+ * among them — that mostly never scroll. Trading a permanent 10px of dead space
+ * for a jump that never happens is the wrong way round.
+ */
+html,
+[data-scroll] {
+  scrollbar-gutter: stable;
+}
+
+/* Chaining, though, is worth stopping everywhere it can happen. */
+[data-scroll],
+.overflow-y-auto,
+.overflow-auto {
+  overscroll-behavior: contain;
+}
+
+/*
+ * Smooth scrolling applies to programmatic and anchor jumps — `scrollIntoView`,
+ * a "back to top", a link to an id. It does NOT change the wheel or the
+ * trackpad, and nothing here tries to: making those "smooth" requires
+ * intercepting wheel events in JavaScript, which breaks momentum on a trackpad,
+ * fights the OS on a phone, and is the single most common way a site is made to
+ * feel worse while looking more sophisticated.
+ *
+ * Behind reduced-motion, because a long instant jump is precisely what somebody
+ * with that preference has asked for.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}

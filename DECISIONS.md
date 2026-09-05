@@ -2858,3 +2858,45 @@ one short of breaking production. Two additions:
 Verified against a local HTTPS endpoint with a trusted certificate: unset → 1,
 non-https → 1, https that refuses → 1 with the status echoed, and delivery →
 0 with the body arriving intact and the URL's secret path redacted in the log.
+
+---
+
+## Scrollbars, and the three problems inside one complaint
+
+The app had **no scrollbar styling at all**, so twenty-one native `overflow-*`
+containers drew the operating system's default — a wide grey trough on a warm
+cream ground, in the one part of the interface the design system could not
+reach. The twenty-seven Radix `ScrollArea`s beside them were already themed,
+which made the mismatch conspicuous rather than uniform.
+
+"Abrupt" turned out to be three separate things, and the colour was the least of
+them:
+
+- **The jump.** A scrollbar appearing when content grows past the fold narrows
+  the viewport, and everything centred in it slides sideways. That is the one
+  you feel rather than see. `scrollbar-gutter: stable` reserves the space
+  whether or not a bar is drawn.
+- **Scroll chaining.** Reaching the end of an inner list handed the wheel to the
+  page behind it, scrolling the dashboard out from under the cursor.
+  `overscroll-behavior: contain`.
+- **The colour.** Thin, on `--border`, quiet at rest, darker on hover.
+
+**Both syntaxes, deliberately.** `scrollbar-width`/`scrollbar-color` is the
+standard and is what Firefox reads; `::-webkit-scrollbar` is what Chrome and
+Safari read. Neither alone covers the browsers an advocate uses.
+
+**The gutter is not applied to every scroller.** It reserves space whether or
+not the content overflows, so putting it on all twenty-one would permanently
+inset the right edge of several small lists that mostly never scroll — the
+sidebar nav among them. It is on `html` and on an explicit `data-scroll`
+opt-in, which the main content area now carries. Chaining, being harmless to
+prevent, stays on all of them.
+
+**What was deliberately NOT done: smooth wheel scrolling.** `scroll-behavior:
+smooth` covers programmatic and anchor jumps — `scrollIntoView`, a back-to-top,
+a link to an id — and nothing more. Making the wheel or trackpad "smooth"
+requires intercepting wheel events in JavaScript, which breaks momentum on a
+trackpad, fights the OS on a phone, and is the most common way a site is made to
+feel worse while looking more sophisticated. It is behind
+`prefers-reduced-motion` because an instant jump is exactly what that preference
+asks for.

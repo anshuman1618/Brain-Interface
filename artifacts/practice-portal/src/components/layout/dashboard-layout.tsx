@@ -455,7 +455,7 @@ function DashboardLayoutContent() {
           {/* `isolate` keeps every z-index inside the page from being measured
               against the chrome around it. Without it, any page that raises an
               element re-opens the bug the header comment above describes. */}
-          <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative isolate">
+          <div data-scroll className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative isolate">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.2] pointer-events-none z-0" />
             <div className="relative z-10 max-w-6xl mx-auto animate-in fade-in duration-500">
               {/*
