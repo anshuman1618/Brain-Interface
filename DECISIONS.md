@@ -2900,3 +2900,68 @@ trackpad, fights the OS on a phone, and is the most common way a site is made to
 feel worse while looking more sophisticated. It is behind
 `prefers-reduced-motion` because an instant jump is exactly what that preference
 asks for.
+
+---
+
+## Three dashboard changes, and an audit that found more than expected
+
+### The banner queue became one strip
+
+The dashboard opened with three full-width alerts — plan, bar credentials, AI
+drafting — before the greeting or any work. Each is real, and a chamber that
+misses the six-month bar deadline has a genuine problem, but a screen that opens
+by making three demands is one where people learn to scroll past all three
+together.
+
+They now collapse into a row that counts them and expands on click. The counting
+is the interesting part: each notice decides for itself whether it applies, from
+data the strip cannot see, so each calls `useNoticeSlot(id, applies)` and the
+strip counts registrations. **The notices always render their body when they
+apply; showing and hiding is the strip's job.** Two sources of truth for one
+decision is how they drift apart.
+
+The hook lives in `lib/notice-slot.tsx` rather than beside the component,
+because a module exporting both a component and a hook defeats Fast Refresh —
+every edit to the strip would reload the app instead of hot-swapping it.
+
+### Ten quick actions, six of which lied
+
+An audit of where each tile actually went, rather than what it was labelled:
+
+| Tile                        | Went to             | Honest? |
+| --------------------------- | ------------------- | ------- |
+| Create / Assign Task        | modal               | yes     |
+| Interactive Master Calendar | `/calendar`         | yes     |
+| Draft with AI               | `/drafting`         | yes     |
+| Request Client Document     | modal               | yes     |
+| Priority / Urgent Cases     | `/cases` unfiltered | no      |
+| Pending Cases / Cause List  | `/tasks` unfiltered | no      |
+| My Assigned Work            | `/tasks` unfiltered | no      |
+| Work Completed              | `/tasks` unfiltered | no      |
+| Case Briefs & Drafting      | `/cases`            | no      |
+| Upload Digital Copy         | `/cases`            | no      |
+
+FLOW recorded four as broken; it was six. **Three different labels wired to one
+unfiltered route** is the most legible sign of a screen assembled rather than
+designed, and each costs a person a click plus the moment of realising nothing
+was filtered. The four honest ones survive, plus "File a new matter" promoted
+from the header.
+
+Their staggered `delay-[700ms]` entrance went too. Motion inside the application
+was ruled out deliberately, and a dashboard whose last tile arrives two thirds
+of a second late is the clearest contradiction of that available.
+
+Five tiles are laid out five-across at `lg`, not four — five tiles in a
+four-column grid orphans the last onto its own row, which reads as an
+afterthought rather than a set.
+
+### A first screen that teaches instead of showing four zeros
+
+Until the first matter exists, the stat row is replaced by three numbered steps
+with their real buttons: file a matter, admit your staff, decide about AI
+drafting. **The condition is the matter count, not a dismissal flag** — so it
+cannot be got wrong, cannot be dismissed by accident, and never returns.
+
+Held until `summaryLoading` clears. Rendering it during the first load would
+flash the first-run panel at every existing chamber on every refresh, which is a
+worse bug than the one being fixed.

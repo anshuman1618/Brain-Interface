@@ -24,9 +24,6 @@ import {
   AlertCircle,
   Clock,
   FileText,
-  Upload,
-  ListTodo,
-  Archive,
   Check,
   Plus,
   Send,
@@ -37,6 +34,7 @@ import { Link, useLocation } from "wouter";
 import { PlanBanner } from "@/components/plan-banner";
 import { CredentialsNotice } from "@/components/credentials-notice";
 import { DraftingNotice } from "@/components/drafting/drafting-notice";
+import { NoticeStrip } from "@/components/notice-strip";
 import { DocumentRequestModal } from "@/components/document-request-modal";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { CaseFormModal } from "@/components/case-form-modal";
@@ -80,6 +78,38 @@ export default function DashboardPage() {
   }
 
   return <ClientDashboard />;
+}
+
+/**
+ * One numbered step in the first-run panel.
+ *
+ * A separate component only so the three steps cannot drift apart in spacing
+ * or type — three copies of the same markup is how a list ends up with one
+ * item a pixel out.
+ */
+function FirstRunStep({
+  n,
+  title,
+  body,
+  action,
+}: {
+  n: number;
+  title: string;
+  body: string;
+  action: React.ReactNode;
+}) {
+  return (
+    <li className="flex flex-col gap-3 sm:flex-row sm:items-start">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-secondary font-mono text-xs font-bold text-secondary-foreground">
+        {n}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">{title}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">{body}</p>
+      </div>
+      <div className="shrink-0 sm:pt-0.5">{action}</div>
+    </li>
+  );
 }
 
 function StaffDashboard() {
@@ -173,11 +203,15 @@ function StaffDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in zoom-in-95 duration-500">
-      {/* Renders for everyone, and renders nothing when the plan is healthy.
-          Only the CTA inside it is gated on billing.manage. */}
-      <PlanBanner canManage={can("billing.manage")} />
-      <CredentialsNotice />
-      <DraftingNotice />
+      {/* All three still render for everyone and still render nothing when they
+          do not apply. The strip collapses them into one row and counts what is
+          outstanding — see components/notice-strip.tsx for why the counting has
+          to happen inside each notice. */}
+      <NoticeStrip>
+        <PlanBanner canManage={can("billing.manage")} />
+        <CredentialsNotice />
+        <DraftingNotice />
+      </NoticeStrip>
 
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
         <div>
@@ -217,123 +251,199 @@ function StaffDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        {/*
+      {/*
+        A chamber's first screen used to be four zeros and an empty table.
+        ────────────────────────────────────────────────────────────────────
+        Four counters reading nothing is a dead screen, and it is the first
+        impression of the product for every chamber that ever signs up. It also
+        teaches nothing: the numbers are meaningless until there is a matter,
+        and the way to get one is not on the screen.
+
+        This replaces the stat row until the first matter exists, and never
+        appears again after that — the condition is the matter count, not a
+        dismissal flag, so it cannot be got wrong or come back.
+
+        Held until `summaryLoading` clears. Rendering it during the first load
+        would flash the first-run panel at every existing chamber on every
+        refresh, which is a worse bug than the one being fixed.
+      */}
+      {!summaryLoading && openCases.length === 0 && can("cases.write") ? (
+        <div className="rounded-[var(--radius)] bg-card p-5 sm:p-6 shadow-[var(--raise)]">
+          <h3 className="text-lg font-bold tracking-tight">Your chamber is empty</h3>
+          <p className="mt-1 text-sm text-muted-foreground max-w-xl">
+            Three things worth doing first. This panel goes away for good once you file a matter.
+          </p>
+
+          <ol className="mt-5 space-y-3">
+            <FirstRunStep
+              n={1}
+              title="File your first matter"
+              body="Everything else hangs off a matter — hearings, tasks, documents, time and the invoice at the end."
+              action={
+                <Button size="sm" className="rounded-lg" onClick={() => setCaseFormOpen(true)}>
+                  File a matter
+                </Button>
+              }
+            />
+            {can("access_control.manage") && (
+              <FirstRunStep
+                n={2}
+                title="Admit your clerk and your juniors"
+                body="Nobody reaches this chamber until you put their address on the access list, and you choose what each of them may see."
+                action={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-lg"
+                    onClick={() => setLocation("/invites")}
+                  >
+                    Open access control
+                  </Button>
+                }
+              />
+            )}
+            {can("drafting.use") && (
+              <FirstRunStep
+                n={3}
+                title="Decide about AI drafting"
+                body="Off until you switch it on. When it is on, matter facts and document text are sent to an AI provider — read the note before deciding."
+                action={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-lg"
+                    onClick={() => setLocation("/drafting")}
+                  >
+                    See what it does
+                  </Button>
+                }
+              />
+            )}
+          </ol>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+          {/*
           The only card that is not always a button. At zero it holds its own
           "File your first case" action, and a button inside a button is invalid
           markup — but it is also the right behaviour: opening an empty list
           teaches nobody anything, while the empty state already offers the one
           move worth making.
         */}
-        <MaybeStatButton
-          active={Boolean(summary?.activeCases)}
-          onClick={() => setOpenStat("cases")}
-          label={`Active cases: ${summary?.activeCases ?? 0}. Open the list.`}
-        >
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
-                <Briefcase className="h-4 w-4" /> Active Cases
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {summaryLoading ? (
-                <Skeleton className="h-10 w-20" />
-              ) : summary?.activeCases ? (
-                <div className="text-4xl font-bold tracking-tighter">{summary.activeCases}</div>
-              ) : (
-                // A bare "0" is a dead end on a chamber's first day. Say what the
-                // next step is, and make it the thing you click.
-                <div className="space-y-2">
-                  <div className="text-4xl font-bold tracking-tighter text-muted-foreground">0</div>
-                  {can("cases.write") && (
-                    <button
-                      type="button"
-                      onClick={() => setCaseFormOpen(true)}
-                      className="text-xs font-mono uppercase tracking-wider text-primary hover:underline text-left"
-                    >
-                      File your first case →
-                    </button>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </MaybeStatButton>
-
-        <StatCardButton
-          onClick={() => setOpenStat("pending")}
-          label={`Pending tasks: ${summary?.pendingTasks ?? 0}. Open the list.`}
-        >
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
-                <CheckSquare className="h-4 w-4" /> Pending Tasks
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {summaryLoading ? (
-                <Skeleton className="h-10 w-20" />
-              ) : (
-                <div className="text-4xl font-bold tracking-tighter">
-                  {summary?.pendingTasks || 0}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </StatCardButton>
-
-        <StatCardButton
-          onClick={() => setOpenStat("overdue")}
-          label={`Overdue tasks: ${overdueTasks.length}. Open the list.`}
-        >
-          <Card className="bg-destructive/10 text-destructive">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium uppercase font-mono tracking-wider flex items-center gap-2">
-                <AlertCircle className="h-4 w-4" /> Overdue Tasks
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {tasksLoading ? (
-                <Skeleton className="h-10 w-20 bg-destructive/20" />
-              ) : (
-                <div className="text-4xl font-bold tracking-tighter">{overdueTasks.length}</div>
-              )}
-            </CardContent>
-          </Card>
-        </StatCardButton>
-
-        <MaybeStatButton
-          active={hearingRows.length > 0}
-          onClick={() => setOpenStat("hearings")}
-          label={`Next hearing. ${hearingRows.length} upcoming. Open the list.`}
-        >
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
-                <Calendar className="h-4 w-4" /> Next Hearing
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {nextHearing ? (
-                <>
-                  <div className="text-lg font-bold tracking-tight truncate">
-                    {new Date(`${nextHearing.entryDate}T00:00:00`).toLocaleDateString(undefined, {
-                      day: "numeric",
-                      month: "short",
-                    })}
+          <MaybeStatButton
+            active={Boolean(summary?.activeCases)}
+            onClick={() => setOpenStat("cases")}
+            label={`Active cases: ${summary?.activeCases ?? 0}. Open the list.`}
+          >
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+                  <Briefcase className="h-4 w-4" /> Active Cases
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {summaryLoading ? (
+                  <Skeleton className="h-10 w-20" />
+                ) : summary?.activeCases ? (
+                  <div className="text-4xl font-bold tracking-tighter">{summary.activeCases}</div>
+                ) : (
+                  // A bare "0" is a dead end on a chamber's first day. Say what the
+                  // next step is, and make it the thing you click.
+                  <div className="space-y-2">
+                    <div className="text-4xl font-bold tracking-tighter text-muted-foreground">
+                      0
+                    </div>
+                    {can("cases.write") && (
+                      <button
+                        type="button"
+                        onClick={() => setCaseFormOpen(true)}
+                        className="text-xs font-mono uppercase tracking-wider text-primary hover:underline text-left"
+                      >
+                        File your first case →
+                      </button>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground truncate mt-1">{nextHearing.title}</p>
-                </>
-              ) : (
-                <div className="text-lg font-bold tracking-tight text-muted-foreground">
-                  None scheduled
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </MaybeStatButton>
-      </div>
+                )}
+              </CardContent>
+            </Card>
+          </MaybeStatButton>
+
+          <StatCardButton
+            onClick={() => setOpenStat("pending")}
+            label={`Pending tasks: ${summary?.pendingTasks ?? 0}. Open the list.`}
+          >
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+                  <CheckSquare className="h-4 w-4" /> Pending Tasks
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {summaryLoading ? (
+                  <Skeleton className="h-10 w-20" />
+                ) : (
+                  <div className="text-4xl font-bold tracking-tighter">
+                    {summary?.pendingTasks || 0}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </StatCardButton>
+
+          <StatCardButton
+            onClick={() => setOpenStat("overdue")}
+            label={`Overdue tasks: ${overdueTasks.length}. Open the list.`}
+          >
+            <Card className="bg-destructive/10 text-destructive">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium uppercase font-mono tracking-wider flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" /> Overdue Tasks
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {tasksLoading ? (
+                  <Skeleton className="h-10 w-20 bg-destructive/20" />
+                ) : (
+                  <div className="text-4xl font-bold tracking-tighter">{overdueTasks.length}</div>
+                )}
+              </CardContent>
+            </Card>
+          </StatCardButton>
+
+          <MaybeStatButton
+            active={hearingRows.length > 0}
+            onClick={() => setOpenStat("hearings")}
+            label={`Next hearing. ${hearingRows.length} upcoming. Open the list.`}
+          >
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground uppercase font-mono tracking-wider flex items-center gap-2">
+                  <Calendar className="h-4 w-4" /> Next Hearing
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {nextHearing ? (
+                  <>
+                    <div className="text-lg font-bold tracking-tight truncate">
+                      {new Date(`${nextHearing.entryDate}T00:00:00`).toLocaleDateString(undefined, {
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-1">
+                      {nextHearing.title}
+                    </p>
+                  </>
+                ) : (
+                  <div className="text-lg font-bold tracking-tight text-muted-foreground">
+                    None scheduled
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </MaybeStatButton>
+        </div>
+      )}
 
       {/* One dialog, four sets of rows. Rendering four would duplicate the
           shell for no gain — only one can be open. */}
@@ -378,39 +488,54 @@ function StaffDashboard() {
         seeAllLabel="Open the calendar"
       />
 
+      {/*
+        Four tiles, not ten.
+        ────────────────────────────────────────────────────────────────────
+        The grid used to carry ten, and an audit of where they actually went
+        found six that did not do what they said. "My Assigned Work", "Work
+        Completed" and "Pending Cases / Cause List" all navigated to the same
+        unfiltered /tasks; "Case Briefs & Drafting" and "Upload Digital Copy"
+        both went to /cases, which neither drafts nor uploads; "Priority /
+        Urgent Cases" went to an unfiltered list too.
+
+        Three different labels wired to one route is the most legible sign of
+        a screen assembled rather than designed, and each one costs a person a
+        click plus the moment of working out that nothing was filtered. What
+        survives is the four that do exactly what they promise.
+
+        The staggered `delay-[700ms]` entrance went with them. Motion inside
+        the application was ruled out deliberately (see index.css) and a
+        dashboard whose last tile arrives two thirds of a second late is the
+        clearest possible contradiction of that.
+      */}
       <div className="pt-4 border-t border-border">
         <h3 className="text-xl font-bold tracking-tight mb-4 uppercase font-mono">Quick Actions</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-          {can("tasks.write") && (
-            <button
-              onClick={() => setTaskFormOpen(true)}
-              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500`}
-            >
-              <Plus className="h-8 w-8" />
+        {/* Five columns at lg, not four: with five tiles a four-column grid
+            orphans the last one onto a row of its own, which reads as an
+            afterthought rather than a set. */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+          {can("cases.write") && (
+            <button onClick={() => setCaseFormOpen(true)} className={quickActionTile}>
+              <Briefcase className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Create / Assign Task
+                File a new matter
               </span>
             </button>
           )}
 
-          <button
-            onClick={() => setLocation("/calendar")}
-            className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-75`}
-          >
-            <Calendar className="h-8 w-8" />
-            <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-              Interactive Master Calendar
-            </span>
-          </button>
+          {can("tasks.write") && (
+            <button onClick={() => setTaskFormOpen(true)} className={quickActionTile}>
+              <Plus className="h-8 w-8" />
+              <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
+                Create / assign task
+              </span>
+            </button>
+          )}
 
-          {/* Second in the grid on purpose. Drafting is the thing an advocate
-              opens this product to do; burying it at the end would make it look
-              like an extra rather than the point. */}
+          {/* Drafting is the thing an advocate opens this product to do, so it
+              sits in the first row rather than at the end. */}
           {can("drafting.use") && (
-            <button
-              onClick={() => setLocation("/drafting")}
-              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-75`}
-            >
+            <button onClick={() => setLocation("/drafting")} className={quickActionTile}>
               <PenLine className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
                 Draft with AI
@@ -418,80 +543,20 @@ function StaffDashboard() {
             </button>
           )}
 
-          {can("cases.write") && (
-            <button
-              onClick={() => setLocation("/cases")}
-              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-100`}
-            >
-              <AlertCircle className="h-8 w-8" />
+          {can("calendar.read") && (
+            <button onClick={() => setLocation("/calendar")} className={quickActionTile}>
+              <Calendar className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Priority / Urgent Cases
+                Master calendar
               </span>
             </button>
           )}
 
           {can("cases.write") && (
-            <button
-              onClick={() => setLocation("/tasks")}
-              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150`}
-            >
-              <ListTodo className="h-8 w-8" />
-              <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Pending Cases / Cause List
-              </span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setLocation("/tasks")}
-            className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200`}
-          >
-            <CheckSquare className="h-8 w-8" />
-            <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-              My Assigned Work
-            </span>
-          </button>
-
-          <button
-            onClick={() => setLocation("/tasks")}
-            className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-300`}
-          >
-            <Archive className="h-8 w-8" />
-            <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-              Work Completed
-            </span>
-          </button>
-
-          {can("cases.write") && (
-            <button
-              onClick={() => setLocation("/cases")}
-              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-500`}
-            >
+            <button onClick={() => setDocRequestOpen(true)} className={quickActionTile}>
               <FileText className="h-8 w-8" />
               <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Case Briefs & Drafting
-              </span>
-            </button>
-          )}
-
-          <button
-            onClick={() => setLocation("/cases")}
-            className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-[600ms]`}
-          >
-            <Upload className="h-8 w-8" />
-            <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-              Upload Digital Copy
-            </span>
-          </button>
-
-          {can("cases.write") && (
-            <button
-              onClick={() => setDocRequestOpen(true)}
-              className={`${quickActionTile} animate-in fade-in slide-in-from-bottom-4 duration-500 delay-[700ms]`}
-            >
-              <FileText className="h-8 w-8" />
-              <span className="font-mono uppercase text-xs font-bold tracking-wider text-center">
-                Request Client Document
+                Request a client document
               </span>
             </button>
           )}

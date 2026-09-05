@@ -2,6 +2,7 @@ import { Link } from "wouter";
 import { useGetAiBudget, getGetAiBudgetQueryKey } from "@workspace/api-client-react";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useNoticeSlot } from "@/lib/notice-slot";
 import { usePricingModal } from "@/components/pricing-modal";
 import { useSession } from "@/lib/session";
 
@@ -36,7 +37,8 @@ export function DraftingNotice() {
     query: { queryKey: getGetAiBudgetQueryKey(), enabled: mayDraft },
   });
 
-  if (!mayDraft || !data || data.draftingEnabled) return null;
+  const show = useNoticeSlot("drafting", Boolean(mayDraft && data && !data.draftingEnabled));
+  if (!show || !data) return null;
 
   const canManage = can("access_control.manage");
 

@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { useNoticeSlot } from "@/lib/notice-slot";
 import { useGetMe } from "@workspace/api-client-react";
 import { Scale } from "lucide-react";
 
@@ -36,7 +37,11 @@ export function CredentialsNotice() {
   // Null covers three cases that all mean "say nothing": supplied, no deadline
   // set, or a role that never had one.
   const daysLeft = me?.allIndiaBarDaysLeft ?? null;
-  if (daysLeft === null || me?.allIndiaBarNo) return null;
+  // Registered with the notice strip so it can count what is outstanding
+  // without knowing anything about bar deadlines. Returns the same boolean when
+  // there is no strip, so this component still stands alone.
+  const show = useNoticeSlot("credentials", daysLeft !== null && !me?.allIndiaBarNo);
+  if (!show || daysLeft === null) return null;
 
   const overdue = daysLeft < 0;
   const urgent = overdue || daysLeft <= URGENT_DAYS;

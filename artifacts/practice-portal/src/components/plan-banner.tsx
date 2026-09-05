@@ -4,6 +4,7 @@ import {
   type Subscription,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { useNoticeSlot } from "@/lib/notice-slot";
 import { usePricingModal } from "@/components/pricing-modal";
 import { AlertTriangle, Info } from "lucide-react";
 
@@ -143,7 +144,8 @@ export function PlanBanner({ canManage }: { canManage: boolean }) {
   const { data } = useGetSubscription({ query: { queryKey: getGetSubscriptionQueryKey() } });
 
   const state = bannerFor(data?.subscription);
-  if (!state) return null;
+  const show = useNoticeSlot("plan", state !== null);
+  if (!show || !state) return null;
 
   const warning = state.tone === "warning";
   const Icon = warning ? AlertTriangle : Info;
