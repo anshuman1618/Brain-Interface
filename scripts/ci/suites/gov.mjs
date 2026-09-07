@@ -467,6 +467,131 @@ check(
   (await call("/cases", { token: as(owner), wsToken: ws })).data.length > 0,
 );
 
+/*
+ * Placed BEFORE the rate-limiting section on purpose.
+ *
+ * Section 6 deliberately empties the per-address auth budget, and founding a
+ * chamber goes through it — running this after it fails at setup with a 429
+ * that looks like a broken feature. Same trap the security suite documents.
+ */
+/* ─────────── A client can see their own invoices, and only those ────────── */
+section("Client-visible invoices");
+
+/*
+ * An invoice could be raised, issued, and never seen by the person billed:
+ * every /invoices route requires billing.manage, which no client holds, and
+ * email is unconfigured. /my-invoices closes that, and the thing worth proving
+ * is that it closed it WITHOUT opening anything else — one client must not see
+ * another's invoice, and nobody may see a draft.
+ */
+const invWs = await call("/workspaces", {
+  token: as(`inv.owner+${S}@inv.test`, "Inv Owner"),
+  method: "POST",
+  body: { name: `Invoice Chambers ${S}`, role: "admin" },
+});
+const invTok = invWs.data?.workspaceToken;
+check("invoice chamber founded", invWs.status === 201, `got ${invWs.status}`);
+await declareBarRegistration(call, as(`inv.owner+${S}@inv.test`));
+await grantPreviewPlan(call, as(`inv.owner+${S}@inv.test`), invTok);
+
+const invCase = await call("/cases", {
+  token: as(`inv.owner+${S}@inv.test`),
+  wsToken: invTok,
+  method: "POST",
+  body: { title: "Billed matter", filingRef: `CV-INV-${S}` },
+});
+
+// Two clients, each pinned to the one matter, so each is a real member.
+const clientA = `inv.a+${S}@inv.test`;
+const clientB = `inv.b+${S}@inv.test`;
+for (const email of [clientA, clientB]) {
+  await call("/workspace/access-list", {
+    token: as(`inv.owner+${S}@inv.test`),
+    wsToken: invTok,
+    method: "POST",
+    body: { kind: "email", value: email, role: "client", caseId: invCase.data.id },
+  });
+  await call("/session", { token: as(email, "Client") });
+}
+const invMembers = await call("/workspace/members", {
+  token: as(`inv.owner+${S}@inv.test`),
+  wsToken: invTok,
+});
+const uid = (e) => invMembers.data?.find((m) => m.email === e)?.userId;
+
+const mkInvoice = async (clientEmail) =>
+  call("/invoices", {
+    token: as(`inv.owner+${S}@inv.test`),
+    wsToken: invTok,
+    method: "POST",
+    body: {
+      clientId: uid(clientEmail),
+      lines: [{ description: "Appearance", quantityMilli: 1000, unitRateMinor: 500000 }],
+    },
+  });
+
+const invA = await mkInvoice(clientA);
+const invB = await mkInvoice(clientB);
+check(
+  "two drafts raised",
+  invA.status === 201 && invB.status === 201,
+  `${invA.status},${invB.status}`,
+);
+
+// Only A's is issued. B's stays a draft, which is the second half of the rule.
+const issued = await call(`/invoices/${invA.data.id}/issue`, {
+  token: as(`inv.owner+${S}@inv.test`),
+  wsToken: invTok,
+  method: "POST",
+});
+check("A's invoice is issued", issued.status === 200, `got ${issued.status}`);
+
+const aSession = (await call("/session", { token: as(clientA, "Client") })).data;
+const bSession = (await call("/session", { token: as(clientB, "Client") })).data;
+
+const aList = await call("/my-invoices", { token: as(clientA), wsToken: aSession.workspaceToken });
+check("a client can read their own invoices", aList.status === 200, `got ${aList.status}`);
+check(
+  "...and sees exactly the one issued to them",
+  aList.data?.invoices?.length === 1 && aList.data.invoices[0].id === invA.data.id,
+  JSON.stringify(aList.data?.invoices?.map((i) => i.id)),
+);
+
+const bList = await call("/my-invoices", { token: as(clientB), wsToken: bSession.workspaceToken });
+// B's own invoice exists but is a DRAFT, so B sees nothing. That single
+// assertion covers both rules at once: not another client's, and not a draft.
+check(
+  "a client whose only invoice is a draft sees none",
+  bList.status === 200 && (bList.data?.invoices?.length ?? 0) === 0,
+  JSON.stringify(bList.data?.invoices?.map((i) => i.id)),
+);
+
+const bStealsA = await call(`/my-invoices/${invA.data.id}/pdf`, {
+  token: as(clientB),
+  wsToken: bSession.workspaceToken,
+});
+check(
+  "one client cannot fetch another's invoice PDF",
+  bStealsA.status === 404,
+  `got ${bStealsA.status}`,
+);
+const aReadsDraft = await call(`/my-invoices/${invB.data.id}/pdf`, {
+  token: as(clientA),
+  wsToken: aSession.workspaceToken,
+});
+check("...nor a draft", aReadsDraft.status === 404, `got ${aReadsDraft.status}`);
+
+// And the client still cannot reach the chamber's own billing routes.
+const clientBilling = await call("/invoices", {
+  token: as(clientA),
+  wsToken: aSession.workspaceToken,
+});
+check(
+  "the chamber's billing routes stay closed to clients",
+  clientBilling.status === 403,
+  `got ${clientBilling.status}`,
+);
+
 /* ───────────────────────────── 6. RATE LIMIT ──────────────────────────── */
 section("6. Rate limiting");
 let limited = 0,

@@ -2347,6 +2347,42 @@ paths:
               schema: { type: string, format: binary }
         "404": { description: Not found }
 
+  # ── The client's own side of invoicing ───────────────────────────────────
+  #
+  # Deliberately NOT a widening of /invoices. Those routes require
+  # billing.manage, which no client holds and should not; these are scoped to
+  # the caller as the person BILLED, and to invoices that have actually been
+  # issued. Two routes with one rule each, rather than one route with a branch
+  # — a mixed-purpose authorisation check is how the earlier case-access leaks
+  # happened.
+  /my-invoices:
+    get:
+      operationId: listMyInvoices
+      tags: [invoices]
+      summary: Invoices issued to the caller, as the billed client
+      responses:
+        "200":
+          description: Issued invoices addressed to the caller. Drafts are never included.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InvoiceList" }
+
+  /my-invoices/{id}/pdf:
+    get:
+      operationId: getMyInvoicePdf
+      tags: [invoices]
+      summary: One of the caller's own issued invoices, as a PDF
+      parameters:
+        - { in: path, name: id, required: true, schema: { type: integer } }
+      responses:
+        "200":
+          description: PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        "404":
+          description: Not found, not addressed to the caller, or still a draft.
+
   /invoices/unbilled:
     get:
       operationId: listUnbilledTime

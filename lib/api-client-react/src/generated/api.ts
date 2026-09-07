@@ -8326,6 +8326,160 @@ export function useGetInvoicePdf<TData = Awaited<ReturnType<typeof getInvoicePdf
 
 
 
+export const getListMyInvoicesUrl = () => {
+
+
+
+
+  return `/api/my-invoices`
+}
+
+/**
+ * @summary Invoices issued to the caller, as the billed client
+ */
+export const listMyInvoices = async ( options?: RequestInit): Promise<InvoiceList> => {
+
+  return customFetch<InvoiceList>(getListMyInvoicesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyInvoicesQueryKey = () => {
+    return [
+    `/api/my-invoices`
+    ] as const;
+    }
+
+
+export const getListMyInvoicesQueryOptions = <TData = Awaited<ReturnType<typeof listMyInvoices>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyInvoicesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyInvoices>>> = ({ signal }) => listMyInvoices({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyInvoices>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListMyInvoicesQueryResult = NonNullable<Awaited<ReturnType<typeof listMyInvoices>>>
+export type ListMyInvoicesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Invoices issued to the caller, as the billed client
+ */
+
+export function useListMyInvoices<TData = Awaited<ReturnType<typeof listMyInvoices>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listMyInvoices>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListMyInvoicesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyInvoicePdfUrl = (id: number,) => {
+
+
+
+
+  return `/api/my-invoices/${id}/pdf`
+}
+
+/**
+ * @summary One of the caller's own issued invoices, as a PDF
+ */
+export const getMyInvoicePdf = async (id: number, options?: RequestInit): Promise<Blob> => {
+
+  return customFetch<Blob>(getGetMyInvoicePdfUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyInvoicePdfQueryKey = (id: number,) => {
+    return [
+    `/api/my-invoices/${id}/pdf`
+    ] as const;
+    }
+
+
+export const getGetMyInvoicePdfQueryOptions = <TData = Awaited<ReturnType<typeof getMyInvoicePdf>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyInvoicePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyInvoicePdfQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyInvoicePdf>>> = ({ signal }) => getMyInvoicePdf(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyInvoicePdf>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyInvoicePdfQueryResult = NonNullable<Awaited<ReturnType<typeof getMyInvoicePdf>>>
+export type GetMyInvoicePdfQueryError = ErrorType<void>
+
+
+/**
+ * @summary One of the caller's own issued invoices, as a PDF
+ */
+
+export function useGetMyInvoicePdf<TData = Awaited<ReturnType<typeof getMyInvoicePdf>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyInvoicePdf>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyInvoicePdfQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListUnbilledTimeUrl = (params?: ListUnbilledTimeParams,) => {
   const normalizedParams = new URLSearchParams();
 

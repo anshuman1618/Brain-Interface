@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, eq, gte, lte, isNull, inArray, desc, SQL } from "drizzle-orm";
+import { and, eq, ne, gte, lte, isNull, inArray, desc, SQL } from "drizzle-orm";
 import {
   db,
   invoicesTable,
@@ -682,5 +682,146 @@ router.get("/invoices/:id/pdf", ...requireBilling, async (req: AuthRequest, res)
     );
   res.send(pdf);
 });
+
+/* ── The client's own side ───────────────────────────────────────────────────
+ *
+ * An invoice could be raised, issued, and never seen by the person being
+ * billed: the client has no `billing.manage`, so every route above answers 403,
+ * and email is not configured, so nothing is delivered either. The chamber's
+ * revenue document existed only inside the chamber.
+ *
+ * These two routes are deliberately SEPARATE from the ones above rather than an
+ * `if (billing.manage) … else …` branch inside them. The rule here is different
+ * in kind — not "may you manage this chamber's billing" but "is this invoice
+ * addressed to you, and has it been issued" — and a single route serving two
+ * different authorisation questions is exactly the shape of the case-access
+ * leaks found earlier. One route, one rule.
+ *
+ * Three conditions, all required, all enforced in SQL rather than after the
+ * fetch:
+ *
+ *   1. the invoice belongs to the caller's workspace;
+ *   2. its `clientId` IS the caller;
+ *   3. its status is not `draft`.
+ *
+ * (3) matters as much as (2). A draft is the chamber's working document — its
+ * lines and totals change, and an invoice number is not assigned until issue.
+ * Showing a client a figure that is still being edited invites an argument
+ * about a number nobody meant to send.
+ */
+
+/** Issued invoices addressed to the caller. Never drafts, never anyone else's. */
+async function myInvoices(c: WorkspaceContext) {
+  return db
+    .select()
+    .from(invoicesTable)
+    .where(
+      and(
+        eq(invoicesTable.workspaceId, c.workspaceId),
+        eq(invoicesTable.clientId, c.user.id),
+        ne(invoicesTable.status, "draft"),
+      ),
+    )
+    .orderBy(desc(invoicesTable.id));
+}
+
+router.get("/my-invoices", requireWorkspace, async (req: AuthRequest, res): Promise<void> => {
+  const c = ctx(req);
+  const rows = await myInvoices(c);
+
+  // The same three totals the chamber's own list reports, computed over the
+  // caller's invoices only. `viewInvoice` is reused so a client and an admin
+  // reading the same invoice see the same fields.
+  // `isOverdue` rather than a second date comparison written here: the client's
+  // "overdue" and the chamber's must be the same question, and two
+  // implementations of it eventually answer differently.
+  let outstandingMinor = 0;
+  let overdueMinor = 0;
+  let paidMinor = 0;
+  for (const inv of rows) {
+    if (inv.status === "paid") paidMinor += inv.totalMinor;
+    else if (inv.status !== "void") {
+      outstandingMinor += inv.totalMinor;
+      if (isOverdue(inv)) overdueMinor += inv.totalMinor;
+    }
+  }
+
+  // Lines in one query rather than per invoice, matching the chamber's list.
+  const allLines = rows.length
+    ? await db
+        .select()
+        .from(invoiceLineItemsTable)
+        .where(
+          inArray(
+            invoiceLineItemsTable.invoiceId,
+            rows.map((r) => r.id),
+          ),
+        )
+    : [];
+
+  res.json({
+    // `view` is the same shaper the chamber's own list uses, so a client and an
+    // admin reading one invoice see identical fields — no second projection to
+    // drift out of step with the first.
+    invoices: rows.map((r) =>
+      view(
+        r,
+        allLines.filter((l) => l.invoiceId === r.id),
+      ),
+    ),
+    outstandingMinor,
+    overdueMinor,
+    paidMinor,
+    currency: "INR",
+  });
+});
+
+router.get(
+  "/my-invoices/:id/pdf",
+  requireWorkspace,
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    // Re-derived here rather than trusting an id from the list above: a client
+    // who reads one id can type another, and the list is not an authorisation.
+    const [invoice] = await db
+      .select()
+      .from(invoicesTable)
+      .where(
+        and(
+          eq(invoicesTable.id, id),
+          eq(invoicesTable.workspaceId, c.workspaceId),
+          eq(invoicesTable.clientId, c.user.id),
+          ne(invoicesTable.status, "draft"),
+        ),
+      );
+    // 404 rather than 403 for every failing condition, so the response cannot
+    // be used to learn which invoice ids exist in the chamber.
+    if (!invoice) {
+      res.status(404).json({ error: "Invoice not found" });
+      return;
+    }
+
+    const lines = await db
+      .select()
+      .from(invoiceLineItemsTable)
+      .where(eq(invoiceLineItemsTable.invoiceId, invoice.id));
+
+    const pdf = await renderInvoicePdf(invoice, lines);
+    res
+      .status(200)
+      .type("application/pdf")
+      .setHeader(
+        "Content-Disposition",
+        `inline; filename="${(invoice.invoiceRef ?? `invoice-${id}`).replace(/\//g, "-")}.pdf"`,
+      );
+    res.send(pdf);
+  },
+);
 
 export default router;

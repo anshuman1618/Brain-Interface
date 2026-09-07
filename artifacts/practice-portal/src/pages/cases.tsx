@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadFailed } from "@/components/load-failed";
 import {
   Select,
   SelectContent,
@@ -27,7 +28,7 @@ export default function CasesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const { data: cases, isLoading } = useListCases();
+  const { data: cases, isLoading, isError, error, refetch } = useListCases();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -43,7 +44,9 @@ export default function CasesPage() {
   // A registry with nothing in it and a filter that matched nothing are
   // different problems, and "No cases found matching your criteria" was the
   // wrong answer to the first: there were no criteria, there was no work yet.
-  const registryEmpty = !isLoading && (cases?.length ?? 0) === 0;
+  // `isError` first: a failed load must never fall through to the empty
+  // state, which would tell a chamber its matters are gone.
+  const registryEmpty = !isLoading && !isError && (cases?.length ?? 0) === 0;
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
@@ -115,6 +118,10 @@ export default function CasesPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {isError && (
+        <LoadFailed error={error} onRetry={() => void refetch()} what="the case registry" />
+      )}
 
       <div className="rounded-lg bg-card shadow-sm">
         <Table>

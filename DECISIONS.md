@@ -3016,3 +3016,59 @@ AI" tile is on the dashboard without opening anything, so drafting can never
 become reachable only from inside a collapsed strip. That was the original
 complaint that made drafting discoverable in the first place, and it should not
 be possible to undo it silently.
+
+---
+
+## An invoice the client could never see
+
+**Found while answering "is this feature already there?"** Invoicing exists and
+is complete on the chamber's side — drafts, a gapless numbered series, issue,
+status, PDF. What did not exist was any way for the person being billed to see
+the result. Every `/invoices` route requires `billing.manage`, which no client
+holds; `SMTP_HOST` is unset, so the mail path writes an outbox row with status
+`suppressed` and delivers nothing. **The chamber's revenue document existed only
+inside the chamber.**
+
+`/my-invoices` and `/my-invoices/{id}/pdf` close it, and they are deliberately
+**separate routes rather than a branch inside the billing-gated ones**. The
+question they answer is different in kind — not "may you manage this chamber's
+billing" but "is this invoice addressed to you, and has it been issued" — and a
+single route serving two authorisation questions is the exact shape of the
+case-access leaks found earlier. One route, one rule.
+
+Three conditions, all in SQL rather than filtered after the fetch: the caller's
+workspace, `clientId` IS the caller, and status is not `draft`. **The draft
+condition matters as much as the ownership one.** A draft's lines and totals are
+still being edited and it has no invoice number until issue; showing a client a
+figure nobody meant to send invites an argument about it.
+
+Every failure answers **404, not 403**, so the response cannot be used to learn
+which invoice ids exist.
+
+**Senior advocates still cannot raise invoices.** That was the original request,
+and the answer was to leave `billing.manage` admin-only — the matrix comment
+calls conflating senior advocate with admin "the exact leak this matrix exists
+to prevent". If it changes later, the clean route is a separate
+`invoicing.manage` capability, the precedent `ai_topup.purchase` already set,
+rather than handing over the chamber's subscription and payment methods too.
+
+## A failed query looked exactly like an empty list
+
+**No page handled `isError`.** Every list rendered its skeleton, then its data,
+then — if the request failed — its **empty state**. A dropped connection, a 500,
+or a session that expired mid-use all produced "No matters yet", which is not
+merely unhelpful: it tells a chamber its files are gone.
+
+`ErrorBoundary` does not cover this. It catches a component that throws during
+render; TanStack Query does not throw by default, it returns an error and keeps
+rendering. The boundary sat there looking like coverage and covering nothing.
+
+One `<LoadFailed>` component rather than a block per page: twenty pages writing
+their own failure state is twenty chances to phrase it differently, forget the
+retry, or print `ApiError.message`, which leads with a status code and is
+written for a console. Everything goes through `userMessage()`. It is not a
+toast — a toast disappears and leaves the same misleading empty screen behind.
+
+Wired into the three highest-traffic lists (cases, tasks, invoices). The
+remaining pages still fall through to their empty states on failure; that is
+known and is the follow-up, not a claim of completeness.

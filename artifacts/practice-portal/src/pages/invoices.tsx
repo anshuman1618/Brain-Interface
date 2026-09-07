@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadFailed } from "@/components/load-failed";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -98,7 +99,7 @@ export default function InvoicesPage() {
   const [voidReason, setVoidReason] = useState("");
 
   const params = status === "all" ? undefined : { status };
-  const { data, isLoading } = useListInvoices(params, {
+  const { data, isLoading, isError, error, refetch } = useListInvoices(params, {
     query: { queryKey: getListInvoicesQueryKey(params) },
   });
 
@@ -221,6 +222,8 @@ export default function InvoicesPage() {
           </Button>
         </div>
       </div>
+
+      {isError && <LoadFailed error={error} onRetry={() => void refetch()} what="your invoices" />}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card>

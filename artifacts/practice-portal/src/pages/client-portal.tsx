@@ -1,10 +1,19 @@
-import { useListCases, useGetCaseTimeline, useListDocuments } from "@workspace/api-client-react";
+import {
+  useListCases,
+  useGetCaseTimeline,
+  useListDocuments,
+  useListMyInvoices,
+  getListMyInvoicesQueryKey,
+  getMyInvoicePdf,
+  type Invoice,
+} from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, FileLock2, Clock, Download } from "lucide-react";
+import { FileText, FileLock2, Clock, Download, Receipt } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { formatMinor } from "@/lib/format";
 
 export default function ClientPortalPage() {
   const { data: cases, isLoading } = useListCases();
@@ -41,6 +50,108 @@ export default function ClientPortalPage() {
       <div className="grid gap-6">
         {cases.map((c) => (
           <CaseOverviewCard key={c.id} caseId={c.id} caseTitle={c.title} status={c.status} />
+        ))}
+      </div>
+
+      <MyInvoices />
+    </div>
+  );
+}
+
+/**
+ * The invoices raised against this client.
+ *
+ * Until now a chamber could raise an invoice, issue it, and the person being
+ * billed had no way to see it: every route under /invoices requires
+ * `billing.manage`, which no client holds, and email is not configured, so
+ * nothing was delivered either. The document existed only inside the chamber.
+ *
+ * Reads `/my-invoices`, which is scoped server-side to the caller as the billed
+ * client and to invoices that have actually been issued — drafts never appear,
+ * because a draft's figures are still being edited and showing one invites an
+ * argument about a number nobody meant to send.
+ *
+ * Renders nothing at all when there are none. A client with no invoices should
+ * not be shown an empty billing section; it reads as a bill that failed to
+ * load.
+ */
+function MyInvoices() {
+  const { data, isLoading } = useListMyInvoices({
+    query: { queryKey: getListMyInvoicesQueryKey() },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+    );
+  }
+
+  const invoices = data?.invoices ?? [];
+  if (invoices.length === 0) return null;
+
+  /*
+   * Fetched through the API client, not linked to.
+   *
+   * The route sits behind the workspace header the client attaches to every
+   * request; a plain <a href> arrives without it and is refused. The invoices
+   * page above the fold has the identical comment for the identical reason —
+   * this is a trap the codebase has already fallen into once.
+   */
+  const download = async (invoice: Invoice) => {
+    try {
+      const blob = await getMyInvoicePdf(invoice.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(invoice.invoiceRef ?? `invoice-${invoice.id}`).replace(/\//g, "-")}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Deliberately quiet: the list still renders, and a client who cannot
+      // reach a PDF is better served by trying again than by a red banner.
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-xl font-bold tracking-tight flex items-center gap-2">
+          <Receipt className="h-5 w-5" /> Invoices
+        </h3>
+        {data && data.outstandingMinor > 0 && (
+          <p className="text-sm text-muted-foreground mt-1">
+            {formatMinor(data.outstandingMinor)} outstanding
+            {data.overdueMinor > 0 ? `, of which ${formatMinor(data.overdueMinor)} is overdue` : ""}
+            .
+          </p>
+        )}
+      </div>
+
+      <div className="grid gap-3">
+        {invoices.map((inv) => (
+          <Card key={inv.id} className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold truncate">{inv.invoiceRef ?? `Invoice ${inv.id}`}</p>
+              <p className="text-sm text-muted-foreground">
+                {formatMinor(inv.totalMinor)}
+                {inv.dueDate ? ` · due ${inv.dueDate}` : ""}
+              </p>
+            </div>
+            <Badge variant={inv.isOverdue ? "destructive" : "secondary"} className="shrink-0">
+              {inv.isOverdue ? "Overdue" : inv.status}
+            </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 rounded-lg"
+              onClick={() => void download(inv)}
+            >
+              <Download className="mr-2 h-4 w-4" /> PDF
+            </Button>
+          </Card>
         ))}
       </div>
     </div>

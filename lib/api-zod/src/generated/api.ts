@@ -3148,6 +3148,80 @@ export const GetInvoicePdfResponse = zod.unknown()
 
 
 /**
+ * @summary Invoices issued to the caller, as the billed client
+ */
+export const ListMyInvoicesResponse = zod.object({
+  "invoices": zod.array(zod.object({
+  "id": zod.number(),
+  "invoiceNumber": zod.number().nullish(),
+  "financialYear": zod.string().nullish(),
+  "invoiceRef": zod.string().nullish(),
+  "status": zod.string(),
+  "isOverdue": zod.boolean().describe('Derived from the due date'),
+  "isEditable": zod.boolean(),
+  "issueDate": zod.string().nullish(),
+  "dueDate": zod.string().nullish(),
+  "clientId": zod.number().nullish(),
+  "clientName": zod.string().optional(),
+  "clientAddress": zod.string().optional(),
+  "clientEmail": zod.string().optional(),
+  "clientGstin": zod.string().nullish(),
+  "firmName": zod.string().optional(),
+  "firmAddress": zod.string().optional(),
+  "firmGstin": zod.string().nullish(),
+  "taxTreatment": zod.string().optional(),
+  "placeOfSupply": zod.string().nullish(),
+  "sacCode": zod.string().nullish(),
+  "cgstRateBp": zod.number().optional(),
+  "sgstRateBp": zod.number().optional(),
+  "igstRateBp": zod.number().optional(),
+  "subtotalMinor": zod.number(),
+  "cgstMinor": zod.number().optional(),
+  "sgstMinor": zod.number().optional(),
+  "igstMinor": zod.number().optional(),
+  "totalMinor": zod.number(),
+  "currency": zod.string(),
+  "notes": zod.string().nullish(),
+  "paymentTerms": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "issuedBy": zod.string().nullish(),
+  "issuedAt": zod.string().nullish(),
+  "sentAt": zod.string().nullish(),
+  "paidAt": zod.string().nullish(),
+  "voidedBy": zod.string().nullish(),
+  "voidedAt": zod.string().nullish(),
+  "voidReason": zod.string().nullish(),
+  "createdAt": zod.string().optional(),
+  "lines": zod.array(zod.object({
+  "id": zod.number(),
+  "position": zod.number().optional(),
+  "description": zod.string(),
+  "quantityMilli": zod.number().describe('Thousandths. 1.5 hours is 1500.'),
+  "unit": zod.string(),
+  "unitRateMinor": zod.number().describe('Paise per whole unit.'),
+  "amountMinor": zod.number().describe('Paise. Stored'),
+  "sacCode": zod.string().nullish(),
+  "timeEntryId": zod.number().nullish()
+}))
+})),
+  "outstandingMinor": zod.number().describe('Issued or sent'),
+  "overdueMinor": zod.number().describe('Of the outstanding'),
+  "paidMinor": zod.number(),
+  "currency": zod.string()
+})
+
+
+/**
+ * @summary One of the caller's own issued invoices, as a PDF
+ */
+export const GetMyInvoicePdfParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetMyInvoicePdfResponse = zod.unknown()
+
+
+/**
  * @summary Billable time not yet on any invoice
  */
 export const ListUnbilledTimeQueryParams = zod.object({

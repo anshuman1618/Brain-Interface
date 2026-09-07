@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadFailed } from "@/components/load-failed";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
@@ -47,7 +48,7 @@ export default function TasksPage() {
   const [search, setSearch] = useState("");
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { data: tasks, isLoading } = useListTasks();
+  const { data: tasks, isLoading, isError, error, refetch } = useListTasks();
   const completeTask = useCompleteTask();
   // Rendered from the server-issued capability list — Admin and both Advocate
   // tiers hold tasks.write; Clerk/Intern completes work but does not assign it.
@@ -134,6 +135,8 @@ export default function TasksPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {isError && <LoadFailed error={error} onRetry={() => void refetch()} what="your tasks" />}
 
       <div className="rounded-lg bg-card shadow-sm">
         <Table>
