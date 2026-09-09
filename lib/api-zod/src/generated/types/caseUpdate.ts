@@ -5,6 +5,7 @@
  * Private Practice Management & Client Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CaseUpdateForumGroup } from './caseUpdateForumGroup';
 import type { CaseUpdatePriority } from './caseUpdatePriority';
 import type { CaseUpdateStatus } from './caseUpdateStatus';
 
@@ -25,4 +26,11 @@ export interface CaseUpdate {
   caseType?: string;
   caseNumber?: number;
   caseYear?: number;
+  /** Overrides whatever the server would infer from the case type. It cannot be cleared back to inference: omit it to leave it alone. */
+  forumGroup?: CaseUpdateForumGroup;
+  /**
+     * The phase the matter has reached. Must be a key on this matter's stage list, or `unknown_stage` comes back. Null clears it.
+     * @nullable
+     */
+  stage?: string | null;
 }

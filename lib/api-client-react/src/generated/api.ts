@@ -40,6 +40,8 @@ import type {
   CaseAccess,
   CaseAccessInput,
   CaseInput,
+  CaseStageInput,
+  CaseStages,
   CaseUpdate,
   CauseListDecisionInput,
   CauseListProposal,
@@ -63,6 +65,7 @@ import type {
   DocumentRequest,
   DocumentRequestInput,
   DocumentRequestUpdate,
+  DocumentStageUpdate,
   Draft,
   DraftInput,
   DraftPatch,
@@ -5242,6 +5245,230 @@ export const useUploadDocument = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getUploadDocumentMutationOptions(options));
+    }
+
+export const getUpdateDocumentStageUrl = (id: number,) => {
+
+
+
+
+  return `/api/documents/${id}/stage`
+}
+
+/**
+ * Labelling is chosen at upload and corrected here. Gated on `documents.write`, so a client can label their own upload but cannot re-file the chamber's papers; the matter is re-checked against the caller's row scope, and an invisible document is a 404 like any other.
+ * @summary Move a document to another stage of the matter
+ */
+export const updateDocumentStage = async (id: number,
+    documentStageUpdate: DocumentStageUpdate, options?: RequestInit): Promise<Document> => {
+
+  return customFetch<Document>(getUpdateDocumentStageUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(documentStageUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateDocumentStageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDocumentStage>>, TError,{id: number;data: BodyType<DocumentStageUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateDocumentStage>>, TError,{id: number;data: BodyType<DocumentStageUpdate>}, TContext> => {
+
+const mutationKey = ['updateDocumentStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateDocumentStage>>, {id: number;data: BodyType<DocumentStageUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateDocumentStage(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateDocumentStageMutationResult = NonNullable<Awaited<ReturnType<typeof updateDocumentStage>>>
+    export type UpdateDocumentStageMutationBody = BodyType<DocumentStageUpdate>
+    export type UpdateDocumentStageMutationError = ErrorType<void>
+
+    /**
+ * @summary Move a document to another stage of the matter
+ */
+export const useUpdateDocumentStage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateDocumentStage>>, TError,{id: number;data: BodyType<DocumentStageUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateDocumentStage>>,
+        TError,
+        {id: number;data: BodyType<DocumentStageUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateDocumentStageMutationOptions(options));
+    }
+
+export const getListCaseStagesUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/stages`
+}
+
+/**
+ * The standard stages for the matter's forum group, then whatever this chamber has added to that group, plus the stage the matter is currently in. Readable by anyone who can read the matter, including a client — the headings a client sees in the portal have to come from somewhere.
+ * @summary The stage vocabulary for a matter
+ */
+export const listCaseStages = async (caseId: number, options?: RequestInit): Promise<CaseStages> => {
+
+  return customFetch<CaseStages>(getListCaseStagesUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCaseStagesQueryKey = (caseId: number,) => {
+    return [
+    `/api/cases/${caseId}/stages`
+    ] as const;
+    }
+
+
+export const getListCaseStagesQueryOptions = <TData = Awaited<ReturnType<typeof listCaseStages>>, TError = ErrorType<void>>(caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCaseStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCaseStagesQueryKey(caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCaseStages>>> = ({ signal }) => listCaseStages(caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCaseStages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCaseStagesQueryResult = NonNullable<Awaited<ReturnType<typeof listCaseStages>>>
+export type ListCaseStagesQueryError = ErrorType<void>
+
+
+/**
+ * @summary The stage vocabulary for a matter
+ */
+
+export function useListCaseStages<TData = Awaited<ReturnType<typeof listCaseStages>>, TError = ErrorType<void>>(
+ caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCaseStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCaseStagesQueryOptions(caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddCaseStageUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/stages`
+}
+
+/**
+ * The addition is saved against the workspace and the forum group, not the matter, so the next writ petition offers it too. Adding one that already exists is not an error — the list comes back unchanged.
+ * @summary Add a chamber-defined stage to this matter's forum group
+ */
+export const addCaseStage = async (caseId: number,
+    caseStageInput: CaseStageInput, options?: RequestInit): Promise<CaseStages> => {
+
+  return customFetch<CaseStages>(getAddCaseStageUrl(caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(caseStageInput)
+  }
+);}
+
+
+
+
+
+export const getAddCaseStageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCaseStage>>, TError,{caseId: number;data: BodyType<CaseStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addCaseStage>>, TError,{caseId: number;data: BodyType<CaseStageInput>}, TContext> => {
+
+const mutationKey = ['addCaseStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addCaseStage>>, {caseId: number;data: BodyType<CaseStageInput>}> = (props) => {
+          const {caseId,data} = props ?? {};
+
+          return  addCaseStage(caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddCaseStageMutationResult = NonNullable<Awaited<ReturnType<typeof addCaseStage>>>
+    export type AddCaseStageMutationBody = BodyType<CaseStageInput>
+    export type AddCaseStageMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a chamber-defined stage to this matter's forum group
+ */
+export const useAddCaseStage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCaseStage>>, TError,{caseId: number;data: BodyType<CaseStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addCaseStage>>,
+        TError,
+        {caseId: number;data: BodyType<CaseStageInput>},
+        TContext
+      > => {
+      return useMutation(getAddCaseStageMutationOptions(options));
     }
 
 export const getDeleteDocumentUrl = (caseId: number,

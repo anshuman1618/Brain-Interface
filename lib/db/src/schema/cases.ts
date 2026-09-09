@@ -50,6 +50,28 @@ export const casesTable = pgTable("cases", {
   caseTypeNorm: text("case_type_norm"),
   caseNumber: integer("case_number"),
   caseYear: integer("case_year"),
+  /**
+   * Which standard stage list applies to this matter — see FORUM_GROUPS in
+   * `artifacts/api-server/src/lib/case-stages.ts`.
+   *
+   * Nullable, and null on every matter that predates the feature. It is not
+   * backfilled: `forumGroupFor()` infers a group from `caseTypeNorm` on read,
+   * so an existing writ petition gets writ stages without a data migration
+   * having guessed wrong in a row nobody can see. Setting this column is the
+   * override — once written, inference is not consulted again.
+   */
+  forumGroup: text("forum_group"),
+  /**
+   * The phase the matter is IN, as against the stage a given document belongs
+   * to. Distinct from `status`, which is workflow (open/closed) and says
+   * nothing about where the pleadings have got to: a matter can sit "open" for
+   * a year while moving petition → counter → rejoinder.
+   *
+   * Holds a stage key, standard or chamber-defined. Null until somebody sets
+   * it; never inferred, because "we have filed a rejoinder" is a fact about
+   * the case that only the chamber knows.
+   */
+  stage: text("stage"),
   priority: text("priority").notNull().default("medium"), // low | medium | high | urgent
   /**
    * When the matter was closed. Null while it is open.

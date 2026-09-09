@@ -1194,6 +1194,77 @@ the default is stillness, and a rule added later is inert until somebody puts it
 inside that block. Nothing in the signed-in application moves — a practice tool
 should not make a reader wait on an animation to see a cause list.
 
+### Stages of a matter — where the vault's headings come from
+
+Three columns, one table and one server module. Nothing in the request pipeline
+moved; the stage routes sit inside the existing `cases` and `documents` routers
+and go through the same `requireWorkspace` → `requireCapability` →
+`getVisibleCase` sequence as everything else on a matter.
+
+```
+lib/case-stages.ts        STANDARD: the five stage lists, as code.
+                          TYPE_PREFIXES: case type → forum group.
+                          forumGroupFor / stageOptions / isKnownStage /
+                          stageLabelFor.
+
+cases.ts    GET  /cases/:caseId/stages    cases.read   the list + the matter's stage
+            POST /cases/:caseId/stages    cases.write  add a chamber-defined one
+            PATCH /cases/:id              cases.write  now takes forumGroup + stage
+            enrichCase()                  now resolves stageLabel
+
+documents.ts POST  /cases/:caseId/documents          takes `stage` in the body
+             POST  /cases/:caseId/documents/content  takes `X-Document-Stage`
+             PATCH /documents/:id/stage  documents.write   the correction
+             resolveStage()  the one place a stage is checked against the list
+```
+
+Four things about the shape, each of which was a decision:
+
+- **The standard stages are code, not rows.** `case_stage_labels` holds only
+  what a chamber adds. Seeding thirty identical rows per tenant would mean a
+  cross-tenant migration to reword one label.
+- **`cases.forum_group` is nullable and never backfilled.** `forumGroupFor()`
+  reads a group off `case_type_norm` when the column is null, so every matter
+  that predates the feature gets headings without a data migration having
+  guessed on its behalf. `forumGroupInferred` on the response says which it was.
+- **`documents.stage` is a plain key, not a foreign key.** There is no id to
+  point at — the standard stages are not rows — and a key that outlives its
+  label beats a document orphaned by a delete. Null is "unfiled", which is what
+  every document from before today is, and the vault gives them a trailing
+  heading rather than dropping them.
+- **Free text is refused at every entry point.** `resolveStage()` gates the two
+  uploads and the relabel; the case PATCH does the same for the matter's own
+  stage. A typo would otherwise become a permanent section of the vault that no
+  dropdown ever offers again.
+
+`GET /cases/:caseId/stages` is gated on `cases.read`, not on a write capability:
+a client opening their own matter sees the same headings, and the client portal
+now shows the matter's stage on its card. `POST` is `cases.write`, so a client
+uploading a file cannot invent a heading for it.
+
+Migration `0016_case_stages.sql` is additive and guarded, and the three columns
+plus the table are repeated in **both** `preview.ts` blocks.
+
+### Loading: a delayed, page-shaped skeleton
+
+`components/route-fallback.tsx` replaces the centred `Loader2` that every lazy
+route fell back to. Two changes and both come from measurement:
+
+- **Nothing renders for 150 ms.** Warm navigations on this build land in
+  **53–93 ms** and a cold one — first visit to a route, chunk not cached — in
+  about **380 ms**. A spinner shown immediately appears and vanishes inside
+  60 ms, which reads as a flicker rather than as progress. 150 ms sits above
+  every warm navigation measured and well below the cold one.
+- **The skeleton is shaped like the page.** One `<Suspense>` wraps every route
+  and cannot know which page is loading from its children, so `shapeFor()` reads
+  the path: `stats` for the dashboard and KPI, `detail` for `/cases/:id`,
+  `calendar`, `editor` for drafting, `form` for the onboarding screens, `list`
+  for everything else.
+
+Distinct from the per-page skeletons (`DocumentsSkeleton` and friends), which
+run once the page's code exists and its own query is in flight. This one runs
+before that.
+
 ### Known, unfixed
 
 - **The Clerk tenant is a development instance.** Production logs

@@ -30,3 +30,4 @@ export * from "./style_exemplars";
 export * from "./drafts";
 export * from "./ai_usage_events";
 export * from "./case_access_grants";
+export * from "./case_stage_labels";

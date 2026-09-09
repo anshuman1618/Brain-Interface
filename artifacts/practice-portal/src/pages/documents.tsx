@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { DocumentsSkeleton } from "@/components/module-skeleton";
 import { DocumentRequestModal } from "@/components/document-request-modal";
+import { StagePicker } from "@/components/stage-picker";
 import { useToast } from "@/hooks/use-toast";
 import {
   FileText,
@@ -96,7 +97,14 @@ export default function DocumentsPage() {
     caseId?: number;
     label: string;
   } | null>(null);
-  const [form, setForm] = useState({ name: "", caseId: "", note: "", visibility: "firm" });
+  const [form, setForm] = useState<{
+    name: string;
+    caseId: string;
+    note: string;
+    visibility: string;
+    /** Stage key, or null for unfiled. */
+    stage: string | null;
+  }>({ name: "", caseId: "", note: "", visibility: "firm", stage: null });
 
   const pending = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
   const refresh = () => {
@@ -112,6 +120,7 @@ export default function DocumentsPage() {
       caseId: opts.caseId ? String(opts.caseId) : cases[0] ? String(cases[0].id) : "",
       note: "",
       visibility: isStaff ? "firm" : "shared",
+      stage: null,
     });
   };
 
@@ -137,6 +146,9 @@ export default function DocumentsPage() {
           "content-type": file.type || "application/octet-stream",
           "x-document-name": encodeURIComponent(form.name.trim() || file.name),
           "x-document-visibility": isStaff ? form.visibility : "shared",
+          // Omitted rather than sent empty when nothing was picked: the
+          // record is then unfiled, which the vault renders as its own group.
+          ...(form.stage ? { "x-document-stage": form.stage } : {}),
           ...(uploadFor?.requestId ? { "x-document-request-id": String(uploadFor.requestId) } : {}),
         },
         body: file,
@@ -471,6 +483,26 @@ export default function DocumentsPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/*
+              Asked at upload, because the person adding the paper knows which
+              stage it belongs to and nobody will come back later to say. The
+              vocabulary belongs to the matter, so this only appears once one is
+              chosen — an unfiled record is fine, an unfileable one is not.
+            */}
+            {Number.isInteger(Number(form.caseId)) && Number(form.caseId) > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs font-mono uppercase font-bold text-muted-foreground tracking-wider">
+                  Stage of the matter
+                </label>
+                <StagePicker
+                  caseId={Number(form.caseId)}
+                  value={form.stage}
+                  onChange={(stage) => setForm((prev) => ({ ...prev, stage }))}
+                  placeholder="Not filed under a stage"
+                />
+              </div>
+            )}
 
             {isStaff && (
               <div className="space-y-2">

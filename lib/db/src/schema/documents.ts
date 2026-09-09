@@ -39,6 +39,17 @@ export const documentsTable = pgTable("documents", {
   uploadedBy: text("uploaded_by").notNull().default(""),
   uploadedByClerkId: text("uploaded_by_clerk_id").notNull().default(""),
   uploadedByRole: text("uploaded_by_role").notNull().default(""),
+  /**
+   * Which stage of the matter this paper belongs to — a key from the matter's
+   * stage list, standard or chamber-defined. Null means unfiled: the document
+   * groups under a trailing heading rather than disappearing, which is what
+   * every document uploaded before this feature does.
+   *
+   * A plain key rather than a foreign key, deliberately. The standard stages
+   * are code, not rows, so there is no id to point at; and a key that outlives
+   * its label is better than a document orphaned by a delete.
+   */
+  stage: text("stage"),
   /** Set when this upload answers a document request. */
   documentRequestId: integer("document_request_id"),
   note: text("note"),

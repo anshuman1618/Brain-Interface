@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   useGetCase,
+  useListCaseStages,
+  useUpdateDocumentStage,
+  getListCaseStagesQueryKey,
   useUpdateCase,
   useDeleteCase,
   useGetCaseTimeline,
@@ -64,6 +67,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { TimeLogPanel } from "@/components/time-log-panel";
 import { CaseCourtIdentity } from "@/components/case-court-identity";
+import { StagePicker } from "@/components/stage-picker";
+import { groupByStage } from "@/lib/case-stages";
+import { userMessage } from "@/lib/errors";
 
 export default function CaseDetailPage() {
   const [, navigate] = useLocation();
@@ -86,6 +92,9 @@ export default function CaseDetailPage() {
   const { data: docs } = useListDocuments(caseId, {
     query: { enabled: !!caseId, queryKey: getListDocumentsQueryKey(caseId) },
   });
+  const { data: stages } = useListCaseStages(caseId, {
+    query: { enabled: !!caseId, queryKey: getListCaseStagesQueryKey(caseId) },
+  });
 
   const updateCase = useUpdateCase();
   const deleteCase = useDeleteCase();
@@ -94,6 +103,12 @@ export default function CaseDetailPage() {
   const completeTask = useCompleteTask();
   const uploadDoc = useUploadDocument();
   const deleteDoc = useDeleteDocument();
+  const restage = useUpdateDocumentStage();
+
+  const stageGroups = useMemo(
+    () => groupByStage(docs ?? [], stages?.options ?? []),
+    [docs, stages],
+  );
 
   // Dialog states
   const [isTaskOpen, setIsTaskOpen] = useState(false);
@@ -112,6 +127,7 @@ export default function CaseDetailPage() {
 
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [newDocName, setNewDocName] = useState("");
+  const [newDocStage, setNewDocStage] = useState<string | null>(null);
 
   if (caseLoading)
     return (
@@ -183,14 +199,59 @@ export default function CaseDetailPage() {
 
   const handleUploadDoc = () => {
     uploadDoc.mutate(
-      { caseId, data: { name: newDocName } },
+      {
+        caseId,
+        // Omitted rather than sent as null when nothing was picked: the record
+        // is then unfiled, which is a state the vault renders, not an error.
+        data: { name: newDocName, ...(newDocStage ? { stage: newDocStage } : {}) },
+      },
       {
         onSuccess: () => {
           setIsUploadOpen(false);
           setNewDocName("");
+          setNewDocStage(null);
           queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey(caseId) });
           queryClient.invalidateQueries({ queryKey: getGetCaseTimelineQueryKey(caseId) });
           toast({ title: "Document stub created" });
+        },
+      },
+    );
+  };
+
+  /** Correct a mislabelled paper without losing the record behind it. */
+  const handleRestage = (docId: number, stage: string | null) => {
+    restage.mutate(
+      { id: docId, data: { stage } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListDocumentsQueryKey(caseId) });
+        },
+        onError: (err) => {
+          toast({
+            title: "Could not move that document",
+            description: userMessage(err),
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  };
+
+  /** The phase the MATTER is in — not `status`, which is workflow. */
+  const handleStageChange = (stage: string | null) => {
+    updateCase.mutate(
+      { id: caseId, data: { stage } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+          queryClient.invalidateQueries({ queryKey: getListCaseStagesQueryKey(caseId) });
+        },
+        onError: (err) => {
+          toast({
+            title: "Could not set the stage",
+            description: userMessage(err),
+            variant: "destructive",
+          });
         },
       },
     );
@@ -282,6 +343,27 @@ export default function CaseDetailPage() {
               <SelectItem value="closed">STATUS: CLOSED</SelectItem>
             </SelectContent>
           </Select>
+          {/*
+            Where the matter has GOT to, which `status` above does not say: a
+            matter sits "open" for a year while travelling petition → counter →
+            rejoinder. Two controls because they answer two different questions,
+            and collapsing them would mean closing a matter to record that a
+            rejoinder was filed.
+          */}
+          {can("cases.write") && (
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-2xs uppercase tracking-wider text-muted-foreground">
+                Stage
+              </span>
+              <StagePicker
+                caseId={caseId}
+                value={caseData.stage ?? null}
+                onChange={handleStageChange}
+                className="w-[180px] text-xs"
+                placeholder="Not set"
+              />
+            </div>
+          )}
           <div className="flex gap-2 items-center">
             <span className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
               Client: {caseData.clientName || "Unassigned"}
@@ -525,6 +607,19 @@ export default function CaseDetailPage() {
                       placeholder="e.g. Discovery_Motion_v2.pdf"
                     />
                   </div>
+                  {/* Asked at upload, because the person adding the paper is
+                      the one who knows which stage it belongs to. Optional —
+                      an unlabelled record files under "Unfiled papers" rather
+                      than blocking the upload. */}
+                  <div className="grid gap-2">
+                    <Label>Stage of the matter</Label>
+                    <StagePicker
+                      caseId={caseId}
+                      value={newDocStage}
+                      onChange={setNewDocStage}
+                      placeholder="Not filed under a stage"
+                    />
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button disabled={!newDocName} onClick={handleUploadDoc} className="rounded-lg">
@@ -535,41 +630,83 @@ export default function CaseDetailPage() {
             </Dialog>
           </div>
 
-          <div className="rounded-lg bg-card shadow-sm">
-            {docs?.map((doc, i) => (
-              <div
-                key={doc.id}
-                className={`p-4 flex items-center justify-between hover:bg-muted/50 transition-colors ${i !== docs.length - 1 ? "border-b border-border" : ""}`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 bg-muted flex items-center justify-center">
-                    <FileLock2 className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-sm">{doc.name}</h4>
-                    <div className="text-xs text-muted-foreground font-mono mt-1 flex gap-2">
-                      <span>{formatDateTime(doc.uploadedAt)}</span>
-                      {doc.encrypted && <span className="text-primary font-bold">ENCRYPTED</span>}
+          {/*
+            The vault, under the stages of the matter.
+
+            A matter is not a flat pile of paper — a petition is answered by a
+            counter affidavit, which is answered by a rejoinder — and an
+            advocate opening a file looks for a stage, not a filename. Empty
+            stages are dropped rather than listed: the picker still offers all
+            of them, so nothing becomes unreachable, but eight headings with
+            papers under two of them reads as a broken screen.
+          */}
+          <div className="space-y-6">
+            {stageGroups.map((group) => (
+              <section key={group.key}>
+                <div className="mb-2 flex items-baseline gap-3">
+                  <h4 className="text-sm font-semibold tracking-tight">{group.label}</h4>
+                  <span className="font-mono text-2xs uppercase tracking-wider text-muted-foreground">
+                    {group.documents.length} {group.documents.length === 1 ? "paper" : "papers"}
+                  </span>
+                  {/* Said once, on the group, rather than on every row in it. */}
+                  {!group.isStage && (
+                    <span className="text-2xs text-muted-foreground">
+                      Not filed under a stage yet
+                    </span>
+                  )}
+                </div>
+                <div className="rounded-lg bg-card shadow-sm">
+                  {group.documents.map((doc, i) => (
+                    <div
+                      key={doc.id}
+                      className={`p-4 flex flex-col gap-3 hover:bg-muted/50 transition-colors sm:flex-row sm:items-center sm:justify-between ${i !== group.documents.length - 1 ? "border-b border-border" : ""}`}
+                    >
+                      <div className="flex min-w-0 items-center gap-4">
+                        <div className="h-10 w-10 shrink-0 bg-muted flex items-center justify-center">
+                          <FileLock2 className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-medium text-sm break-words">{doc.name}</h4>
+                          <div className="text-xs text-muted-foreground font-mono mt-1 flex gap-2">
+                            <span>{formatDateTime(doc.uploadedAt)}</span>
+                            {doc.encrypted && (
+                              <span className="text-primary font-bold">ENCRYPTED</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {/* Chosen at upload, corrected here. Deleting and
+                            re-uploading to fix a label would lose the upload
+                            record, the checksum and any request it closed. */}
+                        {can("documents.write") && (
+                          <StagePicker
+                            caseId={caseId}
+                            value={doc.stage ?? null}
+                            onChange={(stage) => handleRestage(doc.id, stage)}
+                            className="h-9 w-[190px] text-xs"
+                            placeholder="Unfiled"
+                          />
+                        )}
+                        <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg shrink-0">
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 rounded-lg shrink-0 text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDeleteDoc(doc.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
+                  ))}
                 </div>
-                <div className="flex gap-2">
-                  <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg shrink-0">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 rounded-lg shrink-0 text-destructive hover:bg-destructive/10"
-                    onClick={() => handleDeleteDoc(doc.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+              </section>
             ))}
-            {(!docs || docs.length === 0) && (
-              <div className="p-8 text-center text-muted-foreground font-mono text-sm">
+            {stageGroups.length === 0 && (
+              <div className="rounded-lg bg-card p-8 text-center text-muted-foreground font-mono text-sm shadow-sm">
                 Vault is empty
               </div>
             )}

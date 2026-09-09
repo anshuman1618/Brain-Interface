@@ -3,6 +3,7 @@ import { eq, and, inArray, SQL } from "drizzle-orm";
 import {
   db,
   casesTable,
+  caseStageLabelsTable,
   usersTable,
   timelineEventsTable,
   courtsTable,
@@ -22,6 +23,11 @@ import {
   DeleteCaseParams,
   GetCaseTimelineParams,
   GetCaseTimelineResponse,
+  ListCaseStagesParams,
+  ListCaseStagesResponse,
+  AddCaseStageParams,
+  AddCaseStageBody,
+  AddCaseStageResponse,
 } from "@workspace/api-zod";
 import {
   requireWorkspace,
@@ -31,6 +37,14 @@ import {
   type WorkspaceContext,
 } from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
+import {
+  FORUM_GROUP_LABELS,
+  forumGroupFor,
+  isForumGroup,
+  stageKey,
+  stageLabelFor,
+  stageOptions,
+} from "../lib/case-stages";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { checkQuota, quotaMessage, usageFor } from "../lib/quota";
 import { screenForConflicts } from "../lib/conflicts";
@@ -74,7 +88,12 @@ async function enrichCase(c: typeof casesTable.$inferSelect) {
     const [court] = await db.select().from(courtsTable).where(eq(courtsTable.id, c.courtId));
     courtName = court ? courtLabel(court) : null;
   }
-  return { ...c, clientName, courtName };
+  // Same reasoning as courtName: the stage key is what is stored, the heading
+  // is what a person reads, and resolving it here saves a list page fetching a
+  // stage vocabulary per matter to render one word. Costs nothing on a matter
+  // with no stage, which is most of them.
+  const stageLabel = await stageLabelFor(c.workspaceId, forumGroupFor(c), c.stage);
+  return { ...c, clientName, courtName, stageLabel };
 }
 
 /**
@@ -306,6 +325,11 @@ router.post(
         conflictAcknowledgedBy: acknowledged ? c.user.clerkId : null,
         conflictNote: acknowledged ? (parsed.data.conflictNote?.trim() ?? null) : null,
         priority: parsed.data.priority ?? "medium",
+        // Left null when not given, deliberately: null means "read it off the
+        // case type", and a matter whose type later gets corrected then picks
+        // up the right stage list instead of keeping a group derived from the
+        // wrong one.
+        forumGroup: parsed.data.forumGroup ?? null,
       })
       .returning();
 
@@ -425,6 +449,32 @@ router.patch(
     }
     if (body.data.priority != null) updateData.priority = body.data.priority;
 
+    if (body.data.forumGroup != null) updateData.forumGroup = body.data.forumGroup;
+
+    // The stage the MATTER is in. Validated against the list the matter will
+    // have AFTER this patch, not before it — re-grouping a matter and setting
+    // its stage in one call is a reasonable thing to do, and checking against
+    // the old group would refuse it for no reason a reader could see.
+    if (body.data.stage !== undefined) {
+      if (body.data.stage === null) {
+        updateData.stage = null;
+      } else {
+        const group = forumGroupFor({
+          forumGroup: updateData.forumGroup ?? existing.forumGroup,
+          caseTypeNorm: existing.caseTypeNorm,
+        });
+        const options = await stageOptions(c.workspaceId, group);
+        if (!options.some((s) => s.key === body.data.stage)) {
+          res.status(400).json({
+            error: "unknown_stage",
+            message: `"${body.data.stage}" is not a stage on this matter's list.`,
+          });
+          return;
+        }
+        updateData.stage = body.data.stage;
+      }
+    }
+
     // Court identity is patched as a unit, like it is created — see
     // courtIdentity(). Omitting all four leaves whatever the matter already
     // had; giving a partial set is refused rather than half-applied; an
@@ -508,6 +558,114 @@ router.get(
       .orderBy(timelineEventsTable.createdAt);
 
     res.json(GetCaseTimelineResponse.parse(events));
+  },
+);
+
+/* ── Stages ───────────────────────────────────────────────────────────────
+   The headings a matter's papers file under.
+
+   Read is gated on `cases.read`, not on `documents.write`: a client opening
+   their own matter in the portal sees the same headings the chamber does, and
+   the vocabulary is not confidential — it is "counter affidavit" and
+   "rejoinder". Write is gated on `cases.write`, because adding to a chamber's
+   controlled vocabulary is a chamber decision and a client uploading a file
+   should not be able to invent a heading for it. ────────────────────────── */
+
+/** The list, the matter's own stage, and whether the group was a guess. */
+async function stagesView(c: WorkspaceContext, matter: typeof casesTable.$inferSelect) {
+  const group = forumGroupFor(matter);
+  return {
+    caseId: matter.id,
+    forumGroup: group,
+    forumGroupLabel: FORUM_GROUP_LABELS[group],
+    forumGroupInferred: !isForumGroup(matter.forumGroup),
+    stage: matter.stage,
+    options: await stageOptions(c.workspaceId, group),
+  };
+}
+
+router.get(
+  "/cases/:caseId/stages",
+  requireWorkspace,
+  requireCapability("cases.read"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+
+    const params = ListCaseStagesParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+
+    // Row scope, not just the workspace: a junior without a grant on this
+    // matter must not be able to read anything off it, headings included.
+    const matter = await getVisibleCase(c, params.data.caseId);
+    if (!matter) {
+      res.status(404).json({ error: "Case not found" });
+      return;
+    }
+
+    res.json(ListCaseStagesResponse.parse(await stagesView(c, matter)));
+  },
+);
+
+router.post(
+  "/cases/:caseId/stages",
+  requireWorkspace,
+  requireCapability("cases.write"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+
+    const params = AddCaseStageParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: params.error.message });
+      return;
+    }
+
+    const body = AddCaseStageBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "invalid_request", message: zodMessage(body.error) });
+      return;
+    }
+
+    const matter = await getVisibleCase(c, params.data.caseId);
+    if (!matter) {
+      res.status(404).json({ error: "Case not found" });
+      return;
+    }
+
+    const label = body.data.label.trim();
+    const key = stageKey(label);
+    if (!key) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: "A stage name needs at least one letter or number.",
+      });
+      return;
+    }
+
+    const group = forumGroupFor(matter);
+
+    // Saved against the workspace and the forum group, NOT the matter: a
+    // chamber that adds "Caveat" to its writ list wants it on the next writ
+    // petition too. Per-matter additions are how a controlled vocabulary decays
+    // back into free text.
+    //
+    // onConflictDoNothing rather than an existence check: two advocates adding
+    // the same stage at the same moment is a race the unique constraint already
+    // settles, and re-adding an existing stage is not an error worth showing.
+    await db
+      .insert(caseStageLabelsTable)
+      .values({
+        workspaceId: c.workspaceId,
+        forumGroup: group,
+        key,
+        label,
+        createdBy: c.user.displayName,
+      })
+      .onConflictDoNothing();
+
+    res.status(201).json(AddCaseStageResponse.parse(await stagesView(c, matter)));
   },
 );
 

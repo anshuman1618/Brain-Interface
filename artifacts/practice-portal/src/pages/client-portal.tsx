@@ -49,7 +49,13 @@ export default function ClientPortalPage() {
 
       <div className="grid gap-6">
         {cases.map((c) => (
-          <CaseOverviewCard key={c.id} caseId={c.id} caseTitle={c.title} status={c.status} />
+          <CaseOverviewCard
+            key={c.id}
+            caseId={c.id}
+            caseTitle={c.title}
+            status={c.status}
+            stageLabel={c.stageLabel ?? null}
+          />
         ))}
       </div>
 
@@ -162,10 +168,13 @@ function CaseOverviewCard({
   caseId,
   caseTitle,
   status,
+  stageLabel,
 }: {
   caseId: number;
   caseTitle: string;
   status: string;
+  /** Where the matter has got to, in the chamber's own words. May be unset. */
+  stageLabel: string | null;
 }) {
   const { data: timeline } = useGetCaseTimeline(caseId);
   const { data: docs } = useListDocuments(caseId);
@@ -195,6 +204,20 @@ function CaseOverviewCard({
           >
             {status.replace("_", " ")}
           </Badge>
+          {/*
+            Where the matter has actually got to. `status` above is workflow —
+            "in progress" for a year — and it is the question a client is really
+            asking when they open this page. Rendered only when the chamber has
+            set a stage; an empty badge would just raise the question again.
+          */}
+          {stageLabel && (
+            <Badge
+              variant="outline"
+              className="mb-3 ml-2 rounded-lg text-3xs uppercase font-mono tracking-wider"
+            >
+              {stageLabel}
+            </Badge>
+          )}
           <h3 className="text-xl font-bold tracking-tight flex items-center gap-2">
             <FileText className="h-5 w-5 text-muted-foreground" />
             {caseTitle}

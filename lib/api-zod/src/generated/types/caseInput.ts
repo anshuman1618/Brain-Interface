@@ -5,6 +5,7 @@
  * Private Practice Management & Client Portal API
  * OpenAPI spec version: 0.1.0
  */
+import type { CaseInputForumGroup } from './caseInputForumGroup';
 import type { CaseInputPriority } from './caseInputPriority';
 import type { CaseInputStatus } from './caseInputStatus';
 
@@ -32,4 +33,6 @@ export interface CaseInput {
   caseType?: string;
   caseNumber?: number;
   caseYear?: number;
+  /** Which standard stage list this matter should use. Omit to let the server read one off `caseType` — which it does on every read, so a writ petition gets writ headings without this being set. */
+  forumGroup?: CaseInputForumGroup;
 }

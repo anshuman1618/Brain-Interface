@@ -347,9 +347,22 @@ CREATE TABLE IF NOT EXISTS documents (
   uploaded_by TEXT NOT NULL DEFAULT '',
   uploaded_by_clerk_id TEXT NOT NULL DEFAULT '',
   uploaded_by_role TEXT NOT NULL DEFAULT '',
+  stage TEXT,
   document_request_id INTEGER,
   note TEXT,
   uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS case_stage_labels (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  forum_group TEXT NOT NULL,
+  key TEXT NOT NULL,
+  label TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 900,
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT case_stage_labels_ws_forum_key UNIQUE (workspace_id, forum_group, key)
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
@@ -712,6 +725,16 @@ CREATE INDEX IF NOT EXISTS draft_sources_draft_idx ON draft_sources (draft_id);
 CREATE INDEX IF NOT EXISTS ai_usage_events_workspace_at_idx
   ON ai_usage_events (workspace_id, at);
 CREATE INDEX IF NOT EXISTS ai_topups_workspace_idx ON ai_topups (workspace_id);
+-- Stages of a matter (migration 0016). The two columns on cases and the one on
+-- documents are repeated here because the CREATE TABLE above only runs on a
+-- fresh database; an existing .preview-data needs the ALTERs. (No backticks in
+-- this block: the whole thing is a JS template literal.)
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS forum_group TEXT;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS stage TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS stage TEXT;
+CREATE INDEX IF NOT EXISTS case_stage_labels_workspace_idx
+  ON case_stage_labels (workspace_id, forum_group);
+CREATE INDEX IF NOT EXISTS documents_case_stage_idx ON documents (case_id, stage);
 `;
 
 /** Where the preview database lives on disk. */

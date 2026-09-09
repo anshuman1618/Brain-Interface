@@ -47,6 +47,21 @@ export interface Case {
      * @nullable
      */
   courtName?: string | null;
+  /**
+     * Which standard stage list applies — one of writ, civil, criminal, tribunal, general. Not declared as an enum here because the field is nullable and the generated validator would reject the null. Null means it has never been set and the server reads one off the case type instead — see `GET /cases/{caseId}/stages`, which reports what it inferred.
+     * @nullable
+     */
+  forumGroup?: string | null;
+  /**
+     * The phase the matter is in. Distinct from `status`, which is workflow: a matter stays "open" while it travels petition to counter to rejoinder.
+     * @nullable
+     */
+  stage?: string | null;
+  /**
+     * `stage` resolved to its heading, for display. Not stored — a list page would otherwise have to fetch a stage vocabulary per matter to render one word.
+     * @nullable
+     */
+  stageLabel?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -65,6 +65,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { GlobalSearch } from "@/components/global-search";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { RouteFallback } from "@/components/route-fallback";
 
 type NavItem = {
   href: string;
@@ -463,13 +464,13 @@ function DashboardLayoutContent() {
               Navigating straight to /kpi or /invites without the backend claim
               redirects to the 401 page instead of rendering the component.
             */}
-              <Suspense
-                fallback={
-                  <div className="flex items-center justify-center py-24">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                }
-              >
+              {/*
+                A skeleton in the shape of the page that is loading, and only
+                after 150 ms — a spinner shown immediately flickers on and off
+                inside the 53–93 ms a warm navigation actually takes. See
+                RouteFallback for the measurements the threshold comes from.
+              */}
+              <Suspense fallback={<RouteFallback />}>
                 <Switch>
                   <Route path="/dashboard" component={DashboardPage} />
                   <Route path="/unauthorized" component={UnauthorizedPage} />

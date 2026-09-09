@@ -15,6 +15,9 @@ import {
   UploadDocumentBody,
   UploadDocumentResponse,
   DeleteDocumentParams,
+  UpdateDocumentStageParams,
+  UpdateDocumentStageBody,
+  UpdateDocumentStageResponse,
 } from "@workspace/api-zod";
 import {
   requireWorkspace,
@@ -24,6 +27,7 @@ import {
   type WorkspaceContext,
 } from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
+import { forumGroupFor, isKnownStage } from "../lib/case-stages";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { displayRole } from "../lib/permissions";
 import { recordAudit } from "../lib/audit";
@@ -52,6 +56,35 @@ function clientSideOnly(c: WorkspaceContext): boolean {
 async function view(doc: typeof documentsTable.$inferSelect) {
   const [c] = await db.select().from(casesTable).where(eq(casesTable.id, doc.caseId));
   return { ...doc, caseTitle: c?.title ?? null };
+}
+
+/**
+ * A stage a caller asked for, checked against the list the matter actually has.
+ *
+ * Free text is refused rather than stored. A document filed under a stage
+ * nothing else can ever be filed under is a heading of one, and a typo becomes
+ * a permanent extra section of the vault that no dropdown will ever offer
+ * again. Adding a genuinely new stage is `POST /cases/:caseId/stages`, which is
+ * gated on `cases.write` — so a client uploading a file cannot invent one.
+ *
+ * Absent (undefined) and null both mean unfiled, which is where every document
+ * from before this feature sits.
+ */
+async function resolveStage(
+  c: WorkspaceContext,
+  matter: typeof casesTable.$inferSelect,
+  requested: string | null | undefined,
+): Promise<{ ok: true; value: string | null } | { ok: false; message: string }> {
+  if (requested == null || requested === "") return { ok: true, value: null };
+
+  const group = forumGroupFor(matter);
+  if (await isKnownStage(c.workspaceId, group, requested)) {
+    return { ok: true, value: requested };
+  }
+  return {
+    ok: false,
+    message: `"${requested}" is not a stage on this matter's list.`,
+  };
 }
 
 /** Every document the caller may see, across all their matters. */
@@ -121,7 +154,8 @@ router.post(
       return;
     }
 
-    if (!(await getVisibleCase(c, pathParams.data.caseId))) {
+    const matter = await getVisibleCase(c, pathParams.data.caseId);
+    if (!matter) {
       res.status(404).json({ error: "Case not found" });
       return;
     }
@@ -129,6 +163,12 @@ router.post(
     const body = UploadDocumentBody.safeParse(req.body);
     if (!body.success) {
       res.status(400).json({ error: body.error.message });
+      return;
+    }
+
+    const stage = await resolveStage(c, matter, body.data.stage);
+    if (!stage.ok) {
+      res.status(400).json({ error: "unknown_stage", message: stage.message });
       return;
     }
 
@@ -173,6 +213,7 @@ router.post(
         url: body.data.url ?? null,
         storagePath: body.data.storagePath ?? null,
         note: body.data.note ?? null,
+        stage: stage.value,
         visibility,
         uploadedBy: c.user.displayName,
         uploadedByClerkId: c.user.clerkId,
@@ -232,7 +273,8 @@ router.post(
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
     const caseId = Number(req.params["caseId"]);
-    if (!Number.isFinite(caseId) || !(await getVisibleCase(c, caseId))) {
+    const matter = Number.isFinite(caseId) ? await getVisibleCase(c, caseId) : undefined;
+    if (!matter) {
       res.status(404).json({ error: "Case not found" });
       return;
     }
@@ -271,6 +313,19 @@ router.post(
     const fromClient = clientSideOnly(c);
     const wantShared = String(req.headers["x-document-visibility"] ?? "") === "shared";
     const visibility = fromClient ? "shared" : wantShared ? "shared" : "firm";
+
+    // Same rule as the JSON path, read off a header because this request is
+    // raw bytes and has no body to put it in.
+    const stageHeader = req.headers["x-document-stage"];
+    const stage = await resolveStage(
+      c,
+      matter,
+      Array.isArray(stageHeader) ? stageHeader[0] : stageHeader,
+    );
+    if (!stage.ok) {
+      res.status(400).json({ error: "unknown_stage", message: stage.message });
+      return;
+    }
 
     // Same request-ownership rule as the JSON path: you can only close a
     // request that is in this workspace and, for a client, addressed to you.
@@ -314,6 +369,7 @@ router.post(
         fileSize: stored.bytes,
         storagePath: stored.key,
         checksum: stored.checksum,
+        stage: stage.value,
         visibility,
         uploadedBy: c.user.displayName,
         uploadedByClerkId: c.user.clerkId,
@@ -352,6 +408,73 @@ router.post(
     });
 
     res.status(201).json(UploadDocumentResponse.parse(doc));
+  },
+);
+
+/**
+ * Re-file a document under a different stage.
+ *
+ * Stages are chosen at upload, and this is the correction. It exists because
+ * the alternative to correcting a mislabelled paper is deleting and re-uploading
+ * it, which loses the upload record, the checksum and whichever document
+ * request it closed.
+ *
+ * Every boundary the list applies is re-applied: matter scope through
+ * `visibleCaseIds`, and visibility, so a client cannot discover a firm-internal
+ * document by patching ids and reading which ones come back 400 rather than
+ * 404. Both failures are a flat 404.
+ */
+router.patch(
+  "/documents/:id/stage",
+  requireWorkspace,
+  requireCapability("documents.write"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+
+    const params = UpdateDocumentStageParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const body = UpdateDocumentStageBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "invalid_request", message: body.error.message });
+      return;
+    }
+
+    const [doc] = await db
+      .select()
+      .from(documentsTable)
+      .where(eq(documentsTable.id, params.data.id));
+    if (!doc) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const matter = await getVisibleCase(c, doc.caseId);
+    if (!matter) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    if (clientSideOnly(c) && doc.visibility !== "shared") {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const stage = await resolveStage(c, matter, body.data.stage);
+    if (!stage.ok) {
+      res.status(400).json({ error: "unknown_stage", message: stage.message });
+      return;
+    }
+
+    const [updated] = await db
+      .update(documentsTable)
+      .set({ stage: stage.value })
+      .where(eq(documentsTable.id, doc.id))
+      .returning();
+
+    res.json(UpdateDocumentStageResponse.parse(await view(updated!)));
   },
 );
 

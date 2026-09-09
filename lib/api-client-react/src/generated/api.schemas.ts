@@ -1013,6 +1013,21 @@ export interface Case {
      * @nullable
      */
   courtName?: string | null;
+  /**
+     * Which standard stage list applies — one of writ, civil, criminal, tribunal, general. Not declared as an enum here because the field is nullable and the generated validator would reject the null. Null means it has never been set and the server reads one off the case type instead — see `GET /cases/{caseId}/stages`, which reports what it inferred.
+     * @nullable
+     */
+  forumGroup?: string | null;
+  /**
+     * The phase the matter is in. Distinct from `status`, which is workflow: a matter stays "open" while it travels petition to counter to rejoinder.
+     * @nullable
+     */
+  stage?: string | null;
+  /**
+     * `stage` resolved to its heading, for display. Not stored — a list page would otherwise have to fetch a stage vocabulary per matter to render one word.
+     * @nullable
+     */
+  stageLabel?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1035,6 +1050,20 @@ export const CaseInputPriority = {
   medium: 'medium',
   high: 'high',
   urgent: 'urgent',
+} as const;
+
+/**
+ * Which standard stage list this matter should use. Omit to let the server read one off `caseType` — which it does on every read, so a writ petition gets writ headings without this being set.
+ */
+export type CaseInputForumGroup = typeof CaseInputForumGroup[keyof typeof CaseInputForumGroup];
+
+
+export const CaseInputForumGroup = {
+  writ: 'writ',
+  civil: 'civil',
+  criminal: 'criminal',
+  tribunal: 'tribunal',
+  general: 'general',
 } as const;
 
 export interface CaseInput {
@@ -1061,6 +1090,8 @@ export interface CaseInput {
   caseType?: string;
   caseNumber?: number;
   caseYear?: number;
+  /** Which standard stage list this matter should use. Omit to let the server read one off `caseType` — which it does on every read, so a writ petition gets writ headings without this being set. */
+  forumGroup?: CaseInputForumGroup;
 }
 
 export type CaseUpdateStatus = typeof CaseUpdateStatus[keyof typeof CaseUpdateStatus];
@@ -1083,6 +1114,20 @@ export const CaseUpdatePriority = {
   urgent: 'urgent',
 } as const;
 
+/**
+ * Overrides whatever the server would infer from the case type. It cannot be cleared back to inference: omit it to leave it alone.
+ */
+export type CaseUpdateForumGroup = typeof CaseUpdateForumGroup[keyof typeof CaseUpdateForumGroup];
+
+
+export const CaseUpdateForumGroup = {
+  writ: 'writ',
+  civil: 'civil',
+  criminal: 'criminal',
+  tribunal: 'tribunal',
+  general: 'general',
+} as const;
+
 export interface CaseUpdate {
   /** @minLength 1 */
   title?: string;
@@ -1100,6 +1145,13 @@ export interface CaseUpdate {
   caseType?: string;
   caseNumber?: number;
   caseYear?: number;
+  /** Overrides whatever the server would infer from the case type. It cannot be cleared back to inference: omit it to leave it alone. */
+  forumGroup?: CaseUpdateForumGroup;
+  /**
+     * The phase the matter has reached. Must be a key on this matter's stage list, or `unknown_stage` comes back. Null clears it.
+     * @nullable
+     */
+  stage?: string | null;
 }
 
 export interface TimelineEvent {
@@ -1956,6 +2008,11 @@ export interface Document {
   uploadedBy?: string | null;
   /** @nullable */
   uploadedByRole?: string | null;
+  /**
+     * Which stage of the matter this paper belongs to — a key from the matter's stage list, standard or chamber-defined. Null means unfiled, which is what every document uploaded before stages existed is; those group under a trailing heading rather than disappearing.
+     * @nullable
+     */
+  stage?: string | null;
   /** @nullable */
   documentRequestId?: number | null;
   /** @nullable */
@@ -1988,6 +2045,69 @@ export interface DocumentInput {
   visibility?: DocumentInputVisibility;
   /** Set to fulfil a specific document request. */
   documentRequestId?: number;
+  /** Stage key from the matter's list. Refused with `unknown_stage` if it is not on that list — a free-text stage would put the document under a heading nothing else can ever be filed against. */
+  stage?: string;
+}
+
+export interface DocumentStageUpdate {
+  /**
+     * The stage to move this document to. Null returns it to the unfiled group, which is the only way to undo a mislabelling.
+     * @nullable
+     */
+  stage: string | null;
+}
+
+/**
+ * 'standard' is one of the built-in stages for this forum group, identical in every chamber. 'chamber' is one this workspace added.
+ */
+export type StageOptionSource = typeof StageOptionSource[keyof typeof StageOptionSource];
+
+
+export const StageOptionSource = {
+  standard: 'standard',
+  chamber: 'chamber',
+} as const;
+
+export interface StageOption {
+  key: string;
+  label: string;
+  /** 'standard' is one of the built-in stages for this forum group, identical in every chamber. 'chamber' is one this workspace added. */
+  source: StageOptionSource;
+  position: number;
+}
+
+export type CaseStagesForumGroup = typeof CaseStagesForumGroup[keyof typeof CaseStagesForumGroup];
+
+
+export const CaseStagesForumGroup = {
+  writ: 'writ',
+  civil: 'civil',
+  criminal: 'criminal',
+  tribunal: 'tribunal',
+  general: 'general',
+} as const;
+
+export interface CaseStages {
+  caseId: number;
+  forumGroup: CaseStagesForumGroup;
+  forumGroupLabel: string;
+  /** True when the matter has no stored forum group and this one was read off its case type. Shown so an advocate can see the list is a guess and correct it, rather than wondering why a writ petition is filing under civil headings. */
+  forumGroupInferred?: boolean;
+  /**
+     * The stage the MATTER is currently in. Null until somebody sets it.
+     * @nullable
+     */
+  stage?: string | null;
+  options: StageOption[];
+}
+
+export interface CaseStageInput {
+  /**
+     * The heading as it should read. Its key is derived server-side and is unique per workspace and forum group, so adding a stage that already exists returns the existing list rather than a duplicate.
+     * @minLength 2
+     * @maxLength 60
+     */
+  label: string;
 }
 
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];

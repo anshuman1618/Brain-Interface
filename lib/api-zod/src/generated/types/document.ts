@@ -34,6 +34,11 @@ export interface Document {
   uploadedBy?: string | null;
   /** @nullable */
   uploadedByRole?: string | null;
+  /**
+     * Which stage of the matter this paper belongs to — a key from the matter's stage list, standard or chamber-defined. Null means unfiled, which is what every document uploaded before stages existed is; those group under a trailing heading rather than disappearing.
+     * @nullable
+     */
+  stage?: string | null;
   /** @nullable */
   documentRequestId?: number | null;
   /** @nullable */

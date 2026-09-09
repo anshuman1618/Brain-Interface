@@ -297,6 +297,16 @@ page, because every endpoint behind it re-checks independently.
   it fulfilled and notifies whoever raised it. A client's upload is forced to
   `shared` server-side regardless of what the request says — a client cannot
   create firm-internal material.
+- **Stages of a matter** — the vault files under the pleadings rather than by
+  upload time: petition, counter affidavit, rejoinder, supplementary affidavit,
+  orders. Which list applies is read off the case type (writ, civil, criminal,
+  tribunal, or a general list for anything unfiled) and can be set explicitly
+  where the guess is wrong. A chamber adds its own stages from the picker, and
+  they carry to the next matter of the same kind. The stage is chosen at upload
+  and corrected afterwards; anything unlabelled files under "Unfiled papers"
+  rather than disappearing. The matter carries a stage of its own — where it has
+  got to — which is a separate field from `status`, because a matter stays open
+  for a year while travelling petition to counter to rejoinder.
 - **Client feedback** — a client rates their own matters 1–5 with an optional
   comment. Staff read every rating and may reply, but the reply is a separate
   field: nobody can edit or delete what a client wrote, because a review the

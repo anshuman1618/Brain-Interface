@@ -1583,6 +1583,97 @@ paths:
               schema:
                 $ref: "#/components/schemas/Document"
 
+  /documents/{id}/stage:
+    patch:
+      operationId: updateDocumentStage
+      tags: [documents]
+      summary: Move a document to another stage of the matter
+      description: >
+        Labelling is chosen at upload and corrected here. Gated on
+        `documents.write`, so a client can label their own upload but cannot
+        re-file the chamber's papers; the matter is re-checked against the
+        caller's row scope, and an invisible document is a 404 like any other.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DocumentStageUpdate"
+      responses:
+        "200":
+          description: The document, relabelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "400":
+          description: The stage is not on this matter's list
+        "404":
+          description: No such document, or not one this caller may see
+
+  /cases/{caseId}/stages:
+    get:
+      operationId: listCaseStages
+      tags: [cases]
+      summary: The stage vocabulary for a matter
+      description: >
+        The standard stages for the matter's forum group, then whatever this
+        chamber has added to that group, plus the stage the matter is currently
+        in. Readable by anyone who can read the matter, including a client —
+        the headings a client sees in the portal have to come from somewhere.
+      parameters:
+        - in: path
+          name: caseId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Stage list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseStages"
+        "404":
+          description: No such matter, or not one this caller may see
+    post:
+      operationId: addCaseStage
+      tags: [cases]
+      summary: Add a chamber-defined stage to this matter's forum group
+      description: >
+        The addition is saved against the workspace and the forum group, not the
+        matter, so the next writ petition offers it too. Adding one that already
+        exists is not an error — the list comes back unchanged.
+      parameters:
+        - in: path
+          name: caseId
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseStageInput"
+      responses:
+        "201":
+          description: The stage list, including the addition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseStages"
+        "400":
+          description: The label reduced to an empty key
+        "404":
+          description: No such matter, or not one this caller may see
+
   /cases/{caseId}/documents/{docId}:
     delete:
       operationId: deleteDocument
@@ -3425,6 +3516,27 @@ components:
         courtName:
           type: ["string", "null"]
           description: Resolved from courtId for display. Not stored on the matter.
+        forumGroup:
+          type: ["string", "null"]
+          description: >
+            Which standard stage list applies — one of writ, civil, criminal,
+            tribunal, general. Not declared as an enum here because the field is
+            nullable and the generated validator would reject the null.
+            Null means it has never been set
+            and the server reads one off the case type instead — see
+            `GET /cases/{caseId}/stages`, which reports what it inferred.
+        stage:
+          type: ["string", "null"]
+          description: >
+            The phase the matter is in. Distinct from `status`, which is
+            workflow: a matter stays "open" while it travels petition to
+            counter to rejoinder.
+        stageLabel:
+          type: ["string", "null"]
+          description: >
+            `stage` resolved to its heading, for display. Not stored — a list
+            page would otherwise have to fetch a stage vocabulary per matter to
+            render one word.
         createdAt:
           type: string
           format: date-time
@@ -3482,6 +3594,13 @@ components:
           type: integer
         caseYear:
           type: integer
+        forumGroup:
+          type: string
+          enum: [writ, civil, criminal, tribunal, general]
+          description: >
+            Which standard stage list this matter should use. Omit to let the
+            server read one off `caseType` — which it does on every read, so a
+            writ petition gets writ headings without this being set.
 
     CaseUpdate:
       type: object
@@ -3519,6 +3638,17 @@ components:
           type: integer
         caseYear:
           type: integer
+        forumGroup:
+          type: string
+          enum: [writ, civil, criminal, tribunal, general]
+          description: >
+            Overrides whatever the server would infer from the case type. It
+            cannot be cleared back to inference: omit it to leave it alone.
+        stage:
+          type: ["string", "null"]
+          description: >
+            The phase the matter has reached. Must be a key on this matter's
+            stage list, or `unknown_stage` comes back. Null clears it.
 
     TimelineEvent:
       type: object
@@ -4400,6 +4530,14 @@ components:
           type: ["string", "null"]
         uploadedByRole:
           type: ["string", "null"]
+        stage:
+          type: ["string", "null"]
+          description: >
+            Which stage of the matter this paper belongs to — a key from the
+            matter's stage list, standard or chamber-defined. Null means
+            unfiled, which is what every document uploaded before stages
+            existed is; those group under a trailing heading rather than
+            disappearing.
         documentRequestId:
           type: ["integer", "null"]
         note:
@@ -4434,6 +4572,79 @@ components:
         documentRequestId:
           type: integer
           description: Set to fulfil a specific document request.
+        stage:
+          type: string
+          description: >
+            Stage key from the matter's list. Refused with `unknown_stage` if it
+            is not on that list — a free-text stage would put the document under
+            a heading nothing else can ever be filed against.
+
+    DocumentStageUpdate:
+      type: object
+      required: [stage]
+      properties:
+        stage:
+          type: ["string", "null"]
+          description: >
+            The stage to move this document to. Null returns it to the unfiled
+            group, which is the only way to undo a mislabelling.
+
+    # ── Case stages ────────────────────────────────────────────────────────
+    StageOption:
+      type: object
+      required: [key, label, source, position]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        source:
+          type: string
+          enum: [standard, chamber]
+          description: >
+            'standard' is one of the built-in stages for this forum group,
+            identical in every chamber. 'chamber' is one this workspace added.
+        position:
+          type: integer
+
+    CaseStages:
+      type: object
+      required: [caseId, forumGroup, forumGroupLabel, options]
+      properties:
+        caseId:
+          type: integer
+        forumGroup:
+          type: string
+          enum: [writ, civil, criminal, tribunal, general]
+        forumGroupLabel:
+          type: string
+        forumGroupInferred:
+          type: boolean
+          description: >
+            True when the matter has no stored forum group and this one was read
+            off its case type. Shown so an advocate can see the list is a guess
+            and correct it, rather than wondering why a writ petition is filing
+            under civil headings.
+        stage:
+          type: ["string", "null"]
+          description: The stage the MATTER is currently in. Null until somebody sets it.
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/StageOption"
+
+    CaseStageInput:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+          minLength: 2
+          maxLength: 60
+          description: >
+            The heading as it should read. Its key is derived server-side and is
+            unique per workspace and forum group, so adding a stage that already
+            exists returns the existing list rather than a duplicate.
 
     # ── Task ──────────────────────────────────────────────────────────────
     Task:

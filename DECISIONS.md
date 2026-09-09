@@ -3072,3 +3072,123 @@ toast — a toast disappears and leaves the same misleading empty screen behind.
 Wired into the three highest-traffic lists (cases, tasks, invoices). The
 remaining pages still fall through to their empty states on failure; that is
 known and is the follow-up, not a claim of completeness.
+
+## A matter is a sequence of pleadings, not a pile of paper
+
+A writ petition is answered by a counter affidavit, which is answered by a
+rejoinder. The vault showed a flat list sorted by upload time, so the paper an
+advocate wants — "where is the counter?" — was found by reading filenames. The
+matter's own progress was worse served still: `status` says open or closed and
+a matter sits "open" for a year while travelling petition → counter → rejoinder.
+
+Four decisions, in the order they were made.
+
+### The standard stages are code; only the chamber's additions are rows
+
+`case_stage_labels` holds nothing but what a chamber adds. The five standard
+lists — writ, civil, criminal, tribunal, general — live in
+`lib/case-stages.ts`.
+
+Seeding them per workspace was the obvious alternative and is wrong twice over.
+It makes rewording one label a migration across every tenant; and it invites two
+chambers to hold different ideas of what a rejoinder is, which is not a thing
+they get to differ on. A chamber's _additions_ are genuinely theirs, and those
+are rows.
+
+Additions are scoped to the workspace **and the forum group**, not to the
+matter. A chamber that adds "Caveat" to its writ list wants it on the next writ
+petition; per-matter additions are how a controlled vocabulary decays back into
+free text.
+
+Nothing deletes from that table. A stage label documents already carry cannot be
+removed without orphaning them under a nameless heading, and the honest fix for
+a mistyped stage is to relabel the documents — which `PATCH /documents/:id/stage`
+does.
+
+### The forum group is inferred on read, never backfilled
+
+`cases.forum_group` is null on every matter that existed before this. Backfilling
+it would have meant guessing from `case_type_norm` anyway — and **a guess written
+into a column is invisible**, because nobody re-examines a stored value. A guess
+made on read lives in one function, is correctable in one place, and is
+overridden the moment somebody sets the column. `forumGroupFor()` is that
+function, and the API reports `forumGroupInferred` so the screen can say the
+list is a default rather than leaving an advocate to wonder why a writ petition
+is filing under civil headings.
+
+The mapping is a prefix table matched against `case_type_norm`, which
+`normaliseCaseType` has already reduced to letters and digits — so "W.P.(C)" and
+"WP(C)" both arrive as "WPC". Order matters: "CRL" is tested before "CR", or
+every criminal revision files as a civil one. Two collisions are resolved by
+hand and documented at the table: **"CC"** is both a sessions calendar case and
+a consumer complaint, read as criminal; **"CP"** is both a company petition and,
+in some registries, a civil one, read as tribunal. Anything unrecognised falls
+to `general` rather than to a confident wrong answer.
+
+### A stage off the list is refused, not stored
+
+`resolveStage()` gates both upload paths and the relabel; the case PATCH does
+the same for the matter's own stage. Free text was the tempting shortcut and it
+fails in a specific way: a document filed under a typo becomes a permanent
+section of the vault that no dropdown will ever offer again — a heading of one,
+un-mergeable, invisible to everyone who did not make the typo.
+
+Adding a genuinely new stage is a different route with a different capability.
+`cases.write` gates it, so a client uploading a file cannot invent a heading,
+while `cases.read` gates reading the list — a client opening their own matter
+must see the same headings the chamber does, and "counter affidavit" is not a
+confidence.
+
+The picker is where a stage gets added, not a settings page. The moment somebody
+notices the list is missing a stage is the moment they are filing a paper under
+it; sending them elsewhere and back to an abandoned upload is how a vocabulary
+gets abandoned in favour of typing it into the filename.
+
+### `documents.stage` is a key, not a foreign key; null means unfiled
+
+There is no id to point at — the standard stages are not rows. And a key that
+outlives its label is a better failure than a document orphaned by a delete: the
+vault renders an unknown key as its own heading rather than losing the filing.
+
+Null is "unfiled", which is what **every** document uploaded before today is.
+They group under a trailing "Unfiled papers" heading. Dropping them would be a
+vault that silently holds more than it shows, which is the same class of lie as
+an empty state on a failed query.
+
+Empty stages are not rendered. A writ list is eight headings long and a matter
+at the counter-affidavit stage has papers under two; six empty headings reads as
+a broken screen. The picker still offers all of them, so nothing is unreachable.
+
+### The matter's stage is a second field, not a widening of `status`
+
+Two controls on the matter header, because they answer two different questions.
+Collapsing them would mean closing a matter to record that a rejoinder was
+filed. The client portal shows the stage on the case card, which is the question
+a client is actually asking when they open that page.
+
+## A spinner shown immediately is a flicker, not progress
+
+Every page is lazy-loaded, so every first visit to a route waits on a network
+fetch, and the Suspense fallback was a centred spinner shown the instant a
+navigation started.
+
+Measured on this build: warm navigations land in **53–93 ms** (Cases 383 ms on
+first visit while the chunk downloads, then 53 ms; Master Calendar 93 ms;
+Invoices 75 ms; KPI 53 ms). A spinner therefore appeared and vanished inside
+60 ms on almost every navigation — long enough for the eye to register that
+something happened, too short to register what.
+
+So `RouteFallback` renders **nothing for 150 ms**. Under that, the page simply
+arrives. Over it, the reader gets a skeleton, and by then they have waited long
+enough to want one. 150 ms is chosen to sit above every warm navigation measured
+and well below the cold one.
+
+The skeleton is shaped like the page it is standing in for, so the layout does
+not jump when the real thing lands. One `<Suspense>` wraps every route and
+cannot tell which page is loading from its children, so the shape is read off
+the path — `shapeFor()` is the whole of that mapping, and an unrecognised path
+gets the list shape, which is what most pages here are.
+
+This is deliberately not a per-page skeleton component. The pages already own
+those, for their own data loading; this one runs before the page's code exists
+to render anything at all.

@@ -19,4 +19,6 @@ export interface DocumentInput {
   visibility?: DocumentInputVisibility;
   /** Set to fulfil a specific document request. */
   documentRequestId?: number;
+  /** Stage key from the matter's list. Refused with `unknown_stage` if it is not on that list — a free-text stage would put the document under a heading nothing else can ever be filed against. */
+  stage?: string;
 }

@@ -358,6 +358,61 @@ check(
   "a refusal that fires after the row is gone is not a refusal",
 );
 
+// Stages are the sixth surface of this class. The vocabulary itself is not
+// secret — "counter affidavit" is not a confidence — but the LIST is served
+// per matter, so serving it at all confirms the matter exists and confirms
+// which forum it is in. Same 404 as everything else on a matter the junior
+// cannot open, and the same for re-filing its papers.
+const hiddenDoc = await call(`/cases/${beta.data.id}/documents`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  // "filed" and not "counter_affidavit": Beta carries no case type, so it falls
+  // to the general list, and a writ stage on it would be refused — which is the
+  // validation working, not a fixture worth fighting.
+  body: { name: "Hidden filing.pdf", stage: "filed" },
+});
+check(
+  "a document was filed under a stage on the hidden matter",
+  hiddenDoc.status === 201,
+  JSON.stringify(hiddenDoc.data),
+);
+check(
+  "GET /cases/:id/stages on an ungranted matter is 404",
+  (await call(`/cases/${beta.data.id}/stages`, { token: as(junior), wsToken: jTok })).status ===
+    404,
+  "serving the list would confirm the matter exists and name its forum",
+);
+check(
+  "POST /cases/:id/stages on an ungranted matter is refused",
+  (
+    await call(`/cases/${beta.data.id}/stages`, {
+      token: as(junior),
+      wsToken: jTok,
+      method: "POST",
+      body: { label: "Probe" },
+    })
+  ).status === 404,
+);
+check(
+  "PATCH /documents/:id/stage on an ungranted matter's paper is 404",
+  (
+    await call(`/documents/${hiddenDoc.data.id}/stage`, {
+      token: as(junior),
+      wsToken: jTok,
+      method: "PATCH",
+      body: { stage: "petition" },
+    })
+  ).status === 404,
+);
+check(
+  "...and the document was not re-filed by the refused patch",
+  (await call(`/cases/${beta.data.id}/documents`, { token: as(owner), wsToken: ws })).data.find(
+    (d) => d.id === hiddenDoc.data.id,
+  )?.stage === "filed",
+  "a refusal that fires after the write is not a refusal",
+);
+
 /* ─────────────── Who cannot be restricted ─────────────── */
 section("A senior advocate cannot be narrowed, and a client is already narrow");
 

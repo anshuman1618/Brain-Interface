@@ -492,6 +492,51 @@ if (signedIn) {
   );
 
   /*
+   * The vault files under the stages of the matter.
+   *
+   * The API suites prove the stage is stored and validated; none of them can
+   * prove a heading appears, and a heading nobody sees is the whole feature.
+   * So this walks it: open the vault, add a record under a stage, and read the
+   * heading back off the page.
+   *
+   * "Deep Route Matter" was opened with no case type, so its forum group is
+   * inferred as `general` and its list is the advisory one — "Filed papers",
+   * not "Counter affidavit". Picking a stage the list actually offers is the
+   * point; a writ heading here would fail for the right reason and read like
+   * the wrong one.
+   */
+  await page.getByRole("tab", { name: /encrypted vault/i }).click();
+  await page.waitForTimeout(600);
+  await page
+    .getByRole("button", { name: /^upload$/i })
+    .first()
+    .click();
+  await page.waitForTimeout(600);
+  await page.getByPlaceholder(/Discovery_Motion/i).fill("Brief to counsel.pdf");
+  // The stage select, by its label rather than its position: the dialog has two
+  // controls and the other one is a plain text input.
+  await page.getByRole("combobox").first().click();
+  await page.waitForTimeout(400);
+  await page.getByRole("option", { name: /^Filed papers$/ }).click();
+  await page.waitForTimeout(300);
+  await page
+    .getByRole("button", { name: /add record/i })
+    .last()
+    .click();
+  await page.waitForTimeout(1800);
+  const vault = await text();
+  check(
+    "the vault files a paper under a stage of the matter",
+    /Filed papers/.test(vault) && /Brief to counsel\.pdf/.test(vault),
+    vault.slice(0, 400),
+  );
+  check(
+    "...and does not show the stages nothing is filed under",
+    !/Instructions and brief/.test(vault),
+    "an eight-heading list with papers under one reads as a broken screen",
+  );
+
+  /*
    * The operator view fails closed.
    *
    * /operator is not in the navigation, and this run has no OPERATOR_EMAILS

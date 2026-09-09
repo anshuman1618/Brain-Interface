@@ -257,6 +257,324 @@ if (phase === "setup") {
   check("request auto-marked fulfilled", closed.status === "fulfilled", closed?.status);
   check("...and links the fulfilling document", closed.fulfilledDocumentId === fulfil.data.id);
 
+  /* ── Stages of a matter ─────────────────────────────────────────────────
+     The headings the vault files under. Four things are worth proving and
+     none of them is the happy path on its own:
+
+      - the forum group is INFERRED from the case type, so matters that
+        predate the feature get sensible headings without a backfill;
+      - a stored group overrides the inference, so a wrong guess is
+        correctable;
+      - a chamber addition is workspace-and-forum wide, not per matter —
+        the whole point of a controlled vocabulary;
+      - free text is refused everywhere it could be smuggled in. A stage
+        nothing else can ever be filed under is a heading of one. */
+  section("Stages of a matter");
+
+  const generalStages = await call(`/cases/${matter.data.id}/stages`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "a matter with no case type falls to the general list",
+    generalStages.status === 200 && generalStages.data.forumGroup === "general",
+    `got ${generalStages.status} ${generalStages.data?.forumGroup}`,
+  );
+  check(
+    "...and says so — the group was inferred, not set",
+    generalStages.data.forumGroupInferred === true,
+  );
+
+  // The court identity goes in as a set of four or not at all — see
+  // courtIdentity() — and `caseType` is the field the inference reads, so the
+  // other three come along whether this test cares about them or not.
+  const courts = await call("/courts", { token: as(founder), wsToken: wsTok });
+  const anyCourt = courts.data?.[0];
+  check("a court exists to file against", !!anyCourt, `got ${courts.status}`);
+  const writMatter = await call("/cases", {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: {
+      title: "Writ matter",
+      filingRef: "WP-2026-100",
+      courtId: anyCourt?.id,
+      caseType: "W.P.(C)",
+      caseNumber: 100,
+      caseYear: 2026,
+    },
+  });
+  check("writ matter opened", writMatter.status === 201, JSON.stringify(writMatter.data));
+  const writStages = await call(`/cases/${writMatter.data.id}/stages`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    'case type "W.P.(C)" is read as the writ list',
+    writStages.data?.forumGroup === "writ",
+    JSON.stringify(writStages.data?.forumGroup),
+  );
+  const writKeys = (writStages.data?.options ?? []).map((o) => o.key);
+  check(
+    "the writ list is the pleadings in order",
+    ["petition", "counter_affidavit", "rejoinder_affidavit", "supplementary_affidavit"].every(
+      (k, i) => writKeys[i] === k,
+    ),
+    JSON.stringify(writKeys),
+  );
+  check("...and ends with an order and a judgment", writKeys.includes("judgment"));
+
+  // The override. A registry that writes "CC" for a consumer complaint would
+  // otherwise get the criminal list forever.
+  const overridden = await call(`/cases/${writMatter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { forumGroup: "criminal" },
+  });
+  const afterOverride = await call(`/cases/${writMatter.data.id}/stages`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "a stored forum group beats the case type",
+    overridden.status === 200 && afterOverride.data.forumGroup === "criminal",
+    `${overridden.status} ${afterOverride.data?.forumGroup}`,
+  );
+  check(
+    "...and is no longer reported as inferred",
+    afterOverride.data.forumGroupInferred === false,
+  );
+  await call(`/cases/${writMatter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { forumGroup: "writ" },
+  });
+
+  const stagedUpload = await call(`/cases/${writMatter.data.id}/documents`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { name: "Counter affidavit.pdf", stage: "counter_affidavit" },
+  });
+  check(
+    "a document files under a stage at upload",
+    stagedUpload.status === 201 && stagedUpload.data.stage === "counter_affidavit",
+    `${stagedUpload.status} ${stagedUpload.data?.stage}`,
+  );
+
+  const bogusUpload = await call(`/cases/${writMatter.data.id}/documents`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { name: "Invented.pdf", stage: "not_a_real_stage" },
+  });
+  check(
+    "a stage off the list is refused, not stored",
+    bogusUpload.status === 400 && bogusUpload.data?.error === "unknown_stage",
+    `${bogusUpload.status} ${JSON.stringify(bogusUpload.data)}`,
+  );
+
+  const unstagedUpload = await call(`/cases/${writMatter.data.id}/documents`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { name: "No stage yet.pdf" },
+  });
+  check(
+    "omitting the stage is allowed — the paper is unfiled, not rejected",
+    unstagedUpload.status === 201 && unstagedUpload.data.stage === null,
+    `${unstagedUpload.status} ${unstagedUpload.data?.stage}`,
+  );
+
+  // Chamber-defined. Added on one matter, expected on the next of the same kind.
+  const added = await call(`/cases/${writMatter.data.id}/stages`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { label: "Caveat Petition" },
+  });
+  check("a chamber adds a stage of its own", added.status === 201, `got ${added.status}`);
+  const caveat = (added.data?.options ?? []).find((o) => o.key === "caveat_petition");
+  check(
+    "...keyed from the label and marked as the chamber's",
+    caveat?.label === "Caveat Petition" && caveat?.source === "chamber",
+    JSON.stringify(caveat),
+  );
+
+  const againstDup = await call(`/cases/${writMatter.data.id}/stages`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { label: "caveat  petition" },
+  });
+  const caveats = (againstDup.data?.options ?? []).filter((o) => o.key === "caveat_petition");
+  check(
+    "adding it again is not an error and does not duplicate it",
+    againstDup.status === 201 && caveats.length === 1,
+    `${againstDup.status} ${caveats.length}`,
+  );
+
+  const siblingWrit = await call("/cases", {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: {
+      title: "Second writ",
+      filingRef: "WP-2026-101",
+      courtId: anyCourt?.id,
+      caseType: "W.P.(C)",
+      caseNumber: 101,
+      caseYear: 2026,
+    },
+  });
+  const siblingStages = await call(`/cases/${siblingWrit.data.id}/stages`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "the addition is offered on the next matter of the same kind",
+    (siblingStages.data?.options ?? []).some((o) => o.key === "caveat_petition"),
+    JSON.stringify((siblingStages.data?.options ?? []).map((o) => o.key)),
+  );
+  // Re-fetched, not the copy taken before the addition: a stale response would
+  // pass this whether the scoping works or not.
+  const otherGroupNow = await call(`/cases/${matter.data.id}/stages`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "...and NOT on a matter in a different forum group",
+    !(otherGroupNow.data?.options ?? []).some((o) => o.key === "caveat_petition"),
+    JSON.stringify((otherGroupNow.data?.options ?? []).map((o) => o.key)),
+  );
+
+  const clientAdds = await call(`/cases/${matter.data.id}/stages`, {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "POST",
+    body: { label: "My own heading" },
+  });
+  check(
+    "a client cannot invent a stage (403)",
+    clientAdds.status === 403,
+    `got ${clientAdds.status}`,
+  );
+  const clientReads = await call(`/cases/${matter.data.id}/stages`, {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+  });
+  check(
+    "...but can read the headings on their own matter",
+    clientReads.status === 200 && Array.isArray(clientReads.data.options),
+    `got ${clientReads.status}`,
+  );
+
+  // Relabelling. The alternative to this route is delete-and-re-upload, which
+  // loses the checksum, the uploader and any request the document closed.
+  const restaged = await call(`/documents/${stagedUpload.data.id}/stage`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { stage: "rejoinder_affidavit" },
+  });
+  check(
+    "a mislabelled paper can be moved",
+    restaged.status === 200 && restaged.data.stage === "rejoinder_affidavit",
+    `${restaged.status} ${restaged.data?.stage}`,
+  );
+  const unfiled = await call(`/documents/${stagedUpload.data.id}/stage`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { stage: null },
+  });
+  check(
+    "...and returned to unfiled, which is the only undo",
+    unfiled.status === 200 && unfiled.data.stage === null,
+    `${unfiled.status} ${unfiled.data?.stage}`,
+  );
+  const movedBogus = await call(`/documents/${stagedUpload.data.id}/stage`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { stage: "still_not_real" },
+  });
+  check(
+    "the relabel refuses a stage off the list too",
+    movedBogus.status === 400 && movedBogus.data?.error === "unknown_stage",
+    `${movedBogus.status} ${JSON.stringify(movedBogus.data)}`,
+  );
+
+  // Cross-tenant. Every chamber's documents share one table, so a document id
+  // proves nothing on its own — the same class of bug this codebase keeps
+  // finding. A stranger must not be able to re-file another chamber's papers,
+  // and must not learn the id exists from the shape of the refusal.
+  const stranger = "stage.stranger@elsewhere.test";
+  const strangerWs = await call("/workspaces", {
+    token: as(stranger, "A Stranger"),
+    method: "POST",
+    body: { name: `Stranger Chambers ${Date.now()}`, role: "admin" },
+  });
+  await declareBarRegistration(call, as(stranger));
+  await grantPreviewPlan(call, as(stranger), strangerWs.data.workspaceToken);
+  const poach = await call(`/documents/${stagedUpload.data.id}/stage`, {
+    token: as(stranger),
+    wsToken: strangerWs.data.workspaceToken,
+    method: "PATCH",
+    body: { stage: "petition" },
+  });
+  check(
+    "another chamber cannot re-file this document (404)",
+    poach.status === 404,
+    `got ${poach.status}`,
+  );
+  const poachStages = await call(`/cases/${writMatter.data.id}/stages`, {
+    token: as(stranger),
+    wsToken: strangerWs.data.workspaceToken,
+  });
+  check(
+    "...nor read its stage list (404, same as a matter that does not exist)",
+    poachStages.status === 404,
+    `got ${poachStages.status}`,
+  );
+
+  // The matter's own stage — the phase it has reached, which `status` does not
+  // say. Set through the ordinary case PATCH, validated against the same list.
+  const matterStage = await call(`/cases/${writMatter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { stage: "counter_affidavit" },
+  });
+  check(
+    "a matter records the phase it has reached",
+    matterStage.status === 200 && matterStage.data.stage === "counter_affidavit",
+    `${matterStage.status} ${matterStage.data?.stage}`,
+  );
+  check(
+    "...resolved to a heading for display",
+    matterStage.data?.stageLabel === "Counter affidavit",
+    JSON.stringify(matterStage.data?.stageLabel),
+  );
+  check(
+    "...and is not the same field as status",
+    matterStage.data?.status === "open",
+    matterStage.data?.status,
+  );
+  const badMatterStage = await call(`/cases/${writMatter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { stage: "invented_phase" },
+  });
+  check(
+    "a matter cannot reach a phase that is not on its list",
+    badMatterStage.status === 400 && badMatterStage.data?.error === "unknown_stage",
+    `${badMatterStage.status} ${JSON.stringify(badMatterStage.data)}`,
+  );
+
   section("Client feedback");
   const fb = await call("/feedback", {
     token: as("arch.client@x.test"),

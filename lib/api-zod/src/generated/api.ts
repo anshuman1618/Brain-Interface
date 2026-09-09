@@ -543,6 +543,7 @@ export const ListWorkspaceDocumentsResponseItem = zod.object({
   "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
   "uploadedBy": zod.string().nullish(),
   "uploadedByRole": zod.string().nullish(),
+  "stage": zod.string().nullish().describe('Which stage of the matter this paper belongs to — a key from the matter\'s stage list, standard or chamber-defined. Null means unfiled, which is what every document uploaded before stages existed is; those group under a trailing heading rather than disappearing.\n'),
   "documentRequestId": zod.number().nullish(),
   "note": zod.string().nullish(),
   "caseTitle": zod.string().nullish(),
@@ -1594,6 +1595,9 @@ export const ListCasesResponseItem = zod.object({
   "caseNumber": zod.number().nullish(),
   "caseYear": zod.number().nullish(),
   "courtName": zod.string().nullish().describe('Resolved from courtId for display. Not stored on the matter.'),
+  "forumGroup": zod.string().nullish().describe('Which standard stage list applies — one of writ, civil, criminal, tribunal, general. Not declared as an enum here because the field is nullable and the generated validator would reject the null. Null means it has never been set and the server reads one off the case type instead — see `GET \/cases\/{caseId}\/stages`, which reports what it inferred.\n'),
+  "stage": zod.string().nullish().describe('The phase the matter is in. Distinct from `status`, which is workflow: a matter stays \"open\" while it travels petition to counter to rejoinder.\n'),
+  "stageLabel": zod.string().nullish().describe('`stage` resolved to its heading, for display. Not stored — a list page would otherwise have to fetch a stage vocabulary per matter to render one word.\n'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1622,7 +1626,8 @@ export const CreateCaseBody = zod.object({
   "courtId": zod.number().optional().describe('The court this matter is before. Optional — but a matter without it, and without the three fields below, can never be matched to a published cause list. `filingRef` above is free text and cannot substitute: a court\'s list keys on type, number and year, and chambers write filingRef a dozen different ways.\n'),
   "caseType": zod.string().optional().describe('As printed on the filing: \"W.P.(C)\", \"CRL.M.C.\".'),
   "caseNumber": zod.number().optional(),
-  "caseYear": zod.number().optional()
+  "caseYear": zod.number().optional(),
+  "forumGroup": zod.enum(['writ', 'civil', 'criminal', 'tribunal', 'general']).optional().describe('Which standard stage list this matter should use. Omit to let the server read one off `caseType` — which it does on every read, so a writ petition gets writ headings without this being set.\n')
 })
 
 export const CreateCaseResponse = zod.object({
@@ -1643,6 +1648,9 @@ export const CreateCaseResponse = zod.object({
   "caseNumber": zod.number().nullish(),
   "caseYear": zod.number().nullish(),
   "courtName": zod.string().nullish().describe('Resolved from courtId for display. Not stored on the matter.'),
+  "forumGroup": zod.string().nullish().describe('Which standard stage list applies — one of writ, civil, criminal, tribunal, general. Not declared as an enum here because the field is nullable and the generated validator would reject the null. Null means it has never been set and the server reads one off the case type instead — see `GET \/cases\/{caseId}\/stages`, which reports what it inferred.\n'),
+  "stage": zod.string().nullish().describe('The phase the matter is in. Distinct from `status`, which is workflow: a matter stays \"open\" while it travels petition to counter to rejoinder.\n'),
+  "stageLabel": zod.string().nullish().describe('`stage` resolved to its heading, for display. Not stored — a list page would otherwise have to fetch a stage vocabulary per matter to render one word.\n'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1673,6 +1681,9 @@ export const GetCaseResponse = zod.object({
   "caseNumber": zod.number().nullish(),
   "caseYear": zod.number().nullish(),
   "courtName": zod.string().nullish().describe('Resolved from courtId for display. Not stored on the matter.'),
+  "forumGroup": zod.string().nullish().describe('Which standard stage list applies — one of writ, civil, criminal, tribunal, general. Not declared as an enum here because the field is nullable and the generated validator would reject the null. Null means it has never been set and the server reads one off the case type instead — see `GET \/cases\/{caseId}\/stages`, which reports what it inferred.\n'),
+  "stage": zod.string().nullish().describe('The phase the matter is in. Distinct from `status`, which is workflow: a matter stays \"open\" while it travels petition to counter to rejoinder.\n'),
+  "stageLabel": zod.string().nullish().describe('`stage` resolved to its heading, for display. Not stored — a list page would otherwise have to fetch a stage vocabulary per matter to render one word.\n'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1700,7 +1711,9 @@ export const UpdateCaseBody = zod.object({
   "courtId": zod.number().nullish().describe('Null clears the matter\'s court identity — all four fields go with it, and the matter stops being matched against cause lists. Omit to leave it alone. Correcting a mistyped number is otherwise the only way out of being proposed somebody else\'s listings.'),
   "caseType": zod.string().optional(),
   "caseNumber": zod.number().optional(),
-  "caseYear": zod.number().optional()
+  "caseYear": zod.number().optional(),
+  "forumGroup": zod.enum(['writ', 'civil', 'criminal', 'tribunal', 'general']).optional().describe('Overrides whatever the server would infer from the case type. It cannot be cleared back to inference: omit it to leave it alone.\n'),
+  "stage": zod.string().nullish().describe('The phase the matter has reached. Must be a key on this matter\'s stage list, or `unknown_stage` comes back. Null clears it.\n')
 })
 
 export const UpdateCaseResponse = zod.object({
@@ -1721,6 +1734,9 @@ export const UpdateCaseResponse = zod.object({
   "caseNumber": zod.number().nullish(),
   "caseYear": zod.number().nullish(),
   "courtName": zod.string().nullish().describe('Resolved from courtId for display. Not stored on the matter.'),
+  "forumGroup": zod.string().nullish().describe('Which standard stage list applies — one of writ, civil, criminal, tribunal, general. Not declared as an enum here because the field is nullable and the generated validator would reject the null. Null means it has never been set and the server reads one off the case type instead — see `GET \/cases\/{caseId}\/stages`, which reports what it inferred.\n'),
+  "stage": zod.string().nullish().describe('The phase the matter is in. Distinct from `status`, which is workflow: a matter stays \"open\" while it travels petition to counter to rejoinder.\n'),
+  "stageLabel": zod.string().nullish().describe('`stage` resolved to its heading, for display. Not stored — a list page would otherwise have to fetch a stage vocabulary per matter to render one word.\n'),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1774,6 +1790,7 @@ export const ListDocumentsResponseItem = zod.object({
   "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
   "uploadedBy": zod.string().nullish(),
   "uploadedByRole": zod.string().nullish(),
+  "stage": zod.string().nullish().describe('Which stage of the matter this paper belongs to — a key from the matter\'s stage list, standard or chamber-defined. Null means unfiled, which is what every document uploaded before stages existed is; those group under a trailing heading rather than disappearing.\n'),
   "documentRequestId": zod.number().nullish(),
   "note": zod.string().nullish(),
   "caseTitle": zod.string().nullish(),
@@ -1800,7 +1817,8 @@ export const UploadDocumentBody = zod.object({
   "url": zod.string().optional(),
   "note": zod.string().optional(),
   "visibility": zod.enum(['firm', 'shared']).optional().describe('Ignored for clients, whose uploads are always \'shared\'.'),
-  "documentRequestId": zod.number().optional().describe('Set to fulfil a specific document request.')
+  "documentRequestId": zod.number().optional().describe('Set to fulfil a specific document request.'),
+  "stage": zod.string().optional().describe('Stage key from the matter\'s list. Refused with `unknown_stage` if it is not on that list — a free-text stage would put the document under a heading nothing else can ever be filed against.\n')
 })
 
 export const UploadDocumentResponse = zod.object({
@@ -1816,10 +1834,99 @@ export const UploadDocumentResponse = zod.object({
   "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
   "uploadedBy": zod.string().nullish(),
   "uploadedByRole": zod.string().nullish(),
+  "stage": zod.string().nullish().describe('Which stage of the matter this paper belongs to — a key from the matter\'s stage list, standard or chamber-defined. Null means unfiled, which is what every document uploaded before stages existed is; those group under a trailing heading rather than disappearing.\n'),
   "documentRequestId": zod.number().nullish(),
   "note": zod.string().nullish(),
   "caseTitle": zod.string().nullish(),
   "uploadedAt": zod.coerce.date()
+})
+
+
+/**
+ * Labelling is chosen at upload and corrected here. Gated on `documents.write`, so a client can label their own upload but cannot re-file the chamber's papers; the matter is re-checked against the caller's row scope, and an invisible document is a 404 like any other.
+ * @summary Move a document to another stage of the matter
+ */
+export const UpdateDocumentStageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateDocumentStageBody = zod.object({
+  "stage": zod.string().nullable().describe('The stage to move this document to. Null returns it to the unfiled group, which is the only way to undo a mislabelling.\n')
+})
+
+export const UpdateDocumentStageResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "name": zod.string(),
+  "fileType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "encrypted": zod.boolean(),
+  "storagePath": zod.string().nullish(),
+  "checksum": zod.string().nullish().describe('SHA-256 of the stored bytes.'),
+  "url": zod.string().nullish().describe('Where the file lives. Object storage in production.'),
+  "visibility": zod.enum(['firm', 'shared']).optional().describe('\'firm\' is internal working material a client never sees. \'shared\' is visible to the client on the matter. A client\'s own upload is always \'shared\'.\n'),
+  "uploadedBy": zod.string().nullish(),
+  "uploadedByRole": zod.string().nullish(),
+  "stage": zod.string().nullish().describe('Which stage of the matter this paper belongs to — a key from the matter\'s stage list, standard or chamber-defined. Null means unfiled, which is what every document uploaded before stages existed is; those group under a trailing heading rather than disappearing.\n'),
+  "documentRequestId": zod.number().nullish(),
+  "note": zod.string().nullish(),
+  "caseTitle": zod.string().nullish(),
+  "uploadedAt": zod.coerce.date()
+})
+
+
+/**
+ * The standard stages for the matter's forum group, then whatever this chamber has added to that group, plus the stage the matter is currently in. Readable by anyone who can read the matter, including a client — the headings a client sees in the portal have to come from somewhere.
+ * @summary The stage vocabulary for a matter
+ */
+export const ListCaseStagesParams = zod.object({
+  "caseId": zod.coerce.number()
+})
+
+export const ListCaseStagesResponse = zod.object({
+  "caseId": zod.number(),
+  "forumGroup": zod.enum(['writ', 'civil', 'criminal', 'tribunal', 'general']),
+  "forumGroupLabel": zod.string(),
+  "forumGroupInferred": zod.boolean().optional().describe('True when the matter has no stored forum group and this one was read off its case type. Shown so an advocate can see the list is a guess and correct it, rather than wondering why a writ petition is filing under civil headings.\n'),
+  "stage": zod.string().nullish().describe('The stage the MATTER is currently in. Null until somebody sets it.'),
+  "options": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "source": zod.enum(['standard', 'chamber']).describe('\'standard\' is one of the built-in stages for this forum group, identical in every chamber. \'chamber\' is one this workspace added.\n'),
+  "position": zod.number()
+}))
+})
+
+
+/**
+ * The addition is saved against the workspace and the forum group, not the matter, so the next writ petition offers it too. Adding one that already exists is not an error — the list comes back unchanged.
+ * @summary Add a chamber-defined stage to this matter's forum group
+ */
+export const AddCaseStageParams = zod.object({
+  "caseId": zod.coerce.number()
+})
+
+export const addCaseStageBodyLabelMin = 2;
+export const addCaseStageBodyLabelMax = 60;
+
+
+
+export const AddCaseStageBody = zod.object({
+  "label": zod.string().min(addCaseStageBodyLabelMin).max(addCaseStageBodyLabelMax).describe('The heading as it should read. Its key is derived server-side and is unique per workspace and forum group, so adding a stage that already exists returns the existing list rather than a duplicate.\n')
+})
+
+export const AddCaseStageResponse = zod.object({
+  "caseId": zod.number(),
+  "forumGroup": zod.enum(['writ', 'civil', 'criminal', 'tribunal', 'general']),
+  "forumGroupLabel": zod.string(),
+  "forumGroupInferred": zod.boolean().optional().describe('True when the matter has no stored forum group and this one was read off its case type. Shown so an advocate can see the list is a guess and correct it, rather than wondering why a writ petition is filing under civil headings.\n'),
+  "stage": zod.string().nullish().describe('The stage the MATTER is currently in. Null until somebody sets it.'),
+  "options": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "source": zod.enum(['standard', 'chamber']).describe('\'standard\' is one of the built-in stages for this forum group, identical in every chamber. \'chamber\' is one this workspace added.\n'),
+  "position": zod.number()
+}))
 })
 
 
