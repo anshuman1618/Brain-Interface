@@ -79,7 +79,7 @@ export default function ChoosePlanPage({ onSkip }: { onSkip?: () => void }) {
   }
 
   return (
-    <div className="relative flex min-h-[100dvh] items-center justify-center overflow-y-auto bg-background px-4 py-12 text-foreground">
+    <div className="relative flex min-h-[100dvh] items-center justify-center bg-background px-4 py-12 text-foreground">
       <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] pointer-events-none opacity-[0.4]" />
 
       <div className="relative z-10 w-full max-w-2xl">

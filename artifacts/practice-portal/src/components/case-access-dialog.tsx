@@ -161,7 +161,7 @@ export function CaseAccessDialog({
               be able to open the file it is on.
             </p>
 
-            <div className="max-h-64 space-y-1.5 overflow-y-auto rounded-[var(--radius)] border border-border p-3">
+            <div className="max-h-64 space-y-1.5 overflow-y-auto scroll-trap rounded-[var(--radius)] border border-border p-3">
               {cases.length === 0 ? (
                 <p className="text-2xs text-muted-foreground">
                   This chamber has no matters yet. There is nothing to grant.

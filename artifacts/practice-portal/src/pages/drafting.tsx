@@ -205,7 +205,7 @@ function DraftBody({ draft, onChanged }: { draft: Draft; onChanged: () => void }
       ) : (
         draft.body && (
           <>
-            <pre className="mt-3 max-h-[32rem] overflow-auto whitespace-pre-wrap rounded-[var(--radius)] bg-muted/30 p-3 text-xs leading-relaxed">
+            <pre className="mt-3 max-h-[32rem] overflow-auto scroll-trap whitespace-pre-wrap rounded-[var(--radius)] bg-muted/30 p-3 text-xs leading-relaxed">
               {draft.body}
             </pre>
             <p className="mt-2 flex items-start gap-1.5 text-3xs leading-relaxed text-muted-foreground">

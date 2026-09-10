@@ -475,9 +475,10 @@
  *    is the "abrupt" you feel rather than see. `scrollbar-gutter: stable`
  *    reserves the space whether or not a bar is drawn, so nothing moves.
  * 2. **Scroll chaining.** Reaching the end of an inner list handed the wheel to
- *    the page behind it, so a dropdown or a table would scroll the whole
- *    dashboard out from under the cursor. `overscroll-behavior: contain` stops
- *    at the boundary.
+ *    the page behind it, so a dropdown would scroll the whole dashboard out
+ *    from under the cursor. `.scroll-trap` stops at the boundary — and is
+ *    applied by hand, to bounded containers only. See the rule for why doing
+ *    it by class broke touch scrolling everywhere else.
  * 3. **The colour.** Thin, on the palette, and quiet at rest.
  *
  * Both syntaxes are here on purpose: `scrollbar-width`/`scrollbar-color` is the
@@ -523,24 +524,43 @@
 }
 
 /*
- * The gutter is reserved only where a jump would actually be felt: the page
- * itself, and containers that opt in with `data-scroll`.
+ * The gutter is reserved on the page and nowhere else.
  *
- * Not on every `.overflow-y-auto`. `scrollbar-gutter: stable` reserves the
- * space whether or not the content overflows, so applying it to all twenty-one
- * of them would inset the right edge of several small lists — the sidebar nav
- * among them — that mostly never scroll. Trading a permanent 10px of dead space
- * for a jump that never happens is the wrong way round.
+ * `scrollbar-gutter: stable` reserves the space whether or not the content
+ * overflows, so applying it to every `.overflow-y-auto` would inset the right
+ * edge of a dozen small lists that mostly never scroll. Trading a permanent
+ * 10px of dead space for a jump that never happens is the wrong way round.
+ *
+ * This used to name `[data-scroll]` too — the main content pane. That pane
+ * turned out never to scroll (the document does), so the gutter was space
+ * reserved for a bar that could not appear, on every page, at every width.
  */
-html,
-[data-scroll] {
+html {
   scrollbar-gutter: stable;
 }
 
-/* Chaining, though, is worth stopping everywhere it can happen. */
-[data-scroll],
-.overflow-y-auto,
-.overflow-auto {
+/*
+ * ── Scroll chaining is OPT-IN, and that is a bug fix ────────────────────────
+ *
+ * This was `[data-scroll], .overflow-y-auto, .overflow-auto` — every overflow
+ * container in the app. The intent was sound: reaching the end of an inner list
+ * should not hand the wheel to the page and scroll the dashboard out from under
+ * the cursor. Applying it by class was not, because most of those containers
+ * cannot scroll at all.
+ *
+ * `overflow: auto` makes an element a scroll container whether or not its
+ * content overflows. A table wrapper, the main content pane, the full-page
+ * onboarding wrappers — all scroll containers with nothing to scroll, sitting
+ * between the reader and the real scroller. Add `overscroll-behavior: contain`
+ * and they become barriers: **Chromium passes the gesture on to the page,
+ * WebKit and several Android WebViews do not.** On a touch screen that is a
+ * page which will not move unless you drag the scrollbar itself — which is
+ * exactly the bug this rule caused.
+ *
+ * So it is opt-in now, and every element carrying it below is one with a real
+ * height constraint, which is what makes it a scroller worth trapping.
+ */
+.scroll-trap {
   overscroll-behavior: contain;
 }
 

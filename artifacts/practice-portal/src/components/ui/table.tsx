@@ -9,7 +9,14 @@ const tableVariants = cva("w-full caption-bottom text-sm", {
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+    // `overflow-x-auto`, not `overflow-auto`. A table wrapper has no height
+    // constraint, so it can never overflow vertically — but `overflow: auto`
+    // makes it a scroll container in BOTH axes, and a vertical finger-drag
+    // starting on any row then begins inside a scroller with nowhere to go.
+    // Every table-heavy page (matters, team, invites, invoices) put that
+    // between the reader's thumb and the page. Horizontal is the axis this is
+    // actually for: wide tables scroll sideways in place.
+    <div className="relative w-full overflow-x-auto">
       <table ref={ref} className={cn(tableVariants(), className)} {...props} />
     </div>
   ),

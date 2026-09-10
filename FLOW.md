@@ -1245,6 +1245,34 @@ uploading a file cannot invent a heading for it.
 Migration `0016_case_stages.sql` is additive and guarded, and the three columns
 plus the table are repeated in **both** `preview.ts` blocks.
 
+### One scroller, and it is the document
+
+Worth knowing before touching the shell, because it was got wrong once and the
+symptom was a page that would not scroll under a finger.
+
+```
+div.min-h-screen                 <- root
+  PreviewBar
+  div.flex.min-h-screen          <- row; nothing here bounds a height
+    aside.sticky.h-dvh           <- sidebar, lg+ only; its NavList scrolls
+    main.flex-1.flex.flex-col
+      header.sticky.top-0        <- sticks to the DOCUMENT
+      div.flex-1.relative.isolate  <- the page. NOT a scroll container.
+```
+
+Everything is `min-h-*`, so nothing is bounded, so **the document scrolls**. The
+content pane used to declare `overflow-y-auto` as well; it never scrolled (its
+`scrollHeight - clientHeight` was 0 on every page) and, with the blanket
+`overscroll-behavior: contain` that used to be in `index.css`, it became a
+gesture barrier on WebKit. Both are gone. If a pane ever does need to scroll on
+its own, the shell has to be bounded (`h-dvh` + `overflow-hidden`) first —
+declaring `overflow` on an unbounded child creates a dead-end, not a scroller.
+
+`overscroll-behavior: contain` is now the `.scroll-trap` class, applied by hand
+to bounded containers only. `scrollbar-gutter: stable` is on `html` alone.
+`portal.mjs` §11 guards both with a real touch drag and a structural check on
+the scroll chain.
+
 ### Loading: a delayed, page-shaped skeleton
 
 `components/route-fallback.tsx` replaces the centred `Loader2` that every lazy

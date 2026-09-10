@@ -104,7 +104,10 @@ function NavList({
     "flex items-center gap-3 min-h-11 px-3 rounded-[var(--radius)] text-sm w-full text-left";
 
   return (
-    <nav aria-label="Main" className="flex-1 overflow-y-auto px-2 py-3 flex flex-col gap-0.5">
+    <nav
+      aria-label="Main"
+      className="flex-1 overflow-y-auto scroll-trap px-2 py-3 flex flex-col gap-0.5"
+    >
       {items.map((item) => {
         const isActive = item.href === activeHref;
         return (
@@ -453,10 +456,32 @@ function DashboardLayoutContent() {
             </div>
           </header>
 
-          {/* `isolate` keeps every z-index inside the page from being measured
-              against the chrome around it. Without it, any page that raises an
-              element re-opens the bug the header comment above describes. */}
-          <div data-scroll className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto relative isolate">
+          {/*
+            `isolate` keeps every z-index inside the page from being measured
+            against the chrome around it. Without it, any page that raises an
+            element re-opens the bug the header comment above describes.
+
+            NO `overflow-y-auto` here, and that is the fix for a touch bug.
+
+            This carried `overflow-y-auto` and `data-scroll` for a long time and
+            never once scrolled. The shell is `min-h-screen` all the way down,
+            so this pane grows to its content and the DOCUMENT is what scrolls —
+            measured on every page: `scrollHeight - clientHeight` was 0 here and
+            150–1500px on the document.
+
+            A scroll container with nothing to scroll is not harmless. It sits
+            between the finger and the real scroller, and paired with the
+            `overscroll-behavior: contain` that used to be applied to every
+            overflow container it becomes a chaining barrier: Chromium lets the
+            gesture through, WebKit and several Android WebViews do not, and the
+            page then only moves if you drag the scrollbar itself. It also drew
+            a `scrollbar-gutter` for a bar that could never appear.
+
+            So the pane is a plain box. One scroller, the document, which is
+            also the one the browser gives momentum, URL-bar collapse and
+            pull-to-refresh.
+          */}
+          <div className="flex-1 p-4 sm:p-6 lg:p-8 relative isolate">
             <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.2] pointer-events-none z-0" />
             <div className="relative z-10 max-w-6xl mx-auto animate-in fade-in duration-500">
               {/*

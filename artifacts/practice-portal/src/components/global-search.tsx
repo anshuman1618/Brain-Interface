@@ -81,7 +81,7 @@ export function GlobalSearch() {
       </div>
 
       {open && query.length >= 2 && (
-        <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border shadow-lg z-50 max-h-96 overflow-y-auto">
+        <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border shadow-lg z-50 max-h-96 overflow-y-auto scroll-trap">
           {isFetching && !data ? (
             <div className="p-4 space-y-4">
               <div className="h-4 w-1/3 bg-muted animate-pulse" />

@@ -2888,9 +2888,10 @@ Safari read. Neither alone covers the browsers an advocate uses.
 **The gutter is not applied to every scroller.** It reserves space whether or
 not the content overflows, so putting it on all twenty-one would permanently
 inset the right edge of several small lists that mostly never scroll — the
-sidebar nav among them. It is on `html` and on an explicit `data-scroll`
-opt-in, which the main content area now carries. Chaining, being harmless to
-prevent, stays on all of them.
+sidebar nav among them. It is on `html` and nowhere else.
+
+**Correction — "chaining, being harmless to prevent, stays on all of them" was
+wrong, and it broke touch scrolling.** See the section below.
 
 **What was deliberately NOT done: smooth wheel scrolling.** `scroll-behavior:
 smooth` covers programmatic and anchor jumps — `scrollIntoView`, a back-to-top,
@@ -3192,3 +3193,64 @@ gets the list shape, which is what most pages here are.
 This is deliberately not a per-page skeleton component. The pages already own
 those, for their own data loading; this one runs before the page's code exists
 to render anything at all.
+
+## The page would not scroll under a finger, only under the scrollbar
+
+Reported from a touch screen: dragging the content did nothing; dragging the
+scrollbar worked. That asymmetry is the diagnosis — a scroll lock breaks both,
+so whatever was wrong was specific to the gesture.
+
+Two elements declared `overflow` and never scrolled.
+
+**The main content pane.** `dashboard-layout.tsx` carried
+`flex-1 overflow-y-auto` with a `data-scroll` attribute, and it had never
+scrolled once. The shell is `min-h-screen` the whole way down, so the pane grows
+to its content and the **document** is the scroller. Measured on every page:
+`scrollHeight - clientHeight` was **0** on the pane and 150–1500px on the
+document.
+
+**The wrapper around every table.** `ui/table.tsx` had `overflow-auto`, meaning
+to let a wide table scroll sideways. `overflow: auto` is both axes, so it was
+also a vertical scroll container — with no height constraint, and therefore
+nothing to scroll vertically, ever. Every table-heavy page (matters, team,
+invites, invoices, tasks) put one of these directly under the reader's thumb.
+
+Neither is harmless. `overflow: auto` makes an element a scroll container
+whether or not there is anything to scroll, and the blanket
+`overscroll-behavior: contain` on `[data-scroll], .overflow-y-auto,
+.overflow-auto` then told both of them to refuse to hand the gesture on.
+**Chromium passes it through to the page anyway; WebKit and several Android
+WebViews do not.** So the app scrolled correctly on the machine it was built and
+tested on, and not on the phone it was used on — while the scrollbar, which
+addresses the document scroller directly and never consults the chain, kept
+working. That is the reported symptom exactly.
+
+Three changes:
+
+1. **The pane is a plain box.** No `overflow-y-auto`, no `data-scroll`, no
+   gutter. One scroller — the document — which is also the one the browser gives
+   momentum, URL-bar collapse and pull-to-refresh.
+2. **`overflow-auto` → `overflow-x-auto` on the table wrapper.** Horizontal is
+   the axis it was for. It is still technically a vertical scroll container
+   (per spec, `overflow-x: auto` forces `overflow-y` to compute to `auto`), but
+   with default `overscroll-behavior` it chains out of the way on every engine.
+3. **`overscroll-behavior: contain` is opt-in**, as `.scroll-trap`, applied by
+   hand to the five containers that have a real height constraint and can
+   therefore actually reach an end: the sidebar nav, the global-search dropdown,
+   the case-access list, the command palette, and drafting's output pane. The
+   original intent — a dropdown should not scroll the dashboard out from under
+   the cursor — is served by exactly those.
+
+The same phantom-scroller pattern was on five pre-app screens
+(`create-chamber`, `pending-approval`, `access-denied`, `choose-plan`,
+`complete-profile`): `min-h-[100dvh] … overflow-y-auto`, which likewise grows
+rather than scrolls. Removed there too. Those are the screens a new user meets
+first, on a phone.
+
+**The regression guard is structural, not behavioural, and that is deliberate.**
+Only Chromium is installed in CI, and a Chromium swipe passed _while the bug was
+live_ — a behavioural test would have gone green throughout. Section 11 of
+`portal.mjs` instead asserts that nothing on the path from the finger to the
+page is a scroll container with nothing to scroll **and** a refusal to chain.
+That property is engine-independent, and it fails on the pre-fix build on all
+six pages checked.

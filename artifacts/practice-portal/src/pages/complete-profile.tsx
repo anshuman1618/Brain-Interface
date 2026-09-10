@@ -95,7 +95,7 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
   };
 
   return (
-    <div className="min-h-[100dvh] bg-background text-foreground flex items-center justify-center px-4 py-12 relative overflow-y-auto">
+    <div className="min-h-[100dvh] bg-background text-foreground flex items-center justify-center px-4 py-12 relative">
       <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPgo8cmVjdCB3aWR0aD0iOCIgaGVpZ2h0PSI4IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-lg">

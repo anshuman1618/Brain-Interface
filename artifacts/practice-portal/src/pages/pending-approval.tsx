@@ -51,7 +51,7 @@ export default function PendingApprovalPage() {
       : " Ask your chamber admin to add this address to the access list, or create your own chamber.";
 
   return (
-    <div className="min-h-[100dvh] bg-background flex flex-col items-center justify-center px-4 py-12 relative overflow-y-auto">
+    <div className="min-h-[100dvh] bg-background flex flex-col items-center justify-center px-4 py-12 relative">
       <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSJub25lIiAvPgo8cmVjdCB3aWR0aD0iMSIgaGVpZ2h0PSIxIiBmaWxsPSJjdXJyZW50Q29sb3IiIG9wYWNpdHk9IjAuMDUiIC8+Cjwvc3ZnPg==')] opacity-[0.4] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-3xl">

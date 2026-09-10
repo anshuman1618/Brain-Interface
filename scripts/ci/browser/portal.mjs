@@ -684,6 +684,174 @@ if (signedIn) {
   await page.setViewportSize({ width: 1280, height: 800 });
 }
 
+/* ──────────────────── A finger has to be able to scroll ─────────────────── */
+
+/*
+ * The page must scroll when dragged, not only when the scrollbar is grabbed.
+ *
+ * It did not, and the cause was subtle enough to be worth a guard rather than a
+ * fix and a hope. Two elements declared `overflow` and never scrolled: the main
+ * content pane (the shell is `min-h-screen`, so it grows and the DOCUMENT
+ * scrolls) and the wrapper around every table. `overflow: auto` makes an
+ * element a scroll container whether or not there is anything to scroll, and a
+ * blanket `overscroll-behavior: contain` in index.css then told both of them
+ * to refuse to hand the gesture on. Chromium passes it through anyway; WebKit
+ * and several Android WebViews do not — so the app scrolled fine on the machine
+ * it was built on and not on the phone it was used on.
+ *
+ * The assertion is therefore STRUCTURAL, not behavioural: only Chromium is
+ * installed here, and a Chromium swipe passed even while the bug was live. What
+ * is checked is that nothing on the path from the finger to the page is a
+ * scroll container with nothing to scroll AND a refusal to chain. A dead-end
+ * container with `overscroll-behavior: auto` is fine and expected — the table
+ * wrapper is one, because `overflow-x: auto` forces `overflow-y` to compute to
+ * `auto` and it cannot be made horizontal-only.
+ */
+section("11. A finger scrolls the page, not just the scrollbar");
+
+const touchCtx = await browser.newContext({
+  viewport: { width: 412, height: 839 },
+  hasTouch: true,
+  isMobile: true,
+  deviceScaleFactor: 2,
+});
+const touchPage = await touchCtx.newPage();
+const cdp = await touchCtx.newCDPSession(touchPage);
+
+// Same session the rest of the suite built, so there is a chamber to look at.
+await touchPage.goto(`${BASE}/portal`, { waitUntil: "networkidle" });
+await touchPage.getByRole("button", { name: /Continue with email/i }).click();
+await touchPage.waitForTimeout(400);
+await touchPage.locator('input[type="email"]').fill(`touch${Date.now()}@chambers.test`);
+await touchPage.locator("input").nth(1).fill("Touch Tester");
+await touchPage.getByRole("button", { name: /^Continue$/ }).click();
+await touchPage.waitForTimeout(1800);
+
+const startTouch = touchPage.getByRole("button", { name: /create a chamber/i });
+if (await startTouch.count()) {
+  await startTouch.first().click();
+  await touchPage.waitForTimeout(1500);
+}
+if ((await touchPage.locator("#chamber-name").count()) > 0) {
+  await touchPage.locator("#chamber-name").fill("Touch Chambers");
+  await touchPage
+    .getByRole("button", { name: /Firm Admin/ })
+    .first()
+    .click();
+  await touchPage.getByRole("button", { name: /^Create chamber$/ }).click();
+  await touchPage.waitForTimeout(2500);
+}
+if (/bar council|enrolment/i.test(await touchPage.innerText("body"))) {
+  await touchPage.locator("#bar-state").fill("Uttar Pradesh");
+  await touchPage.locator("#bar-enrolment").fill("UP/1234/2015");
+  await touchPage.getByRole("button", { name: /^Continue$/ }).click();
+  await touchPage.waitForTimeout(2000);
+}
+const touchPlans = touchPage.getByRole("button", { name: /see the plans and pay/i });
+if (await touchPlans.count()) {
+  await touchPlans.first().click();
+  await touchPage.waitForTimeout(1200);
+  const pick = touchPage.getByRole("button", { name: /^Choose$/ });
+  if (await pick.count()) {
+    await pick.first().click();
+    await touchPage.waitForTimeout(2000);
+  }
+  const shut = touchPage.getByRole("button", { name: /^Close$/ });
+  if (await shut.count()) {
+    await shut.first().click();
+    await touchPage.waitForTimeout(1000);
+  }
+}
+
+/** Scroll containers between a point and <html>, and whether each can move. */
+const scrollChainAt = (x, y) =>
+  touchPage.evaluate(
+    ([px, py]) => {
+      const out = [];
+      let el = document.elementFromPoint(px, py);
+      while (el && el !== document.documentElement) {
+        const s = getComputedStyle(el);
+        if (["auto", "scroll", "overlay"].includes(s.overflowY)) {
+          out.push({
+            tag: el.tagName.toLowerCase(),
+            cls: (typeof el.className === "string" ? el.className : "").slice(0, 50),
+            canScroll: el.scrollHeight - el.clientHeight > 1,
+            overscrollY: s.overscrollBehaviorY,
+          });
+        }
+        el = el.parentElement;
+      }
+      return {
+        chain: out,
+        doc: Math.round(document.scrollingElement.scrollTop),
+        docScrollable:
+          document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight,
+      };
+    },
+    [x, y],
+  );
+
+/** A real touch drag. Playwright's touchscreen only taps, so this goes via CDP. */
+async function fingerDrag(x, y, dy) {
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let i = 1; i <= 10; i++) {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x, y: y + (dy * i) / 10 }],
+    });
+    await touchPage.waitForTimeout(16);
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await touchPage.waitForTimeout(700);
+}
+
+// A page that fits on screen proves nothing about scrolling it, so make the
+// register overflow first. The matters table is also the element that carried
+// the second barrier, which is why /cases is the page under test.
+for (let i = 1; i <= 8; i++) {
+  await touchPage.goto(`${BASE}/cases`, { waitUntil: "networkidle" });
+  await touchPage.waitForTimeout(900);
+  await touchPage
+    .getByRole("button", { name: /new case file|open new case|new case/i })
+    .first()
+    .click();
+  await touchPage.waitForTimeout(700);
+  await touchPage.locator("#case-title").fill(`Scroll fodder matter ${i}`);
+  await touchPage.locator("#case-ref").fill(`CV-SCROLL-${i}`);
+  await touchPage
+    .getByRole("button", { name: /create case/i })
+    .last()
+    .click();
+  await touchPage.waitForTimeout(1400);
+}
+
+for (const path of ["/dashboard", "/cases", "/invites"]) {
+  await touchPage.goto(BASE + path, { waitUntil: "networkidle" });
+  await touchPage.waitForTimeout(2200);
+  const x = 206;
+  const y = 587; // 70% down a 839px viewport — over content, clear of the header
+
+  const before = await scrollChainAt(x, y);
+  const barriers = before.chain.filter((n) => !n.canScroll && n.overscrollY === "contain");
+  check(
+    `${path}: nothing between the finger and the page refuses to hand the gesture on`,
+    barriers.length === 0,
+    barriers.map((n) => `${n.tag}.${n.cls}`).join(" | "),
+  );
+
+  if (before.docScrollable > 40) {
+    await fingerDrag(x, y, -280);
+    const after = await scrollChainAt(x, y);
+    check(
+      `${path}: a finger-drag scrolls it (${before.docScrollable}px of page)`,
+      after.doc > before.doc,
+      `scrollTop ${before.doc} -> ${after.doc}`,
+    );
+  }
+}
+
+await touchCtx.close();
+
 /* ───────────────────────────── Wrap up ──────────────────────────────────── */
 
 console.log(`\nConsole errors: ${consoleErrors.length}`);
