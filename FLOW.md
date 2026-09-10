@@ -1295,6 +1295,25 @@ before that.
 
 ### Known, unfixed
 
+- **The platform is DOWN as of 10 September 2026, and the code is not why.**
+  The free Postgres (`dpg-d9t1dd2jobas738ac3g0-a`) expired on 9 September and is
+  `suspended` by billing, so its hostname no longer resolves. Deploy
+  `dep-dahe0p0u01pc7399qml0` (commit `d02ec16`) is `update_failed` with:
+
+  ```
+  [migrate] applying pending migrations from lib/db/drizzle …
+  [migrate] migrations failed. Not starting the server.
+  Error: getaddrinfo ENOTFOUND dpg-d9t1dd2jobas738ac3g0-a
+  ```
+
+  That is `migrate-on-boot.mjs` doing exactly what §5 says it should — fatal on
+  failure, because a server in front of a schema it disagrees with is worse than
+  a deploy that did not happen. **Re-deploying will not help**, and neither will
+  rolling back: every boot runs the same migration against the same dead
+  database. The fix is a database, not a commit; `main` deploys itself once one
+  exists. The owner has chosen to leave it down for now — see
+  `docs/legal/compliance-register.md` §0.1 for the recovery note.
+
 - **The Clerk tenant is a development instance.** Production logs
   `Clerk collects telemetry data … development instances` on every boot. ~100
   user cap, Clerk's shared Google OAuth credentials. Nothing in code fixes this.
