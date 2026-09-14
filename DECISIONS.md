@@ -10,6 +10,84 @@ were, and what would make it worth revisiting.
 
 ---
 
+## Canonical binary encoding for everything that gets hashed (2026-09-14)
+
+**Decided:** `lib/crypto-core/src/encoding.ts` defines one explicit byte layout
+for every structure that feeds a hash — fixed field order held in an ordered
+array, explicit integer widths, little-endian throughout, length-prefixed
+variable fields, and a leading `version: uint8` on every structure. No
+`JSON.stringify` anywhere in a hashing path, enforced by a lint rule rather
+than by a comment.
+
+This is the first piece of the tamper-evident audit and anchoring work.
+`docs/THREAT-MODEL.md` states what the finished system claims and — at greater
+length — what it does not.
+
+**Why not JSON.** `JSON.stringify` serialises in key _insertion_ order, which is
+a property of how an object was built rather than of what it contains. A record
+assembled from a database row and the same record assembled from a request body
+serialise differently and therefore hash differently. Nothing throws. The
+failure surfaces months later as a proof that will not verify, for records
+nobody can identify, and it is not fixable retroactively because the proofs have
+already been handed to clients. JSON additionally has no canonical number form,
+silently truncates integers past 2^53, drops `undefined` members, and turns a
+`Buffer` into an object of digits.
+
+**Why not CBOR, protobuf or a canonical-JSON library.** Each is a dependency in
+the one place where a supply-chain compromise is least detectable: a change to
+how bytes are produced does not break anything visibly, it just makes old proofs
+stop verifying. The encoding here is around 300 lines, has no dependencies, and
+a court-appointed expert can read it end to end. Determinism is the requirement,
+not expressiveness, and canonical-CBOR still leaves choices (map ordering, int
+width) that would need pinning by hand anyway.
+
+**Why versions are frozen rather than edited.** `auditEventV1` is never changed
+and never deleted. A schema change adds `auditEventV2` beside it and the decoder
+dispatches on the leading byte. A legal record may be relied on decades after it
+was written; deleting a version invalidates every proof ever issued under it.
+The version byte lives _inside_ the hashed bytes, not beside them — a structure
+whose version travelled separately could be reinterpreted under a different
+schema, which is the same ambiguity the file exists to remove.
+
+**Why the audit event has no variable-length field.** `AuditEventV1` is 181
+fixed bytes. That is a privacy decision, not a performance one. An anchored
+structure cannot be deleted, so a free-text field in one is a permanent, on-chain
+place for someone to paste "the client said X". Identifiers in it are 32-byte
+HMAC references under a per-tenant key (Phase 2), never bare SHA-256: a bare
+hash of a client name or a matter number is reversible by anyone willing to
+enumerate a few million plausible strings, and hashing is not anonymisation when
+the input space is small enough to search. Anything genuinely variable is
+committed to through `contextHash` and held outside the anchored path, where it
+stays erasable.
+
+**Why text is normalised to NFC on encode.** The same name typed on one keyboard
+and pasted from a PDF can be NFC in one place and NFD in another: identical on
+screen, different bytes, different hash. Normalising on encode makes the two
+agree. The cost is that `decode(encode(s))` returns the NFC form rather than `s`
+itself, which the round-trip test asserts explicitly rather than glosses over.
+
+**Two deviations from the brief this was built from**, both worth knowing about:
+
+- The brief named the package `packages/crypto-core`. It is `lib/crypto-core`,
+  because this workspace already means "internal library" by `lib/*` and
+  "deployable" by `artifacts/*`, and a third directory meaning the same thing as
+  `lib/` would be noise a year from now. Package names are unchanged.
+- The brief named Vitest. Tests run under Node's built-in `node:test` through
+  `tsx`, which is already in the catalog, so the package adds no test framework
+  of its own. In a package whose entire value is that it can be audited and
+  re-implemented from a short description, several hundred transitive
+  dev-dependencies are a poor trade for a nicer assertion API — and this
+  workspace's `pnpm-workspace.yaml` already treats supply chain as the primary
+  risk. `pnpm --filter @workspace/crypto-core run test` runs them; they exit
+  non-zero on failure like every other suite here.
+
+**Worth revisiting if:** a second implementation of the verifier (a browser
+bundle, someone else's re-implementation) finds the hand-rolled reader awkward
+enough to be a source of bugs of its own — at which point a pinned, canonical
+CBOR profile with its own conformance vectors becomes the better trade.
+
+---
+
 ## Cause-list ingestion: shared fetch, per-chamber proposals, no automatic calendar (2026-08-18)
 
 **Decided:** read court cause lists on a schedule into a global store, match

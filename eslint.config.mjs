@@ -65,6 +65,27 @@ export default tseslint.config(
     },
   },
 
+  // Cryptography. `JSON.stringify` serialises in key *insertion* order, so two
+  // semantically identical records built by different code paths serialise
+  // differently and hash differently — silently, and long after the proofs that
+  // depend on them were issued. `lib/crypto-core/src/encoding.ts` exists to
+  // make "the bytes for this record" unambiguous; nothing in the package may
+  // route around it. If this rule fires, the rule is right.
+  {
+    files: ["lib/crypto-core/**/*.ts"],
+    rules: {
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "JSON",
+          property: "stringify",
+          message:
+            "JSON.stringify is not canonical (key insertion order, number forms, >2^53 integers). Use a codec from encoding.ts.",
+        },
+      ],
+    },
+  },
+
   // Frontend: browser globals, plus the two rules that catch real React bugs
   // rather than style — hook ordering and Fast Refresh boundaries.
   {

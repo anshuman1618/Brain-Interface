@@ -23,12 +23,18 @@ lib/db                      Drizzle schema + client. The only place SQL lives.
 lib/api-spec                OpenAPI 3.1 document — the API contract.
 lib/api-zod                 GENERATED from api-spec. Request/response schemas.
 lib/api-client-react        GENERATED from api-spec. React Query hooks.
+lib/crypto-core             Canonical encoding and hashing. Pure, no I/O.
 
 scripts/                    CI checks, browser tests, startup guards.
 ```
 
 **`lib/api-zod` and `lib/api-client-react` are generated. Do not hand-edit them.**
 Change `lib/api-spec`, re-run codegen, and both sides update together.
+
+**`lib/crypto-core` is not in the request path yet.** Nothing imports it. It is
+the first piece of the tamper-evident audit work — see §7 below for where it is
+going, `docs/THREAT-MODEL.md` for what the finished system does and does not
+claim, and `DECISIONS.md` for why the encoding looks the way it does.
 
 ---
 
@@ -1447,3 +1453,67 @@ These are honest blockers, not polish:
 4. **Decide the file-storage story.** A Render disk pins the service to one
    instance, because Render disks cannot be shared. Moving to Cloudflare R2 is
    roughly 16× cheaper at volume and unblocks a second replica.
+
+---
+
+## 7. Tamper-evident audit and anchoring
+
+Nothing here is wired into a request yet. This section records the shape of the
+subsystem and where it is up to, so the half-built state is legible.
+
+The goal is that a firm, its client, or a court can establish that a document or
+an audit event existed **in a specific form at a specific time**, without
+trusting this server and without trusting us. `docs/THREAT-MODEL.md` is the
+governing document: it names the adversaries, the assumptions, and — at greater
+length than the claims — the five things the system does not prove. Read it
+before touching any of this.
+
+Three layers, cheapest first, each removing a different party from the set a
+verifier has to trust:
+
+```
+1  hash-chained audit log        detects anyone without full DB write access
+2  signed head + RFC 3161 stamp  detects our own staff, absent the KMS key
+3  public chain anchor           detects everyone, including us
+```
+
+Layer 1 has to be running before there is history worth anchoring: an anchor
+placed today says nothing about a record that was never hashed when it was
+written.
+
+### 7a. Packages
+
+```
+lib/crypto-core     encoding, hashing, HMAC, Merkle trees, proof verification
+lib/audit-log       the hash-chained log and its database constraints  (not yet)
+lib/anchor          batching, roots, signing, chain submission          (not yet)
+lib/verify          public verification — no auth, no database          (not yet)
+lib/learning-chain  proof-of-work. QUARANTINED, never imported by product code
+```
+
+### 7b. Where it is up to
+
+**`lib/crypto-core/src/encoding.ts` — done.** The canonical byte layout every
+hash is taken over: ordered fields, explicit widths, little-endian,
+length-prefixed variable fields, a leading `version: uint8` on every structure,
+and strict decoding that rejects trailing bytes, truncation, non-canonical
+booleans and unknown enum codes. `JSON.stringify` is banned in the package and
+the ban is a lint rule in `eslint.config.mjs`, not a comment — `DECISIONS.md`
+has the reasoning.
+
+**`lib/crypto-core/src/structures.ts` — `auditEventV1` only.** 181 fixed bytes,
+no variable-length field anywhere in it, identifiers carried as 32-byte HMAC
+references rather than as values. Both of those are privacy constraints: an
+anchored structure can never be deleted, so nothing reversible and no free text
+may reach one. Versions are frozen — a schema change adds a v2 constant beside
+v1 and the registry dispatches on the leading byte.
+
+Run the tests with `pnpm --filter @workspace/crypto-core run test`. They use
+Node's built-in runner through `tsx`, so the package pulls in no test framework;
+roughly a third of them are adversarial rather than round-trip, because a
+round-trip test proves the encoder agrees with the decoder and says nothing
+about whether the encoding is canonical.
+
+**Next:** `hash256` / `hmac256` (Phase 2), then the chained log and its
+append-only database triggers (Phase 3). Those three are the minimum shippable
+set.
