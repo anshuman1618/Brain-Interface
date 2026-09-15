@@ -1,12 +1,15 @@
+import { createHash, randomUUID } from "node:crypto";
 import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes,
-  randomUUID,
-  timingSafeEqual,
-} from "node:crypto";
+  BlobFormatError,
+  KeyScheme,
+  decryptV1,
+  decryptV2,
+  encryptV1,
+  encryptV2,
+  inspect,
+} from "./blob-crypto";
 import { blobBackend, storageRoot } from "./blob-backends";
+import { KeyConfigurationError, keyProvider, legacyFileKey, requireKeyProvider } from "./keys";
 
 export { storageRoot };
 
@@ -42,95 +45,82 @@ export { storageRoot };
 
 const DEFAULT_MAX_BYTES = 25 * 1024 * 1024; // 25 MB
 
-/* ── Encryption at rest ───────────────────────────────────────────────────
+/* ── Encryption at rest ──────────────────────────────────────────
  *
- * AES-256-GCM, one random IV per file, authenticated so a modified file fails
- * to decrypt rather than returning corrupted bytes to a court filing.
- *
- * Stored layout, identical on both backends:
- *
- *   magic "LEXP1"  5 bytes   identifies an encrypted blob
- *   iv            12 bytes   random per file
- *   authTag       16 bytes   GCM tag over the ciphertext
- *   ciphertext    n bytes
+ * AES-256-GCM. The format, the identity binding and the reasoning live in
+ * `blob-crypto.ts`, which has no filesystem and no environment so that the
+ * rules can be tested directly. This file supplies the two things that module
+ * deliberately does not know: which key to use, and what to do about a blob
+ * that is not encrypted at all.
  *
  * Files are capped at 25 MB, so encrypting and decrypting in memory is simpler
  * than a stream pipeline and cannot get the tag-verification order wrong — GCM
  * only knows the plaintext was authentic once the whole thing has been read,
  * and a streaming decrypt happily pipes unverified bytes to the client until
  * that moment.
- *
- * A blob written before this existed has no magic prefix and is returned as-is.
- * That is deliberate: an upgrade must not make existing documents unreadable.
- * `pnpm --filter @workspace/api-server run encrypt-existing` rewrites them.
  */
-
-const MAGIC = Buffer.from("LEXP1", "utf8");
-const IV_BYTES = 12;
-const TAG_BYTES = 16;
-const HEADER_BYTES = MAGIC.length + IV_BYTES + TAG_BYTES;
 
 /**
- * The key, or null when none is configured.
+ * Whether a blob with no recognised magic prefix may be served as plaintext.
  *
- * Read on every call rather than cached at import: a module-level constant
- * would freeze whatever the environment looked like when the file was first
- * required, which makes the production guard below untestable.
+ * **Defaults to refusing, and that is the security property.** Without it,
+ * anyone who can write to the blob store can strip encryption from a document
+ * one file at a time: replace the ciphertext with plaintext and the read path
+ * hands it straight back. An at-rest control an attacker can switch off per
+ * file is not a control.
+ *
+ * The escape hatch exists because a deployment that still holds blobs written
+ * before encryption existed would otherwise lose access to them at the moment
+ * this ships, and a security change that takes documents offline is a security
+ * change that gets reverted. The sequence is: set `ALLOW_PLAINTEXT_BLOBS=on`,
+ * run `pnpm --filter @workspace/api-server run encrypt-existing`, unset it.
+ * `preflight.ts` says so loudly at every boot while it is on.
  */
-export function encryptionKey(): Buffer | null {
-  const raw = process.env["FILE_ENCRYPTION_KEY"]?.trim();
-  if (!raw) return null;
-  const key = /^[0-9a-fA-F]{64}$/.test(raw) ? Buffer.from(raw, "hex") : Buffer.from(raw, "base64");
-  if (key.length !== 32) {
-    throw new Error(
-      "FILE_ENCRYPTION_KEY must be 32 bytes — 64 hex characters, or base64. " +
-        "Generate one with: openssl rand -hex 32",
-    );
-  }
-  return key;
+function plaintextBlobsAllowed(): boolean {
+  return process.env["ALLOW_PLAINTEXT_BLOBS"]?.trim().toLowerCase() === "on";
 }
 
 /**
  * Fail fast rather than quietly writing plaintext.
  *
- * Called at startup. Outside production an unset key is allowed so the preview
- * mode still runs with no configuration at all, but it is a warning, not
- * silence — the whole failure mode this guards against is nobody noticing.
+ * Called at startup. Outside production an unset key is allowed so preview mode
+ * still runs with no configuration at all, but it is a warning, not silence —
+ * the whole failure mode this guards against is nobody noticing.
  */
 export function assertEncryptionConfigured(log: (msg: string) => void): void {
-  const key = encryptionKey();
-  if (key) return;
+  if (keyProvider()) {
+    if (plaintextBlobsAllowed()) {
+      log(
+        "ALLOW_PLAINTEXT_BLOBS=on — an unencrypted blob will be served rather than " +
+          "refused. This is the migration setting; unset it once `encrypt-existing` " +
+          "has run.",
+      );
+    }
+    return;
+  }
   if (process.env["NODE_ENV"] === "production") {
     throw new Error(
-      "FILE_ENCRYPTION_KEY is required in production: uploaded case files are " +
-        "privileged and must not be written in the clear. Generate one with " +
-        "`openssl rand -hex 32` and set it before starting. See DEPLOYMENT.md §4a.",
+      "No key material is configured: uploaded case files are privileged and must " +
+        "not be written in the clear. Set DATA_ROOT_KEY (32 bytes). Generate one " +
+        "with `openssl rand -hex 32` and set it before starting. See DEPLOYMENT.md §4a.",
     );
   }
   log(
-    "FILE_ENCRYPTION_KEY is unset — uploaded files are being written UNENCRYPTED. " +
-      "This is refused in production.",
+    "DATA_ROOT_KEY and FILE_ENCRYPTION_KEY are both unset — uploaded files are being " +
+      "written UNENCRYPTED. This is refused in production.",
   );
 }
 
-function isEncrypted(buf: Buffer): boolean {
-  return buf.length >= HEADER_BYTES && timingSafeEqual(buf.subarray(0, MAGIC.length), MAGIC);
-}
-
-function encrypt(plain: Buffer, key: Buffer): Buffer {
-  const iv = randomBytes(IV_BYTES);
-  const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const body = Buffer.concat([cipher.update(plain), cipher.final()]);
-  return Buffer.concat([MAGIC, iv, cipher.getAuthTag(), body]);
-}
-
-function decrypt(stored: Buffer, key: Buffer): Buffer {
-  const iv = stored.subarray(MAGIC.length, MAGIC.length + IV_BYTES);
-  const tag = stored.subarray(MAGIC.length + IV_BYTES, HEADER_BYTES);
-  const decipher = createDecipheriv("aes-256-gcm", key, iv);
-  decipher.setAuthTag(tag);
-  // final() throws if the tag does not verify, which is the point.
-  return Buffer.concat([decipher.update(stored.subarray(HEADER_BYTES)), decipher.final()]);
+/**
+ * Whether at-rest encryption is configured, for `/health` and `preflight`.
+ *
+ * A boolean rather than the key: nothing outside `keys.ts` has a reason to hold
+ * key material, and a reporting path is the last place that should be able to.
+ * Throws on malformed key material rather than returning false, so a bad value
+ * is reported as its own distinct problem instead of looking like an unset one.
+ */
+export function encryptionConfigured(): boolean {
+  return keyProvider() !== null;
 }
 
 export function maxUploadBytes(): number {
@@ -271,7 +261,7 @@ export type StoredBlob = { key: string; bytes: number; checksum: string };
  * Callers pass bytes they have already length-checked; `put` re-checks anyway
  * so no future caller can forget to.
  */
-export async function put(buf: Buffer): Promise<StoredBlob> {
+export async function put(buf: Buffer, workspaceId: number): Promise<StoredBlob> {
   if (buf.length === 0) throw new Error("empty upload");
   if (buf.length > maxUploadBytes()) throw new Error("upload too large");
 
@@ -279,8 +269,26 @@ export async function put(buf: Buffer): Promise<StoredBlob> {
   const shard = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
   const key = `${shard}/${randomUUID()}`;
 
-  const key32 = encryptionKey();
-  const stored = key32 ? encrypt(buf, key32) : buf;
+  // The workspace is now part of what gets written, not just part of the row
+  // that points at it: it selects the content key AND is authenticated into the
+  // ciphertext, so a blob cannot later be read as another chamber's file.
+  const provider = keyProvider();
+  let stored: Buffer;
+  if (provider) {
+    const contentKey = provider.tenantKey(workspaceId, "file");
+    stored = encryptV2({
+      plain: buf,
+      key: contentKey,
+      keyScheme: KeyScheme.ENV_ROOT_HKDF,
+      workspaceId,
+      storageKey: key,
+    });
+    contentKey.fill(0);
+  } else {
+    // Only reachable outside production; `assertEncryptionConfigured` aborts
+    // the boot otherwise.
+    stored = buf;
+  }
 
   await blobBackend().put(key, stored);
 
@@ -301,32 +309,91 @@ export async function put(buf: Buffer): Promise<StoredBlob> {
  * format above. A tampered or truncated file throws here instead of streaming
  * unverified bytes to the caller.
  */
-export async function read(key: string): Promise<Buffer> {
+export async function read(key: string, workspaceId: number): Promise<Buffer> {
   const stored = await blobBackend().get(key);
-  if (!isEncrypted(stored)) return stored; // written before encryption existed
-  const key32 = encryptionKey();
-  if (!key32) {
-    throw new Error(
-      "This file is encrypted but FILE_ENCRYPTION_KEY is not set. The key that " +
-        "wrote it is the only thing that can read it back.",
-    );
+  const format = inspect(stored);
+
+  if (format.version === 2) {
+    const provider = requireKeyProvider();
+    const contentKey = provider.tenantKey(workspaceId, "file");
+    try {
+      // Note what is passed: the workspace the CALLER believes owns this file,
+      // and the key it was fetched under. Both are authenticated into the
+      // ciphertext, so a blob moved between storage keys or re-pointed at
+      // another chamber fails the tag rather than decrypting into the wrong
+      // hands.
+      return decryptV2({
+        stored,
+        key: contentKey,
+        expectedWorkspaceId: workspaceId,
+        storageKey: key,
+      });
+    } finally {
+      contentKey.fill(0);
+    }
   }
-  return decrypt(stored, key32);
+
+  if (format.version === 1) {
+    // Legacy: one global key, and no identity binding — the tag over these
+    // bytes was computed without AAD and cannot gain one retroactively. Still
+    // readable, deliberately, because refusing would destroy documents.
+    const legacy = legacyFileKey();
+    if (!legacy) {
+      throw new KeyConfigurationError(
+        "This file was encrypted with FILE_ENCRYPTION_KEY, which is not set. That " +
+          "key is the only thing that can read it back — do not rotate it away " +
+          "until every blob has been rewritten in the current format.",
+      );
+    }
+    try {
+      return decryptV1(stored, legacy);
+    } finally {
+      legacy.fill(0);
+    }
+  }
+
+  // No recognised prefix. Either a blob written before encryption existed, or
+  // plaintext somebody substituted for ciphertext, and nothing here can tell
+  // the two apart. Refusing is the only safe default; see
+  // `plaintextBlobsAllowed`.
+  //
+  // Not configured at all means preview or local development, where `put`
+  // wrote this plaintext itself and refusing it would be refusing our own
+  // output. Unreachable in production: the boot guard aborts before a request
+  // is served without key material.
+  if (plaintextBlobsAllowed() || !encryptionConfigured()) return stored;
+  throw new BlobFormatError(
+    "Refusing to serve an unencrypted blob. If this deployment still holds files " +
+      "written before encryption, set ALLOW_PLAINTEXT_BLOBS=on, run " +
+      "`pnpm --filter @workspace/api-server run encrypt-existing`, then unset it.",
+  );
 }
 
 /** Whether a stored blob is still plaintext — used by the migration script. */
 export async function isPlaintextOnDisk(key: string): Promise<boolean> {
-  return !isEncrypted(await blobBackend().get(key));
+  return inspect(await blobBackend().get(key)).version === 0;
 }
 
-/** Rewrite a plaintext blob in place as ciphertext. No-op if already encrypted. */
+/**
+ * Rewrite a plaintext blob in place as ciphertext. No-op if already encrypted.
+ *
+ * Writes the LEGACY v1 format on purpose. This is the migration path for blobs
+ * that predate encryption, it runs from a script with no request context and so
+ * no workspace, and v1 is readable forever. Rewriting the estate into v2 — which
+ * is what actually closes the swap gap for these files — is a separate task that
+ * needs the document rows to learn each blob's owner.
+ */
 export async function encryptInPlace(key: string): Promise<boolean> {
-  const key32 = encryptionKey();
-  if (!key32) throw new Error("FILE_ENCRYPTION_KEY is not set");
+  const legacy = legacyFileKey();
+  if (!legacy) throw new KeyConfigurationError("FILE_ENCRYPTION_KEY is not set");
   const backend = blobBackend();
   const stored = await backend.get(key);
-  if (isEncrypted(stored)) return false;
-  await backend.put(key, encrypt(stored, key32));
+  if (inspect(stored).version !== 0) return false;
+  try {
+    await backend.put(key, encryptV1(stored, legacy));
+  } finally {
+    legacy.fill(0);
+  }
   return true;
 }
 

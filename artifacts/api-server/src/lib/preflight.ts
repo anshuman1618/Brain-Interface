@@ -1,4 +1,4 @@
-import { encryptionKey } from "./blob-store";
+import { encryptionConfigured } from "./blob-store";
 
 /**
  * Check the whole production configuration at once, before anything starts.
@@ -29,21 +29,33 @@ export function inspectProductionConfig(): Preflight {
 
   if (process.env["NODE_ENV"] !== "production") return { problems, warnings };
 
-  // Encryption. `encryptionKey()` throws on a malformed value rather than
-  // returning null, so a bad key is reported as its own distinct problem.
+  // Encryption. `encryptionConfigured()` throws on malformed key material
+  // rather than returning false, so a bad key is its own distinct problem.
   try {
-    if (encryptionKey() === null) {
+    if (!encryptionConfigured()) {
       problems.push({
-        key: "FILE_ENCRYPTION_KEY",
+        key: "DATA_ROOT_KEY",
         why: "uploaded case files are privileged and must not be written in the clear",
-        fix: "openssl rand -hex 32   (store it somewhere other than the disk it protects)",
+        fix:
+          "openssl rand -hex 32   (store it somewhere other than the disk it protects; " +
+          "an existing deployment's FILE_ENCRYPTION_KEY is also accepted)",
       });
     }
   } catch (err) {
     problems.push({
-      key: "FILE_ENCRYPTION_KEY",
+      key: "DATA_ROOT_KEY / FILE_ENCRYPTION_KEY",
       why: err instanceof Error ? err.message : "is not a valid key",
       fix: "openssl rand -hex 32",
+    });
+  }
+
+  // Not fatal: this is the documented migration setting, and a deployment that
+  // still holds pre-encryption blobs needs it to read them. It is a warning at
+  // every boot because "temporarily on" is how it stays on for a year.
+  if (process.env["ALLOW_PLAINTEXT_BLOBS"]?.trim().toLowerCase() === "on") {
+    warnings.push({
+      key: "ALLOW_PLAINTEXT_BLOBS",
+      why: "on \u2014 an unencrypted blob is served rather than refused, so at-rest encryption can be stripped file by file. Run `encrypt-existing`, then unset it",
     });
   }
 

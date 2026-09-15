@@ -22,7 +22,7 @@ They are listed worst first. None is a break of an algorithm; all four of the
 real ones are a construction used in a way that does not do what the
 surrounding comment believes it does.
 
-### 0.1 Uploaded files are encrypted without binding them to their identity — HIGH
+### 0.1 Uploaded files are encrypted without binding them to their identity — HIGH · **FIXED**
 
 `artifacts/api-server/src/lib/blob-store.ts` encrypts each file with AES-256-GCM
 under a fresh random IV. GCM authenticates the _bytes_; it does not authenticate
@@ -36,11 +36,20 @@ For a practice where the files are evidence, a silent swap of one client's
 document for another's is close to the worst available outcome, and it leaves
 no trace: the tag verifies, so nothing logs an error.
 
-**Fix:** bind the storage key into the ciphertext as additional authenticated
-data (`cipher.setAAD`). Scheduled for the blob retrofit, with a new magic
-version so existing blobs stay readable.
+**Fixed** by the `LEXP2` format in `artifacts/api-server/src/lib/blob-crypto.ts`.
+The storage key, the owning workspace and the key scheme are bound in as
+additional authenticated data, built with the canonical encoder rather than
+concatenated — an ambiguous AAD binds less than it appears to. The AAD is rebuilt
+at read time from what the _caller_ believes it is reading, never from the blob's
+own header, so a moved or re-pointed blob fails the tag. `blob-crypto.test.ts`
+carries the attack as a test.
 
-### 0.2 A plaintext blob is served in place of an encrypted one — HIGH
+**Still open for legacy blobs.** A `LEXP1` tag was computed without AAD and
+cannot gain one retroactively, so files written before this change remain
+swappable until the estate is rewritten as v2. That rewrite needs each blob's
+owning workspace from the document rows; it is tracked in §7.
+
+### 0.2 A plaintext blob is served in place of an encrypted one — HIGH · **FIXED**
 
 The same file treats an absent `LEXP1` magic prefix as "written before
 encryption existed" and returns the bytes unchanged. That is a sound migration
@@ -49,12 +58,20 @@ store can _remove_ encryption from a document by replacing the ciphertext with
 plaintext, and the read path will serve it without complaint. An at-rest
 encryption control that an attacker can turn off per-file is not a control.
 
-**Fix:** record the encryption version on the document row. A document the
-database says is encrypted must fail closed if its blob is not. The legacy
-allowance then applies only to rows that predate encryption, and narrows to
-nothing as `encrypt-existing` runs.
+**Fixed** by refusing, in `blob-store.ts`. A blob with no recognised magic
+prefix is an error once key material is configured. The legacy allowance is an
+explicit `ALLOW_PLAINTEXT_BLOBS=on`, off by default, reported by `preflight.ts`
+at every boot while it is on, and documented as a migration step rather than a
+setting.
 
-### 0.3 One global file-encryption key for every chamber — HIGH
+Deliberately _not_ done with a per-row encryption column: the rule has to hold
+for every blob the process reads, including paths that never load a document
+row, and a check enforced in one query is a check the next caller forgets. Where
+no key material is configured at all — preview and local development — plaintext
+is still returned, because that is what `put` wrote. Production cannot reach that
+branch: the boot guard aborts first.
+
+### 0.3 One global file-encryption key for every chamber — HIGH · **PARTLY FIXED**
 
 `FILE_ENCRYPTION_KEY` is a single 32-byte key, read from an environment
 variable, covering every tenant's documents. Three consequences: the blast
@@ -64,8 +81,16 @@ the key sits in the process environment, which is visible to anything that can
 read `/proc/self/environ`, appears in a crash dump, and is printed by a careless
 `console.log(process.env)`.
 
-**Fix:** the KMS work described in §2. This is the item that motivated the whole
-hardening pass.
+**Partly fixed.** Keys are now per tenant per purpose, derived by HKDF in
+`artifacts/api-server/src/lib/keys.ts`. A key recovered from a log or a crash
+dump opens one chamber's files rather than every chamber's, and destroying one
+firm's key material is a meaningful act rather than an estate-wide one.
+
+**The custody half is still open.** The root is still an environment variable,
+readable through `/proc/self/environ`, present in a crash dump, and printed by
+one careless `console.log(process.env)`. Cloud KMS is the intended destination
+and `KeyProvider` is the shape it will arrive in — nothing else in the codebase
+reads key material, so that swap touches one file.
 
 ### 0.4 `WORKSPACE_TOKEN_SECRET` is a passphrase, checked only for length — MEDIUM
 
@@ -374,12 +399,19 @@ formality.
 
 Ordered by severity, not by effort.
 
-| #    | Item                                                       | Severity |
-| ---- | ---------------------------------------------------------- | -------- |
-| §0.1 | Bind the storage key as GCM AAD                            | High     |
-| §0.2 | Fail closed on a plaintext blob for an encrypted document  | High     |
-| §0.3 | Per-tenant keys, KEK-wrapped, replacing the global env key | High     |
-| §0.4 | Require a 32-byte random `WORKSPACE_TOKEN_SECRET`          | Medium   |
-| §2.2 | Per-document key for per-document shredding (product call) | Medium   |
-| §0.5 | Store `hash256` of invite tokens, not the tokens           | Low      |
-| §4.3 | Flat error surface on the public verifier                  | Low      |
+| #    | Item                                                           | Severity | State                   |
+| ---- | -------------------------------------------------------------- | -------- | ----------------------- |
+| §0.3 | Move the root key into Cloud KMS                               | High     | Open — seam in place    |
+| §0.1 | Rewrite legacy `LEXP1` blobs as `LEXP2` so they gain a binding | High     | Open — needs owner rows |
+| §0.4 | Require a 32-byte random `WORKSPACE_TOKEN_SECRET`              | Medium   | Open                    |
+| §0.5 | Store `hash256` of invite tokens, not the tokens               | Low      | Open                    |
+| §4.3 | Flat error surface on the public verifier                      | Low      | Open — Phase 8          |
+| §0.1 | Bind identity as GCM AAD on every new write                    | High     | **Done**                |
+| §0.2 | Fail closed on an unencrypted blob                             | High     | **Done**                |
+| §0.3 | Per-tenant, per-purpose key derivation                         | High     | **Done**                |
+
+§2.2 — a per-document key, for per-document shredding — was put to the product
+owner and **declined**. Erasure of one data principal is therefore satisfied by
+deleting the row and the blob, and the limit that follows is accepted: a copy
+surviving in a backup or an R2 object version is outside that guarantee. Recorded
+here rather than discovered during an audit.

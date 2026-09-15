@@ -10,6 +10,80 @@ were, and what would make it worth revisiting.
 
 ---
 
+## Per-tenant file keys, and binding a blob to the file it is (2026-09-15)
+
+**Decided:** derive one key per chamber per purpose instead of using one global
+key, and authenticate each stored file's identity into its own ciphertext. Both
+close findings from `docs/CRYPTO-POLICY.md` §0, which is where the detail lives;
+this records the choices a reader might otherwise undo.
+
+**Why a blob now carries its own identity.** AES-GCM authenticates the bytes of
+a file. It does not authenticate _which file they are_. Nothing in the old
+format committed to a storage key, so anyone who could write to the blob store —
+a leaked R2 token, a host operator, a backup restored to the wrong place — could
+move one client's ciphertext onto another document's key and it decrypted
+cleanly, tag valid, nothing logged. For a practice where these files are
+evidence, silently serving one client's document as another's is close to the
+worst outcome available.
+
+The `LEXP2` format binds the storage key, the owning workspace and the key
+scheme in as AAD. The AAD is rebuilt at read time from what the **caller**
+believes it is reading, never from the blob's own header — otherwise an attacker
+edits the header to match the lie and the check passes. It is built with the
+canonical encoder from `@workspace/crypto-core` rather than by joining strings,
+because `("ab","c")` and `("a","bc")` concatenate identically and an ambiguous
+AAD binds less than it appears to.
+
+**Why `LEXP1` is still read.** Every blob written before this is v1 ciphertext
+under the single global key and nothing else can read it back. Those files stay
+swappable — a tag computed without AAD cannot gain one retroactively — and the
+only real fix is to rewrite the estate as v2, which needs each blob's owning
+workspace from the document rows. Tracked rather than assumed done, and asserted
+as a known gap in `blob-crypto.test.ts` so nobody reads the v1 path as safe.
+
+**Why an unencrypted blob is now refused rather than served.** The read path
+treated a missing magic prefix as "written before encryption existed". That is a
+sound migration decision and an unsound security one: it let anyone who could
+write to the store strip encryption from a document one file at a time. An
+at-rest control an attacker can switch off per file is not a control.
+
+Refusal is the default, with `ALLOW_PLAINTEXT_BLOBS=on` as an explicit,
+loudly-warned migration step. Deliberately not done with a per-row encryption
+column — the rule has to hold for every blob the process reads, including paths
+that never load a document row, and a check enforced in one query is a check the
+next caller forgets. Where no key is configured at all, preview and local
+development still serve plaintext, because that is what they wrote; production
+cannot reach that branch because the boot guard aborts first.
+
+**Why the root key falls back to the old variable.** `DATA_ROOT_KEY` is the new
+root. Unset, it is _derived_ from `FILE_ENCRYPTION_KEY` rather than reused
+verbatim, so an existing deployment gains per-tenant keys without an operator
+having to set anything before the next restart. Derived and not reused because
+the legacy key still decrypts v1 blobs directly: one secret serving two roles
+means a compromise of either hands over the other, and HKDF's extract step is
+what keeps them independent.
+
+A security change that takes the service down on deploy is a security change
+that gets rolled back. That is the whole reason for the fallback, and it is
+worth keeping in mind for the KMS move as well.
+
+**What is still open, so this is not read as finished.** The root is an
+environment variable. That was a HIGH finding before this change and it remains
+one — the custody problem needs a KMS, and only the blast radius has been fixed.
+`KeyProvider` exists so that swap touches one file.
+
+**Why uploaded files finally have an integration suite.** They had none, which
+is how both blob findings survived as long as they did. `scripts/ci/suites/documents.mjs`
+uploads, downloads, compares the bytes, reads the blob off the volume to confirm
+the privileged text is not sitting there in the clear, and checks a second
+chamber is refused. It runs in both modes and says which assertions it skipped
+when no key is configured.
+
+**Worth revisiting if:** the KMS move happens, at which point `KeyScheme` gains
+its second value and the fallback-from-legacy path can finally be deleted.
+
+---
+
 ## Key custody: GCP KMS, per-tenant keys, and no rotation (2026-09-15)
 
 **Decided:** four things, on the way to Phase 2 of the anchoring work.

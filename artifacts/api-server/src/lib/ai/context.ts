@@ -173,7 +173,7 @@ async function tickedDocuments(
 
     let extracted;
     try {
-      const bytes = await blobStore.read(doc.storagePath);
+      const bytes = await blobStore.read(doc.storagePath, workspaceId);
       extracted = await extractText(bytes, doc.fileType ?? "application/octet-stream");
     } catch (err) {
       unreadable.push({

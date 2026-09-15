@@ -408,7 +408,7 @@ router.post(
         res.status(404).json({ error: "No such document in this chamber." });
         return;
       }
-      const bytes = await blobStore.read(row.doc.storagePath);
+      const bytes = await blobStore.read(row.doc.storagePath, c.workspaceId);
       const extracted = await extractText(bytes, row.doc.fileType ?? "");
       if (extracted.empty) {
         res.status(400).json({

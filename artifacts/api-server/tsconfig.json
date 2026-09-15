@@ -10,6 +10,9 @@
   "include": ["src"],
   "references": [
     {
+      "path": "../../lib/crypto-core"
+    },
+    {
       "path": "../../lib/db"
     },
     {

@@ -61,11 +61,11 @@ const base = { NODE_ENV: "production", DATABASE_URL: "postgres://unused/unused" 
 
 console.log("\n== Production refuses to start without encryption configured");
 {
-  const { code, out } = await run({ ...base, FILE_ENCRYPTION_KEY: "" });
+  const { code, out } = await run({ ...base, FILE_ENCRYPTION_KEY: "", DATA_ROOT_KEY: "" });
   check("exits non-zero", code === 1, `exit ${code}`);
   // The preflight now reaches this before the encryption guard does, so match
   // the variable name rather than either message's exact wording.
-  check("...saying which variable", /FILE_ENCRYPTION_KEY/.test(out));
+  check("...saying which variable", /DATA_ROOT_KEY/.test(out));
   check("...and why", /privileged|in the clear/.test(out));
 }
 
@@ -88,7 +88,7 @@ console.log("\n== Every missing production setting is reported in one go");
     out.slice(0, 200),
   );
   for (const key of [
-    "FILE_ENCRYPTION_KEY",
+    "DATA_ROOT_KEY",
     "DATABASE_URL",
     "CLERK_SECRET_KEY",
     "CLERK_PUBLISHABLE_KEY",

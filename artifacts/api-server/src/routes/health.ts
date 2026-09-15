@@ -4,7 +4,7 @@ import { sql } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import { resolveClientDist } from "../middlewares/staticClient";
-import { encryptionKey } from "../lib/blob-store";
+import { encryptionConfigured } from "../lib/blob-store";
 import { paymentsEnabled } from "../lib/razorpay";
 import { logger } from "../lib/logger";
 import { describeBlobBackend } from "../lib/blob-backends";
@@ -130,7 +130,7 @@ router.get("/readyz", async (_req, res) => {
     frontendBuilt: spaFound,
     frontendPath: clientDist,
     /** Required in production; the process refuses to start without it. */
-    filesEncrypted: encryptionKey() !== null,
+    filesEncrypted: encryptionConfigured(),
     // Which store, so "where did the files go" is answerable over HTTP.
     fileStorage: describeBlobBackend().backend,
     paymentsConfigured: paymentsEnabled(),
@@ -185,7 +185,7 @@ export async function readinessDetail(): Promise<Record<string, unknown>> {
     databaseError,
     frontendBuilt: existsSync(`${clientDist}/index.html`),
     frontendPath: clientDist,
-    filesEncrypted: encryptionKey() !== null,
+    filesEncrypted: encryptionConfigured(),
     fileStorage: describeBlobBackend().backend,
     paymentsConfigured: paymentsEnabled(),
     emailConfigured: Boolean(process.env["SMTP_HOST"]?.trim()),

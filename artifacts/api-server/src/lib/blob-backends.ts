@@ -86,7 +86,7 @@ export const filesystemBackend: BlobBackend = {
 /**
  * Resolved per call rather than cached at import.
  *
- * The same reason `encryptionKey()` is: a module-level constant freezes
+ * The same reason `encryptionConfigured()` is: a module-level constant freezes
  * whatever the environment looked like when the module was first required,
  * which makes the startup guards untestable and surprises anyone who changes a
  * variable expecting a restart to pick it up.

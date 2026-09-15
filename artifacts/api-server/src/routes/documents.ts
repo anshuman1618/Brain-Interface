@@ -354,7 +354,7 @@ router.post(
 
     let stored: blobs.StoredBlob;
     try {
-      stored = await blobs.put(buf);
+      stored = await blobs.put(buf, c.workspaceId);
     } catch {
       res.status(413).json({ error: "too_large", message: "That file is too large." });
       return;
@@ -542,7 +542,7 @@ router.get(
     // about it. A failure here is a 500 with no partial body.
     let plain: Buffer;
     try {
-      plain = await blobs.read(doc.storagePath);
+      plain = await blobs.read(doc.storagePath, c.workspaceId);
     } catch (err) {
       logger.error({ err, documentId: doc.id }, "Failed to read document bytes");
       res.status(500).json({ error: "Unreadable", message: "The stored file could not be read." });

@@ -1547,6 +1547,42 @@ KEK and stored in the database as ciphertext. Per-tenant keys are **not**
 rotated — a deliberate trade for shreddability, with the costs written down in
 `DECISIONS.md` and `docs/CRYPTO-POLICY.md` §2.2.
 
-**Next:** the KMS key provider and the `blob-store` retrofit (findings §0.1–§0.3),
-then the chained log and its append-only triggers (Phase 3). Layer 1 is not
+### 7d. What the hardening pass changed
+
+Three files, and the boundary between them is the point:
+
+```
+lib/keys.ts          where key material comes from.  Nothing else reads a key.
+lib/blob-crypto.ts   the stored-file format.  No fs, no env, no network.
+lib/blob-store.ts    composes the two with a backend, and decides about plaintext.
+```
+
+`keys.ts` derives one key per chamber per purpose —
+`HKDF(root, info="lex:v1:<purpose>:ws:<id>")` — so a key recovered from a log
+opens one firm's files rather than all of them. The root is `DATA_ROOT_KEY`, or
+is derived from the old `FILE_ENCRYPTION_KEY` when that is unset, so an existing
+deployment keeps booting. **The root is still an environment variable and that
+is still a HIGH finding**; `KeyProvider` is the seam a KMS drops into.
+
+`blob-crypto.ts` writes `LEXP2`, which authenticates the storage key, the
+workspace and the key scheme into the ciphertext as AAD. Move a blob to another
+storage key, or re-point a row at it, and the GCM tag fails instead of handing
+back the wrong client's file. `LEXP1` is still readable and still unbound —
+rewriting the estate is tracked in `docs/CRYPTO-POLICY.md` §7.
+
+`blob-store.ts` refuses a blob with no encryption header once a key is
+configured, so encryption cannot be stripped file by file.
+`ALLOW_PLAINTEXT_BLOBS=on` is the documented migration escape hatch and
+`preflight.ts` complains about it at every boot.
+
+`put` and `read` now take a workspace id. Four call sites: `routes/documents.ts`
+(upload and download), `routes/drafting.ts`, `lib/ai/context.ts`.
+
+Uploaded files had **no** integration coverage before this, which is how both
+blob findings survived. `scripts/ci/suites/documents.mjs` is the round trip:
+upload, download, compare bytes, read the blob off the volume to confirm the
+privileged text is not there in the clear, and check a second chamber is
+refused.
+
+**Next:** the chained log and its append-only triggers (Phase 3). Layer 1 is not
 shipped until that log is writing.
