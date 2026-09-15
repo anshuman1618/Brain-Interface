@@ -10,6 +10,92 @@ were, and what would make it worth revisiting.
 
 ---
 
+## Key custody: GCP KMS, per-tenant keys, and no rotation (2026-09-15)
+
+**Decided:** four things, on the way to Phase 2 of the anchoring work.
+`docs/CRYPTO-POLICY.md` is the full mapping of requirements to current state,
+including an audit of the cryptography already in the repository; this entry
+records the choices and their costs.
+
+**1. Google Cloud KMS, in a three-tier hierarchy.** A KEK and an Ed25519 signing
+key that never leave KMS; per-tenant key material wrapped by the KEK and stored
+in the database as ciphertext; that material unwrapped on demand and cached in
+process memory as a `Buffer`.
+
+Per-tenant keys are deliberately _not_ themselves KMS keys. The audit log HMACs
+several identifiers per event, and a `MacSign` round trip per identifier would
+mean the audit log fails when KMS is slow — an audit log that fails open is not
+an audit log. The cost is stated rather than hidden: an attacker with process
+memory gets the keys of the tenants currently cached. They do not get the KEK,
+and they do not get the signing key, which is used once a day and stays
+KMS-native because the write/sign separation is the property the entire threat
+model turns on.
+
+**2. Rotation is not implemented.** This is the one item on the product owner's
+own security checklist that is knowingly not met, and it was chosen with that
+stated.
+
+Rotation and crypto-shredding pull in opposite directions. Rotation must
+preserve access to old data; shredding is the deliberate destruction of exactly
+that access. A scheme that retains old key versions so old data stays readable
+is a scheme where destroying a key erases nothing — and DPDP erasure is why this
+hierarchy exists. Choosing shreddability is coherent.
+
+What it costs: a leaked tenant key has no remediation, because the anchors are
+on a public chain and cannot be withdrawn; and erasure granularity is the whole
+tenant rather than one document, so a single data principal's request has to be
+met by deleting the row and the blob instead. That second cost has a narrower
+fix than full rotation — a random per-document key wrapped by the per-tenant key
+buys per-document shredding _without_ introducing rotation, and answers the
+awkward question of what "we deleted the file" means when backups exist. Raised
+with the product owner; not built against the current decision.
+
+**3. `hash256` for content, `hmac256` for everything else.** Double SHA-256 for
+document bytes, which are high-entropy. HMAC-SHA-256 under a per-tenant key for
+anything with a guessable domain — a client name, a matter number, an email, a
+date. `sha256("Sharma & Associates / Matter 2026-041")` is not anonymised; it is
+recovered by guessing a thousand plausible strings. That attack is in
+`hash.test.ts` as a passing test, succeeding against `hash256` and failing
+against `hmac256`, because the argument comes up in review about once a year and
+a demonstration settles it faster than a paragraph.
+
+Doubling SHA-256 costs one extra compression and removes length-extension as a
+failure mode. HMAC is not doubled — it is already a two-pass construction, is
+not length-extendable, and a second wrapping would be a step a re-implementer
+has to be told about for no gain.
+
+**Why Ed25519 rather than RSA-3072.** 64-byte signatures rather than 384, which
+matters when they are published on-chain and paid for by the byte; no
+per-signature randomness, so an expert re-implementing the verifier cannot
+introduce the nonce-reuse bug ECDSA invites; and GCP KMS supports it natively.
+
+**Why not SHA-3 or BLAKE3.** Both are good hashes. Neither is more _available_.
+SHA-256 is in every standard library and every court-appointed expert's toolkit,
+and a verifier who has to install something to check a proof is a verifier who
+does not check the proof.
+
+**4. A second audit table, rather than changing the existing one.**
+`audit_events` stays as it is — human-readable, carrying actor names and IPs,
+redactable on erasure, rendered straight into the Activity screen. A new
+hash-chained table sits beside it: append-only by database trigger, HMAC'd
+references only, no names, no free text, no IP.
+
+Two tables because the two jobs genuinely conflict. The Activity screen needs
+prose a person can read and the DPDP path needs to be able to redact it; the
+chain needs bytes nobody can ever change or delete. Chaining the existing table
+would anchor names and email addresses into a structure that can never be
+deleted — the exact mistake `lib/crypto-core/src/structures.ts` is built to
+prevent. Migrating the existing table instead would break erasure-by-redaction
+and the screen that reads it, for a table whose rows predate any chain and so
+cannot be anchored anyway.
+
+**Worth revisiting if:** KMS latency turns out to be low and stable enough to
+make per-tenant `MacSign` viable, which would remove the cached-key exposure
+entirely; or if a tenant key is ever disclosed, at which point the absence of
+rotation stops being theoretical.
+
+---
+
 ## Canonical binary encoding for everything that gets hashed (2026-09-14)
 
 **Decided:** `lib/crypto-core/src/encoding.ts` defines one explicit byte layout

@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./encoding": "./src/encoding.ts"
+    "./encoding": "./src/encoding.ts",
+    "./hash": "./src/hash.ts"
   },
   "scripts": {
     "test": "node --import tsx --test \"src/**/*.test.ts\""

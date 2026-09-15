@@ -10,4 +10,5 @@
  */
 
 export * from "./encoding.js";
+export * from "./hash.js";
 export * from "./structures.js";

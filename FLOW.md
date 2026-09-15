@@ -1514,6 +1514,39 @@ roughly a third of them are adversarial rather than round-trip, because a
 round-trip test proves the encoder agrees with the decoder and says nothing
 about whether the encoding is canonical.
 
-**Next:** `hash256` / `hmac256` (Phase 2), then the chained log and its
-append-only database triggers (Phase 3). Those three are the minimum shippable
-set.
+**`lib/crypto-core/src/hash.ts` — done.** `sha256`, `hash256` (double
+SHA-256), `hmac256`, `hkdf256`, `constantTimeEqual`, `randomBytes` /
+`randomSecretKey`, and a `zeroize` whose doc comment is mostly about what it
+cannot do. Known-answer tests assert against the _published_ FIPS 180-4, RFC
+4231 and RFC 5869 vectors rather than against values this code produced — a
+vector taken from the implementation it tests only proves the code agrees with
+itself.
+
+The rule that matters when reading any of it: `hash256` is for high-entropy
+content, `hmac256` under a secret key is mandatory for anything guessable. The
+enumeration attack that makes the case is a passing test in `hash.test.ts`.
+
+### 7c. Key custody, and the audit of what was already here
+
+`docs/CRYPTO-POLICY.md` maps every cryptographic requirement to what this
+codebase actually does, and opens with six findings from reviewing the
+cryptography that was already in the repository. Three are High and all three
+are in `artifacts/api-server/src/lib/blob-store.ts`:
+
+- Uploaded files are encrypted with no AAD, so a ciphertext can be moved from
+  one storage key to another and still decrypt — GCM authenticates the bytes,
+  not which file they are.
+- A blob with no `LEXP1` magic prefix is served as plaintext, so anyone who can
+  write to the blob store can strip encryption from a document file by file.
+- One global `FILE_ENCRYPTION_KEY`, in an environment variable, for every
+  chamber.
+
+The third is what the KMS work fixes. Keys move to Google Cloud KMS: a KEK and
+an Ed25519 signing key that never leave it, per-tenant material wrapped by the
+KEK and stored in the database as ciphertext. Per-tenant keys are **not**
+rotated — a deliberate trade for shreddability, with the costs written down in
+`DECISIONS.md` and `docs/CRYPTO-POLICY.md` §2.2.
+
+**Next:** the KMS key provider and the `blob-store` retrofit (findings §0.1–§0.3),
+then the chained log and its append-only triggers (Phase 3). Layer 1 is not
+shipped until that log is writing.
