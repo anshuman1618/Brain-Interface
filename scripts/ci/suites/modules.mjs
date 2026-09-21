@@ -471,6 +471,72 @@ if (phase === "setup") {
     `got ${clientReads.status}`,
   );
 
+  /* A client holds `documents.write` — it is what lets them answer a document
+     request — so the relabel route is reachable by one. Gating on the
+     capability alone let a client re-file the CHAMBER's papers: verified
+     against a running server, a client sent {stage: null} for a shared
+     "Filed petition.pdf" and got 200. Visibility was not enough to stop it,
+     because `shared` is exactly the material a client may see, and being
+     allowed to read a filing is not being allowed to re-file it. The rule is
+     ownership: a client labels what they sent in, and nothing else. */
+  // Staff file it first, which also exercises the path that must keep working.
+  const staffFiles = await call(`/documents/${sharedDoc.data.id}/stage`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { stage: "filed" },
+  });
+  check(
+    "staff can re-file the chamber's own paper",
+    staffFiles.status === 200 && staffFiles.data.stage === "filed",
+    `got ${staffFiles.status} ${staffFiles.data?.stage}`,
+  );
+  const clientRefiles = await call(`/documents/${sharedDoc.data.id}/stage`, {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "PATCH",
+    body: { stage: null },
+  });
+  check(
+    "a client cannot re-file the chamber's own shared paper (404)",
+    clientRefiles.status === 404,
+    `got ${clientRefiles.status}`,
+  );
+  const stillFiled = await call(`/cases/${matter.data.id}/documents`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "...and the refusal fired before the write, not after it",
+    stillFiled.data.find((d) => d.id === sharedDoc.data.id)?.stage === "filed",
+    JSON.stringify(stillFiled.data.find((d) => d.id === sharedDoc.data.id)?.stage),
+  );
+  const clientOwnUpload = await call(`/cases/${matter.data.id}/documents`, {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "POST",
+    body: { name: "Client's own affidavit.pdf" },
+  });
+  const clientLabelsOwn = await call(`/documents/${clientOwnUpload.data.id}/stage`, {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "PATCH",
+    body: { stage: "filed" },
+  });
+  check(
+    "...but a client can still label what they sent in themselves",
+    clientLabelsOwn.status === 200 && clientLabelsOwn.data.stage === "filed",
+    `got ${clientLabelsOwn.status}`,
+  );
+  const restageAudit = await call("/workspace/audit", { token: as(founder), wsToken: wsTok });
+  check(
+    "a stage change is audited, like the upload and the download",
+    (restageAudit.data?.events ?? restageAudit.data ?? []).some(
+      (e) => e.action === "document.restaged",
+    ),
+    `audit ${restageAudit.status}`,
+  );
+
   // Relabelling. The alternative to this route is delete-and-re-upload, which
   // loses the checksum, the uploader and any request the document closed.
   const restaged = await call(`/documents/${stagedUpload.data.id}/stage`, {

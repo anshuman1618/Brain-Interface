@@ -30,6 +30,9 @@ export const AUDIT_ACTIONS = [
   "document.uploaded",
   "document.downloaded",
   "document.deleted",
+  /** Moved between stages of the matter. A filing changing heading is a change
+   *  to the record, so it is recorded like the upload and the download. */
+  "document.restaged",
   "document_request.created",
   "subscription.changed",
   "billing.checkout_started",

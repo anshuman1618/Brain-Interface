@@ -419,10 +419,27 @@ router.post(
  * it, which loses the upload record, the checksum and whichever document
  * request it closed.
  *
+ * ── Why a client is held to their own uploads ─────────────────────────────
+ *
+ * `documents.write` is the capability that lets a client answer a document
+ * request, so they hold it — and gating this route on that alone let a client
+ * re-file the CHAMBER's papers. Verified against a running server before this
+ * clause existed: a client sent `{stage: null}` for a shared "Filed
+ * petition.pdf" and got 200, moving the chamber's filing to unfiled with
+ * nothing recorded.
+ *
+ * Visibility was not enough to stop it. Firm-internal material was already
+ * refused, but `shared` is precisely the material a client CAN see, and being
+ * allowed to read a filing is not being allowed to re-file it.
+ *
+ * So the rule is ownership, not visibility: a client may label what they sent
+ * in, and nothing else. `uploadedByClerkId` is the record of who sent it.
+ * Staff are unaffected — re-filing the chamber's own papers is the job.
+ *
  * Every boundary the list applies is re-applied: matter scope through
- * `visibleCaseIds`, and visibility, so a client cannot discover a firm-internal
+ * `getVisibleCase`, and visibility, so a client cannot discover a firm-internal
  * document by patching ids and reading which ones come back 400 rather than
- * 404. Both failures are a flat 404.
+ * 404. Every failure is a flat 404.
  */
 router.patch(
   "/documents/:id/stage",
@@ -461,6 +478,12 @@ router.patch(
       res.status(404).json({ error: "Not found" });
       return;
     }
+    // The ownership rule above. 404 rather than 403, like every other refusal
+    // here: which of the chamber's papers exist is not a client's to learn.
+    if (clientSideOnly(c) && doc.uploadedByClerkId !== c.user.clerkId) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
 
     const stage = await resolveStage(c, matter, body.data.stage);
     if (!stage.ok) {
@@ -473,6 +496,16 @@ router.patch(
       .set({ stage: stage.value })
       .where(eq(documentsTable.id, doc.id))
       .returning();
+
+    // Upload and download are both audited; a change to where a paper is filed
+    // belongs in the same record. Without it, a document can move between
+    // headings with no trace of who moved it or from where.
+    await recordAudit(req, c, {
+      action: "document.restaged",
+      entityType: "document",
+      entityId: doc.id,
+      summary: `Re-filed "${doc.name}" from ${doc.stage ?? "unfiled"} to ${stage.value ?? "unfiled"}`,
+    });
 
     res.json(UpdateDocumentStageResponse.parse(await view(updated!)));
   },
