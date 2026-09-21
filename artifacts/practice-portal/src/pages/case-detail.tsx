@@ -678,8 +678,18 @@ export default function CaseDetailPage() {
                       <div className="flex shrink-0 items-center gap-2">
                         {/* Chosen at upload, corrected here. Deleting and
                             re-uploading to fix a label would lose the upload
-                            record, the checksum and any request it closed. */}
-                        {can("documents.write") && (
+                            record, the checksum and any request it closed.
+
+                            Staff only, and NOT `documents.write` — a client
+                            holds that capability too (it is what lets them
+                            answer a document request), and the server now
+                            refuses a client re-filing the chamber's papers.
+                            Gating on the capability would put a control here
+                            that 404s for them. `document_requests.create` is
+                            the same signal the server splits on, in
+                            `clientSideOnly()`. A client still labels their own
+                            upload where they make it, on the Documents page. */}
+                        {can("document_requests.create") && (
                           <StagePicker
                             caseId={caseId}
                             value={doc.stage ?? null}
