@@ -319,7 +319,7 @@ export default function DraftingPage() {
 
       <div className="rounded-lg bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-end gap-2">
-          <div className="grid gap-1">
+          <div className="grid w-full gap-1 sm:w-auto">
             <label className="font-mono text-3xs uppercase tracking-wider text-muted-foreground">
               Matter
             </label>
@@ -330,7 +330,7 @@ export default function DraftingPage() {
                 setPicked([]);
               }}
             >
-              <SelectTrigger className="w-[320px] rounded-lg">
+              <SelectTrigger className="w-full rounded-lg sm:w-[320px]">
                 <SelectValue placeholder="Choose a matter" />
               </SelectTrigger>
               <SelectContent>
@@ -342,12 +342,12 @@ export default function DraftingPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="grid gap-1">
+          <div className="grid w-full gap-1 sm:w-auto">
             <label className="font-mono text-3xs uppercase tracking-wider text-muted-foreground">
               Document
             </label>
             <Select value={kind} onValueChange={setKind}>
-              <SelectTrigger className="w-[240px] rounded-lg">
+              <SelectTrigger className="w-full rounded-lg sm:w-[240px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -429,7 +429,10 @@ export default function DraftingPage() {
           </Button>
           <Link
             href="/chamber-knowledge"
-            className="self-center text-2xs text-muted-foreground underline underline-offset-2"
+            /* `self-center` collapsed this to the height of its own text —
+               about 14px, sitting between two 36px buttons. Given a height
+               rather than padding so it keeps their baseline row. */
+            className="flex min-h-9 items-center text-2xs text-muted-foreground underline underline-offset-2"
           >
             Improve these drafts →
           </Link>

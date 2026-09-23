@@ -1,14 +1,7 @@
 import { useState } from "react";
 import { useListCases } from "@workspace/api-client-react";
 import { Link } from "wouter";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { AdaptiveTable } from "@/components/ui/adaptive-table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -123,148 +116,142 @@ export default function CasesPage() {
         <LoadFailed error={error} onRetry={() => void refetch()} what="the case registry" />
       )}
 
-      <div className="rounded-lg bg-card shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent bg-muted/30">
-              <TableHead className="hidden sm:table-cell w-[100px] font-mono text-xs uppercase tracking-wider">
-                ID
-              </TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">
-                Case Matter
-              </TableHead>
-              <TableHead className="hidden md:table-cell font-mono text-xs uppercase tracking-wider">
-                Client
-              </TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Status</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Priority</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider text-right">
-                Action
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array(5)
-                .fill(0)
-                .map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="hidden sm:table-cell">
-                      <Skeleton className="h-4 w-12" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-48" />
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-20" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-6 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-8 w-8 ml-auto" />
-                    </TableCell>
-                  </TableRow>
-                ))
-            ) : registryEmpty ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={6} className="h-56">
-                  <div className="flex flex-col items-center justify-center text-center gap-3 px-4">
-                    <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center">
-                      <FolderOpen className="h-6 w-6 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">No matters yet</p>
-                      <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                        The case registry is where every matter in this chamber lives. Open the
-                        first one and it will appear here.
-                      </p>
-                    </div>
-                    <Button className="rounded-lg mt-1" onClick={() => setIsCreateOpen(true)}>
-                      <Plus className="mr-2 h-4 w-4" /> File the first case
-                    </Button>
+      {isLoading ? (
+        <div className="flex flex-col gap-2 rounded-lg bg-card p-3 shadow-sm">
+          {Array(5)
+            .fill(0)
+            .map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+        </div>
+      ) : registryEmpty ? (
+        <div className="flex h-56 flex-col items-center justify-center gap-3 rounded-lg bg-card px-4 text-center shadow-sm">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
+            <FolderOpen className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="font-semibold">No matters yet</p>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+              The case registry is where every matter in this chamber lives. Open the first one and
+              it will appear here.
+            </p>
+          </div>
+          <Button className="mt-1 rounded-lg" onClick={() => setIsCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> File the first case
+          </Button>
+        </div>
+      ) : (
+        <AdaptiveTable
+          label="Matters"
+          className="rounded-lg md:bg-card md:shadow-sm"
+          rows={filteredCases ?? []}
+          rowKey={(c) => c.id}
+          onRowClick={(c) => {
+            window.location.href = `/cases/${c.id}`;
+          }}
+          empty={
+            <div className="flex h-32 flex-col items-center justify-center rounded-lg bg-card text-center shadow-sm">
+              <p className="text-muted-foreground">No cases match this search or filter.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                }}
+                className="mt-2 min-h-9 text-sm text-primary hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          }
+          columns={[
+            {
+              key: "id",
+              header: "ID",
+              card: "subtitle",
+              className: "w-[100px] font-mono text-xs uppercase tracking-wider",
+              /* Still dropped from the TABLE at narrow widths — but the card
+                 keeps it, which is the whole difference. Under the old rule
+                 this column was simply gone on a phone. */
+              tableClassName: "hidden sm:table-cell",
+              cell: (c) => <span className="text-muted-foreground">#{c.id}</span>,
+            },
+            {
+              key: "matter",
+              header: "Case Matter",
+              card: "title",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (c) => (
+                <>
+                  <div className="group-hover:text-primary flex items-center gap-2 text-sm font-medium transition-colors">
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 break-words">{c.title}</span>
                   </div>
-                </TableCell>
-              </TableRow>
-            ) : filteredCases?.length === 0 ? (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={6} className="h-32 text-center">
-                  <p className="text-muted-foreground">No cases match this search or filter.</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearch("");
-                      setStatusFilter("all");
-                    }}
-                    className="text-sm text-primary hover:underline mt-2"
-                  >
-                    Clear filters
-                  </button>
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredCases?.map((c) => (
-                <TableRow
-                  key={c.id}
-                  className="group cursor-pointer"
-                  onClick={() => (window.location.href = `/cases/${c.id}`)}
-                >
-                  <TableCell className="hidden sm:table-cell font-mono text-xs text-muted-foreground">
-                    #{c.id}
-                  </TableCell>
-                  <TableCell>
-                    <div className="font-medium text-sm group-hover:text-primary transition-colors flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      {c.title}
+                  {c.filingRef && (
+                    <div className="mt-1 font-mono text-xs text-muted-foreground">
+                      REF: {c.filingRef}
                     </div>
-                    {c.filingRef && (
-                      <div className="text-xs text-muted-foreground font-mono mt-1">
-                        REF: {c.filingRef}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell text-sm">
-                    {c.clientName || (
-                      <span className="text-muted-foreground italic">Unassigned</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={`rounded-lg text-3xs uppercase font-mono tracking-wider border ${getStatusColor(c.status)}`}
-                    >
-                      {c.status.replace("_", " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={`rounded-lg text-3xs uppercase font-mono tracking-wider ${getPriorityColor(c.priority || "medium")}`}
-                    >
-                      {c.priority}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      asChild
-                      className="rounded-lg h-8 w-8 text-muted-foreground group-hover:text-foreground"
-                    >
-                      <Link href={`/cases/${c.id}`}>
-                        <ChevronRight className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                  )}
+                </>
+              ),
+            },
+            {
+              key: "client",
+              header: "Client",
+              className: "font-mono text-xs uppercase tracking-wider",
+              tableClassName: "hidden md:table-cell",
+              cell: (c) =>
+                c.clientName || <span className="italic text-muted-foreground">Unassigned</span>,
+            },
+            {
+              key: "status",
+              header: "Status",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (c) => (
+                <Badge
+                  variant="outline"
+                  className={`rounded-lg border font-mono text-3xs uppercase tracking-wider ${getStatusColor(c.status)}`}
+                >
+                  {c.status.replace("_", " ")}
+                </Badge>
+              ),
+            },
+            {
+              key: "priority",
+              header: "Priority",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (c) => (
+                <Badge
+                  variant="outline"
+                  className={`rounded-lg font-mono text-3xs uppercase tracking-wider ${getPriorityColor(c.priority || "medium")}`}
+                >
+                  {c.priority}
+                </Badge>
+              ),
+            },
+            {
+              key: "open",
+              header: "Action",
+              /* The card is itself a link to the matter, so a chevron inside it
+                 would be a second control doing the same thing. */
+              card: "hidden",
+              className: "text-right font-mono text-xs uppercase tracking-wider",
+              cell: (c) => (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className="group-hover:text-foreground h-8 w-8 rounded-lg text-muted-foreground"
+                >
+                  <Link href={`/cases/${c.id}`}>
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              ),
+            },
+          ]}
+        />
+      )}
 
       <CaseFormModal open={isCreateOpen} onOpenChange={setIsCreateOpen} />
     </div>

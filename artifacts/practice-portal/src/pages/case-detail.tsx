@@ -333,7 +333,7 @@ export default function CaseDetailPage() {
             value={caseData.status}
             onValueChange={(v) => handleStatusChange(v as CaseUpdateStatus)}
           >
-            <SelectTrigger className="w-[180px] rounded-lg font-mono uppercase tracking-wider text-xs font-semibold">
+            <SelectTrigger className="w-full rounded-lg font-mono text-xs font-semibold uppercase tracking-wider sm:w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -359,7 +359,7 @@ export default function CaseDetailPage() {
                 caseId={caseId}
                 value={caseData.stage ?? null}
                 onChange={handleStageChange}
-                className="w-[180px] text-xs"
+                className="w-full text-xs sm:w-[180px]"
                 placeholder="Not set"
               />
             </div>
@@ -416,7 +416,17 @@ export default function CaseDetailPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="tasks" className="w-full">
-        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-lg h-12 p-0 gap-8">
+        {/*
+          Four triggers at `text-base` with a 2rem gap is about 530px of tab
+          strip, which does not fit a phone and cannot usefully wrap — a tab
+          strip on two lines stops reading as one control.
+
+          So it scrolls sideways instead, which is the ordinary mobile
+          pattern for exactly this. `overflow-x-auto` and not `auto` on both
+          axes, for the reason the table wrapper learned: a scroll container
+          with no height constraint swallows a vertical finger-drag.
+        */}
+        <TabsList className="h-12 w-full justify-start gap-4 overflow-x-auto rounded-lg border-b border-border bg-transparent p-0 sm:gap-8">
           <TabsTrigger
             value="tasks"
             className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
@@ -694,7 +704,7 @@ export default function CaseDetailPage() {
                             caseId={caseId}
                             value={doc.stage ?? null}
                             onChange={(stage) => handleRestage(doc.id, stage)}
-                            className="h-9 w-[190px] text-xs"
+                            className="h-9 w-full text-xs sm:w-[190px]"
                             placeholder="Unfiled"
                           />
                         )}
@@ -735,7 +745,7 @@ export default function CaseDetailPage() {
                 <div className="text-xs font-mono text-muted-foreground mb-1">
                   {formatDateTime(event.createdAt)}
                 </div>
-                <div className="font-medium text-sm bg-muted/30 p-3 border border-border inline-block min-w-[300px]">
+                <div className="font-medium text-sm bg-muted/30 p-3 border border-border inline-block w-full sm:w-auto sm:min-w-[300px]">
                   {event.description}
                   {event.actorName && (
                     <div className="text-xs text-muted-foreground mt-2 font-mono border-t border-border pt-2">

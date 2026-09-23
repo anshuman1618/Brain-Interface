@@ -8,14 +8,7 @@ import {
   type TaskCompletionDelayReason,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { AdaptiveTable } from "@/components/ui/adaptive-table";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -42,6 +35,20 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { useSession } from "@/lib/session";
+
+/**
+ * Overdue is asked four times per row now — by the status icon, the deadline's
+ * colour, the row tint and the card tint — so it is one function rather than
+ * four copies of the same comparison drifting apart.
+ *
+ * `task.isOverdue` is the server's answer and wins where it exists; the date
+ * comparison is the fallback for a row fetched before the field did.
+ */
+function isTaskOverdue(task: { isOverdue?: boolean; status: string; deadline: string }): boolean {
+  return Boolean(
+    task.isOverdue || (task.status !== "completed" && new Date(task.deadline) < new Date()),
+  );
+}
 
 export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState("all");
@@ -138,138 +145,137 @@ export default function TasksPage() {
 
       {isError && <LoadFailed error={error} onRetry={() => void refetch()} what="your tasks" />}
 
-      <div className="rounded-lg bg-card shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent bg-muted/30">
-              <TableHead className="w-[80px]">Status</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Task</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Case ID</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Assignee</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Deadline</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider text-right">
-                Action
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array(5)
-                .fill(0)
-                .map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-6 w-6 rounded-full" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-48" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-12" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-8 w-20 ml-auto" />
-                    </TableCell>
-                  </TableRow>
-                ))
-            ) : filteredTasks?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  <p className="font-medium text-sm text-foreground">Nothing in the pipeline</p>
-                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
-                    Tasks assigned to this chamber appear here, newest deadline first.
-                  </p>
-                  {canAssign && (
-                    <Button
-                      variant="outline"
-                      className="rounded-lg mt-4"
-                      onClick={() => setIsCreateOpen(true)}
-                    >
-                      <Plus className="mr-2 h-4 w-4" /> Assign the first task
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredTasks?.map((task) => {
-                const isOverdue =
-                  task.isOverdue ||
-                  (task.status !== "completed" && new Date(task.deadline) < new Date());
-
-                return (
-                  <TableRow key={task.id} className={isOverdue ? "bg-destructive/5" : ""}>
-                    <TableCell>
-                      {task.status === "completed" ? (
-                        <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
-                          <CheckSquare className="h-3 w-3 text-muted-foreground" />
-                        </div>
-                      ) : isOverdue ? (
-                        <div className="h-6 w-6 rounded-full bg-destructive flex items-center justify-center">
-                          <AlertCircle className="h-3 w-3 text-destructive-foreground" />
-                        </div>
-                      ) : (
-                        <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                          <Clock className="h-3 w-3 text-primary-foreground" />
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium text-sm">{task.title}</div>
-                      <Badge
-                        variant="outline"
-                        className="mt-1 rounded-lg text-3xs uppercase font-mono px-1 py-0"
-                      >
-                        {task.priority} priority
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/cases/${task.caseId}`}
-                        className="text-xs font-mono border border-border px-2 py-1 hover:bg-accent transition-colors"
-                      >
-                        CASE-{task.caseId}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {task.assigneeName || (
-                        <span className="text-muted-foreground italic">Unassigned</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`text-sm font-mono ${isOverdue ? "text-destructive font-bold" : ""}`}
-                      >
-                        {new Date(task.deadline).toLocaleDateString()}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {task.status !== "completed" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-lg"
-                          onClick={() => {
-                            setCompletingTask(task);
-                            setIsCompleteOpen(true);
-                          }}
-                        >
-                          Complete
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      {isLoading ? (
+        <div className="rounded-lg bg-card shadow-sm p-3 flex flex-col gap-2">
+          {Array(5)
+            .fill(0)
+            .map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+        </div>
+      ) : (
+        <AdaptiveTable
+          label="Tasks"
+          className="rounded-lg md:bg-card md:shadow-sm"
+          rows={filteredTasks ?? []}
+          rowKey={(task) => task.id}
+          /* The overdue tint is a property of the row, not of any one column,
+             so it is declared here and applied to the table row AND the card.
+             Rendering it inside a cell would have left a phone with no sign at
+             all that a deadline had passed. */
+          rowClassName={(task) => (isTaskOverdue(task) ? "bg-destructive/5" : undefined)}
+          empty={
+            <div className="rounded-lg bg-card shadow-sm h-32 flex flex-col items-center justify-center text-center px-4">
+              <p className="font-medium text-sm text-foreground">Nothing in the pipeline</p>
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm">
+                Tasks assigned to this chamber appear here, newest deadline first.
+              </p>
+              {canAssign && (
+                <Button
+                  variant="outline"
+                  className="rounded-lg mt-4"
+                  onClick={() => setIsCreateOpen(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" /> Assign the first task
+                </Button>
+              )}
+            </div>
+          }
+          columns={[
+            {
+              key: "status",
+              header: "Status",
+              className: "w-[80px]",
+              cell: (task) =>
+                task.status === "completed" ? (
+                  <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center">
+                    <CheckSquare className="h-3 w-3 text-muted-foreground" />
+                  </div>
+                ) : isTaskOverdue(task) ? (
+                  <div className="h-6 w-6 rounded-full bg-destructive flex items-center justify-center">
+                    <AlertCircle className="h-3 w-3 text-destructive-foreground" />
+                  </div>
+                ) : (
+                  <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                    <Clock className="h-3 w-3 text-primary-foreground" />
+                  </div>
+                ),
+            },
+            {
+              key: "task",
+              header: "Task",
+              card: "title",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (task) => (
+                <>
+                  <div className="font-medium text-sm">{task.title}</div>
+                  <Badge
+                    variant="outline"
+                    className="mt-1 rounded-lg text-3xs uppercase font-mono px-1 py-0"
+                  >
+                    {task.priority} priority
+                  </Badge>
+                </>
+              ),
+            },
+            {
+              key: "case",
+              header: "Case ID",
+              card: "subtitle",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (task) => (
+                <Link
+                  href={`/cases/${task.caseId}`}
+                  className="text-xs font-mono border border-border px-2 py-1 hover:bg-accent transition-colors"
+                >
+                  CASE-{task.caseId}
+                </Link>
+              ),
+            },
+            {
+              key: "assignee",
+              header: "Assignee",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (task) =>
+                task.assigneeName || (
+                  <span className="text-muted-foreground italic">Unassigned</span>
+                ),
+            },
+            {
+              key: "deadline",
+              header: "Deadline",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (task) => (
+                <span
+                  className={`text-sm font-mono ${isTaskOverdue(task) ? "text-destructive font-bold" : ""}`}
+                >
+                  {new Date(task.deadline).toLocaleDateString()}
+                </span>
+              ),
+            },
+            {
+              key: "action",
+              header: "Action",
+              card: "action",
+              className: "text-right font-mono text-xs uppercase tracking-wider",
+              cell: (task) =>
+                task.status !== "completed" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-lg"
+                    onClick={() => {
+                      setCompletingTask(task);
+                      setIsCompleteOpen(true);
+                    }}
+                  >
+                    Complete
+                  </Button>
+                ) : null,
+            },
+          ]}
+        />
+      )}
 
       <TaskFormModal open={isCreateOpen} onOpenChange={setIsCreateOpen} />
 

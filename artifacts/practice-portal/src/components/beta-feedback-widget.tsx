@@ -80,8 +80,15 @@ export function BetaFeedbackWidget() {
           for the old 64px icon rail, and when that became a 224px labelled
           sidebar the button landed squarely on the "Subscription" row — a
           floating control covering a real one, which a screenshot caught and
-          nothing else would have. Below `lg` the sidebar is a slide-over and
-          not on screen at all, so `left-4` is right there.
+          nothing else would have. Below the sidebar's breakpoint it is a
+          slide-over and not on screen at all, so `left-4` is right there.
+
+          The breakpoint here is a copy of the one on the `<aside>` in
+          dashboard-layout.tsx and has to be changed with it. It moved `lg` to
+          `md` when tablets got the sidebar, and until it did, a 768px iPad drew
+          this button on top of the nav — exactly the failure the paragraph
+          above describes, and exactly the coupling DECISIONS.md records as
+          having no compiler behind it.
         - z-20, not z-40. It used to outrank the header; a permanent widget
           should never paint over the chrome, and its own dialog is portalled
           well above this anyway.
@@ -93,7 +100,7 @@ export function BetaFeedbackWidget() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Send feedback about this page"
-        className="group fixed left-4 lg:left-60 z-20 flex items-center gap-0 sm:hover:gap-2 focus-visible:gap-2 rounded-lg bg-card/90 text-muted-foreground backdrop-blur-sm shadow-sm hover:bg-accent hover:text-accent-foreground hover:shadow-md active:shadow-[var(--press-sm)] p-2.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="group fixed left-4 md:left-60 z-20 flex items-center gap-0 sm:hover:gap-2 focus-visible:gap-2 rounded-lg bg-card/90 text-muted-foreground backdrop-blur-sm shadow-sm hover:bg-accent hover:text-accent-foreground hover:shadow-md active:shadow-[var(--press-sm)] p-2.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         style={{ bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
       >
         <MessageSquarePlus className="h-4 w-4 shrink-0" />

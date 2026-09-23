@@ -30,17 +30,34 @@ const check = (name, ok, detail = "") => {
 };
 const section = (t) => console.log(`\n== ${t}`);
 
-/**
- * The screens this has to work on. Not arbitrary: 360 is the floor for Android
- * in India, 390 an iPhone, 414 a large phone, 768 an iPad portrait, 1024 an
- * iPad landscape and the smallest laptop, 1280 a common laptop, 1440 a desktop.
+/*
+ * The device matrix, not a ladder of round numbers.
+ *
+ * Each row is a real class of screen this app is expected to work on, and two
+ * of them exist because they break assumptions the others do not:
+ *
+ *   320px  the floor. An iPhone SE in its original size, and still the width
+ *          Android ships as the minimum a layout must survive. Anything that
+ *          overflows here overflows on a real handset somebody owns.
+ *
+ *   1024x1366  an iPad Pro held UPRIGHT. It is wider than a laptop breakpoint
+ *          and taller than it is wide at the same time, so any rule of the
+ *          shape "wide means landscape means desktop" is wrong here and only
+ *          here. This is the row that catches a sidebar assuming `lg` means
+ *          "has a mouse".
  */
 const VIEWPORTS = [
+  { w: 320, h: 568, label: "smallest phone" },
   { w: 360, h: 740, label: "small phone" },
   { w: 390, h: 844, label: "phone" },
   { w: 414, h: 896, label: "large phone" },
-  { w: 768, h: 1024, label: "tablet portrait" },
-  { w: 1024, h: 768, label: "tablet landscape" },
+  { w: 430, h: 932, label: "pro max phone" },
+  { w: 768, h: 1024, label: "iPad portrait" },
+  { w: 800, h: 1280, label: "Android tablet portrait" },
+  { w: 820, h: 1180, label: "iPad Air portrait" },
+  { w: 1024, h: 768, label: "iPad landscape" },
+  { w: 1024, h: 1366, label: "iPad Pro portrait" },
+  { w: 1366, h: 1024, label: "iPad Pro landscape" },
   { w: 1280, h: 800, label: "laptop" },
   { w: 1440, h: 900, label: "desktop" },
 ];
@@ -423,7 +440,7 @@ const inApp = await text();
 //
 // The landmark is the main nav, not the menu button. Navigation used to be a
 // dropdown behind "Open navigation menu" at every width; it is now a permanent
-// labelled sidebar from lg up, and that button exists only below lg. Anchoring
+// labelled sidebar from md up, and that button exists only below md. Anchoring
 // on the button therefore made this check pass or fail on viewport width — it
 // failed here at 1280px against a perfectly working dashboard. `nav[aria-
 // label="Main"]` is rendered by the sidebar and by the slide-over alike.
@@ -447,6 +464,42 @@ if (signedIn) {
       check(`dashboard @ ${w}px (${label}) has no horizontal scroll`, true);
     }
   }
+
+  /*
+   * The sidebar is the tablet question, and it is asked here rather than by eye.
+   *
+   * It moved from `lg` to `md` so that a 768px iPad in portrait gets the
+   * labelled list instead of a hamburger. Three copies of that breakpoint exist
+   * — the <aside>, the button that opens the slide-over, and a matchMedia call
+   * that closes it on rotation — and nothing in the type system connects them.
+   * A check on either side of the line is what notices when one of them moves
+   * alone.
+   */
+  const railVisible = async () => page.locator('aside nav[aria-label="Main"]').first().isVisible();
+
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.waitForTimeout(300);
+  check("a tablet in portrait gets the sidebar, not a hamburger", await railVisible());
+  check(
+    "...and the button that opens the slide-over is gone with it",
+    (await page.getByRole("button", { name: /Open navigation menu/i }).count()) === 0 ||
+      !(await page
+        .getByRole("button", { name: /Open navigation menu/i })
+        .first()
+        .isVisible()),
+  );
+
+  await page.setViewportSize({ width: 414, height: 896 });
+  await page.waitForTimeout(300);
+  check("a phone still gets the slide-over", !(await railVisible()));
+  check(
+    "...and the button to open it",
+    await page
+      .getByRole("button", { name: /Open navigation menu/i })
+      .first()
+      .isVisible(),
+  );
+  await page.setViewportSize({ width: 1280, height: 800 });
 
   /*
    * A route two levels deep, which is a class of its own.
@@ -535,6 +588,113 @@ if (signedIn) {
     !/Instructions and brief/.test(vault),
     "an eight-heading list with papers under one reads as a broken screen",
   );
+
+  /*
+   * ── Every signed-in route, at every screen size ──────────────────────────
+   *
+   * This is the check that makes the responsive work self-verifying, and until
+   * now it did not exist. The sweep above measures `/dashboard` and nothing
+   * else — and `/dashboard` is a grid of stat tiles, the one layout in the
+   * application that was never going to overflow. The pages that actually broke
+   * on a phone (invoices at seven columns, tasks, consultations, the matter
+   * tab strip, the operator table, the AI screens at their designed control
+   * widths) were opened by this suite and never once sized.
+   *
+   * `caseHref` is the matter created just above, so `/cases/:id` — the deepest
+   * and most crowded page in the product — is swept with the rest.
+   *
+   * Cost: routes x viewports navigations. It is the slowest thing in this file
+   * by a wide margin, and it is worth it, because every alternative is a person
+   * remembering to resize a browser.
+   */
+  const caseHref = new URL(page.url()).pathname;
+  const ROUTES = [
+    ["/dashboard", "dashboard"],
+    ["/cases", "matters"],
+    [caseHref, "matter detail"],
+    ["/tasks", "tasks"],
+    ["/consultations", "consultations"],
+    ["/invoices", "invoices"],
+    ["/documents", "documents"],
+    ["/calendar", "calendar"],
+    ["/cause-list", "cause list"],
+    ["/invites", "access control"],
+    ["/team", "team"],
+    ["/activity", "activity"],
+    ["/kpi", "kpi"],
+    ["/drafting", "drafting"],
+    ["/chamber-knowledge", "chamber knowledge"],
+  ];
+
+  section("9. Every signed-in route, at every screen size");
+  for (const [href, name] of ROUTES) {
+    await page.goto(`${BASE}${href}`, { waitUntil: "networkidle" });
+    // Lazy routes resolve a chunk before they paint. Measuring the Suspense
+    // fallback would pass every time and prove nothing.
+    await page.waitForTimeout(900);
+    let bad = [];
+    for (const { w, h, label } of VIEWPORTS) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.waitForTimeout(200);
+      const o = await overflow();
+      if (o > 1) bad.push(`${w}px ${label}: ${o}px — ${(await widest()).join(" ; ")}`);
+    }
+    check(
+      `${name} fits every screen from 320px to 1440px`,
+      bad.length === 0,
+      bad.slice(0, 2).join(" || "),
+    );
+  }
+
+  /*
+   * ── Thumbs and type, on the pages that grew a card layout ────────────────
+   *
+   * Where a table row became a stack of fields is exactly where a 28px button
+   * or an 8px label slips in unnoticed, because it looks fine in the table it
+   * came from. 36px is the floor here; 44px is Apple's recommendation and more
+   * than this design's own controls use, so holding to that would fail honest
+   * buttons.
+   */
+  await page.setViewportSize({ width: 360, height: 740 });
+  for (const href of ["/tasks", "/invoices", "/consultations", "/invites", "/drafting"]) {
+    await page.goto(`${BASE}${href}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(900);
+    const small = await page.evaluate(() => {
+      const bad = [];
+      for (const el of document.querySelectorAll("button, a[href], input, select")) {
+        const st = getComputedStyle(el);
+        if (st.display === "none" || st.visibility === "hidden") continue;
+        // Radix renders a real <select> behind its own trigger for form
+        // integration. It is aria-hidden, transparent and not pointer-
+        // addressable, so it is not a touch target and measuring it would fail
+        // a page for a control no thumb can ever reach.
+        if (el.getAttribute("aria-hidden") === "true") continue;
+        if (st.pointerEvents === "none" || Number(st.opacity) === 0) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) continue;
+        if (r.height < 36) bad.push(`${el.tagName}.${String(el.className).slice(0, 50)}`);
+      }
+      return bad;
+    });
+    check(
+      `${href} targets are at least 36px tall on a phone`,
+      small.length === 0,
+      small.join(" ; "),
+    );
+
+    const tiny = await page.evaluate(() => {
+      const bad = [];
+      for (const el of document.querySelectorAll("body *")) {
+        if (!el.textContent?.trim() || el.children.length > 0) continue;
+        const px = parseFloat(getComputedStyle(el).fontSize);
+        if (px && px < 10)
+          bad.push(`${el.tagName} ${px}px "${el.textContent.trim().slice(0, 20)}"`);
+      }
+      return bad;
+    });
+    check(`${href} sets no type below 10px`, tiny.length === 0, tiny.slice(0, 3).join(" ; "));
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
 
   /*
    * The operator view fails closed.

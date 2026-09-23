@@ -2,24 +2,34 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Practice Management Portal</title>
+    <!--
+      `maximum-scale` is deliberately absent. Pinning it blocks pinch-zoom, which
+      is an accessibility failure on the web and a documented rejection risk in
+      App Store review. Nothing in this layout needs it: the overflow work is
+      done with breakpoints, not by forbidding the reader to zoom.
+
+      `viewport-fit=cover` lets the page paint into the notch and the home
+      indicator, and is what makes `env(safe-area-inset-*)` report anything
+      other than zero. Without it the `*-safe` utilities in index.css are inert.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>LEX Practice</title>
     <meta
       name="description"
-      content="Practice Management Portal — built on Replit. Update this description to reflect the app."
+      content="Chamber management for a law practice: matters, cause list, tasks, time and invoicing."
     />
     <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Practice Management Portal" />
+    <meta property="og:title" content="LEX Practice" />
     <meta
       property="og:description"
-      content="Practice Management Portal — built on Replit. Update this description to reflect the app."
+      content="Chamber management for a law practice: matters, cause list, tasks, time and invoicing."
     />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Practice Management Portal" />
+    <meta name="twitter:title" content="LEX Practice" />
     <meta
       name="twitter:description"
-      content="Practice Management Portal — built on Replit. Update this description to reflect the app."
+      content="Chamber management for a law practice: matters, cause list, tasks, time and invoicing."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!--
@@ -32,7 +42,23 @@
       nothing leaves the browser and there is no render-blocking request.
     -->
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#e6ded2" />
+    <!--
+      One per scheme. A single theme-color paints the Android status bar and the
+      iOS webview chrome the light ground colour even in dark mode, which reads
+      as a white bar above a dark app.
+    -->
+    <meta name="theme-color" content="#e6ded2" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#221f1c" media="(prefers-color-scheme: dark)" />
+
+    <!--
+      Standalone hints, for the iOS home-screen case. The native shells set
+      their own status bar through @capacitor/status-bar; these cover the
+      add-to-home-screen path, which is the same bundle without the wrapper.
+    -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="LEX Practice" />
+    <meta name="mobile-web-app-capable" content="yes" />
   </head>
   <body>
     <div id="root"></div>

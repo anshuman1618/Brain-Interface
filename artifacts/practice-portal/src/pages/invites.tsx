@@ -7,14 +7,7 @@ import {
   type InviteInputRole,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { AdaptiveTable } from "@/components/ui/adaptive-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -202,118 +195,121 @@ export default function InvitesPage() {
         <div className="px-6 py-4 border-b border-border bg-muted/30">
           <h3 className="font-mono text-xs uppercase tracking-widest font-bold">Invitations</h3>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent bg-muted/30">
-              <TableHead className="font-mono text-xs uppercase tracking-wider">
-                Recipient
-              </TableHead>
-              <TableHead className="hidden sm:table-cell font-mono text-xs uppercase tracking-wider">
-                Provisioned Role
-              </TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">
-                Status / Expiry
-              </TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider text-right">
-                Invite Token
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array(3)
-                .fill(0)
-                .map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-48" />
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-8 w-24 ml-auto" />
-                    </TableCell>
-                  </TableRow>
-                ))
-            ) : invites?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center">
-                  <p className="font-medium text-sm">No invitations out</p>
-                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
-                    Generate a link above to bring a client or colleague into this chamber. Links
-                    expire, and each one can only be used once.
-                  </p>
-                </TableCell>
-              </TableRow>
-            ) : (
-              invites?.map((inv) => {
-                const isExpired = new Date(inv.expiresAt) < new Date();
-                const isUsed = !!inv.usedAt;
-                return (
-                  <TableRow key={inv.id} className={isExpired || isUsed ? "opacity-50" : ""}>
-                    <TableCell>
-                      <div className="font-medium text-sm flex items-center gap-2">
-                        {inv.phone ? (
-                          <Smartphone className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <Mail className="h-4 w-4 text-muted-foreground" />
-                        )}
-                        {inv.phone || inv.email}
-                      </div>
-                      {inv.caseId && (
-                        <div className="text-xs text-muted-foreground font-mono mt-1">
-                          RESTRICTED TO CASE-{inv.caseId}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Badge
-                        variant="outline"
-                        className="rounded-lg text-3xs uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
-                      >
-                        {inv.role === "admin" && <ShieldCheck className="h-3 w-3" />}
-                        {inv.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {isUsed ? (
-                        <span className="text-sm font-mono text-primary font-bold">
-                          USED {formatDateTime(inv.usedAt!)}
-                        </span>
-                      ) : isExpired ? (
-                        <span className="text-sm font-mono text-destructive">EXPIRED</span>
+        {isLoading ? (
+          <div className="flex flex-col gap-2 p-3">
+            {Array(3)
+              .fill(0)
+              .map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+          </div>
+        ) : (
+          <AdaptiveTable
+            label="Invitations"
+            className="p-3 md:p-0"
+            rows={invites ?? []}
+            rowKey={(inv) => inv.id}
+            rowClassName={(inv) =>
+              new Date(inv.expiresAt) < new Date() || inv.usedAt ? "opacity-50" : undefined
+            }
+            empty={
+              <div className="flex h-32 flex-col items-center justify-center px-4 text-center">
+                <p className="text-sm font-medium">No invitations out</p>
+                <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                  Generate a link above to bring a client or colleague into this chamber. Links
+                  expire, and each one can only be used once.
+                </p>
+              </div>
+            }
+            columns={[
+              {
+                key: "recipient",
+                header: "Recipient",
+                card: "title",
+                className: "font-mono text-xs uppercase tracking-wider",
+                cell: (inv) => (
+                  <>
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      {inv.phone ? (
+                        <Smartphone className="h-4 w-4 shrink-0 text-muted-foreground" />
                       ) : (
-                        <span className="text-sm font-mono text-muted-foreground">
-                          EXPIRES {formatDateTime(inv.expiresAt)}
-                        </span>
+                        <Mail className="h-4 w-4 shrink-0 text-muted-foreground" />
                       )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-lg font-mono tracking-widest text-xs"
-                        disabled={isUsed || isExpired}
-                        onClick={() => copyToClipboard(inv.id, inv.token)}
-                      >
-                        {copiedId === inv.id ? (
-                          <Check className="mr-2 h-4 w-4 text-primary" />
-                        ) : (
-                          <Copy className="mr-2 h-4 w-4" />
-                        )}
-                        {copiedId === inv.id ? "COPIED" : "COPY LINK"}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+                      <span className="min-w-0 break-all">{inv.phone || inv.email}</span>
+                    </div>
+                    {inv.caseId && (
+                      <div className="mt-1 font-mono text-xs text-muted-foreground">
+                        RESTRICTED TO CASE-{inv.caseId}
+                      </div>
+                    )}
+                  </>
+                ),
+              },
+              {
+                key: "role",
+                header: "Provisioned Role",
+                className: "font-mono text-xs uppercase tracking-wider",
+                tableClassName: "hidden sm:table-cell",
+                cell: (inv) => (
+                  <Badge
+                    variant="outline"
+                    className="flex w-fit items-center gap-1 rounded-lg font-mono text-3xs uppercase tracking-wider"
+                  >
+                    {inv.role === "admin" && <ShieldCheck className="h-3 w-3" />}
+                    {inv.role}
+                  </Badge>
+                ),
+              },
+              {
+                key: "status",
+                header: "Status / Expiry",
+                className: "font-mono text-xs uppercase tracking-wider",
+                cell: (inv) => {
+                  const isExpired = new Date(inv.expiresAt) < new Date();
+                  if (inv.usedAt) {
+                    return (
+                      <span className="font-mono text-sm font-bold text-primary">
+                        USED {formatDateTime(inv.usedAt)}
+                      </span>
+                    );
+                  }
+                  return isExpired ? (
+                    <span className="font-mono text-sm text-destructive">EXPIRED</span>
+                  ) : (
+                    <span className="font-mono text-sm text-muted-foreground">
+                      EXPIRES {formatDateTime(inv.expiresAt)}
+                    </span>
+                  );
+                },
+              },
+              {
+                key: "token",
+                header: "Invite Token",
+                card: "action",
+                className: "text-right font-mono text-xs uppercase tracking-wider",
+                cell: (inv) => {
+                  const isExpired = new Date(inv.expiresAt) < new Date();
+                  return (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg font-mono text-xs tracking-widest"
+                      disabled={!!inv.usedAt || isExpired}
+                      onClick={() => copyToClipboard(inv.id, inv.token)}
+                    >
+                      {copiedId === inv.id ? (
+                        <Check className="mr-2 h-4 w-4 text-primary" />
+                      ) : (
+                        <Copy className="mr-2 h-4 w-4" />
+                      )}
+                      {copiedId === inv.id ? "COPIED" : "COPY LINK"}
+                    </Button>
+                  );
+                },
+              },
+            ]}
+          />
+        )}
       </div>
     </div>
   );

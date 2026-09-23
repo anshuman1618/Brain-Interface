@@ -387,6 +387,67 @@
   }
 }
 
+/* ── Safe areas ──────────────────────────────────────────────────────────────
+ *
+ * The strips a phone's hardware claims: the notch or dynamic island at the top,
+ * the home indicator at the bottom, and on a landscape iPhone the rounded
+ * corners at both sides.
+ *
+ * `env(safe-area-inset-*)` reports 0 everywhere that has no such hardware — a
+ * desktop browser, an Android phone with a plain bezel, the iOS simulator on an
+ * older device — so these utilities cost nothing off a notched handset and need
+ * no media query to turn them off. They report 0 in the native shell too unless
+ * `viewport-fit=cover` is on the viewport meta, which index.html sets.
+ *
+ * `max(…, Xrem)` rather than the raw inset: the inset alone is the hardware's
+ * claim and nothing else, so a sticky header would sit flush against the
+ * dynamic island with no breathing room. The floor is the padding the design
+ * already wanted; the inset only ever adds to it.
+ */
+@layer utilities {
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top), 0px);
+  }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+  .pl-safe {
+    padding-left: max(env(safe-area-inset-left), 0px);
+  }
+  .pr-safe {
+    padding-right: max(env(safe-area-inset-right), 0px);
+  }
+  .px-safe {
+    padding-left: max(env(safe-area-inset-left), 0px);
+    padding-right: max(env(safe-area-inset-right), 0px);
+  }
+
+  /* The header and the rail carry their own padding already, so these fold the
+     inset into a floor rather than adding a second gap on top of it. */
+  .pt-safe-3 {
+    padding-top: max(env(safe-area-inset-top), 0.75rem);
+  }
+  .pb-safe-3 {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+  }
+  .pb-safe-4 {
+    padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+  }
+
+  /* For a fixed element measured from the bottom — a toast stack or a sheet
+     handle — where padding would grow the box instead of moving it. */
+  .bottom-safe {
+    bottom: max(env(safe-area-inset-bottom), 0px);
+  }
+
+  /* A full-height column that must not run under the home indicator. `dvh`
+     rather than `vh` because mobile browsers shrink the visual viewport when
+     the URL bar retracts and `vh` does not follow. */
+  .h-dvh-safe {
+    height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+
 /* ── Landing page motion ─────────────────────────────────────────────────────
  *
  * Scoped to `[data-landing]` on purpose. Motion was wanted on the public front

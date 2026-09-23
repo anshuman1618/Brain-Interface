@@ -1,3 +1,4 @@
+import { AdaptiveTable } from "@/components/ui/adaptive-table";
 import {
   useGetOperatorMetrics,
   getGetOperatorMetricsQueryKey,
@@ -185,39 +186,56 @@ export default function OperatorPage() {
         title="Chambers, newest first"
         note="Counts and plan state only. Nothing about what is inside a matter reaches this table."
       >
-        <div className="overflow-x-auto rounded-lg bg-card shadow-sm">
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-border">
-              <tr className="font-mono text-3xs uppercase tracking-wider text-muted-foreground">
-                <th className="p-3">Chamber</th>
-                <th className="p-3">Founded</th>
-                <th className="p-3">Plan</th>
-                <th className="p-3 text-right">Seats</th>
-                <th className="p-3 text-right">Matters</th>
-                <th className="p-3">Last seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {m.chamberRows.map((c) => (
-                <tr key={c.id} className="border-b border-border/50 last:border-0">
-                  <td className="p-3 font-medium">{c.name}</td>
-                  <td className="p-3 font-mono text-muted-foreground">{c.createdAt}</td>
-                  <td className="p-3 font-mono text-muted-foreground">
-                    {c.plan} · {c.status}
-                    {c.periodEnd ? ` → ${c.periodEnd}` : ""}
-                  </td>
-                  <td className="p-3 text-right tabular-nums">{c.seats}</td>
-                  <td
-                    className={`p-3 text-right tabular-nums ${c.matters === 0 ? "text-destructive" : ""}`}
-                  >
-                    {c.matters}
-                  </td>
-                  <td className="p-3 font-mono text-muted-foreground">{c.lastSeen ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AdaptiveTable
+          label="Chambers, newest first"
+          className="rounded-lg md:bg-card md:shadow-sm"
+          rows={m.chamberRows}
+          rowKey={(c) => c.id}
+          columns={[
+            {
+              key: "name",
+              header: "Chamber",
+              card: "title",
+              className: "p-3 font-medium",
+              cell: (c) => c.name,
+            },
+            {
+              key: "founded",
+              header: "Founded",
+              card: "subtitle",
+              className: "p-3 font-mono text-muted-foreground",
+              cell: (c) => c.createdAt,
+            },
+            {
+              key: "plan",
+              header: "Plan",
+              className: "p-3 font-mono text-muted-foreground",
+              cell: (c) => `${c.plan} · ${c.status}${c.periodEnd ? ` → ${c.periodEnd}` : ""}`,
+            },
+            {
+              key: "seats",
+              header: "Seats",
+              className: "p-3 text-right tabular-nums",
+              cell: (c) => c.seats,
+            },
+            {
+              key: "matters",
+              header: "Matters",
+              className: "p-3 text-right tabular-nums",
+              cell: (c) => (
+                <span className={c.matters === 0 ? "text-destructive" : undefined}>
+                  {c.matters}
+                </span>
+              ),
+            },
+            {
+              key: "lastSeen",
+              header: "Last seen",
+              className: "p-3 font-mono text-muted-foreground",
+              cell: (c) => c.lastSeen ?? "—",
+            },
+          ]}
+        />
       </Section>
     </div>
   );

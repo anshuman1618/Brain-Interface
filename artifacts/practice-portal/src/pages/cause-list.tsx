@@ -164,7 +164,7 @@ function SyncHealth() {
               Court
             </label>
             <Select value={chosen} onValueChange={setCourtCode}>
-              <SelectTrigger id="sync-court" className="w-[240px]">
+              <SelectTrigger id="sync-court" className="w-full sm:w-[240px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -186,7 +186,7 @@ function SyncHealth() {
             <Input
               id="sync-date"
               type="date"
-              className="w-[170px]"
+              className="w-full sm:w-[170px]"
               value={listDate}
               onChange={(e) => setListDate(e.target.value)}
             />

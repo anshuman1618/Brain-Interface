@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link, Route, Switch, useLocation } from "wouter";
 import { useSession } from "@/lib/session";
 import { PreviewBar } from "@/components/preview-bar";
@@ -190,8 +190,36 @@ function DashboardLayoutContent() {
    * it in front of them meanwhile.
    */
   const [skippedPlan, setSkippedPlan] = useState(false);
-  // Only the slide-over below lg uses this; the permanent sidebar is always open.
+  // Only the slide-over below `md` uses this; the permanent sidebar is always open.
   const [navOpen, setNavOpen] = useState(false);
+
+  /*
+   * Close the slide-over when the sidebar takes over.
+   *
+   * The button that opens it is `md:hidden`, so at `md` and up there is no way
+   * to open it — but a tablet held in portrait, opened, and then turned to
+   * landscape crosses the breakpoint with the sheet already on screen, and it
+   * stays there as a dimmed overlay on top of the sidebar that just appeared,
+   * with nothing left to dismiss it but the Escape key.
+   *
+   * 768px is `md` in Tailwind's default scale. It is written here rather than
+   * read from CSS because a matchMedia query needs a number, and it is the
+   * third copy of this breakpoint (the <aside>, the button, here) — all three
+   * move together or none of them do.
+   */
+  useEffect(() => {
+    if (!navOpen) return;
+    const mq = window.matchMedia("(min-width: 768px)");
+    if (mq.matches) {
+      setNavOpen(false);
+      return;
+    }
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setNavOpen(false);
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [navOpen]);
   const { data: subscriptionState } = useGetSubscription({
     query: {
       queryKey: getGetSubscriptionQueryKey(),
@@ -334,7 +362,18 @@ function DashboardLayoutContent() {
           it, so the identity block at the bottom stays reachable on a long page
           rather than being pushed below the fold.
         */}
-        <aside className="hidden lg:flex w-56 border-r border-border bg-sidebar shrink-0 flex-col sticky top-0 h-dvh z-20">
+        {/*
+          `md`, not `lg`. At `lg` a 768px iPad in portrait got the phone
+          treatment — a hamburger and a slide-over — on a screen with room for
+          the list and the page side by side. 768px is 56px of rail plus 712px
+          of content, which is wider than any phone this app is expected to
+          work on.
+
+          `pb-safe` because the identity block sits at the bottom of a `h-dvh`
+          column, which on a notched handset in landscape ends underneath the
+          home indicator.
+        */}
+        <aside className="hidden md:flex w-56 border-r border-border bg-sidebar shrink-0 flex-col sticky top-0 h-dvh z-20 pb-safe pl-safe">
           <div className="h-16 flex items-center gap-2.5 px-4 border-b border-sidebar-border shrink-0">
             <Link href="/dashboard" title="LEX Practice" className="flex items-center gap-2.5">
               <div className="h-9 w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-xs shrink-0">
@@ -408,7 +447,7 @@ function DashboardLayoutContent() {
         </Sheet>
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col min-w-0">
+        <main className="flex-1 flex flex-col min-w-0 pb-safe px-safe">
           {/*
             z-30, above the sidebar rail's z-20, and the scroll container below
             is `isolate`. Both halves matter, and the reason is worth writing
@@ -425,7 +464,16 @@ function DashboardLayoutContent() {
             is therefore relative to this element, not to the page, so it could
             never rise above content that was drawing over the header itself.
           */}
-          <header className="min-h-14 sm:h-16 border-b border-border bg-background flex items-center gap-2 sm:gap-4 px-3 sm:px-6 z-30 sticky top-0 justify-between">
+          {/*
+            `pt-safe-3` rather than `pt-safe`: the raw inset is the hardware's
+            claim and nothing more, so the row would sit flush against the
+            dynamic island. The utility floors it at the padding the design
+            already wanted and lets the inset only ever add to that.
+
+            `px-safe` is for landscape, where the rounded corners eat into both
+            edges and the hamburger would otherwise be half under one.
+          */}
+          <header className="min-h-14 sm:h-16 border-b border-border bg-background flex items-center gap-2 sm:gap-4 px-3 sm:px-6 z-30 sticky top-0 justify-between pt-safe-3 px-safe">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               {/* Opens the slide-over. Hidden at lg and up, where the sidebar is
                   permanently on screen and a button to reveal it would do
@@ -434,13 +482,28 @@ function DashboardLayoutContent() {
                 type="button"
                 onClick={() => setNavOpen(true)}
                 aria-label="Open navigation menu"
-                className="lg:hidden h-11 w-11 -ml-2 flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground"
+                className="md:hidden h-11 w-11 -ml-2 flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground"
               >
                 <Menu className="h-5 w-5" />
               </button>
               {/* The switcher lives up here rather than in the sidebar: it is a
                   tenant boundary, not a destination, so it stays in sight. */}
-              <div className="w-40 lg:w-56 shrink-0 hidden xs:block">
+              {/*
+                This read `hidden xs:block`, and `xs` is not a Tailwind 4
+                breakpoint — there is no `--breakpoint-xs` in index.css and this
+                was the only `xs:` in the codebase. Tailwind emitted no
+                `xs:block` rule at all, so `hidden` was never overridden and the
+                switcher was invisible at EVERY width, desktop included. Anybody
+                holding memberships in two chambers had no way to move between
+                them.
+
+                Fixed by removing the dead class rather than by defining a
+                breakpoint for one use. The switcher manages its own empty and
+                single-chamber cases (see workspace-switcher.tsx), everything
+                inside it truncates, and the width steps down on a phone instead
+                of disappearing.
+              */}
+              <div className="w-36 sm:w-40 lg:w-56 shrink-0">
                 <WorkspaceSwitcher />
               </div>
               <div className="flex items-center gap-2 text-sm font-mono text-muted-foreground min-w-0">

@@ -40,6 +40,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { AdaptiveTable } from "@/components/ui/adaptive-table";
+// Still a real table: the line items inside the invoice dialog are four
+// narrow, mostly numeric columns whose amounts need to align in a column.
+// Cards would take that alignment away and read worse, not better.
 import {
   Table,
   TableBody,
@@ -208,7 +212,9 @@ export default function InvoicesPage() {
             Bill clients, and keep an unbroken numbered record of what was billed.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {/* Two actions side by side are wider than a small phone. They wrap
+            under the heading rather than off the edge of it. */}
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => setSettingsOpen(true)}>
             <Settings2 className="h-4 w-4 mr-2" /> Billing settings
           </Button>
@@ -315,111 +321,122 @@ export default function InvoicesPage() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Number</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Issued</TableHead>
-                    <TableHead>Due</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-10" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoices.map((invoice) => {
+            <AdaptiveTable
+              label="Invoices"
+              rows={invoices}
+              rowKey={(invoice) => invoice.id}
+              columns={[
+                {
+                  key: "number",
+                  header: "Number",
+                  card: "title",
+                  className: "font-mono text-sm",
+                  cell: (invoice) =>
+                    invoice.invoiceRef ?? <span className="text-muted-foreground">— draft</span>,
+                },
+                {
+                  key: "client",
+                  header: "Client",
+                  card: "subtitle",
+                  cell: (invoice) => addressedTo(invoice),
+                },
+                {
+                  key: "issued",
+                  header: "Issued",
+                  className: "text-sm text-muted-foreground",
+                  cell: (invoice) => invoice.issueDate ?? "—",
+                },
+                {
+                  key: "due",
+                  header: "Due",
+                  className: "text-sm text-muted-foreground",
+                  cell: (invoice) => invoice.dueDate ?? "—",
+                },
+                {
+                  key: "total",
+                  header: "Total",
+                  className: "text-right tabular-nums",
+                  cell: (invoice) => formatMinor(invoice.totalMinor),
+                },
+                {
+                  key: "status",
+                  header: "Status",
+                  cell: (invoice) => {
                     const badge = statusLabel(invoice);
-                    return (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-mono text-sm">
-                          {invoice.invoiceRef ?? (
-                            <span className="text-muted-foreground">— draft</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{addressedTo(invoice)}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {invoice.issueDate ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {invoice.dueDate ?? "—"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatMinor(invoice.totalMinor)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label="Invoice actions">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setViewing(invoice)}>
-                                View
+                    return <Badge variant={badge.variant}>{badge.label}</Badge>;
+                  },
+                },
+                {
+                  key: "actions",
+                  header: <span className="sr-only">Actions</span>,
+                  card: "action",
+                  className: "w-10",
+                  cell: (invoice) => (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" aria-label="Invoice actions">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setViewing(invoice)}>
+                          View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => void download(invoice)}>
+                          <Download className="h-4 w-4 mr-2" /> Download PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {invoice.isEditable ? (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setEditing(invoice);
+                                setFormOpen(true);
+                              }}
+                            >
+                              Edit draft
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => doIssue(invoice)}>
+                              Issue — assigns the number
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => doDelete(invoice)}
+                            >
+                              Delete draft
+                            </DropdownMenuItem>
+                          </>
+                        ) : (
+                          <>
+                            {invoice.status === "issued" && (
+                              <DropdownMenuItem onClick={() => move(invoice, "sent")}>
+                                Mark sent
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => void download(invoice)}>
-                                <Download className="h-4 w-4 mr-2" /> Download PDF
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              {invoice.isEditable ? (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setEditing(invoice);
-                                      setFormOpen(true);
-                                    }}
-                                  >
-                                    Edit draft
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => doIssue(invoice)}>
-                                    Issue — assigns the number
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => doDelete(invoice)}
-                                  >
-                                    Delete draft
-                                  </DropdownMenuItem>
-                                </>
-                              ) : (
-                                <>
-                                  {invoice.status === "issued" && (
-                                    <DropdownMenuItem onClick={() => move(invoice, "sent")}>
-                                      Mark sent
-                                    </DropdownMenuItem>
-                                  )}
-                                  {(invoice.status === "issued" || invoice.status === "sent") && (
-                                    <>
-                                      <DropdownMenuItem onClick={() => move(invoice, "paid")}>
-                                        Mark paid
-                                      </DropdownMenuItem>
-                                      <DropdownMenuItem
-                                        className="text-destructive"
-                                        onClick={() => {
-                                          setVoidReason("");
-                                          setVoiding(invoice);
-                                        }}
-                                      >
-                                        Void
-                                      </DropdownMenuItem>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                            )}
+                            {(invoice.status === "issued" || invoice.status === "sent") && (
+                              <>
+                                <DropdownMenuItem onClick={() => move(invoice, "paid")}>
+                                  Mark paid
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => {
+                                    setVoidReason("");
+                                    setVoiding(invoice);
+                                  }}
+                                >
+                                  Void
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ),
+                },
+              ]}
+            />
           )}
         </CardContent>
       </Card>

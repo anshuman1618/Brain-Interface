@@ -6,14 +6,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { AdaptiveTable } from "@/components/ui/adaptive-table";
 import {
   Select,
   SelectContent,
@@ -104,154 +97,159 @@ export default function TeamPage() {
         </p>
       </div>
 
-      <div className="rounded-lg bg-card shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent bg-muted/30">
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Name</TableHead>
-              <TableHead className="hidden sm:table-cell font-mono text-xs uppercase tracking-wider">
-                Email
-              </TableHead>
-              <TableHead className="hidden md:table-cell font-mono text-xs uppercase tracking-wider">
-                Role here
-              </TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider text-right">
-                Change role
-              </TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider text-right">
-                Access
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array(4)
-                .fill(0)
-                .map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                      <Skeleton className="h-4 w-32" />
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell">
-                      <Skeleton className="h-4 w-48" />
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Skeleton className="h-4 w-24" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-8 w-40 ml-auto" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="h-8 w-20 ml-auto" />
-                    </TableCell>
-                  </TableRow>
-                ))
-            ) : members?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-32 text-center">
-                  <p className="font-medium text-sm">Just you so far</p>
-                  <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
-                    Add colleagues to the access list under Access Control, and they appear here
-                    once they sign in.
-                  </p>
-                </TableCell>
-              </TableRow>
-            ) : (
-              members?.map((m: AccessRequest) => {
+      {isLoading ? (
+        <div className="flex flex-col gap-2 rounded-lg bg-card p-3 shadow-sm">
+          {Array(4)
+            .fill(0)
+            .map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+        </div>
+      ) : (
+        <AdaptiveTable
+          label="Team"
+          className="rounded-lg md:bg-card md:shadow-sm"
+          rows={members ?? []}
+          rowKey={(m: AccessRequest) => m.id}
+          empty={
+            <div className="flex h-32 flex-col items-center justify-center rounded-lg bg-card px-4 text-center shadow-sm">
+              <p className="text-sm font-medium">Just you so far</p>
+              <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                Add colleagues to the access list under Access Control, and they appear here once
+                they sign in.
+              </p>
+            </div>
+          }
+          columns={[
+            {
+              key: "name",
+              header: "Name",
+              card: "title",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (m: AccessRequest) => {
                 const isSelf = m.userId === claims?.userId;
                 return (
-                  <TableRow key={m.id}>
-                    <TableCell className="font-medium text-sm">
-                      {m.displayName || "—"}
-                      {isSelf && (
-                        <span className="text-muted-foreground font-normal ml-2 text-xs">
-                          (you)
-                        </span>
-                      )}
-                      {/* Self-declared, so only editable by the person it
-                          describes — not something an admin sets for someone
-                          else here. Reaching this page at all already implies
-                          profileComplete is true (the dashboard gate blocks
-                          every page until then), so this is always "Edit". */}
-                      {isSelf && needsBarRegistration(m.role) && (
-                        <Link
-                          href="/complete-profile"
-                          className="mt-1 flex w-fit items-center gap-1 text-2xs font-mono uppercase tracking-wider text-primary hover:text-primary/80"
-                        >
-                          <Scale className="h-3 w-3" />
-                          Edit bar registration
-                        </Link>
-                      )}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                      {m.email || "—"}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge
-                        variant="outline"
-                        className="rounded-lg text-3xs uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
+                  <span className="text-sm font-medium">
+                    {m.displayName || "—"}
+                    {isSelf && (
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">(you)</span>
+                    )}
+                    {/* Self-declared, so only editable by the person it
+                        describes — not something an admin sets for someone else
+                        here. Reaching this page at all already implies
+                        profileComplete is true, so this is always "Edit". */}
+                    {isSelf && needsBarRegistration(m.role) && (
+                      <Link
+                        href="/complete-profile"
+                        className="mt-1 flex w-fit items-center gap-1 font-mono text-2xs uppercase tracking-wider text-primary hover:text-primary/80"
                       >
-                        {m.role === "admin" && <ShieldCheck className="h-3 w-3" />}
-                        {roleLabel(m.role) || m.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Select
-                        value={m.role}
-                        onValueChange={(role) => handleRoleChange(m.id, role)}
-                        disabled={updateMember.isPending || isSelf}
-                      >
-                        <SelectTrigger className="rounded-lg w-44 ml-auto">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ASSIGNABLE_ROLES.map((r) => (
-                            <SelectItem key={r} value={r}>
-                              {roleLabel(r)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-col items-end gap-2 sm:flex-row sm:justify-end">
-                        {/* Narrowing someone's matters is the same kind of
-                            decision as admitting them, so it sits behind the
-                            same capability the access list does. */}
-                        {can("access_control.manage") && RESTRICTABLE_ROLES.includes(m.role) && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-lg"
-                            onClick={() =>
-                              setCaseAccessFor({ id: m.id, name: m.displayName || "This member" })
-                            }
-                          >
-                            <EyeOff className="h-3.5 w-3.5 mr-1.5" />
-                            Case access
-                          </Button>
-                        )}
-                        {/* An admin cannot revoke themselves — the server refuses it too,
-                            so a workspace can never be left with nobody to administer it. */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-lg"
-                          disabled={updateMember.isPending || isSelf}
-                          onClick={() => handleRevoke(m.id, m.displayName || "Member")}
-                        >
-                          <UserMinus className="h-3.5 w-3.5 mr-1.5" />
-                          Revoke
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                        <Scale className="h-3 w-3" />
+                        Edit bar registration
+                      </Link>
+                    )}
+                  </span>
                 );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              },
+            },
+            {
+              key: "email",
+              header: "Email",
+              card: "subtitle",
+              className: "font-mono text-xs uppercase tracking-wider",
+              tableClassName: "hidden sm:table-cell",
+              cell: (m: AccessRequest) => (
+                <span className="text-sm text-muted-foreground">{m.email || "—"}</span>
+              ),
+            },
+            {
+              key: "role",
+              header: "Role here",
+              className: "font-mono text-xs uppercase tracking-wider",
+              tableClassName: "hidden md:table-cell",
+              cell: (m: AccessRequest) => (
+                <Badge
+                  variant="outline"
+                  className="flex w-fit items-center gap-1 rounded-lg font-mono text-3xs uppercase tracking-wider"
+                >
+                  {m.role === "admin" && <ShieldCheck className="h-3 w-3" />}
+                  {roleLabel(m.role) || m.role}
+                </Badge>
+              ),
+            },
+            {
+              key: "changeRole",
+              header: "Change role",
+              card: "field",
+              className: "text-right font-mono text-xs uppercase tracking-wider",
+              cell: (m: AccessRequest) => {
+                const isSelf = m.userId === claims?.userId;
+                return (
+                  <Select
+                    value={m.role}
+                    onValueChange={(role) => handleRoleChange(m.id, role)}
+                    disabled={updateMember.isPending || isSelf}
+                  >
+                    {/* `w-full` on a phone: the card gives it the row, and a
+                        fixed 11rem trigger inside a 320px card overflows. */}
+                    <SelectTrigger className="ml-auto w-full rounded-lg sm:w-44">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ASSIGNABLE_ROLES.map((r) => (
+                        <SelectItem key={r} value={r}>
+                          {roleLabel(r)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                );
+              },
+            },
+            {
+              key: "access",
+              header: "Access",
+              card: "action",
+              className: "text-right font-mono text-xs uppercase tracking-wider",
+              cell: (m: AccessRequest) => {
+                const isSelf = m.userId === claims?.userId;
+                return (
+                  <div className="flex flex-col items-end gap-2 sm:flex-row sm:justify-end">
+                    {/* Narrowing someone's matters is the same kind of decision
+                        as admitting them, so it sits behind the same capability
+                        the access list does. */}
+                    {can("access_control.manage") && RESTRICTABLE_ROLES.includes(m.role) && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg"
+                        onClick={() =>
+                          setCaseAccessFor({ id: m.id, name: m.displayName || "This member" })
+                        }
+                      >
+                        <EyeOff className="mr-1.5 h-3.5 w-3.5" />
+                        Case access
+                      </Button>
+                    )}
+                    {/* An admin cannot revoke themselves — the server refuses it
+                        too, so a workspace can never be left with nobody to
+                        administer it. */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg"
+                      disabled={updateMember.isPending || isSelf}
+                      onClick={() => handleRevoke(m.id, m.displayName || "Member")}
+                    >
+                      <UserMinus className="mr-1.5 h-3.5 w-3.5" />
+                      Revoke
+                    </Button>
+                  </div>
+                );
+              },
+            },
+          ]}
+        />
+      )}
 
       <CaseAccessDialog
         membershipId={caseAccessFor?.id ?? null}

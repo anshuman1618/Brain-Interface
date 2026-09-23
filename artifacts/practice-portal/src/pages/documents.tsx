@@ -220,7 +220,9 @@ export default function DocumentsPage() {
               : "Files your chamber has shared with you, and anything they've asked you to send."}
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        {/* `shrink-0` kept — these buttons must not squash — but they are now
+            allowed to wrap, which is what stops them overflowing instead. */}
+        <div className="flex shrink-0 flex-wrap gap-2">
           {can("documents.write") && cases.length > 0 && (
             <Button
               variant="outline"

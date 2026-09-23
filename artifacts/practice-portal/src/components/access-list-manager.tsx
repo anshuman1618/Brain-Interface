@@ -18,14 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { AdaptiveTable } from "@/components/ui/adaptive-table";
 import { AtSign, Globe, Plus, ShieldCheck, Trash2, AlertTriangle, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/session";
@@ -253,24 +246,19 @@ export function AccessListManager() {
           Nobody is admitted yet
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent bg-muted/30">
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Admitted</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">
-                Signs in as
-              </TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider">Used</TableHead>
-              <TableHead className="font-mono text-xs uppercase tracking-wider text-right">
-                Remove
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {active.map((entry: AccessListEntry) => (
-              <TableRow key={entry.id}>
-                <TableCell>
-                  <div className="flex items-center gap-2 font-mono text-sm">
+        <AdaptiveTable
+          label="Standing invitations"
+          rows={active}
+          rowKey={(entry: AccessListEntry) => entry.id}
+          columns={[
+            {
+              key: "admitted",
+              header: "Admitted",
+              card: "title",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (entry: AccessListEntry) => (
+                <>
+                  <div className="flex items-center gap-2 font-mono text-sm min-w-0">
                     {entry.kind === "domain" ? (
                       <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     ) : entry.kind === "phone" ? (
@@ -278,11 +266,20 @@ export function AccessListManager() {
                     ) : (
                       <AtSign className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     )}
-                    {entry.kind === "domain" ? `anyone @${entry.value}` : entry.value}
+                    <span className="min-w-0 break-all">
+                      {entry.kind === "domain" ? `anyone @${entry.value}` : entry.value}
+                    </span>
                   </div>
                   {entry.note && <p className="text-xs text-muted-foreground mt-1">{entry.note}</p>}
-                </TableCell>
-                <TableCell>
+                </>
+              ),
+            },
+            {
+              key: "role",
+              header: "Signs in as",
+              className: "font-mono text-xs uppercase tracking-wider",
+              cell: (entry: AccessListEntry) => (
+                <>
                   <Badge
                     variant="outline"
                     className="rounded-lg text-3xs uppercase font-mono tracking-wider flex items-center gap-1 w-fit"
@@ -295,25 +292,35 @@ export function AccessListManager() {
                       RESTRICTED TO CASE-{entry.caseId}
                     </p>
                   )}
-                </TableCell>
-                <TableCell className="text-xs font-mono text-muted-foreground">
-                  {entry.lastUsedAt ? new Date(entry.lastUsedAt).toLocaleDateString() : "Never"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg"
-                    disabled={revokeEntry.isPending}
-                    onClick={() => revoke(entry)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                </>
+              ),
+            },
+            {
+              key: "used",
+              header: "Used",
+              className: "font-mono text-xs uppercase tracking-wider text-muted-foreground",
+              cell: (entry: AccessListEntry) =>
+                entry.lastUsedAt ? new Date(entry.lastUsedAt).toLocaleDateString() : "Never",
+            },
+            {
+              key: "remove",
+              header: "Remove",
+              card: "action",
+              className: "font-mono text-xs uppercase tracking-wider text-right",
+              cell: (entry: AccessListEntry) => (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg"
+                  disabled={revokeEntry.isPending}
+                  onClick={() => revoke(entry)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              ),
+            },
+          ]}
+        />
       )}
     </div>
   );
