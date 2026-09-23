@@ -28,6 +28,7 @@ import {
   setPreviewSession,
   type PreviewSession,
 } from "@/lib/preview";
+import { authRedirectBase } from "@/lib/platform";
 import {
   clearWorkspaceContext,
   getActiveWorkspaceId,
@@ -345,13 +346,23 @@ export function ClerkSessionProvider({ children }: { children: ReactNode }) {
         }
 
         const strategy = provider === "google" ? "oauth_google" : "oauth_custom_zoho";
+        /*
+         * `authRedirectBase()`, not `window.location.origin`.
+         *
+         * In the native shell the page's origin is `https://localhost` or
+         * `capacitor://localhost` — an origin that exists only inside the
+         * webview and that no provider can redirect to. The helper returns the
+         * app's custom scheme there, which the OS routes back to us, and the
+         * window origin everywhere else. See lib/platform.ts.
+         */
+        const base = authRedirectBase();
         const urls = {
           // Where the provider round trip finishes. The dashboard layout takes
           // over from there and decides — from the backend session — whether
           // this identity sees the portal, a pending notice, or the refusal.
-          redirectUrl: `${window.location.origin}${BASE_PATH}/dashboard`,
+          redirectUrl: `${base}${BASE_PATH}/dashboard`,
           // Where Clerk sends the handshake when it needs another step first.
-          redirectCallbackUrl: `${window.location.origin}${BASE_PATH}/portal/callback`,
+          redirectCallbackUrl: `${base}${BASE_PATH}/portal/callback`,
         };
 
         // Same shape as the email leg. A successful sso() navigates away, so

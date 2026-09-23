@@ -21,6 +21,11 @@ import PortalSignInPage from "@/pages/portal-sign-in";
 import { ThemeProvider } from "@/lib/theme";
 import { RootErrorBoundary } from "@/components/error-boundary";
 import { BetaFeedbackWidget } from "@/components/beta-feedback-widget";
+import { AppLockGate } from "@/components/app-lock";
+import { applyNativeTheme, dismissSplash, initNativeShell } from "@/lib/native";
+import { onPushOpened } from "@/lib/native-push";
+import { isNative } from "@/lib/platform";
+import { useTheme } from "@/lib/theme";
 // Registers the API base URL (no-op when frontend and API share an origin).
 import "@/lib/api-config";
 
@@ -225,13 +230,58 @@ function PreviewRoutes() {
   );
 }
 
+/**
+ * The native shell, mounted inside the router and inside the theme provider.
+ *
+ * Renders nothing. It exists because all four of the things it wires up need a
+ * React context: the deep-link and push handlers need `useLocation` to route,
+ * and the status bar needs the resolved theme. Every call inside is a no-op on
+ * the web, so this is mounted unconditionally in both trees rather than
+ * branching on the platform at the call site.
+ */
+function NativeShell() {
+  const [, setLocation] = useLocation();
+  const { resolvedTheme } = useTheme();
+
+  useEffect(() => {
+    /*
+     * A client-side navigation, not a reload.
+     *
+     * The OAuth round trip returns through `in.lexpractice.app://portal/callback`
+     * while the Clerk client in memory is mid-handshake. Reloading would restart
+     * it from whatever had reached storage and lose the leg in flight.
+     */
+    const teardownShell = initNativeShell((path) => setLocation(stripBase(path)));
+    // Tapping "hearing tomorrow" should land on the calendar, not on whatever
+    // screen the app happened to be showing when it was backgrounded.
+    const teardownPush = onPushOpened((path) => setLocation(stripBase(path)));
+    // Held until React has actually painted — see `launchAutoHide: false` in
+    // each platform's capacitor.config.ts.
+    void dismissSplash();
+    return () => {
+      teardownShell();
+      teardownPush();
+    };
+  }, [setLocation]);
+
+  useEffect(() => {
+    if (!isNative()) return;
+    applyNativeTheme(resolvedTheme === "dark" ? "dark" : "light");
+  }, [resolvedTheme]);
+
+  return null;
+}
+
 function PreviewApp() {
   return (
     <WouterRouter base={basePath}>
       <QueryClientProvider client={queryClient}>
         <PreviewSessionProvider>
           <TooltipProvider>
-            <PreviewRoutes />
+            <NativeShell />
+            <AppLockGate>
+              <PreviewRoutes />
+            </AppLockGate>
             <Toaster />
             {/* Mounted here rather than in the dashboard shell: the two screens
                 that most need a way to report a problem — access denied and
@@ -262,28 +312,31 @@ function ClerkApp() {
           <ClerkSessionProvider>
             <TooltipProvider>
               <ClerkQueryClientCacheInvalidator />
-              <Switch>
-                <Route path="/" component={HomeRedirect} />
-                <Route path="/portal" component={PortalSignInPage} />
-                {/* Where Google and Zoho land after the provider round trip.
+              <NativeShell />
+              <AppLockGate>
+                <Switch>
+                  <Route path="/" component={HomeRedirect} />
+                  <Route path="/portal" component={PortalSignInPage} />
+                  {/* Where Google and Zoho land after the provider round trip.
                     Clerk finishes the handshake, then the app decides what this
                     identity may reach. */}
-                <Route path="/portal/callback">
-                  <AuthenticateWithRedirectCallback
-                    signInFallbackRedirectUrl={`${basePath}/dashboard`}
-                    signUpFallbackRedirectUrl={`${basePath}/dashboard`}
-                  />
-                </Route>
-                {/* Legacy entry points — both are the same passwordless door now. */}
-                <Route path="/sign-in/*?">
-                  <Redirect to="/portal" />
-                </Route>
-                <Route path="/sign-up/*?">
-                  <Redirect to="/portal?new=1" />
-                </Route>
-                {/* "/*", not "/:rest*" — see the preview tree above. */}
-                <Route path="/*" component={DashboardLayout} />
-              </Switch>
+                  <Route path="/portal/callback">
+                    <AuthenticateWithRedirectCallback
+                      signInFallbackRedirectUrl={`${basePath}/dashboard`}
+                      signUpFallbackRedirectUrl={`${basePath}/dashboard`}
+                    />
+                  </Route>
+                  {/* Legacy entry points — both are the same passwordless door now. */}
+                  <Route path="/sign-in/*?">
+                    <Redirect to="/portal" />
+                  </Route>
+                  <Route path="/sign-up/*?">
+                    <Redirect to="/portal?new=1" />
+                  </Route>
+                  {/* "/*", not "/:rest*" — see the preview tree above. */}
+                  <Route path="/*" component={DashboardLayout} />
+                </Switch>
+              </AppLockGate>
               <Toaster />
               <BetaFeedbackWidget />
             </TooltipProvider>
