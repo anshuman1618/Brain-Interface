@@ -1,12 +1,6 @@
 import { Router, raw, type IRouter } from "express";
 import { and, eq, inArray } from "drizzle-orm";
-import {
-  db,
-  documentsTable,
-  documentRequestsTable,
-  casesTable,
-  notificationsTable,
-} from "@workspace/db";
+import { db, documentsTable, documentRequestsTable, casesTable } from "@workspace/db";
 import {
   ListDocumentsParams,
   ListDocumentsResponse,
@@ -30,6 +24,7 @@ import { addTimelineEvent } from "../lib/timeline";
 import { forumGroupFor, isKnownStage } from "../lib/case-stages";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { displayRole } from "../lib/permissions";
+import { notify } from "../lib/notify";
 import { recordAudit } from "../lib/audit";
 import * as blobs from "../lib/blob-store";
 import { logger } from "../lib/logger";
@@ -232,11 +227,14 @@ router.post(
         .where(eq(documentRequestsTable.id, request.id));
 
       if (request.requestedByClerkId) {
-        await db.insert(notificationsTable).values({
-          userId: request.requestedByClerkId,
+        await notify({
+          clerkId: request.requestedByClerkId,
+          workspaceId: c.workspaceId,
           type: "document_request",
+          title: "A requested document has arrived",
           message: `${c.user.displayName} uploaded "${doc.name}" for "${request.documentName}".`,
           link: "/documents",
+          dedupe: false,
         });
       }
     }
@@ -385,11 +383,14 @@ router.post(
         .set({ status: "fulfilled", fulfilledDocumentId: doc!.id, fulfilledAt: new Date() })
         .where(eq(documentRequestsTable.id, request.id));
       if (request.requestedByClerkId) {
-        await db.insert(notificationsTable).values({
-          userId: request.requestedByClerkId,
+        await notify({
+          clerkId: request.requestedByClerkId,
+          workspaceId: c.workspaceId,
           type: "document_request",
+          title: "A requested document has arrived",
           message: `${c.user.displayName} uploaded "${doc!.name}" for "${request.documentName}".`,
           link: "/documents",
+          dedupe: false,
         });
       }
     }

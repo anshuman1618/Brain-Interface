@@ -161,6 +161,48 @@ CREATE TABLE IF NOT EXISTS mail_outbox (
   sent_at TIMESTAMPTZ
 );
 
+-- Push: the handsets, and every message aimed at one. Mirrors mail_outbox,
+-- because a push that failed has to stay as visible as an email that did.
+CREATE TABLE IF NOT EXISTS device_tokens (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  workspace_id INTEGER NOT NULL,
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revoked_at TIMESTAMPTZ,
+  -- Inline here rather than as a separate ALTER: this file is re-run on every
+  -- preview boot, and the upsert in routes/devices.ts needs the constraint to
+  -- exist the first time it runs, not the second.
+  CONSTRAINT device_tokens_ws_token_key UNIQUE (workspace_id, token)
+);
+
+CREATE INDEX IF NOT EXISTS device_tokens_user_idx ON device_tokens (user_id);
+CREATE INDEX IF NOT EXISTS device_tokens_workspace_idx ON device_tokens (workspace_id);
+
+CREATE TABLE IF NOT EXISTS push_outbox (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER,
+  user_id INTEGER,
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  link TEXT NOT NULL DEFAULT '',
+  kind TEXT NOT NULL DEFAULT 'notice',
+  status TEXT NOT NULL DEFAULT 'queued',
+  transport TEXT NOT NULL DEFAULT '',
+  error TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TIMESTAMPTZ,
+  last_attempt_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sent_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS push_outbox_due_idx ON push_outbox (status, next_attempt_at);
+
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   clerk_id TEXT NOT NULL UNIQUE,

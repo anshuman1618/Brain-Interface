@@ -6,6 +6,7 @@ export * from "./audit_events";
 export * from "./deletion_requests";
 export * from "./payment_events";
 export * from "./mail_outbox";
+export * from "./push";
 export * from "./calendar_entries";
 export * from "./feedback";
 export * from "./beta_feedback";

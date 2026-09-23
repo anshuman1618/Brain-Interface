@@ -84,6 +84,29 @@ export interface HealthStatus {
   status: string;
 }
 
+export type DeviceRegistrationPlatform = typeof DeviceRegistrationPlatform[keyof typeof DeviceRegistrationPlatform];
+
+
+export const DeviceRegistrationPlatform = {
+  ios: 'ios',
+  android: 'android',
+} as const;
+
+export interface DeviceRegistration {
+  /**
+     * The FCM registration token. Opaque to the server.
+     * @minLength 16
+     * @maxLength 4096
+     */
+  token: string;
+  platform: DeviceRegistrationPlatform;
+}
+
+export interface RegisteredDevice {
+  id: number;
+  platform: string;
+}
+
 export type UserProfileRole = typeof UserProfileRole[keyof typeof UserProfileRole];
 
 

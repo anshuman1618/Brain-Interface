@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq } from "drizzle-orm";
 import { db, subscriptionsTable, isPreviewDatabase, isSubscriptionPlan } from "@workspace/db";
 import { isPreviewAuth } from "../lib/preview-mode";
+import { runRemindersNow } from "../lib/reminder-scheduler";
 import { requireWorkspace, ctx, type AuthRequest } from "../middlewares/requireAuth";
 
 const router: IRouter = Router();
@@ -148,5 +149,30 @@ router.post(
     res.json({ activated: true, plan, currentPeriodEnd: end.toISOString() });
   },
 );
+
+/**
+ * Run the reminder sweep now, rather than on the half hour.
+ *
+ * The sweep is what turns a hearing tomorrow into a notification, an email and
+ * a push. Nothing else can trigger it: it is a `node-cron` job, so a suite that
+ * wanted to assert on its output would have to wait up to thirty minutes for a
+ * tick it cannot influence. This is the seam that makes the whole reminder path
+ * — audience fan-out, dedup, the push outbox — testable at all.
+ *
+ * Guarded exactly like the two routes above: 404 unless the process is in
+ * preview mode on a preview database, which `NODE_ENV=production` makes
+ * impossible. It also takes no input, so the worst it can do is run work the
+ * scheduler was going to do anyway, sooner. Everything it triggers is
+ * idempotent — `notify()` refuses a message it has already sent — so calling it
+ * twice is not a way to notify anybody twice.
+ */
+router.post("/preview/run-reminders", requireWorkspace, async (_req, res): Promise<void> => {
+  if (!isPreviewAuth() || !isPreviewDatabase()) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const result = await runRemindersNow();
+  res.json({ ran: true, ...result });
+});
 
 export default router;

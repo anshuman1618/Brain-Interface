@@ -35,6 +35,7 @@ import { PlanBanner } from "@/components/plan-banner";
 import { CredentialsNotice } from "@/components/credentials-notice";
 import { DraftingNotice } from "@/components/drafting/drafting-notice";
 import { NoticeStrip } from "@/components/notice-strip";
+import { MobileSettings } from "@/components/mobile-settings";
 import { DocumentRequestModal } from "@/components/document-request-modal";
 import { TaskFormModal } from "@/components/task-form-modal";
 import { CaseFormModal } from "@/components/case-form-modal";
@@ -212,6 +213,11 @@ function StaffDashboard() {
         <CredentialsNotice />
         <DraftingNotice />
       </NoticeStrip>
+
+      {/* Renders nothing at all in a browser. On a handset it is the only place
+          notifications and the app lock can be switched on, so it sits above
+          the fold rather than behind a settings screen nobody opens. */}
+      <MobileSettings />
 
       <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
         <div>

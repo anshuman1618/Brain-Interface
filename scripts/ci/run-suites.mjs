@@ -30,6 +30,7 @@ const SUITES = [
   ["drafting", "AI drafting: the gates, the budget, and what leaves the server"],
   ["operator", "Operator metrics: the allowlist, and the numbers"],
   ["blob-storage", "File storage: the R2 signer and the backend choice"],
+  ["push", "Push notifications: registration, the tenant boundary, and hearings"],
   ["phone-identity", "Mobile numbers: normalisation to E.164"],
   ["phone-admission", "Mobile numbers: founding, inviting and being admitted"],
   ["gov", "Files, audit, quota, privacy, conflicts"],

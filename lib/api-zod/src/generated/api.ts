@@ -2358,6 +2358,39 @@ export const MarkAllNotificationsReadResponse = zod.object({
 
 
 /**
+ * Registers an FCM token against the caller's ACTIVE workspace. The workspace is taken from the session and never from the body, so a device cannot be registered against a chamber the caller does not belong to.
+ *
+ * Upserts on (workspace, token): the OS reissues a token on reinstall and on restore to a new handset, so the app re-registers on every launch and this has to update a row rather than accumulate one per launch.
+ * @summary Register this handset for push notifications
+ */
+export const registerDeviceBodyTokenMin = 16;
+export const registerDeviceBodyTokenMax = 4096;
+
+
+
+export const RegisterDeviceBody = zod.object({
+  "token": zod.string().min(registerDeviceBodyTokenMin).max(registerDeviceBodyTokenMax).describe('The FCM registration token. Opaque to the server.'),
+  "platform": zod.enum(['ios', 'android'])
+})
+
+export const RegisterDeviceResponse = zod.object({
+  "id": zod.number(),
+  "platform": zod.string()
+})
+
+
+/**
+ * Revoked rather than deleted, so "notifications were switched off" stays answerable afterwards. A device belonging to another member is a 404, not a 403 — which of them exist is not something to confirm.
+ * @summary Stop sending notifications to this handset
+ */
+export const RevokeDeviceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RevokeDeviceResponse = zod.void()
+
+
+/**
  * @summary List document requests (staff sees all; clients see their own)
  */
 export const ListDocumentRequestsResponseItem = zod.object({

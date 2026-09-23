@@ -1,12 +1,6 @@
 import { Router, type IRouter } from "express";
 import { and, eq } from "drizzle-orm";
-import {
-  db,
-  documentRequestsTable,
-  usersTable,
-  casesTable,
-  notificationsTable,
-} from "@workspace/db";
+import { db, documentRequestsTable, usersTable, casesTable } from "@workspace/db";
 import { CreateDocumentRequestBody, UpdateDocumentRequestBody } from "@workspace/api-zod";
 import {
   requireWorkspace,
@@ -17,6 +11,7 @@ import {
 } from "../middlewares/requireAuth";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { displayRole } from "../lib/permissions";
+import { notify } from "../lib/notify";
 
 const router: IRouter = Router();
 
@@ -134,11 +129,24 @@ router.post(
       })
       .returning();
 
-    await db.insert(notificationsTable).values({
-      userId: recipient.clerkId,
+    /*
+     * The client on the other end of a document request is the member most
+     * likely to have been admitted by mobile number and to have no email at
+     * all. Before push, the bell row was the only trace — and a bell is only
+     * seen by somebody already looking at the app.
+     *
+     * `dedupe: false` because asking for the same document twice is two
+     * requests, and the second being worded identically to the first is the
+     * normal case, not a repeated scheduler tick.
+     */
+    await notify({
+      clerkId: recipient.clerkId,
+      workspaceId: c.workspaceId,
       type: "document_request",
+      title: "A document has been requested",
       message: `Action required: "${parsed.data.documentName}" has been requested by ${c.user.displayName} (${displayRole(c.role)}).`,
       link: "/dashboard",
+      dedupe: false,
     });
 
     res.status(201).json(await enrich(created));
@@ -189,11 +197,14 @@ router.patch(
       .returning();
 
     if (parsed.data.status !== existing.status && existing.requestedByClerkId) {
-      await db.insert(notificationsTable).values({
-        userId: existing.requestedByClerkId,
+      await notify({
+        clerkId: existing.requestedByClerkId,
+        workspaceId: c.workspaceId,
         type: "document_request",
+        title: "A document request was updated",
         message: `${existing.requestedFromName || "The client"} marked "${existing.documentName}" as ${parsed.data.status}.`,
         link: "/dashboard",
+        dedupe: false,
       });
     }
 

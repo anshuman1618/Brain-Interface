@@ -8,6 +8,7 @@ import { encryptionKey } from "../lib/blob-store";
 import { paymentsEnabled } from "../lib/razorpay";
 import { logger } from "../lib/logger";
 import { describeBlobBackend } from "../lib/blob-backends";
+import { pushConfigured } from "../lib/push";
 
 const router: IRouter = Router();
 
@@ -135,6 +136,9 @@ router.get("/readyz", async (_req, res) => {
     fileStorage: describeBlobBackend().backend,
     paymentsConfigured: paymentsEnabled(),
     emailConfigured: Boolean(process.env["SMTP_HOST"]?.trim()),
+    // Reported beside email and, like it, NOT gating `ready`. A chamber
+    // with no Firebase project still works; it just gets no push.
+    pushConfigured: pushConfigured(),
     errorReportingConfigured: Boolean(process.env["ERROR_WEBHOOK_URL"]?.trim()),
     /** Unset in production means every restart signs everyone out. */
     workspaceTokenSecretSet: Boolean(process.env["WORKSPACE_TOKEN_SECRET"]?.trim()),
@@ -189,6 +193,9 @@ export async function readinessDetail(): Promise<Record<string, unknown>> {
     fileStorage: describeBlobBackend().backend,
     paymentsConfigured: paymentsEnabled(),
     emailConfigured: Boolean(process.env["SMTP_HOST"]?.trim()),
+    // Reported beside email and, like it, NOT gating `ready`. A chamber
+    // with no Firebase project still works; it just gets no push.
+    pushConfigured: pushConfigured(),
     errorReportingConfigured: Boolean(process.env["ERROR_WEBHOOK_URL"]?.trim()),
     workspaceTokenSecretSet: Boolean(process.env["WORKSPACE_TOKEN_SECRET"]?.trim()),
     aiConfigured: Boolean(process.env["ANTHROPIC_API_KEY"]?.trim()),
