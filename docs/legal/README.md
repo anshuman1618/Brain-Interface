@@ -38,9 +38,11 @@ facts and document text to a third country, and a privacy policy that did not
 mention it was the largest inaccuracy in this directory. Both tables now carry
 it, with the off-by-default behaviour and the audit record described.
 
-**One placeholder remains: `[PLACE OF BUSINESS]`**, in six places across the
-Terms and the Privacy Policy. It is also the court named in Terms §13 and the
-address the e-commerce rules require you to display. One find-and-replace.
+**No placeholders remain.** The principal place of business is
+**Sector I, Jankipuram, Lucknow, Uttar Pradesh**, filled in on 24 September 2026
+across the Terms and the Privacy Policy. It also fixed the governing-law seat:
+Terms §13 now names the courts at **Lucknow, Uttar Pradesh**, and the address
+the e-commerce rules require you to display is now displayed.
 
 The email provider row stays `[NOT YET ENGAGED]` deliberately: `SMTP_HOST` is
 unset, so reminders and erasure notices are recorded and not sent. Fill it in
@@ -92,8 +94,9 @@ the product. It does not make them sufficient for your business.
 **A qualified lawyer must review them before you accept a single rupee.** In
 particular:
 
-- `[PLACE OF BUSINESS]` is the last placeholder, and it fixes the
-  governing-law seat as well as the address. Fill it in before publishing.
+- The place of business is now filled in, and with it the governing-law seat
+  in Terms §13 — the courts at Lucknow. Confirm that is the forum you want;
+  it follows from §1 rather than having been chosen separately.
 - The limitation-of-liability and indemnity clauses are the ones your counsel
   will most want to change. The numbers in them are placeholders chosen to be
   obviously provisional, not commercially negotiated positions.

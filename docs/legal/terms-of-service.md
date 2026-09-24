@@ -4,17 +4,16 @@
 
 Last updated: 28 August 2026 · Version 1.0
 
-> **Draft pending review by counsel.** One placeholder remains —
-> `[PLACE OF BUSINESS]`, which also fixes the court named in §13. See
+> **Draft pending review by counsel.** No placeholders remain. See
 > `docs/legal/README.md`.
 
 ## 1. Who these terms are between
 
 These terms form an agreement between **Anshuman Chauhan**, a sole proprietor
 carrying on business in India under the name **LEX Practice**, with a principal
-place of business at [PLACE OF BUSINESS] ("we", "us", "LEX Practice"), and the
-chamber, firm or sole practitioner that subscribes to the Service ("you", "the
-Chamber").
+place of business at Sector I, Jankipuram, Lucknow, Uttar Pradesh ("we", "us",
+"LEX Practice"), and the chamber, firm or sole practitioner that subscribes to
+the Service ("you", "the Chamber").
 
 LEX Practice is a proprietorship, not a company. It has no CIN, and the
 proprietor is personally liable for its obligations — subject to §11.
@@ -201,7 +200,7 @@ Service itself infringes a third party's intellectual property in India.
 ## 13. Governing law
 
 These terms are governed by the laws of India. The courts at the place of our
-business — **[PLACE OF BUSINESS]**, as stated in §1 — have exclusive
+business — **Lucknow, Uttar Pradesh**, as stated in §1 — have exclusive
 jurisdiction, save that either party may seek urgent injunctive relief anywhere.
 
 Nothing in this section takes away a consumer's right to complain to a District,

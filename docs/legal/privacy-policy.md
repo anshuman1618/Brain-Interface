@@ -4,14 +4,14 @@
 
 Last updated: 28 August 2026 · Version 1.0
 
-> **Draft pending review by counsel.** One placeholder remains —
-> `[PLACE OF BUSINESS]`. See `docs/legal/README.md`.
+> **Draft pending review by counsel.** No placeholders remain. See
+> `docs/legal/README.md`.
 
 ## Who we are
 
 **Anshuman Chauhan**, a sole proprietor carrying on business in India as **LEX
-Practice**, at [PLACE OF BUSINESS], operates this Service. It is a
-proprietorship, not a company, and has no CIN.
+Practice**, at Sector I, Jankipuram, Lucknow, Uttar Pradesh, operates this
+Service. It is a proprietorship, not a company, and has no CIN.
 
 This policy explains what we do with personal data. It is written to describe
 **what the software actually does**, not what a template says it might.
@@ -273,7 +273,7 @@ material takes effect.
 | ---------------------------- | ----------------------------------------------- |
 | Privacy questions and rights | anshumanchauhan0661@gmail.com                   |
 | **Grievance Officer** (DPDP) | Anshuman Chauhan, anshumanchauhan0661@gmail.com |
-| Postal                       | [PLACE OF BUSINESS]                             |
+| Postal                       | Sector I, Jankipuram, Lucknow, Uttar Pradesh    |
 
 **Anshuman Chauhan is the Grievance Officer** for the purposes of §13(3) of the
 DPDP Act 2023, and is the person to whom questions about this policy, requests
