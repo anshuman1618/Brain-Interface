@@ -6,6 +6,7 @@ import { userMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoadFailed } from "@/components/load-failed";
 
 /**
  * The bar-registration gate, and the advocate's credentials.
@@ -44,7 +45,7 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
   // Reached two ways: as the hard gate (nothing declared yet, starts blank)
   // and as a deliberate revisit from Team Roles to correct what was declared
   // — this is what fills the form with the latter's current values.
-  const { data: me } = useGetMe();
+  const { data: me, isError: meFailed, error: meError, refetch: refetchMe } = useGetMe();
 
   const [barCouncilState, setBarCouncilState] = useState("");
   const [barEnrolmentNo, setBarEnrolmentNo] = useState("");
@@ -93,6 +94,29 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
       setError(userMessage(err, "Could not record that. Try again."));
     }
   };
+
+  /*
+    A failed read blocks the form rather than showing it blank.
+
+    This screen is also the revisit path from Team Roles, so the fields are
+    pre-filled from `me`. If that read failed we do not know what was declared,
+    and an empty form invites an advocate to overwrite a real bar enrolment
+    with whatever they retype. Null values with a SUCCESSFUL read are the
+    first-time path and still render the form.
+  */
+  if (meFailed) {
+    return (
+      <div className="min-h-[100dvh] bg-background text-foreground flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          <LoadFailed
+            error={meError}
+            onRetry={() => void refetchMe()}
+            what="your bar registration"
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[100dvh] bg-background text-foreground flex items-center justify-center px-4 py-12 relative">

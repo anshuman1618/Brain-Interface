@@ -852,6 +852,43 @@ for (const path of ["/dashboard", "/cases", "/invites"]) {
 
 await touchCtx.close();
 
+/* ──────────── A failed load must not read as an empty chamber ──────────── */
+
+/*
+ * The bug this proves absent: TanStack Query returns errors rather than
+ * throwing, so `ErrorBoundary` never sees them and a page falls through to its
+ * empty state. A chamber whose request failed was told "No matters yet" — that
+ * its files were gone.
+ *
+ * Forced rather than waited for: the request is aborted at the network layer,
+ * which is the one way to make a real failure happen on demand. Asserting BOTH
+ * halves matters — that the error appears, and that the empty state does not,
+ * because the bug was never a missing error message but an empty state
+ * standing in for one.
+ */
+section("12. A failed request says so, and does not claim the chamber is empty");
+
+await page.route("**/api/cases**", (route) => route.abort("failed"));
+await page.goto(`${BASE}/cases`, { waitUntil: "domcontentloaded" });
+// `new QueryClient()` takes TanStack Query's default retry: three attempts
+// with exponential backoff, so `isError` does not settle for roughly seven
+// seconds. Waiting less than that tests the loading state, not the error one.
+await page.waitForTimeout(12000);
+const failedText = await text();
+
+check(
+  "a failed matter list renders the failure",
+  /could not load/i.test(failedText) && /try again/i.test(failedText),
+  failedText.slice(0, 200),
+);
+check(
+  "...and does NOT fall through to the empty state",
+  !/no matters yet/i.test(failedText),
+  "an empty state over a failed request tells a chamber its files are gone",
+);
+
+await page.unroute("**/api/cases**");
+
 /* ───────────────────────────── Wrap up ──────────────────────────────────── */
 
 console.log(`\nConsole errors: ${consoleErrors.length}`);

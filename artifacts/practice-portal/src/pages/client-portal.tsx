@@ -14,9 +14,24 @@ import { Button } from "@/components/ui/button";
 import { FileText, FileLock2, Clock, Download, Receipt } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { formatMinor } from "@/lib/format";
+import { LoadFailed } from "@/components/load-failed";
 
 export default function ClientPortalPage() {
-  const { data: cases, isLoading } = useListCases();
+  const { data: cases, isLoading, isError, error, refetch } = useListCases();
+
+  /*
+    A client is the reader least able to tell a failure from an emptiness.
+    An advocate who sees "No Active Matters" knows their own caseload; a client
+    reads it as the chamber having closed their file. So the failed load is
+    answered before the empty one, everywhere on this page.
+  */
+  if (isError) {
+    return (
+      <div className="p-8">
+        <LoadFailed error={error} onRetry={() => void refetch()} what="your matters" />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -177,7 +192,12 @@ function CaseOverviewCard({
   stageLabel: string | null;
 }) {
   const { data: timeline } = useGetCaseTimeline(caseId);
-  const { data: docs } = useListDocuments(caseId);
+  const {
+    data: docs,
+    isError: docsFailed,
+    error: docsError,
+    refetch: refetchDocs,
+  } = useListDocuments(caseId);
 
   const getStatusColor = (s: string) => {
     switch (s) {
@@ -247,11 +267,19 @@ function CaseOverviewCard({
                 </Button>
               </div>
             ))}
-            {(!docs || docs.length === 0) && (
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Nothing has been shared with you yet. Documents your advocate releases to you will
-                appear here.
-              </p>
+            {docsFailed ? (
+              <LoadFailed
+                error={docsError}
+                onRetry={() => void refetchDocs()}
+                what="your documents"
+              />
+            ) : (
+              (!docs || docs.length === 0) && (
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Nothing has been shared with you yet. Documents your advocate releases to you will
+                  appear here.
+                </p>
+              )
             )}
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useListAuditEvents, getListAuditEventsQueryKey } from "@workspace/api-c
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/utils";
 import { ShieldCheck, Info } from "lucide-react";
+import { LoadFailed } from "@/components/load-failed";
 
 /**
  * The chamber's audit log.
@@ -25,7 +26,7 @@ function label(action: string): string {
 }
 
 export default function ActivityPage() {
-  const { data, isLoading } = useListAuditEvents(
+  const { data, isLoading, isError, error, refetch } = useListAuditEvents(
     { limit: 200 },
     { query: { queryKey: getListAuditEventsQueryKey({ limit: 200 }) } },
   );
@@ -40,7 +41,9 @@ export default function ActivityPage() {
         </p>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <LoadFailed error={error} onRetry={() => void refetch()} what="the activity ledger" />
+      ) : isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" />

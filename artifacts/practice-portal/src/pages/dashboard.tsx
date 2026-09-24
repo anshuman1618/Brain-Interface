@@ -48,6 +48,7 @@ import { useSession } from "@/lib/session";
 import { greet, todayLong } from "@/lib/greeting";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { LoadFailed } from "@/components/load-failed";
 
 /**
  * Quick-action tiles.
@@ -113,7 +114,13 @@ function FirstRunStep({
 }
 
 function StaffDashboard() {
-  const { data: summary, isLoading: summaryLoading } = useGetDashboardSummary({
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError: summaryFailed,
+    error: summaryError,
+    refetch: refetchSummary,
+  } = useGetDashboardSummary({
     query: { refetchInterval: 30000, queryKey: getGetDashboardSummaryQueryKey() },
   });
   const { data: tasks, isLoading: tasksLoading } = useListTasks(undefined, {
@@ -267,7 +274,18 @@ function StaffDashboard() {
         would flash the first-run panel at every existing chamber on every
         refresh, which is a worse bug than the one being fixed.
       */}
-      {!summaryLoading && openCases.length === 0 && can("cases.write") ? (
+      {summaryFailed && (
+        <LoadFailed
+          error={summaryError}
+          onRetry={() => void refetchSummary()}
+          what="your dashboard"
+        />
+      )}
+
+      {/* `summaryFailed` guards this too: a failed summary leaves `openCases`
+          empty, which would greet an established chamber with "Your chamber is
+          empty" — the first-run panel telling them their matters are gone. */}
+      {!summaryLoading && !summaryFailed && openCases.length === 0 && can("cases.write") ? (
         <div className="rounded-[var(--radius)] bg-card p-5 sm:p-6 shadow-[var(--raise)]">
           <h3 className="text-lg font-bold tracking-tight">Your chamber is empty</h3>
           <p className="mt-1 text-sm text-muted-foreground max-w-xl">

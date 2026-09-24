@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useSession } from "@/lib/session";
 import { ROLE_OPTIONS, roleLabel, needsBarRegistration } from "@/lib/role-options";
 import { CaseAccessDialog } from "@/components/case-access-dialog";
+import { LoadFailed } from "@/components/load-failed";
 
 const ASSIGNABLE_ROLES = ROLE_OPTIONS.map((o) => o.value);
 
@@ -54,7 +55,7 @@ const RESTRICTABLE_ROLES = ["junior_advocate", "clerk_intern"];
 export default function TeamPage() {
   const { activeWorkspace, claims, can } = useSession();
   const [caseAccessFor, setCaseAccessFor] = useState<{ id: number; name: string } | null>(null);
-  const { data: members, isLoading } = useListWorkspaceMembers();
+  const { data: members, isLoading, isError, error, refetch } = useListWorkspaceMembers();
   const updateMember = useUpdateWorkspaceMember();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -124,7 +125,15 @@ export default function TeamPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isError ? (
+              <div className="p-4">
+                <LoadFailed
+                  error={error}
+                  onRetry={() => void refetch()}
+                  what="the chamber's members"
+                />
+              </div>
+            ) : isLoading ? (
               Array(4)
                 .fill(0)
                 .map((_, i) => (

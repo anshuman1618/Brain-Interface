@@ -5,6 +5,7 @@ import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { roleLabel } from "@/lib/role-options";
 import CreateChamberPage from "@/pages/create-chamber";
+import { LoadFailed } from "@/components/load-failed";
 
 /**
  * Where a signed-in user with no *selected* workspace lands.
@@ -25,7 +26,12 @@ import CreateChamberPage from "@/pages/create-chamber";
  */
 export default function PendingApprovalPage() {
   const { displayName, email, signOut, switchWorkspace, isSwitchingWorkspace } = useSession();
-  const { data: memberships = [] } = useListWorkspaces();
+  const {
+    data: memberships = [],
+    isError: membershipsFailed,
+    error: membershipsError,
+    refetch: refetchMemberships,
+  } = useListWorkspaces();
 
   const [founding, setFounding] = useState(false);
 
@@ -36,6 +42,26 @@ export default function PendingApprovalPage() {
 
   if (founding) {
     return <CreateChamberPage onCancel={() => setFounding(false)} />;
+  }
+
+  /*
+    Answered before every branch below, because all of them read an EMPTY
+    membership list as a fact about the person. A failed request leaves it
+    empty too — and the page then tells an admitted member of a chamber that
+    they are not in one, and offers to found them another.
+  */
+  if (membershipsFailed) {
+    return (
+      <div className="min-h-[100dvh] bg-background flex items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          <LoadFailed
+            error={membershipsError}
+            onRetry={() => void refetchMemberships()}
+            what="your chambers"
+          />
+        </div>
+      </div>
+    );
   }
 
   const heading = mustChoose

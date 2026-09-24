@@ -3,6 +3,7 @@ import { useGetSubscription, getGetSubscriptionQueryKey } from "@workspace/api-c
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { usePricingModal } from "@/components/pricing-modal";
+import { LoadFailed } from "@/components/load-failed";
 
 /**
  * The subscription screen, shown once, just after a chamber is set up.
@@ -53,7 +54,7 @@ export default function ChoosePlanPage({ onSkip }: { onSkip?: () => void }) {
   const { setOpen } = usePricingModal();
   const canManage = can("billing.manage");
 
-  const { data, isLoading } = useGetSubscription({
+  const { data, isLoading, isError, error, refetch } = useGetSubscription({
     query: { queryKey: getGetSubscriptionQueryKey() },
   });
 
@@ -69,6 +70,16 @@ export default function ChoosePlanPage({ onSkip }: { onSkip?: () => void }) {
         maximumFractionDigits: 0,
       }).format(trialQuote.amountMinor / 100)
     : "₹99";
+
+  // A plan screen that cannot read the subscription must say so. Falling
+  // through would offer a chamber a plan it may already hold.
+  if (isError) {
+    return (
+      <div className="mx-auto max-w-xl p-8">
+        <LoadFailed error={error} onRetry={() => void refetch()} what="your subscription" />
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

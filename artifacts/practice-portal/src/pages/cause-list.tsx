@@ -29,6 +29,7 @@ import { Gavel, Check, X, CalendarCheck, ChevronDown, RefreshCw } from "lucide-r
 import { useToast } from "@/hooks/use-toast";
 import { userMessage } from "@/lib/errors";
 import { useSession } from "@/lib/session";
+import { LoadFailed } from "@/components/load-failed";
 
 /**
  * Listings a court published that appear to be this chamber's matters.
@@ -241,7 +242,13 @@ export default function CauseListPage() {
 
   const canDecide = can("calendar.write");
 
-  const { data: proposals = [], isLoading } = useListCauseListProposals(
+  const {
+    data: proposals = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useListCauseListProposals(
     { status },
     { query: { queryKey: getListCauseListProposalsQueryKey({ status }) } },
   );
@@ -304,7 +311,9 @@ export default function CauseListPage() {
         ))}
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <LoadFailed error={error} onRetry={() => void refetch()} what="the proposed listings" />
+      ) : isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-28 w-full" />

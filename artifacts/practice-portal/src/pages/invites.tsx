@@ -42,10 +42,11 @@ import { AccessRequestQueue } from "@/components/access-request-queue";
 import { AccessListManager } from "@/components/access-list-manager";
 import { useSession } from "@/lib/session";
 import { ROLE_OPTIONS } from "@/lib/role-options";
+import { LoadFailed } from "@/components/load-failed";
 
 export default function InvitesPage() {
   const { activeWorkspace } = useSession();
-  const { data: invites, isLoading } = useListInvites();
+  const { data: invites, isLoading, isError, error, refetch } = useListInvites();
   const createInvite = useCreateInvite();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -220,7 +221,11 @@ export default function InvitesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isError ? (
+              <div className="p-4">
+                <LoadFailed error={error} onRetry={() => void refetch()} what="the invitations" />
+              </div>
+            ) : isLoading ? (
               Array(3)
                 .fill(0)
                 .map((_, i) => (

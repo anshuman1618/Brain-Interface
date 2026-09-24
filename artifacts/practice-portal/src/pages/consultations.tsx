@@ -34,9 +34,10 @@ import { CheckCircle2, Plus } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { LoadFailed } from "@/components/load-failed";
 
 export default function ConsultationsPage() {
-  const { data: consultations = [], isLoading } = useListConsultations();
+  const { data: consultations = [], isLoading, isError, error, refetch } = useListConsultations();
   const { data: cases = [] } = useListCases();
   const updateConsultation = useUpdateConsultation();
   const createConsultation = useCreateConsultation();
@@ -155,7 +156,15 @@ export default function ConsultationsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isError ? (
+              <div className="p-4">
+                <LoadFailed
+                  error={error}
+                  onRetry={() => void refetch()}
+                  what="the consultation log"
+                />
+              </div>
+            ) : isLoading ? (
               [...Array(5)].map((_, i) => (
                 <TableRow key={i}>
                   <TableCell>

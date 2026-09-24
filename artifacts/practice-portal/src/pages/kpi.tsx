@@ -15,9 +15,17 @@ import {
 } from "recharts";
 import { AlertTriangle, TrendingUp, CheckCircle, Clock } from "lucide-react";
 import { ChamberPerformance } from "@/components/chamber-performance";
+import { LoadFailed } from "@/components/load-failed";
 
 export default function KpiPage() {
-  const { data: kpi, isLoading } = useGetKpiDashboard();
+  const { data: kpi, isLoading, isError, error, refetch } = useGetKpiDashboard();
+
+  // Before the loading branch: `if (!kpi) return null` below renders a blank
+  // screen on failure, which reads as "the chamber has no numbers" rather than
+  // "the numbers could not be fetched".
+  if (isError) {
+    return <LoadFailed error={error} onRetry={() => void refetch()} what="the KPI dashboard" />;
+  }
 
   if (isLoading) {
     return (

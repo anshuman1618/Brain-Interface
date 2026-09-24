@@ -31,6 +31,7 @@ import { PenLine, ScanSearch, Trash2, Loader2, AlertTriangle } from "lucide-reac
 import { useToast } from "@/hooks/use-toast";
 import { userMessage } from "@/lib/errors";
 import { BudgetMeter } from "@/components/drafting/budget-meter";
+import { LoadFailed } from "@/components/load-failed";
 
 /**
  * Draft a document, or be briefed on the matter before it is filed.
@@ -224,7 +225,12 @@ export default function DraftingPage() {
   const queryClient = useQueryClient();
   const [, params] = useRoute("/drafting/:caseId");
 
-  const { data: cases = [] } = useListCases(undefined, {
+  const {
+    data: cases = [],
+    isError: casesFailed,
+    error: casesError,
+    refetch: refetchCases,
+  } = useListCases(undefined, {
     query: { queryKey: getListCasesQueryKey() },
   });
 
@@ -296,6 +302,13 @@ export default function DraftingPage() {
 
   return (
     <div className="space-y-4">
+      {/* The matter picker below reads an empty list as "this chamber has no
+          matters". A failed load leaves it empty too, and an advocate is then
+          told there is nothing to draft against. */}
+      {casesFailed && (
+        <LoadFailed error={casesError} onRetry={() => void refetchCases()} what="your matters" />
+      )}
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-mono text-lg uppercase tracking-wider">Drafting &amp; AI analysis</h1>

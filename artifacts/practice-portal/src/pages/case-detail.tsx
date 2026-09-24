@@ -68,6 +68,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TimeLogPanel } from "@/components/time-log-panel";
 import { CaseCourtIdentity } from "@/components/case-court-identity";
 import { StagePicker } from "@/components/stage-picker";
+import { LoadFailed } from "@/components/load-failed";
 import { groupByStage } from "@/lib/case-stages";
 import { userMessage } from "@/lib/errors";
 
@@ -79,7 +80,13 @@ export default function CaseDetailPage() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: caseData, isLoading: caseLoading } = useGetCase(caseId, {
+  const {
+    data: caseData,
+    isLoading: caseLoading,
+    isError: caseFailed,
+    error: caseError,
+    refetch: refetchCase,
+  } = useGetCase(caseId, {
     query: { enabled: !!caseId, queryKey: getGetCaseQueryKey(caseId) },
   });
   const { data: timeline } = useGetCaseTimeline(caseId, {
@@ -136,6 +143,17 @@ export default function CaseDetailPage() {
         <Skeleton className="h-64 w-full" />
       </div>
     );
+  /*
+    Failure and absence are different answers and must not share a screen.
+
+    This read `if (!caseData) return "Case not found."`, which is what a
+    dropped connection, an expired session and a genuinely deleted matter all
+    produced. Telling an advocate their matter is gone when the request merely
+    failed is the worst version of this bug in the app — so `isError` is
+    checked first, and "not found" is left to mean only what it says.
+  */
+  if (caseFailed)
+    return <LoadFailed error={caseError} onRetry={() => void refetchCase()} what="this matter" />;
   if (!caseData) return <div>Case not found.</div>;
 
   const handleStatusChange = (newStatus: CaseUpdateStatus) => {

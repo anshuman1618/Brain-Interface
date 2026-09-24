@@ -42,6 +42,7 @@ import {
 import { CalendarSkeleton } from "@/components/module-skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, CalendarDays } from "lucide-react";
+import { LoadFailed } from "@/components/load-failed";
 
 const localizer = dateFnsLocalizer({
   format,
@@ -320,18 +321,7 @@ export default function CalendarPage() {
   if (entriesLoading || tasksLoading) return <CalendarSkeleton />;
 
   if (isError) {
-    return (
-      <div className="border border-destructive/40 bg-destructive/5 p-10 text-center">
-        <CalendarDays className="h-8 w-8 text-destructive mx-auto mb-3" />
-        <p className="font-medium mb-1">Couldn't load the calendar</p>
-        <p className="text-sm text-muted-foreground">
-          {error instanceof Error ? error.message : "The request failed."}
-        </p>
-        <Button variant="outline" className="rounded-lg mt-5" onClick={refresh}>
-          Retry
-        </Button>
-      </div>
-    );
+    return <LoadFailed error={error} onRetry={refresh} what="the calendar" />;
   }
 
   return (

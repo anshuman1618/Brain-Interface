@@ -30,6 +30,7 @@ import {
 import { Lightbulb, FileText, Plus, Trash2, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { userMessage } from "@/lib/errors";
+import { LoadFailed } from "@/components/load-failed";
 
 /**
  * What this chamber knows, and how it writes.
@@ -74,7 +75,12 @@ function InsightsTab() {
   const [tags, setTags] = useState("");
   const [courtId, setCourtId] = useState("none");
 
-  const { data: insights = [] } = useListInsights(undefined, {
+  const {
+    data: insights = [],
+    isError: insightsFailed,
+    error: insightsError,
+    refetch: refetchInsights,
+  } = useListInsights(undefined, {
     query: { queryKey: getListInsightsQueryKey() },
   });
   const { data: courts = [] } = useListCourts({ query: { queryKey: getListCourtsQueryKey() } });
@@ -161,7 +167,13 @@ function InsightsTab() {
         </div>
       </div>
 
-      {insights.length === 0 ? (
+      {insightsFailed ? (
+        <LoadFailed
+          error={insightsError}
+          onRetry={() => void refetchInsights()}
+          what="the chamber's notes"
+        />
+      ) : insights.length === 0 ? (
         <p className="rounded-lg bg-card p-4 text-sm leading-relaxed text-muted-foreground shadow-sm">
           Nothing recorded yet. These notes are what make a draft read like it came from this
           chamber rather than from a textbook — they are searched and fed to the model whenever a
