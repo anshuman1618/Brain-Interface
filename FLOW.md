@@ -135,8 +135,12 @@ model.
         │                          HTML and never the SPA shell
         │
   ⑫  legalRouter                   routes/legal.ts — /legal/{terms,privacy,
-        │                          notice,dpa}. Outside /api because someone
-        │                          who never signs in must be able to read them.
+        │                          notice,dpa,summary,disclosure}. Outside /api
+        │                          because someone who never signs in must be
+        │                          able to read them — and for `disclosure`
+        │                          that is the whole point: Terms §5 sends a
+        │                          security researcher there for the standing
+        │                          permission to look at all.
         │
   ⑬  mountStaticClient(app)        middlewares/staticClient.ts
         │                          Serves the built SPA + history fallback.

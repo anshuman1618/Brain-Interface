@@ -267,6 +267,18 @@ export default function LandingPage() {
               >
                 Processing
               </a>
+              <a
+                href="/legal/summary"
+                className="hover:text-foreground inline-flex items-center min-h-10 px-1"
+              >
+                Data summary
+              </a>
+              <a
+                href="/legal/disclosure"
+                className="hover:text-foreground inline-flex items-center min-h-10 px-1"
+              >
+                Security
+              </a>
             </div>
           </div>
         </footer>

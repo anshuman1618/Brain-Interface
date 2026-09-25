@@ -216,6 +216,8 @@ for (const [path, label] of [
   ["/legal/privacy", "privacy policy"],
   ["/legal/notice", "data protection notice"],
   ["/legal/dpa", "processing agreement"],
+  ["/legal/summary", "data usage summary"],
+  ["/legal/disclosure", "responsible disclosure policy"],
 ]) {
   const r = await req(path);
   if (!r.ok) {

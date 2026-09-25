@@ -72,9 +72,14 @@ clients, or build products.
 
 - Use the Service to store material unlawful to possess, or to conduct anything
   unlawful.
-- Attempt to reach another chamber's data, defeat the access controls, or probe
-  the Service for vulnerabilities without our written permission. (If you find
-  something, tell us — see §14.)
+- Attempt to reach another chamber's data or defeat the access controls.
+- Probe the Service for vulnerabilities **outside** the
+  [Responsible Disclosure Policy](/legal/disclosure). That policy is the written
+  permission, and it is standing rather than something to request: research that
+  stays inside it is authorised, we will not pursue you for it, and we would
+  rather have the report. Research that leaves it — reaching a real chamber's
+  data, degrading the Service for others, social engineering — is this
+  prohibition, and the policy says so in the same words.
 - Resell or white-label the Service without a written agreement.
 - Upload material you know to be malicious.
 
@@ -130,14 +135,59 @@ Service, not merely advertised. Reaching a limit prevents new matters or new
 members until you close something or move to a larger plan; it never restricts
 access to work already in the system.
 
-## 8. Availability
+## 8. Availability, and what we will and will not promise
 
-We aim for high availability but **do not commit to an uptime figure under these
-terms**. The Service is provided on an "as available" basis. We will schedule
-disruptive maintenance outside Indian court hours where we reasonably can.
+The Service is provided on an **"as available"** basis and these terms carry
+**no contractual uptime guarantee and no service credits**. That is a real
+limitation and this section explains it rather than hiding it in a phrase,
+because a chamber choosing a practice-management tool is entitled to know what
+it is choosing.
 
-If you need a contractual service level, that belongs in a Custom plan
-agreement.
+**What we aim for.** 99% availability in any calendar month, measured on the
+application answering requests, excluding the exclusions below. That is a
+target we hold ourselves to and report against if you ask — not a warranty.
+
+**What the deployment actually is, today.** One instance, in Singapore, on a
+plan that **puts the application to sleep after a period with no traffic**. The
+consequences are worth stating plainly because you will notice them:
+
+- The **first request after an idle period takes up to about a minute** while
+  the application starts. Subsequent requests are normal.
+- A deploy, a restart or an instance fault is a **short full outage**, not a
+  rolling one, because there is no second instance to take the traffic.
+- Uploaded documents do not survive a restart. See the Privacy Policy under
+  "Retention"; it is the most consequential item on this page and it is not a
+  policy choice, it is an unfinished piece of infrastructure.
+
+Moving off that plan removes the first two and is a change to the deployment,
+not to these terms. This paragraph is here until it is done.
+
+**Maintenance.** We will schedule disruptive maintenance **outside Indian court
+hours** — that is, outside 09:00–18:00 IST on a working day — wherever we
+reasonably can, and give **48 hours' notice by email** for anything we expect to
+take the Service down for more than a few minutes. Deploys that we expect to be
+a matter of seconds go out without notice.
+
+**Not counted against the target:** anything caused by your own network or
+equipment; a failure of a provider named in the Privacy Policy's subprocessor
+table, where the fault is theirs and not our configuration of them; a
+suspension under §5; force majeure; and scheduled maintenance notified as above.
+
+**What we will tell you.** An outage lasting more than **two hours** gets an
+email to chamber administrators saying what happened and what we did. There is
+no public status page, and there will not be one while a single person operates
+the Service — a status page nobody updates during an incident is worse than
+none.
+
+**Support.** One person answers, at the address in §14, during Indian business
+hours. We aim to acknowledge within **one working day**, and within **2 working
+days** for a security report (§14) and **48 hours** for a grievance. There is no
+24×7 line and no on-call rota; do not build a court deadline around one.
+
+If you need a committed service level, service credits or an escalation path,
+that belongs in a written Custom plan agreement and we are willing to discuss
+one. It is not in these terms because promising it here, on a ₹99 pack, with one
+instance and one person, would be untrue on the day it was written.
 
 ## 9. Ending the agreement
 
@@ -228,13 +278,17 @@ as such.
 **Response times we hold ourselves to.** A grievance is acknowledged within
 **48 hours** and resolved within **30 days**. A security report is acknowledged
 within **2 working days**. We will not pursue action against good-faith research
-that respects other customers' data.
+that respects other customers' data — the scope, the safe harbour and what to
+expect after you report are set out in the
+[Responsible Disclosure Policy](/legal/disclosure).
 
 ## 15. General
 
 - **Assignment.** You may not assign these terms without our consent, not to be
   unreasonably withheld. We may assign on a sale of the business, on notice.
 - **Entire agreement.** These terms, the Privacy Policy, the DPA where it
-  applies, and any written order form are the whole agreement.
+  applies, the Responsible Disclosure Policy, and any written order form are the
+  whole agreement. The Data Usage Summary is a plain-language guide to the
+  others and adds nothing; where it and they differ, they govern.
 - **Severability.** If a clause is unenforceable, the rest survives.
 - **No waiver.** Not enforcing a term once does not waive it.

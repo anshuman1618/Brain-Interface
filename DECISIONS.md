@@ -3311,3 +3311,70 @@ live_ — a behavioural test would have gone green throughout. Section 11 of
 page is a scroll container with nothing to scroll **and** a refusal to chain.
 That property is engine-independent, and it fails on the pre-fix build on all
 six pages checked.
+
+---
+
+## Six legal documents, and the ones that admit things
+
+Four more pieces were added to `docs/legal/`, all of them describing the system
+as it is on the day they were written. The rule the directory already lived by —
+**a document describing behaviour the code does not have is a written
+admission** — cuts in the other direction too, so each of these says something
+unflattering rather than omitting it.
+
+**Cookies got a section because nothing anywhere disclosed them.** The useful
+part is the conclusion: there is no cookie banner and there is nothing for one
+to ask. Every cookie is Clerk's and strictly necessary, the API sets and reads
+none at all, and the five browser-storage keys are listed by name with what each
+holds and when it clears. `portal:workspaceToken` gets its own paragraph because
+it looks like a credential and is a pointer the server signed — editing it
+achieves nothing, since membership is re-read from the database on every
+request. Naming the keys is what makes that table testable against the code, and
+`README.md` now lists it as a coupling to watch.
+
+**Cause lists were written up before the parser landed, not after.** A court's
+daily list is the one category of personal data here belonging to people who
+never agreed to anything with anybody — parties, and opposing counsel. The basis
+is recorded rather than assumed: §3(c)(ii) of the DPDP Act puts publicly
+available data outside the Act, and §17(1)(b) and (d) exclude judicial-function
+processing and the enforcement of legal rights. Writing the reasoning down is
+the point; an unstated basis is one nobody can disagree with. The section also
+admits that **nothing prunes fetched listings**, because nothing does.
+
+**A service level, including the parts that are embarrassing.** Terms §8 said
+"as available" and published no target, no window and no exclusions, which is
+the shape of clause the e-commerce rules dislike — an offer that does not say
+what is offered. It now publishes a 99% monthly target, a maintenance window
+outside Indian court hours, the exclusions, and the three facts a chamber would
+otherwise discover for itself: one instance, a plan that sleeps when idle so the
+first request takes about a minute, and documents that do not survive a restart.
+No service credits, and the reason given plainly — promising them on a ₹99 pack,
+one instance, one person, would be untrue the day it was written.
+
+**Terms §5 was a prohibition wearing a policy's clothes.** It forbade probing
+"without our written permission" and added a parenthetical telling you to get in
+touch. A chamber's security reviewer reads the prohibition and stops there.
+`responsible-disclosure.md` is now that written permission, standing rather than
+requested, with a safe harbour, stated triage and fix times, an in-scope list, a
+"please genuinely do not" list led by _anything touching a real chamber's data_,
+and an admission that there is no bounty. §5 now points at it and draws its line
+in the same words the policy uses, so the two cannot drift apart. The
+out-of-scope list names both known gaps — missing CSP, no durable document
+storage, no backups — so a researcher does not spend a weekend on them.
+
+**The summary binds nobody, and says so at the top.** Four documents is the
+right amount of detail and the wrong amount to read before deciding. It exists
+to be read instead and then to point at the one that governs; where it and they
+differ, they win. Its middle section is four things to know before deciding, and
+the first is that uploaded documents can be lost.
+
+**Document durability is now disclosed, because it is now certain.** `R2_*` is
+unset on the Render service — the Cloudflare bucket alone does nothing — so
+uploaded files are destroyed on every deploy. That is disclosed the way the
+backup gap already was, in the Privacy Policy, DPA §4, Terms §8 and the summary.
+Disclosure is not the fix and the register says so.
+
+**What did not change: backups.** Privacy "Retention", DPA §4 and §7 still say
+there are none, pending confirmation of what the paid database plan actually
+does. Register §8's rule is that those move together or not at all, and it now
+lists five such couplings rather than one.

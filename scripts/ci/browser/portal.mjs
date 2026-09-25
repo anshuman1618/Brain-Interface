@@ -153,6 +153,8 @@ for (const [slug, expect] of [
   ["privacy", /privacy policy/i],
   ["notice", /digital personal data protection/i],
   ["dpa", /data processing agreement/i],
+  ["summary", /data usage summary/i],
+  ["disclosure", /responsible disclosure policy/i],
 ]) {
   const res = await page.goto(`${BASE}/legal/${slug}`, { waitUntil: "domcontentloaded" });
   const body = await text();
@@ -181,6 +183,19 @@ check("no password field anywhere", (await page.locator('input[type="password"]'
 check("says it is passwordless", /passwordless/i.test(await text()));
 check("offers a one-time code", /one-time code/i.test(await text()));
 check("legal links are present before sign-in", /terms of service/i.test(await text()));
+
+// Terms §5 sends a security researcher to /legal/disclosure for the permission
+// to look at all, so that page has to answer to somebody with no account. The
+// footer is where they will look for it.
+await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+check(
+  "the landing footer offers the disclosure policy",
+  (await page.locator('a[href="/legal/disclosure"]').count()) > 0,
+);
+check(
+  "...and the data usage summary",
+  (await page.locator('a[href="/legal/summary"]').count()) > 0,
+);
 
 /* ──────────────── 5. Every screen size, on every reachable page ─────────── */
 

@@ -14,9 +14,14 @@ import { logger } from "../lib/logger";
  * them.
  *
  * Markdown is rendered by the small converter below rather than a dependency.
- * The input is four files in this repository, not user content, and the
- * converter escapes HTML before it does anything else — so even if one of those
- * files were edited to contain markup, it renders as text.
+ * The input is a fixed set of files in this repository, not user content, and
+ * the converter escapes HTML before it does anything else — so even if one of
+ * those files were edited to contain markup, it renders as text.
+ *
+ * `/legal/disclosure` in particular has to be reachable by a stranger: a
+ * chamber's security reviewer looking for somewhere to send a report will not
+ * have an account, and Terms §5 points at it as the standing permission to do
+ * the research at all.
  */
 
 const DOCS: Record<string, { file: string; title: string }> = {
@@ -24,6 +29,8 @@ const DOCS: Record<string, { file: string; title: string }> = {
   privacy: { file: "privacy-policy.md", title: "Privacy Policy" },
   notice: { file: "dpdp-notice.md", title: "Data Protection Notice" },
   dpa: { file: "data-processing-agreement.md", title: "Data Processing Agreement" },
+  summary: { file: "data-usage-summary.md", title: "Data Usage Summary" },
+  disclosure: { file: "responsible-disclosure.md", title: "Responsible Disclosure Policy" },
 };
 
 /**
@@ -218,10 +225,12 @@ function page(title: string, body: string): string {
 <div class="wrap">
 <nav>
   <a href="/">LEX Practice</a>
+  <a href="/legal/summary">Summary</a>
   <a href="/legal/terms">Terms</a>
   <a href="/legal/privacy">Privacy</a>
   <a href="/legal/notice">Notice</a>
   <a href="/legal/dpa">Processing</a>
+  <a href="/legal/disclosure">Security</a>
 </nav>
 ${body}
 <footer>These documents are also maintained in the source repository under <code>docs/legal/</code>.</footer>

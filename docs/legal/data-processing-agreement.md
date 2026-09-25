@@ -88,9 +88,18 @@ These are implemented, not aspirational:
 - Staff access to production limited to those who need it, and logged.
 - Dependency and supply-chain controls in the build.
 
-**One measure we do not yet have, stated rather than implied.** The database is
-provisioned on a plan that takes **no automated backups and offers no
-point-in-time recovery**. A Chamber assessing us should treat loss of the live
+**Two measures we do not yet have, stated rather than implied.**
+
+First: **uploaded documents are not held on durable storage.** Files a Chamber
+uploads are written to the application server's own filesystem, which is
+replaced on every deploy and lost on a restart. The encryption above protects
+those files against being read; nothing yet protects them against being lost. A
+Chamber assessing us should treat an uploaded document as recoverable only from
+its own copy until this changes. Object storage is configured and waiting on
+four settings on the deployment; when they are set, this paragraph goes.
+
+Second: the database is provisioned on a plan that takes **no automated backups
+and offers no point-in-time recovery**. A Chamber assessing us should treat loss of the live
 database as loss of its data, and should keep its own export. We are moving the
 database to a plan with backups and point-in-time recovery; when that is done
 this section states the retention period and the date restores were last

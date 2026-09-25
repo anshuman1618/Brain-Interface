@@ -82,6 +82,53 @@ numbers, and ask them to remove the old one.
 Matters, parties, tasks, calendar entries, documents, client feedback and
 messages. We store and secure it. We do not decide what goes in it.
 
+### Court cause lists — personal data about people who are not our users
+
+A cause list is published by a court and names parties, and sometimes counsel,
+who have never used this Service and never agreed to anything with us. That
+deserves its own heading rather than a line in a table, because it is the one
+category of personal data here that nobody in the relationship chose to give us.
+
+**It is off unless it is switched on.** Cause-list synchronisation runs only
+where `CAUSE_LIST_SYNC` is enabled on the deployment. It is not enabled today,
+so no court list is being fetched at the date of this policy. The rest of this
+section describes what happens when it is.
+
+**The basis, written down rather than assumed.** §3(c)(ii) of the DPDP Act 2023
+puts personal data outside the Act where the individual concerned has made it
+publicly available, and §17(1)(b) and (d) exclude processing for the purposes of
+a judicial function and for enforcing a legal right. A High Court's daily list
+is published by the court under its own rules, and an advocate consulting it to
+know when to appear is doing the thing the list exists for. We record that
+reasoning here, and in the compliance register, so it can be argued with rather
+than assumed.
+
+What we do with it, precisely:
+
+- **We fetch a published list; we do not crawl and we do not aggregate.**
+  Retrieval is per court and per date.
+- **A listing is stored as printed**, including the parties line and the raw
+  text of the row. The raw text is kept deliberately: a cause list decides
+  whether an advocate must be in a courtroom tomorrow, and when a parsed field
+  and an advocate's memory disagree, somebody has to be able to read what the
+  page actually said. Courts rarely keep an archive, so if we discard it, it is
+  gone.
+- **No profile is built about anybody.** Listings are stored as rows of a court's
+  list, not as records about the people named in them. Nothing is enriched,
+  cross-referenced between matters, or joined to anything outside the list.
+- **A listing reaches a chamber only where it matches a matter that chamber
+  already holds**, and then only as a proposal a person has to accept. The table
+  of fetched listings is common to the Service and is not readable by any
+  chamber; the table a chamber reads only ever names its own matters.
+- **Nothing is published or sold onward.** The court's list stays the court's.
+
+**Retention, stated accurately: nothing prunes it.** Fetched listings are kept
+indefinitely, because no job deletes them and we would rather say so than
+describe a schedule that does not exist. A person named in a court's list who
+wants to know what we hold, or wants it removed, should write to the address
+under "Your rights" — but note that the authoritative copy is the court's, not
+ours, and removing our copy does not touch it.
+
 ### What we do not do
 
 - We do not sell personal data. There is no circumstance in which we would.
@@ -95,6 +142,55 @@ messages. We store and secure it. We do not decide what goes in it.
   authentication provider's, which is required to sign you in and which is
   listed as a subprocessor above — signing in therefore discloses your IP
   address to that provider, and to nobody else.
+
+## Cookies, and what your browser keeps
+
+**There is no cookie banner, and that is a statement about the software rather
+than a convenience.** We set no analytics, advertising or tracking cookie,
+because there is no analytics script, no advertising pixel and no third-party
+font anywhere in the application to set one. Everything listed below is either
+required to keep you signed in or a preference your own browser remembers. A
+consent banner would have nothing to ask you about.
+
+### Cookies
+
+Every cookie is set by our authentication provider, Clerk, and exists to carry a
+signed-in session. **Our own API sets no cookie at all** and reads none.
+
+| Cookie              | What it does                                                                                                                         | Kind               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
+| `__session`         | The signed session token each request is authenticated with. Without it you are signed out.                                          | Strictly necessary |
+| `__client_uat`      | Records when your signed-in state last changed, so a page can tell a signed-out visitor from one whose token needs refreshing.       | Strictly necessary |
+| `__clerk_handshake` | Transient. Written and cleared during the redirect that establishes a session.                                                       | Strictly necessary |
+| `__clerk_db_jwt`    | Development and preview instances only. Carries the session where the production cookie cannot be used. Not set on the live Service. | Strictly necessary |
+
+They are strictly necessary in the ordinary sense of the phrase: there is no
+version of signing in that does not set them, and refusing them refuses access.
+Their lifetimes are set by Clerk, not by us; signing out clears the session.
+Clerk's own published list is the authoritative one and governs if the two ever
+disagree.
+
+### Local and session storage
+
+Not cookies — these never leave your browser. Nothing here is sent with a
+request, and none of it reaches us.
+
+| Key                                                 | Store          | What it is for                                                                                               | Cleared                               |
+| --------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| `portal:theme`                                      | localStorage   | Light or dark.                                                                                               | When you clear site data              |
+| `portal:accessRequestIntent`                        | localStorage   | Which role you chose before being asked to sign in, so the request form arrives filled in.                   | Once the request is submitted         |
+| `portal:activeWorkspaceId`, `portal:workspaceToken` | sessionStorage | Which chamber this tab is looking at, and the token the server signed when it agreed to the switch.          | When the tab closes                   |
+| `lex.signin.pending-code`                           | sessionStorage | Which address a one-time code went to, so refreshing the tab mid-sign-in does not strand you holding a code. | When the tab closes, or on signing in |
+| `portal:previewSession`                             | localStorage   | Preview builds only. Never present on the live Service.                                                      | —                                     |
+
+`portal:workspaceToken` is the one worth understanding, because it looks like a
+key and is not one. It is a **pointer the server signed**, not a permission.
+Editing it in developer tools achieves nothing: the API re-reads your membership
+from its own database on every single request and answers 403 for a chamber you
+are not an active member of.
+
+**On a shared or public computer**, sign out — that clears the session cookies —
+and close the tab, which clears the rest.
 
 ## Legal basis
 
@@ -231,6 +327,16 @@ the table above. Chamber content is kept until the chamber deletes it or for
 Deletion at the end of that window is done by hand, on request or on review. No
 scheduled job performs it, and we would rather say so than describe an
 automation that does not exist.
+
+**Uploaded documents are not yet on durable storage.** Files a chamber uploads
+are written to the application server's own filesystem, not to an object store.
+That filesystem does not survive a deploy or a restart, so **an uploaded
+document can be lost**, and the encryption described above protects it against
+being read rather than against being lost. The application warns about this at
+every start. Object storage is configured and waiting on the four settings that
+switch it on; when they are set, this paragraph goes and the Service keeps
+documents as durably as it keeps everything else. Until then: keep your own copy
+of anything you could not reproduce.
 
 **Backups, stated accurately.** The database this Service runs on is currently
 provisioned on a plan that takes **no automated backups and offers no
