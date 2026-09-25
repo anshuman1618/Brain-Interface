@@ -70,6 +70,19 @@ export default defineConfig({
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
       "@assets": path.resolve(import.meta.dirname, "..", "..", "attached_assets"),
+      /**
+       * `@capacitor-firebase/messaging` has a web implementation that imports
+       * the Firebase JavaScript SDK. That SDK is an optional peer we do not
+       * install — push is native-only and every call sits behind `isNative()`
+       * — so without this alias rollup fails the build on a module it can
+       * never reach. The stub explains itself; see the file.
+       */
+      "firebase/messaging": path.resolve(
+        import.meta.dirname,
+        "src",
+        "lib",
+        "firebase-messaging-web-stub.ts",
+      ),
     },
     dedupe: ["react", "react-dom"],
   },
