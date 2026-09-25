@@ -200,11 +200,21 @@ if (root.ok) {
       : fail(`${header} present`, `missing — ${why}`);
   }
 
-  // Not yet implemented; see docs/GO-LIVE-PLAN.md. Reported so it is visible
-  // rather than forgotten.
-  root.headers.get("content-security-policy")
-    ? pass("content-security-policy present")
-    : warn("content-security-policy present", "not set — needs the header at a CDN");
+  // Opt-in, so neither state is a failure — but say which one this deployment
+  // is in. Report-only counts as configured and is the right place to sit for
+  // a few days; nothing at all means CSP is unset, which is the default.
+  const csp = root.headers.get("content-security-policy");
+  const cspRo = root.headers.get("content-security-policy-report-only");
+  if (csp) {
+    pass("content-security-policy enforced");
+  } else if (cspRo) {
+    warn("content-security-policy enforced", "report-only — violations are logged, not blocked");
+  } else {
+    warn(
+      "content-security-policy enforced",
+      "unset — set CSP and CSP_CLERK_ORIGIN, see DEPLOYMENT.md §6",
+    );
+  }
 }
 
 /* ── 5. What must be readable without an account ────────────────────────── */

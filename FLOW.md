@@ -98,6 +98,12 @@ model.
         │
   ②  securityHeaders()             middlewares/securityHeaders.ts
         │                          HSTS, X-Frame-Options, nosniff, …
+        │                          and the CSP, which is OFF unless CSP is
+        │                          set to report-only or enforce AND
+        │                          CSP_CLERK_ORIGIN names this deployment's
+        │                          Clerk host. On but unbuildable is fatal at
+        │                          startup — sending no header looks exactly
+        │                          like a policy that works.
         │
   ③  /__clerk/* → clerkProxyMiddleware
         │

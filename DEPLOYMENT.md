@@ -300,9 +300,11 @@ from its own catalogue and refuses a payment whose amount does not match, so a
 tampered order cannot buy a year for a rupee — but confirm the 400, because a
 webhook that verifies nothing is the classic failure here.
 
-**CSP.** The browser checkout loads `https://checkout.razorpay.com`. Add it to
-`script-src` and `frame-src`, and `https://api.razorpay.com` to `connect-src`,
-or the pay button will fail silently in the console.
+**CSP.** The browser checkout loads `https://checkout.razorpay.com`, which then
+frames `https://api.razorpay.com`. Both are in the policy §6 builds, along with
+`https://lumberjack.razorpay.com` for its telemetry. If you enforce a policy of
+your own at a proxy instead, carry all three across — the pay button fails
+silently in the console otherwise.
 
 ### 4d. Error reporting
 
@@ -549,39 +551,82 @@ The API sets these on every response already:
 | `Permissions-Policy`        | `camera=(), geolocation=(), microphone=(), payment=()`  |
 | `Strict-Transport-Security` | `max-age=15552000; includeSubDomains` (production only) |
 
-**Content-Security-Policy is not set by the app** and should be added at your
-proxy or CDN, where you can roll it out in report-only mode first. It has to
-name your specific Clerk domain, so a policy baked into the code would break
-every deployment that differs from the one it was written for.
+**Content-Security-Policy is set by the app, and is off by default.** It used
+to say a CSP belonged at the edge and nowhere else. Half of that was right — a
+useful policy has to name this deployment's Clerk host, so one baked into the
+code breaks every deployment that differs from the one it was written for. The
+conclusion was wrong: "not set by the app" meant, in practice, not set at all,
+for as long as nobody configured a proxy that does not exist.
 
-A working starting point — verify in report-only mode before enforcing:
+Two variables, in the same shape as `HSTS`:
+
+| Variable           | Value                                                                       |
+| ------------------ | --------------------------------------------------------------------------- |
+| `CSP`              | `off` (default), `report-only`, or `enforce`                                |
+| `CSP_CLERK_ORIGIN` | This deployment's Clerk host, as a bare https origin with no trailing slash |
+| `CSP_REPORT_URI`   | Optional. Where the browser posts violation reports                         |
+
+**Go through `report-only` first, and leave it there for a few days.** The
+failure mode of a wrong CSP is silent on the server and total in the browser:
+the sign-in widget does not render, the pay button does nothing, and there is no
+500 anywhere to find.
 
 ```
-Content-Security-Policy-Report-Only:
-  default-src 'self';
-  script-src 'self' https://*.clerk.accounts.dev https://challenges.cloudflare.com;
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  font-src 'self' https://fonts.gstatic.com data:;
-  img-src 'self' data: https://img.clerk.com;
-  connect-src 'self' https://*.clerk.accounts.dev;
-  frame-src https://challenges.cloudflare.com;
-  frame-ancestors 'none';
-  base-uri 'self';
-  form-action 'self'
+CSP=report-only
+CSP_CLERK_ORIGIN=https://clerk.lexpractice.co
 ```
 
-Replace the Clerk hosts with your own — production Clerk instances use your
-domain (e.g. `https://clerk.example.com`), not `*.clerk.accounts.dev`.
+On a Clerk **development** instance the host is `https://<slug>.clerk.accounts.dev`
+instead. Wildcards work in a CSP source list, but naming the exact host is
+better and you know it.
 
-> **Consider self-hosting the fonts.** `index.html` loads Plus Jakarta Sans and
-> Space Mono from `fonts.googleapis.com`. Every visitor's browser therefore
-> discloses its IP address to Google before they have signed in. If you are
-> claiming DPDP 2023 compliance to Indian clients, that is a transfer you have
-> to be able to justify — and it is avoidable. Download the two families into
-> `artifacts/practice-portal/public/fonts/`, swap the `<link>` for local
-> `@font-face` rules, and the `font-src`/`style-src` entries above collapse to
-> `'self'`. It also removes a third-party dependency from your critical
-> rendering path.
+The server refuses to start if `CSP` is set to anything else, if a live mode has
+no `CSP_CLERK_ORIGIN`, or if that origin carries a path or a trailing slash —
+all three would otherwise send no header at all, which looks exactly like a
+policy that is working. `startup-guards.mjs` pins each case, and pins that an
+**unset** `CSP` is not an error, so an existing deployment keeps booting.
+
+The policy it builds:
+
+```
+default-src 'self';
+script-src 'self' <clerk> https://challenges.cloudflare.com https://checkout.razorpay.com;
+style-src 'self' 'unsafe-inline';
+font-src 'self' data:;
+img-src 'self' data: blob: https://img.clerk.com <clerk>;
+connect-src 'self' <clerk> https://api.razorpay.com https://lumberjack.razorpay.com;
+frame-src 'self' <clerk> https://challenges.cloudflare.com https://api.razorpay.com;
+worker-src 'self' blob:;
+object-src 'none';
+frame-ancestors 'none';
+base-uri 'self';
+form-action 'self'
+```
+
+**Two corrections to the policy this section used to publish**, both of which
+would have broken something if it had ever been enforced as written:
+
+- It **omitted every Razorpay host.** `pricing-modal.tsx` loads
+  `checkout.razorpay.com` on demand, which then frames `api.razorpay.com` and
+  posts telemetry to `lumberjack.razorpay.com`. Enforcing the old policy would
+  have broken payment and nothing else — the one failure nobody notices on a
+  Tuesday.
+- It **named `fonts.googleapis.com` and `fonts.gstatic.com`**, and carried a
+  note recommending you self-host the fonts to remove them. `index.html` has
+  never loaded a webfont CDN — the type stack is built from faces the operating
+  system already has, deliberately, for exactly the disclosure reason that note
+  described. The advice was sound and had already been taken; the policy was
+  describing a different application.
+
+Also missing from the old policy and present here: `blob:` in `img-src`, because
+`documents.tsx`, `invoices.tsx` and `client-portal.tsx` all download through
+`URL.createObjectURL`, which is how a decrypted file reaches the browser without
+a path-addressable URL existing.
+
+`'unsafe-inline'` in `style-src` is not optional and is worth being honest
+about: Radix sets inline styles for positioning and react-big-calendar lays its
+grid out the same way. Removing it needs per-response nonces through both
+libraries.
 
 ## 7. Verify the deployment is actually locked down
 

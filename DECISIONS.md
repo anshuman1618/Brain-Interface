@@ -3419,3 +3419,69 @@ docblock claimed the calendar pulls in "react-dnd and moment" when it uses
 date-fns. `/calendar` also joins the touch-scroll list in the browser suite,
 because react-big-calendar's grid is its own overflow container — the exact
 shape that carried the scroll barrier the first time.
+
+---
+
+## The CSP the app now sets, and why it was not setting one
+
+`securityHeaders.ts` carried a paragraph explaining that a Content-Security-
+Policy belonged at the edge rather than in the application. Half of that was
+right and the conclusion was wrong.
+
+**The right half.** A useful policy has to name this deployment's Clerk host.
+One baked into the code breaks every deployment that differs from the one it was
+written for, and the failure is silent on the server and total in the browser —
+the sign-in widget does not render, the pay button does nothing, and there is no
+500 anywhere to find.
+
+**The wrong conclusion.** "So it is not set by the app" meant, in practice, not
+set at all — on a platform holding privileged legal material, for as long as
+nobody configured a proxy that does not exist and nobody owned the task. A
+header nobody owns is a header nobody sets, and DEPLOYMENT.md publishing a
+starting policy did not change that. It had been that way since the header was
+first discussed.
+
+So: **`CSP=off|report-only|enforce` plus `CSP_CLERK_ORIGIN`**, in the same idiom
+as `HSTS` and `TRUST_PROXY`, off by default so no existing deployment changes
+behaviour. Report-only is a real mode rather than a documentation note, because
+the only safe way to turn this on is to watch it break nothing for a few days
+first.
+
+**Three misconfigurations are fatal at startup rather than warnings**, which is
+the opposite of the call made for `ERROR_WEBHOOK_URL` beside it, and for a
+different reason. An unset error webhook degrades to "you find out from a
+customer" — bad, recoverable, and the service works. A CSP switched on that
+cannot build a policy sends **no header at all**, which is indistinguishable
+from a policy that is working. Somebody would tick it off the go-live list.
+`startup-guards.mjs` pins each case, and pins that an unset `CSP` is _not_ an
+error, because breaking every deployment that has not opted in would be the
+worse mistake.
+
+**Two corrections to the policy DEPLOYMENT.md had been publishing**, both of
+which would have broken something the moment anyone enforced it:
+
+- It **omitted every Razorpay host.** `pricing-modal.tsx` loads
+  `checkout.razorpay.com` on demand, which frames `api.razorpay.com` and posts
+  telemetry to `lumberjack.razorpay.com`. Enforcing it as written would have
+  broken payment and nothing else — the one failure nobody notices on a Tuesday,
+  because nobody buys anything on a Tuesday.
+- It **named the Google Fonts hosts** and carried a note recommending you
+  self-host to remove them. `index.html` has never loaded a webfont CDN; the
+  type stack is built from faces the operating system already has, deliberately,
+  for exactly the disclosure reason that note described. The advice was sound
+  and had already been taken. The policy was describing a different application.
+
+`blob:` in `img-src` is also new and not optional: `documents.tsx`,
+`invoices.tsx` and `client-portal.tsx` all download through
+`URL.createObjectURL`, which is how a decrypted file reaches the browser without
+a path-addressable URL existing. And `'unsafe-inline'` stays in `style-src`,
+stated in a comment rather than quietly: Radix sets inline styles for
+positioning and react-big-calendar lays its grid out the same way, so removing
+it means per-response nonces through both libraries.
+
+**`index.html` was still Replit scaffolding.** The title read "Practice
+Management Portal", the description and both social cards read "built on Replit.
+Update this description to reflect the app", and `robots` read `index, follow` —
+inviting a crawler to index the login page of an invite-only platform, which is
+an invitation to credential-stuffing rather than a customer. Now `noindex,
+nofollow`, with the reasoning in a comment so it is not "fixed" back.

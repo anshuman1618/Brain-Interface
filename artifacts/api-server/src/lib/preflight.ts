@@ -1,4 +1,5 @@
 import { encryptionKey } from "./blob-store";
+import { CSP_MODES, cspMode } from "../middlewares/securityHeaders";
 
 /**
  * Check the whole production configuration at once, before anything starts.
@@ -105,6 +106,38 @@ export function inspectProductionConfig(): Preflight {
       key: "ERROR_WEBHOOK_URL",
       why: "is not https, so the error reporter IGNORES it and forwards nothing. Verify with `pnpm --filter @workspace/api-server run check-error-webhook`",
     });
+  }
+
+  // The CSP is opt-in, so an unset CSP is not a problem here. A CSP that is
+  // switched ON and cannot produce a working policy is, and it is fatal rather
+  // than a warning for a specific reason: the failure is invisible on the
+  // server and total in the browser. `CSP=enforce` with no Clerk origin either
+  // sends nothing — indistinguishable from working, until somebody believes the
+  // header is there — or, if it sent the policy anyway, would block the
+  // sign-in widget for every user at once. Refusing to boot is the only one of
+  // the three that tells anybody.
+  const cspRaw = process.env["CSP"]?.trim().toLowerCase();
+  if (cspRaw && !(CSP_MODES as readonly string[]).includes(cspRaw)) {
+    problems.push({
+      key: "CSP",
+      why: `is "${cspRaw}", which is not a mode. It would be read as "off" and set no header at all`,
+      fix: `one of ${CSP_MODES.join(", ")}`,
+    });
+  } else if (cspMode() !== "off") {
+    const origin = process.env["CSP_CLERK_ORIGIN"]?.trim();
+    if (!origin) {
+      problems.push({
+        key: "CSP_CLERK_ORIGIN",
+        why: "CSP is switched on and the policy cannot be built without this deployment's Clerk host, so no header would be sent",
+        fix: "https://clerk.<your-domain> in production, or https://<slug>.clerk.accounts.dev on a development instance",
+      });
+    } else if (!/^https:\/\/[^/\s]+$/.test(origin)) {
+      problems.push({
+        key: "CSP_CLERK_ORIGIN",
+        why: "must be a bare https origin with no path or trailing slash — anything else silently fails to match in a CSP source list",
+        fix: "https://clerk.example.com",
+      });
+    }
   }
 
   return { problems, warnings };

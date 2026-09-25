@@ -3,23 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>Practice Management Portal</title>
+    <title>LEX Practice</title>
     <meta
       name="description"
-      content="Practice Management Portal — built on Replit. Update this description to reflect the app."
+      content="Invite-only chamber management for a legal practice: matters, cause list, tasks and SLAs, time capture, invoicing, and a read-only client portal."
     />
-    <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="Practice Management Portal" />
+    <!--
+      Not indexed, on purpose.
+
+      Access is invite-only: every route behind /portal answers 403 to anyone
+      without an active membership, so there is nothing here for a crawler to
+      reach and a search result for a chamber's login page is an invitation to
+      credential-stuffing rather than a customer. The landing page is the only
+      public surface, and it is reached by being told about it.
+    -->
+    <meta name="robots" content="noindex, nofollow" />
+    <meta property="og:title" content="LEX Practice" />
     <meta
       property="og:description"
-      content="Practice Management Portal — built on Replit. Update this description to reflect the app."
+      content="Invite-only chamber management for a legal practice: matters, cause list, tasks and SLAs, time capture, invoicing, and a read-only client portal."
     />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Practice Management Portal" />
+    <meta name="twitter:title" content="LEX Practice" />
     <meta
       name="twitter:description"
-      content="Practice Management Portal — built on Replit. Update this description to reflect the app."
+      content="Invite-only chamber management for a legal practice: matters, cause list, tasks and SLAs, time capture, invoicing, and a read-only client portal."
     />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!--

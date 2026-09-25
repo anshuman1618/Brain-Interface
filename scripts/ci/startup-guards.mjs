@@ -110,5 +110,63 @@ console.log("\n== Every missing production setting is reported in one go");
   check("points at the blueprint", /render\.yaml blueprint/.test(out));
 }
 
+/*
+ * The CSP is opt-in, so an unset one must NOT stop a deploy — that is the
+ * status quo and breaking it would strand every existing deployment. A CSP that
+ * is switched on and cannot produce a policy is the opposite: its failure is
+ * invisible in the server log and total in the browser, so it has to be fatal.
+ */
+const configured = {
+  ...base,
+  FILE_ENCRYPTION_KEY: "a".repeat(64),
+  CLERK_SECRET_KEY: "sk_test_x",
+  CLERK_PUBLISHABLE_KEY: "pk_test_x",
+};
+
+console.log("\n== CSP: opt-in, and refused when it cannot work");
+{
+  const { out } = await run({ ...configured, CSP: "enforce" });
+  check(
+    "CSP=enforce without CSP_CLERK_ORIGIN is refused",
+    /\d\. CSP_CLERK_ORIGIN/.test(out),
+    out.slice(-400),
+  );
+  check("...saying no header would be sent at all", /no header would be sent/.test(out));
+}
+{
+  const { out } = await run({ ...configured, CSP: "report-only" });
+  check(
+    "report-only is held to the same requirement",
+    /\d\. CSP_CLERK_ORIGIN/.test(out),
+    "a report-only policy that sends nothing reports nothing",
+  );
+}
+{
+  const { out } = await run({ ...configured, CSP: "on" });
+  check(
+    "an unrecognised mode is refused, not read as off",
+    /\d\. CSP\b/.test(out),
+    out.slice(-300),
+  );
+}
+{
+  const { out } = await run({
+    ...configured,
+    CSP: "enforce",
+    CSP_CLERK_ORIGIN: "https://clerk.example.com/",
+  });
+  check(
+    "a trailing slash on the Clerk origin is refused",
+    /\d\. CSP_CLERK_ORIGIN/.test(out),
+    "a source with a path silently fails to match",
+  );
+}
+{
+  // The one that must NOT be fatal, or every deployment that has not opted in
+  // stops booting.
+  const { out } = await run({ ...configured });
+  check("an unset CSP is not a problem at all", !/\d\. CSP/.test(out));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
