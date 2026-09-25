@@ -59,7 +59,10 @@ const body = {
     `Nothing is wrong. If you did not run this, somebody has your webhook URL.\n\n` +
     `A real report looks like this, with the error's name, message and the\n` +
     `first twelve stack frames in place of these lines. It never carries a\n` +
-    `request body, a header, or anything belonging to a chamber.`,
+    `request body or a header. The message is scrubbed of email addresses,\n` +
+    `Postgres key values, credentials and tokens, then capped at 300\n` +
+    `characters; the path is reduced to its route shape, so a fault on a\n` +
+    `matter reads /api/cases/:id and never names the matter.`,
   service,
   environment: env,
   at: "check-error-webhook",

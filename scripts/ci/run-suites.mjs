@@ -17,6 +17,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const BASE = process.argv[2] ?? process.env.API_BASE_URL ?? "http://localhost:5000";
 
 const SUITES = [
+  // First, and the only one that starts its own server: it has to control
+  // ERROR_WEBHOOK_URL, which is read from the server's environment.
+  ["error-reporting", "Error reporting: what leaves the host"],
   ["security", "Zero-trust isolation"],
   ["chamber", "Chamber lifecycle"],
   ["modules", "Documents, feedback and calendar"],

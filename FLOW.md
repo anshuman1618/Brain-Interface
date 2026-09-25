@@ -143,9 +143,29 @@ model.
         │                          LAST, so it can never shadow an /api route.
         │
   ⑭  terminal error handler        logs, reports, and answers JSON for /api
-                                   or text/plain otherwise — never an HTML
-                                   stack trace.
+                                   or a self-contained HTML page otherwise —
+                                   never a stack trace.
 ```
+
+**What ⑭ forwards, and what it does not.** It hands `err`, `req.method`,
+`req.path` and `500` to `reportError` (`lib/error-reporter.ts`), which logs the
+lot locally and then sends a **redacted** copy to `ERROR_WEBHOOK_URL` if one is
+set. Three things happen between the handler and the wire:
+
+```
+ req.path   ──▶ redactPath()      /api/cases/42 → /api/cases/:id
+ err.message ─▶ redactMessage()   emails, Key(col)=(val), URL credentials,
+                                  bearer tokens, 32+ hex → markers; cap 300
+ err.stack  ──▶ redactStack()     the SAME scrub, then 12 frames — the stack's
+                                  first line is the message, so skipping it
+                                  here undoes the line above
+```
+
+`req.path` and not `req.originalUrl`: `path` drops the query string, and
+`/api/search?q=<a client's name>` must never leave the host. That is an
+invariant now, pinned by `scripts/ci/suites/error-reporting.mjs` — the only
+suite that starts its own server, because the webhook URL is read from the
+server's environment and there is no other way to watch a real delivery.
 
 ### The feature routes
 

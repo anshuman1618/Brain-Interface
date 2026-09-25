@@ -309,8 +309,34 @@ or the pay button will fail silently in the console.
 Set `ERROR_WEBHOOK_URL` to any https endpoint that accepts a JSON POST — a
 Slack or Discord incoming webhook needs no adaptation. Uncaught exceptions,
 unhandled rejections and every 500 are forwarded, rate-limited to ten per
-minute and de-duplicated, carrying the message and stack frames only — never
-request bodies or chamber content.
+minute and de-duplicated.
+
+**What leaves the host, stated exactly.** This paragraph used to say "the
+message and stack frames only — never request bodies or chamber content", which
+was two-thirds true and worth correcting, because the destination of this
+webhook is a security decision:
+
+- **The error's name and message**, with emails, Postgres `Key (col)=(value)`
+  values, URL credentials, bearer tokens and long hex keys replaced by markers,
+  then capped at 300 characters.
+- **The first twelve stack frames**, put through the same scrub. They are this
+  codebase's own file paths and function names, but a stack's first line is
+  `Error: <the message>`, so forwarding it unscrubbed would undo the line
+  above.
+- **The method and the path reduced to its route shape.** `/api/cases/42` is
+  sent as `/api/cases/:id`. Numeric segments, UUIDs, Clerk-prefixed ids and any
+  long opaque token are replaced.
+- **The status code, the service name and `NODE_ENV`.**
+
+Request bodies and headers were never read and still are not. The message and
+the path were the gap: before the redaction in
+`api-server/src/lib/error-reporter.ts`, a 500 on a matter shipped its id and a
+unique-violation shipped the address that collided.
+
+Pick the destination accordingly. `docs/legal/breach-runbook.md` §1 treats
+whatever reached this webhook as incident evidence, so the channel it posts to
+is in scope if it is ever compromised — a private channel, not one a whole firm
+can read.
 
 Unset, faults are logged and nothing is forwarded, which in practice means you
 learn about them from a customer. The server warns about this at every boot in

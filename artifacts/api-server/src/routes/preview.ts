@@ -149,4 +149,68 @@ router.post(
   },
 );
 
+/**
+ * Four real error messages, each one a shape this codebase has been seen to
+ * produce and each carrying something that must not leave the host.
+ *
+ * Constants, selected by name. The request never contributes a character to
+ * the thrown message — a caller picks which of these four is raised and
+ * nothing more — so the route cannot be used to inject arbitrary text into
+ * whatever `ERROR_WEBHOOK_URL` points at.
+ *
+ * Four rather than one because the reporter de-duplicates on the message, so a
+ * single constant would let the suite observe exactly one delivery. Distinct
+ * messages are what make it possible to check four redactions and four path
+ * shapes in one server lifetime.
+ */
+const THROW_VARIANTS: Record<string, string> = {
+  /** A Postgres unique violation quotes the value that collided. */
+  email:
+    'duplicate key value violates unique constraint "users_email_unique" — ' +
+    "Key (email)=(partner@chamber.in) already exists.",
+  /** `r2.ts` builds its failure message around the object key. */
+  blobkey:
+    "R2 putObject failed with 403 for object " +
+    "a3f5c9e1b7d24068af13c5e29b74d0116c8ea52f93b7d4c081fa6e2537b9c40d",
+  /** A driver error carries the connection string, password included. */
+  credentials: "connect ETIMEDOUT postgres://lex_app:s3cr3t-pw@db.internal.example:5432/lex",
+  /** Some drivers return the whole offending statement. Must be capped. */
+  long:
+    "insert or update on table violates foreign key constraint — " +
+    "detail: ".repeat(60) +
+    "END-OF-A-VERY-LONG-MESSAGE",
+};
+
+/**
+ * Throw, so the error reporter's redaction can be tested end to end.
+ *
+ * `scripts/ci/suites/error-reporting.mjs` needs a real 500 travelling the real
+ * path — through the terminal handler in `app.ts`, which is where `req.path`
+ * and the error's message are handed to `reportError`. Unit-testing the two
+ * redaction functions in isolation would not catch the thing that actually
+ * went wrong here, which was not a bad regular expression but a payload nobody
+ * had looked at.
+ *
+ * The `:matterId` segment stands in for the matter id a 500 on `/api/cases/42`
+ * used to forward, and the suite calls it with a number, a UUID, a Clerk id and
+ * a long opaque token to pin each branch of `redactPath`.
+ *
+ * Unauthenticated, unlike the two routes above, and that is a deliberate
+ * narrowing rather than an oversight: it reads nothing, writes nothing and
+ * touches no workspace, so `requireWorkspace` would only mean the suite has to
+ * spend a chamber and two of the auth limiter's thirty requests to reach a
+ * route that does nothing but throw. The preview gate is the whole protection
+ * it needs, and it is the same gate — hard-false under NODE_ENV=production,
+ * where the server also refuses to boot into preview mode at all. It 404s
+ * there rather than 403ing, so it does not advertise its own existence.
+ */
+router.get("/preview/throw/:matterId", (req, res): void => {
+  if (!isPreviewAuth() || !isPreviewDatabase()) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const variant = String(req.query["variant"] ?? "email");
+  throw new Error(THROW_VARIANTS[variant] ?? THROW_VARIANTS["email"]);
+});
+
 export default router;

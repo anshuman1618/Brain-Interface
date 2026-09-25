@@ -2859,6 +2859,63 @@ Verified against a local HTTPS endpoint with a trusted certificate: unset → 1,
 non-https → 1, https that refuses → 1 with the status echoed, and delivery →
 0 with the body arriving intact and the URL's secret path redacted in the log.
 
+### What the reporter actually sent, against what three places said it sent
+
+The module was correct about the hard parts — it never throws, it rate-limits,
+it de-duplicates, it times out — and wrong about the one that mattered most.
+`error-reporter.ts`, `DEPLOYMENT.md` and `check-error-webhook.mjs` each stated
+in their own words that nothing belonging to a chamber left the host. Request
+bodies and headers were indeed never read. But `req.path` went out verbatim, so
+a 500 on `/api/cases/42` named the matter twice, and `err.message` went out
+uncapped and unfiltered — a Postgres unique violation reads
+`Key (email)=(partner@chamber.in) already exists`.
+
+**Why this is worse than the general case for leaking a path.** The breach
+runbook designates whatever reached this webhook as incident evidence. A Slack
+workspace holding matter ids is then in scope when Slack is compromised, and the
+six-hour CERT-In clock applies to that compromise too. Connecting the webhook
+before redacting it would have manufactured a reportable-incident surface out of
+an alerting convenience. Hence the ordering: **redact, test, then connect.**
+
+**Route shape, not route.** `redactPath` recognises ids by their form — all
+digits, a UUID, a Clerk-style `user_`/`sess_` prefix, or any opaque token of 24
+characters or more — rather than looking up the matched route, because Express
+does not expose `req.route` to a terminal error handler. It is deliberately
+over-broad. A slightly vaguer path in an alert costs a few seconds of grepping;
+an under-match costs a matter id in a chat channel.
+
+**Markers, not deletion.** `[redacted:email]` keeps the shape of the error
+diagnosable where a blank would not. The credential pattern runs before the
+email pattern, because `postgres://lex:pw@db.internal/lex` matches both and only
+that order labels the password as a password.
+
+**The dedupe write moved behind a confirmed 2xx.** It used to run before the
+send, so a refused delivery still consumed the five-minute slot — the fault you
+never hear about because telling you about it failed. And the two timeouts now
+agree: the crash path gets 2.5s and holds the exit 500ms past it, where a 1s
+exit timer previously outran a 5s fetch and truncated the one report you most
+want.
+
+**`ErrorContext.workspaceId` is gone.** Declared, serialised, populated by
+nobody. A field that ships a tenant id the moment somebody fills it in is a
+loaded gun, and removing it costs nothing that exists.
+
+**The negative test paid for itself on its first run.** `error-reporting.mjs`
+starts its own server — `ERROR_WEBHOOK_URL` is read from the server's
+environment, so there is no other way to observe a real delivery — points it at
+a throwaway HTTPS listener, and asserts that a report for an error whose message
+holds an address and whose path holds a matter id contains neither. It
+immediately failed: `err.stack` opens with `Error: <message>`, so the scrubbed
+message was going out unscrubbed one field below it. That is precisely the class
+of mistake three paragraphs of confident prose had been hiding, and the reason
+the assertions are negative and end-to-end rather than unit tests of the two
+regular expressions.
+
+The listener speaks HTTPS with a self-signed certificate the child trusts
+through `NODE_EXTRA_CA_CERTS`, rather than the suite relaxing the reporter's
+`https://`-only rule. A plaintext exception "just for tests" is how that guard
+would eventually acquire a real one.
+
 ---
 
 ## Scrollbars, and the three problems inside one complaint
