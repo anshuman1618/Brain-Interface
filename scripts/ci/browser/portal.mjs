@@ -840,7 +840,9 @@ for (let i = 1; i <= 8; i++) {
   await touchPage.waitForTimeout(1400);
 }
 
-for (const path of ["/dashboard", "/cases", "/invites"]) {
+// /calendar is on this list because react-big-calendar's grid is its own
+// overflow container, which is exactly the shape that carried the barrier.
+for (const path of ["/dashboard", "/cases", "/invites", "/calendar"]) {
   await touchPage.goto(BASE + path, { waitUntil: "networkidle" });
   await touchPage.waitForTimeout(2200);
   const x = 206;
@@ -903,6 +905,53 @@ check(
 );
 
 await page.unroute("**/api/cases**");
+
+/* ────────── 13. Court Listings now lives inside the Master Calendar ─────── */
+
+section("13. Court Listings is a tab on the calendar, and the old URL still works");
+
+await page.goto(`${BASE}/calendar`, { waitUntil: "networkidle" });
+await page.waitForTimeout(600);
+const scheduleTab = page.getByRole("tab", { name: /^schedule$/i });
+const listingsTab = page.getByRole("tab", { name: /court listings/i });
+check(
+  "the calendar shows both tabs",
+  (await scheduleTab.count()) === 1 && (await listingsTab.count()) === 1,
+);
+check(
+  "Schedule is the one selected on arrival",
+  (await scheduleTab.getAttribute("aria-selected")) === "true",
+);
+// Radix unmounts inactive content, so the queue is genuinely absent until the
+// tab is opened — that is the behaviour keeping it off the calendar's first
+// paint, and it is worth pinning rather than assuming.
+check("...and the listings queue has not loaded yet", !/awaiting a decision/i.test(await text()));
+
+await listingsTab.click();
+await page.waitForTimeout(1200);
+const listingsText = await text();
+check("opening the tab renders the proposals queue", /awaiting a decision/i.test(listingsText));
+check(
+  "...and says a proposal is not yet on the calendar",
+  /until somebody accepts it/i.test(listingsText),
+);
+check(
+  "...with no second page heading competing with Master Calendar",
+  (await page.locator("h2", { hasText: /^Court Listings$/ }).count()) === 0,
+);
+
+// The nav entry is gone, so a bookmark is the only way back — it has to land.
+await page.goto(`${BASE}/cause-list`, { waitUntil: "networkidle" });
+await page.waitForTimeout(800);
+check(
+  "/cause-list redirects to the calendar",
+  new URL(page.url()).pathname === "/calendar",
+  page.url(),
+);
+check(
+  "the sidebar no longer offers Court Listings",
+  (await page.locator('nav[aria-label="Main"] a[href="/cause-list"]').count()) === 0,
+);
 
 /* ───────────────────────────── Wrap up ──────────────────────────────────── */
 

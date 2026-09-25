@@ -21,6 +21,8 @@ import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 import "@/styles/calendar.css";
 
 import { useSession } from "@/lib/session";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CourtListings } from "@/components/court-listings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -330,54 +332,81 @@ export default function CalendarPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight mb-1">Master Calendar</h2>
           <p className="text-muted-foreground">
-            {activeWorkspace?.name} · cause list, filings and deadlines you're party to
+            {activeWorkspace?.name} · hearings, filings and deadlines you're party to
             {displayRole ? ` as ${displayRole}` : ""}.
             {canWrite ? " Drag an item to reschedule it." : ""}
           </p>
         </div>
         {canWrite && (
           <Button className="rounded-lg shrink-0" onClick={() => openNew()}>
-            <Plus className="mr-2 h-4 w-4" /> Add to cause list
+            <Plus className="mr-2 h-4 w-4" /> Add an entry
           </Button>
         )}
       </div>
 
-      <div className="rounded-lg bg-card shadow-sm p-4">
-        <DnDCalendar
-          localizer={localizer}
-          events={events}
-          view={view}
-          onView={(v) => setView(v)}
-          date={date}
-          onNavigate={(d) => setDate(d)}
-          views={["month", "week", "day", "agenda"]}
-          popup
-          style={{ height: 620 }}
-          selectable={canWrite}
-          onSelectSlot={(slot: { start: Date }) => canWrite && openNew(slot.start)}
-          onSelectEvent={(ev: object) => openExisting(ev as CauseEvent)}
-          onEventDrop={move}
-          onEventResize={move}
-          draggableAccessor={(ev: object) => (ev as CauseEvent).draggable}
-          resizableAccessor={() => false}
-          eventPropGetter={(ev: object) => ({
-            className: KIND_COLOUR[(ev as CauseEvent).kind] ?? KIND_COLOUR.note,
-          })}
-          messages={{ noEventsInRange: "Nothing scheduled in this range." }}
-        />
-      </div>
+      {/* Underline rather than the default pill look, copying case-detail's
+          bar: react-big-calendar has its own month/week/day switcher inside
+          the card below, and a second row of pills above it reads as a
+          duplicate rather than as a level up. */}
+      <Tabs defaultValue="schedule" className="w-full">
+        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-lg h-12 p-0 gap-8">
+          <TabsTrigger
+            value="schedule"
+            className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
+          >
+            Schedule
+          </TabsTrigger>
+          <TabsTrigger
+            value="listings"
+            className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
+          >
+            Court Listings
+          </TabsTrigger>
+        </TabsList>
 
-      {events.length === 0 && (
-        <div className="rounded-lg bg-card shadow-sm p-10 text-center">
-          <CalendarDays className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
-          <p className="font-medium mb-1">Nothing on the calendar yet</p>
-          <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            {canWrite
-              ? "Add hearings and filings to the cause list. Task deadlines appear here automatically as work is assigned."
-              : "Listings posted by your chamber will appear here, along with anything assigned to you."}
-          </p>
-        </div>
-      )}
+        <TabsContent value="listings" className="pt-6">
+          <CourtListings />
+        </TabsContent>
+
+        <TabsContent value="schedule" className="pt-6 space-y-5">
+          <div className="rounded-lg bg-card shadow-sm p-4">
+            <DnDCalendar
+              localizer={localizer}
+              events={events}
+              view={view}
+              onView={(v) => setView(v)}
+              date={date}
+              onNavigate={(d) => setDate(d)}
+              views={["month", "week", "day", "agenda"]}
+              popup
+              style={{ height: 620 }}
+              selectable={canWrite}
+              onSelectSlot={(slot: { start: Date }) => canWrite && openNew(slot.start)}
+              onSelectEvent={(ev: object) => openExisting(ev as CauseEvent)}
+              onEventDrop={move}
+              onEventResize={move}
+              draggableAccessor={(ev: object) => (ev as CauseEvent).draggable}
+              resizableAccessor={() => false}
+              eventPropGetter={(ev: object) => ({
+                className: KIND_COLOUR[(ev as CauseEvent).kind] ?? KIND_COLOUR.note,
+              })}
+              messages={{ noEventsInRange: "Nothing scheduled in this range." }}
+            />
+          </div>
+
+          {events.length === 0 && (
+            <div className="rounded-lg bg-card shadow-sm p-10 text-center">
+              <CalendarDays className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+              <p className="font-medium mb-1">Nothing on the calendar yet</p>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                {canWrite
+                  ? "Add hearings and filings to the cause list. Task deadlines appear here automatically as work is assigned."
+                  : "Listings posted by your chamber will appear here, along with anything assigned to you."}
+              </p>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[480px] rounded-lg border-border">

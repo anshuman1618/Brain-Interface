@@ -55,7 +55,7 @@ export function CourtIdentityFields({
         </p>
         <p className="mt-1 text-2xs leading-relaxed text-muted-foreground">
           How the court names this matter on its cause list. Fill it in and published listings for
-          it turn up under Court Listings for you to accept.
+          it turn up in the Master Calendar, under Court Listings, for you to accept.
         </p>
       </div>
 

@@ -3378,3 +3378,44 @@ Disclosure is not the fix and the register says so.
 there are none, pending confirmation of what the paid database plan actually
 does. Register §8's rule is that those move together or not at all, and it now
 lists five such couplings rather than one.
+
+---
+
+## Court Listings moved into the Master Calendar
+
+Two nav entries for one fact. A cause-list proposal and the calendar entry it
+becomes are the same hearing at two stages, and separating them made a person
+navigate from the queue to the consequence of emptying it — accept four
+listings, then go and look at another page to see what that did.
+
+**Extracted rather than inlined.** `components/court-listings.tsx` holds the
+queue, `ListingDetail` and `SyncHealth`, and `calendar.tsx` renders it in a tab.
+Two concrete reasons rather than taste: `calendar.tsx` was already 544 lines
+before the move, and it has its own `isLoading` / `isError` / `error` from the
+entries query that the proposals query's would have collided with.
+
+**Radix `Tabs` unmounts inactive content, and that is the behaviour we want.**
+None of the listings queries run until somebody opens the tab, so the calendar's
+first paint costs exactly what it did before. The price is that the trigger
+cannot carry a pending count without `forceMount`, which would defeat the point.
+The browser suite pins both halves — the queue is absent on arrival and present
+after a click — because "it lazy-loads" and "it is broken" look identical from
+the outside.
+
+**`SyncHealth` stays inside its `can("audit.read")` guard.** It is tempting to
+hoist it now that it shares a page with the calendar, and it would 403: it calls
+`useListCourts`, which the API gates on **`cases.read`**, not `audit.read`.
+Anyone without `cases.read` would see a panel that cannot load.
+
+**`/cause-list` redirects rather than 404s.** It was in the nav for weeks and
+people bookmark things.
+
+Three smaller things the move exposed, all fixed in the same commit: the
+calendar's primary button said "Add to cause list" meaning "add a calendar
+entry", which is ambiguous the moment real cause lists share the screen;
+`court-identity-fields.tsx` told users listings "turn up under Court Listings",
+a destination that no longer exists on its own; and `dashboard-layout.tsx`'s
+docblock claimed the calendar pulls in "react-dnd and moment" when it uses
+date-fns. `/calendar` also joins the touch-scroll list in the browser suite,
+because react-big-calendar's grid is its own overflow container — the exact
+shape that carried the scroll barrier the first time.

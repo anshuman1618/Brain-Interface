@@ -36,17 +36,31 @@ import { LoadFailed } from "@/components/load-failed";
  *
  * The one screen that decides whether this feature is worth having. A
  * proposal is not a hearing — nothing here has touched the calendar — so the
- * job of this page is to give somebody enough to say yes or no in a couple of
- * seconds, and to make the raw listing available for the times when a couple
- * of seconds is not enough.
+ * job of this component is to give somebody enough to say yes or no in a
+ * couple of seconds, and to make the raw listing available for the times when
+ * a couple of seconds is not enough.
  *
  * `Accept` is gated on `calendar.write` (Admin and Senior Advocate), the same
  * boundary as posting any other calendar entry. A clerk holding
  * `calendar.read` sees the queue — they keep the diary and need to know what
  * is coming — but cannot commit it.
+ *
+ * ── Why this is a component and not a page ───────────────────────────────
+ *
+ * It lives inside the Master Calendar's "Court Listings" tab. A proposal and
+ * the calendar entry it becomes are the same fact at two stages, and putting
+ * them on two nav entries made a person navigate between the queue and the
+ * consequence of emptying it. Extracted rather than inlined into
+ * `calendar.tsx` for two concrete reasons: that file is already 544 lines, and
+ * it has its own `isLoading` / `isError` / `error` from the entries query that
+ * these would collide with.
+ *
+ * Radix `Tabs` unmounts inactive content, so none of the queries below run
+ * until somebody opens the tab. That is right for the calendar's first paint,
+ * and it is also why the trigger carries no pending count.
  */
 
-const TAB_LABEL: Record<string, string> = {
+const FILTER_LABEL: Record<string, string> = {
   pending: "Awaiting a decision",
   accepted: "Accepted",
   dismissed: "Dismissed",
@@ -233,8 +247,8 @@ function SyncHealth() {
   );
 }
 
-export default function CauseListPage() {
-  const { can, activeWorkspace } = useSession();
+export function CourtListings() {
+  const { can } = useSession();
   const [status, setStatus] = useState<"pending" | "accepted" | "dismissed">("pending");
   const [expanded, setExpanded] = useState<number | null>(null);
   const queryClient = useQueryClient();
@@ -283,15 +297,13 @@ export default function CauseListPage() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div>
-        <h2 className="mb-1 text-3xl font-bold tracking-tight">Court Listings</h2>
-        <p className="text-muted-foreground">
-          Matters of <span className="font-medium text-foreground">{activeWorkspace?.name}</span>{" "}
-          that appear on a published cause list. Nothing here is on your calendar until you accept
-          it.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">
+        Matters of this chamber that appear on a published cause list.{" "}
+        <span className="font-medium text-foreground">
+          Nothing here is on the calendar until somebody accepts it.
+        </span>
+      </p>
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by decision">
         {(["pending", "accepted", "dismissed"] as const).map((s) => (
@@ -306,7 +318,7 @@ export default function CauseListPage() {
                 : "bg-card text-muted-foreground shadow-sm hover:text-foreground"
             }`}
           >
-            {TAB_LABEL[s]}
+            {FILTER_LABEL[s]}
           </button>
         ))}
       </div>

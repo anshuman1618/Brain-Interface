@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from "react";
-import { Link, Route, Switch, useLocation } from "wouter";
+import { Link, Redirect, Route, Switch, useLocation } from "wouter";
 import { useSession } from "@/lib/session";
 import { PreviewBar } from "@/components/preview-bar";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
@@ -8,8 +8,9 @@ import DashboardPage from "@/pages/dashboard";
 /**
  * Everything except the dashboard is loaded on demand.
  *
- * The calendar alone pulls in react-big-calendar, react-dnd and moment; a
- * client who only ever opens their own portal should not download any of it.
+ * The calendar alone pulls in react-big-calendar, its drag-and-drop addon and
+ * date-fns, plus the court-listings queue it now carries in a tab; a client
+ * who only ever opens their own portal should not download any of it.
  * Each of these becomes its own chunk, fetched the first time its route is
  * visited and cached thereafter.
  */
@@ -22,7 +23,6 @@ const InvoicesPage = lazy(() => import("@/pages/invoices"));
 const InvitesPage = lazy(() => import("@/pages/invites"));
 const ClientPortalPage = lazy(() => import("@/pages/client-portal"));
 const CalendarPage = lazy(() => import("@/pages/calendar"));
-const CauseListPage = lazy(() => import("@/pages/cause-list"));
 const DraftingPage = lazy(() => import("@/pages/drafting"));
 const ChamberKnowledgePage = lazy(() => import("@/pages/chamber-knowledge"));
 const DocumentsPage = lazy(() => import("@/pages/documents"));
@@ -47,7 +47,6 @@ import {
   Loader2,
   ChevronRight,
   Calendar as CalendarIcon,
-  Gavel,
   CreditCard,
   ShieldCheck,
   FileText,
@@ -272,7 +271,6 @@ function DashboardLayoutContent() {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: can("calendar.read") },
-    { href: "/cause-list", label: "Court Listings", icon: Gavel, show: can("calendar.read") },
     { href: "/drafting", label: "Drafting", icon: PenLine, show: can("drafting.use") },
     {
       href: "/chamber-knowledge",
@@ -513,14 +511,12 @@ function DashboardLayoutContent() {
                       </ErrorBoundary>
                     </RequireCapability>
                   </Route>
-                  {/* calendar.read to SEE proposals; the Accept button inside
-                      is gated on calendar.write, matching the API. */}
+                  {/* Court Listings moved into the Master Calendar's second
+                      tab — a proposal and the calendar entry it becomes are
+                      the same fact at two stages. Kept as a redirect because
+                      people bookmark this and it was in the nav for weeks. */}
                   <Route path="/cause-list">
-                    <RequireCapability capability="calendar.read">
-                      <ErrorBoundary label="Court Listings">
-                        <CauseListPage />
-                      </ErrorBoundary>
-                    </RequireCapability>
+                    <Redirect to="/calendar" replace />
                   </Route>
                   {/* Both behind drafting.use — practice roles only. A clerk
                       keeps the diary but does not settle pleadings, and a
