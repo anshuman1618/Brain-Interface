@@ -3359,8 +3359,8 @@ requested, with a safe harbour, stated triage and fix times, an in-scope list, a
 "please genuinely do not" list led by _anything touching a real chamber's data_,
 and an admission that there is no bounty. §5 now points at it and draws its line
 in the same words the policy uses, so the two cannot drift apart. The
-out-of-scope list names both known gaps — missing CSP, no durable document
-storage, no backups — so a researcher does not spend a weekend on them.
+out-of-scope list names the known gaps — the missing CSP and no durable document
+storage — so a researcher does not spend a weekend on them.
 
 **The summary binds nobody, and says so at the top.** Four documents is the
 right amount of detail and the wrong amount to read before deciding. It exists
@@ -3485,3 +3485,55 @@ Update this description to reflect the app", and `robots` read `index, follow` �
 inviting a crawler to index the login page of an invite-only platform, which is
 an invitation to credential-stuffing rather than a customer. Now `noindex,
 nofollow`, with the reasoning in a comment so it is not "fixed" back.
+
+---
+
+## The backups that had existed for eight days
+
+Nine passages across six files told chambers the database took no backups and
+had no point-in-time recovery. That was true of the `free` plan the Service
+started on. It stopped being true on **17 September 2026**, when the database
+was upgraded to `0.1c-256mb` to recover from the expiry outage — **point-in-time
+recovery comes with every paid Render plan**, a rolling 3-day window at this
+tier — and nobody re-read the documents, because that day was about getting the
+platform back up.
+
+**The failure is not the outage; it is the coupling that did not fire.** Register
+§8 exists precisely to list the passages that move together, and "no backups"
+was the first entry on it. The upgrade satisfied it silently: a plan change
+resolves the items it resolves without anybody deciding to resolve them. That is
+now written into item 0.2 as the standing lesson, and §8 says the recovery
+window is the coupling that has already failed once.
+
+**Two things fell out of the correction that a find-and-replace would have
+missed**, and they are the reason this took a commit rather than a `sed`:
+
+- **Erasure is no longer instant.** Privacy "Retention" and DPA §7 argued that
+  deletion from the live system was final _because_ nothing persisted. Deleted
+  data now sits in the recovery window for up to three days, and nobody can
+  selectively empty it — that is what makes it a recovery point rather than a
+  copy. "Deleted within three days" is a less comfortable sentence than
+  "deleted", and it is the true one. Both documents say it.
+- **The breach runbook gained a restore point and a deadline.** §1 told you to
+  capture evidence because there was no snapshot to compare against. There is
+  one now — and it expires, so an incident discovered on day four cannot be
+  rolled back at all and a three-day investigation watches its own evidence age
+  out. That makes the capture step more urgent, not less. §1 now says to record
+  the timestamp you would restore to in the first hour.
+
+**Restores have never been rehearsed, and the DPA says so in those words.** An
+untested recovery capability is a claim, not a safeguard. It stays on the
+register as the second half of 0.2, and `DEPLOYMENT.md` now says the first
+restore attempt should be a Tuesday afternoon into a throwaway instance rather
+than a Sunday night into production.
+
+**Three days is the figure the host publishes for this plan tier**, not a number
+read off the dashboard — the API does not expose it. The documents carry it
+because saying nothing while knowing the old text was false was the worse of the
+two, and every passage that carries the number is listed in §8 so a correction
+to 7 days is one pass rather than a search.
+
+**0.3 survives all of this.** `R2_*` is still unset and uploaded documents are
+still destroyed on every deploy. Several sentences that read "two gaps" now read
+"one gap", which is a real improvement and not the one that matters: the
+remaining gap is the one that loses a chamber's file.

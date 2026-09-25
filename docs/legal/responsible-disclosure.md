@@ -104,9 +104,11 @@ documented, or not defects:
   no email, because no email provider is engaged.
 - Self-XSS, clickjacking on a page with no state-changing action, and anything
   requiring a user to have already installed malware.
-- The two things we already publish as unresolved: uploaded documents are not on
-  durable storage, and the database takes no automated backups. Both are in the
-  [Privacy Policy](/legal/privacy) and both are being fixed.
+- The thing we already publish as unresolved: uploaded documents are not on
+  durable storage. It is in the [Privacy Policy](/legal/privacy) and it is being
+  fixed. (This list said "and the database takes no automated backups" until
+  25 September 2026. It has point-in-time recovery; the entry was stale, not a
+  finding.)
 
 ## How to write it up
 

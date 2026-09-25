@@ -56,9 +56,23 @@ statutory breach in its own right, on top of whatever happened.
    the report that you did.
 
 **Where things are.** Render dashboard → service `lex-practice` → Logs. Database
-is `dpg-d9t1dd2jobas738ac3g0-a` in Singapore. **There are no backups** (see the
-compliance register §0.2), so there is no snapshot to compare against and no
-restore point — which is why the capture step above is not optional.
+is `dpg-d9t1dd2jobas738ac3g0-a` in Singapore.
+
+**You have a restore point, and it expires.** The database has point-in-time
+recovery over a rolling **3-day** window. Two things follow, and the second is
+the one people get wrong under pressure:
+
+- A recovery point from before the incident is the most useful artefact you
+  have. Note the timestamp you would restore to **in the incident log, in the
+  first hour**, while you still know roughly when things went wrong.
+- **The window moves.** An incident discovered on day four cannot be rolled back
+  at all, and an investigation that takes three days watches its own evidence
+  age out. That makes the capture step above more urgent, not less — a
+  recovery point is not an archive.
+
+Restores have never been rehearsed on this deployment. Do not discover that
+during an incident: the first restore attempt should be a Tuesday afternoon into
+a throwaway instance, not a Sunday night into production.
 
 ---
 

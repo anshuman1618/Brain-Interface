@@ -88,9 +88,9 @@ These are implemented, not aspirational:
 - Staff access to production limited to those who need it, and logged.
 - Dependency and supply-chain controls in the build.
 
-**Two measures we do not yet have, stated rather than implied.**
+**One measure we do not yet have, stated rather than implied.**
 
-First: **uploaded documents are not held on durable storage.** Files a Chamber
+**Uploaded documents are not held on durable storage.** Files a Chamber
 uploads are written to the application server's own filesystem, which is
 replaced on every deploy and lost on a restart. The encryption above protects
 those files against being read; nothing yet protects them against being lost. A
@@ -98,12 +98,16 @@ Chamber assessing us should treat an uploaded document as recoverable only from
 its own copy until this changes. Object storage is configured and waiting on
 four settings on the deployment; when they are set, this paragraph goes.
 
-Second: the database is provisioned on a plan that takes **no automated backups
-and offers no point-in-time recovery**. A Chamber assessing us should treat loss of the live
-database as loss of its data, and should keep its own export. We are moving the
-database to a plan with backups and point-in-time recovery; when that is done
-this section states the retention period and the date restores were last
-tested, and §7 changes with it.
+**Recovery, which this section used to say we had none of.** The database runs
+on a paid plan with **continuous point-in-time recovery over a rolling 3-day
+window**, the figure our host publishes for this plan tier. Point-in-time
+recovery replaced nightly backup files; a logical export can be taken on demand.
+This section said there were no backups until 25 September 2026, which was true
+of the plan the Service started on and stopped being true when the database was
+upgraded on 17 September. **Restores have not been rehearsed**, and a recovery
+capability nobody has exercised is a claim rather than a measure, so the
+Chamber should read it as one until this sentence says otherwise and gives a
+date. Keeping your own export remains sound practice.
 
 ## 5. Subprocessors
 
@@ -172,9 +176,12 @@ On termination the Chamber may export its data for **60 days**. After that we
 delete it from live systems within **30 days**, except where law requires
 retention.
 
-There are currently no backups for it to persist in — see §4 — so deletion from
-the live system is deletion. When backups exist, this section will state how
-long deleted data survives in them.
+Deleted data persists in the point-in-time recovery window described in §4 —
+**up to three days** — and then ages out. We cannot selectively remove one
+Chamber's or one person's data from that window; it is a recovery point, not a
+copy we can edit. Deletion is therefore complete within three days of being
+performed, and we say three rather than "immediately" because the second would
+be the easier sentence and the wrong one.
 
 That deletion is performed by us on request or on review; no scheduled job
 performs it. A Chamber that needs deletion by a date should ask, and we will

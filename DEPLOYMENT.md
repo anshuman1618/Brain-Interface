@@ -50,8 +50,15 @@ Required before anything connects to it:
 - **Private networking** where the host offers it, so the database is not
   reachable from the public internet at all. Otherwise restrict inbound IPs to
   your API host.
-- **Automated backups** with point-in-time recovery. Note the retention window;
-  the default is often shorter than you would want for legal records.
+- **Point-in-time recovery**, and know the window. On Render this comes with
+  every paid plan — a rolling 3 days at the smallest tier, 7 at Pro and above —
+  and free instances get none, which is one of the reasons a free database is
+  not an option for this. The window is often shorter than you would want for
+  legal records: three days covers "somebody deleted the wrong thing this
+  morning" and does not cover "we noticed last month's corruption".
+- **Rehearse a restore before you need one.** An untested recovery capability is
+  a claim, not a safeguard, and the legal documents say so in those words.
+  `docs/legal/compliance-register.md` 0.2 tracks it.
 
 ```bash
 # Verify TLS is actually in force before you put data in it.

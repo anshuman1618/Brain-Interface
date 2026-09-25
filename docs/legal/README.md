@@ -85,9 +85,41 @@ system as it is rather than as it should be:
   now disclosed the way the backup gap already was. Disclosure is not the fix.
 
 **Terms §8 and §11 now point in opposite directions on purpose.** §8 tells a
-chamber the deployment is one instance with no backups; §11 caps our liability
-at the fees paid. Counsel should read those two together, because a chamber's
-professional indemnity insurer will.
+chamber the deployment is one instance whose uploaded documents do not survive a
+restart; §11 caps our liability at the fees paid. Counsel should read those two
+together, because a chamber's professional indemnity insurer will.
+
+## Corrected 25 September 2026: the backups that had existed for eight days
+
+Nine passages across six files told chambers the database took no backups and
+had no point-in-time recovery. That was true of the `free` plan the Service
+started on. It stopped being true on **17 September**, when the database was
+upgraded to recover from the expiry outage — **point-in-time recovery comes with
+every paid plan**, a rolling 3-day window at this tier — and nobody re-read the
+documents, because the upgrade was about getting the platform back up.
+
+They are all corrected to state the 3-day window, which is the figure the host
+publishes for this plan tier and is to be confirmed on the dashboard's Recovery
+page. Two things fell out of the correction that a find-and-replace would have
+missed:
+
+- **Erasure is no longer instant, and now says so.** Privacy "Retention" and DPA
+  §7 argued that deletion from the live system was final _because_ nothing
+  persisted. Deleted data now sits in the recovery window for up to three days,
+  and nobody can selectively empty it. Saying "deleted within three days" is
+  less comfortable than "deleted" and is the true sentence.
+- **The runbook gained a restore point and a deadline.** §1 told you to capture
+  evidence because there was no snapshot to compare against. There is one now —
+  and it expires, so an incident found on day four cannot be rolled back at all.
+  That makes the capture step more urgent rather than less.
+
+**Restores have never been rehearsed**, and the DPA says so in those words. An
+untested recovery capability is a claim, not a safeguard, and the first restore
+attempt should not happen during an incident.
+
+**The standing lesson, recorded in register item 0.2:** an upgrade resolves the
+items it resolves silently. When a plan changes, re-read §8's coupling list the
+same day.
 
 ## What was corrected, and why it matters
 
@@ -96,10 +128,12 @@ changed rather than left, because the rule at the bottom of this file cuts both
 ways:
 
 - **"Backups are retained for 30 days"** and **"automated backups with
-  point-in-time recovery; restores tested"**. The database is a Render `free`
-  instance: no backups, no PITR, and it **expires on 9 September 2026**. Both
-  documents now state the absence plainly and say what will change when it is
-  fixed.
+  point-in-time recovery; restores tested"**. The database was a Render `free`
+  instance at the time: no backups, no PITR, and an expiry date of 9 September
+  2026 that it duly hit. Both documents were changed to state the absence
+  plainly. _(It is a paid instance now, with a 3-day recovery window — see the
+  section above. "Restores tested" is still the false half, and is still called
+  out as untested.)_
 - **"Sign-in events — kept 12 months."** There is no such table. Clerk holds
   sign-in records; we hold the audit trail of what was done afterwards. The row
   was replaced with the truth.
@@ -169,10 +203,12 @@ Specific couplings to watch:
   `workspaces.drafting_enabled`, and the audit actions `drafting.enabled` and
   `drafting.generated` are the consent record the documents point to. If
   drafting ever becomes on-by-default, both documents are wrong that day.
-- **No backups** (`privacy-policy.md` "Retention", `dpa.md` §4 and §7,
-  `data-usage-summary.md`) — matches a Render `free` Postgres plan. Moving to a
-  paid plan makes four paragraphs and `compliance-register.md` item 0.2 wrong at
-  once. Change them together.
+- **The 3-day recovery window** (`privacy-policy.md` "Retention", `dpa.md` §4
+  and §7, `terms-of-service.md` §8, `data-usage-summary.md` in three places,
+  `breach-runbook.md` §1, `compliance-register.md` 0.2) — matches a paid Render
+  Postgres plan. Nine passages carry the number. If the plan tier changes, or
+  the dashboard says 7 days rather than 3, every one of them is wrong at once.
+  This is the coupling that already failed once; see above.
 - **Documents are not on durable storage** (`privacy-policy.md` "Retention",
   `dpa.md` §4, `terms-of-service.md` §8, `data-usage-summary.md`,
   `responsible-disclosure.md` out-of-scope) — matches `R2_*` being unset.

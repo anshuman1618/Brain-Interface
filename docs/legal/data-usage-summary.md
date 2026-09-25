@@ -19,10 +19,10 @@ LEX Practice holds your chamber's matters, documents, time and billing on a
 server in Singapore, run by one person in Lucknow. **Your content is yours**; we
 hold it as your processor, we do not read it except to operate or repair the
 Service, we do not train models on it, and we do not sell anything to anybody.
-**Two gaps are real and we publish them rather than bury them:** uploaded
-documents are not yet on durable storage and can be lost on a restart, and the
-database takes no automated backups. Both are being fixed; neither should be
-discovered after you have moved a practice across.
+**One gap is real and we publish it rather than bury it:** uploaded documents
+are not yet on durable storage and can be lost on a restart. It is being fixed,
+and it should not be discovered after you have moved a practice across. The
+database itself has point-in-time recovery over a rolling three days.
 
 ---
 
@@ -90,8 +90,12 @@ storage is configured and waiting on four settings. Until then, keep your own
 copy of anything you could not reproduce. _(This one is the reason this page is
 worth reading.)_
 
-**2. There are no database backups.** The plan the database runs on takes none
-and offers no point-in-time recovery. Deleting something deletes it.
+**2. The database has a 3-day recovery window, and restores are unrehearsed.**
+Point-in-time recovery is on, over a rolling three days. Two things follow. A
+bad afternoon is recoverable — but no restore has ever been performed here, so
+treat it as a capability rather than a proven one. And anything you delete sits
+in that window for up to three days before it is gone completely; nobody can
+reach in and remove one record from it early.
 
 **3. One instance, one person.** No second server, no on-call rota, no status
 page. The application sleeps when idle, so the first request after a quiet
@@ -118,6 +122,7 @@ difference between a tool you can evaluate and one you find out about.
 | Chamber content after you leave | **60 days** to export, then deleted                                     |
 | Court cause lists               | Indefinitely. Nothing prunes them, and we would rather say so           |
 | Sign-in records                 | **We keep none.** Clerk holds those, under its own policy               |
+| Anything deleted                | Up to 3 more days, inside the database's recovery window                |
 
 Deletion at the end of the 60 days is done **by hand**, on request or on review.
 No scheduled job performs it. If the date matters to you, ask, and we will
@@ -133,8 +138,10 @@ confirm in writing when it is done.
   your chamber can decide it.
 - Both are written to the audit trail.
 
-**One limit, stated plainly.** Where erasure would remove a record a chamber
-must retain, we **anonymise** instead: the account is renamed, the address
+**Two limits, stated plainly.** Deletion is complete within **three days**, not
+instantly — that is the recovery window above, and nobody can selectively empty
+it. And where erasure would remove a record a chamber must retain, we
+**anonymise** instead: the account is renamed, the address
 blanked, access revoked, the name redacted from the audit log. The professional
 record survives; the link between it and the person does not.
 

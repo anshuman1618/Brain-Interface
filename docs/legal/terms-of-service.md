@@ -157,7 +157,10 @@ consequences are worth stating plainly because you will notice them:
   rolling one, because there is no second instance to take the traffic.
 - Uploaded documents do not survive a restart. See the Privacy Policy under
   "Retention"; it is the most consequential item on this page and it is not a
-  policy choice, it is an unfinished piece of infrastructure.
+  policy choice, it is an unfinished piece of infrastructure. The **database**
+  is a different matter and is protected — point-in-time recovery over a rolling
+  three days — but that does not cover a file the database only holds a row
+  about.
 
 Moving off that plan removes the first two and is a change to the deployment,
 not to these terms. This paragraph is here until it is done.

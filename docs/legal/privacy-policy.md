@@ -338,14 +338,23 @@ switch it on; when they are set, this paragraph goes and the Service keeps
 documents as durably as it keeps everything else. Until then: keep your own copy
 of anything you could not reproduce.
 
-**Backups, stated accurately.** The database this Service runs on is currently
-provisioned on a plan that takes **no automated backups and offers no
-point-in-time recovery**. Deleting something from the live system therefore
-deletes it, with nothing to age out of — which is good for erasure and bad for
-everything else. This is a deficiency we are fixing, not a design; when the
-database moves to a plan with backups, this paragraph changes to state the
-retention period and data deleted from the live system will persist in a backup
-until it ages out.
+**Backups, stated accurately.** The database runs on a paid plan with
+**continuous point-in-time recovery over a rolling 3-day window** — the figure
+our host publishes for this plan tier. There are no separate nightly backup
+files; point-in-time recovery replaced them, and a copy can be exported on
+demand. This paragraph previously said there were no backups at all, which was
+true of the plan the Service started on and stopped being true when the database
+was upgraded on 17 September 2026. It understated the protection for eight days
+and is corrected here.
+
+**What that means for erasure, which is the part that affects you.** Data
+deleted from the live system **remains inside the recovery window for up to
+three days** before it ages out. We cannot reach into that window to remove one
+person's record from it — nobody can; that is what makes it a recovery point
+rather than a copy of the database. So when we tell you something has been
+deleted, it has been deleted from the live system that day and is gone
+completely within three. We would rather say that than let "deleted" carry an
+absoluteness it does not have.
 
 ## Children
 
