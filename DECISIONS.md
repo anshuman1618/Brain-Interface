@@ -3254,3 +3254,174 @@ live_ — a behavioural test would have gone green throughout. Section 11 of
 page is a scroll container with nothing to scroll **and** a refusal to chain.
 That property is engine-independent, and it fails on the pre-fix build on all
 six pages checked.
+
+## The apps, and the three repositories they live in (2026-09-25)
+
+Android and iOS ship as Capacitor shells around the **same** built SPA the web
+deployment serves. Everything below follows from that one choice.
+
+### Capacitor, not a React Native rewrite
+
+**Decided:** the apps bundle the portal's own Vite output and run it in a
+webview.
+
+**Why:** a React Native rewrite means re-implementing every page, every
+capability guard and every route in a second codebase — and then keeping the two
+in step for ever. The capability matrix and the row scopes are the part of this
+product most expensive to get wrong, and the only way to be certain the app
+enforces them identically is for it to be running the same code, not a faithful
+copy of it.
+
+**What it costs:** App Store guideline 4.2 is a real risk for anything that is a
+webview, and the answer has to be earned rather than argued — bundled assets
+rather than a remote URL, useful before the first API call, and native
+notifications, Face ID and system-browser sign-in. Each of those is a line item
+in the app repos, not decoration.
+
+### Two app repositories, with the portal as a submodule
+
+**Decided:** `lex-practice-android` and `lex-practice-ios`, each carrying its
+own native project and its own CI, with this repository as a submodule at
+`brain-interface/`.
+
+**Why separate repositories rather than a directory here:** the two native
+projects share nothing but a config file. Android needs the SDK and a JDK, iOS
+needs macOS and Xcode, and their CI cannot run on the same machine. Keeping each
+platform's changes reviewable on its own is worth more than the convenience of
+one checkout.
+
+**Why a submodule rather than a copy:** there is exactly one built SPA. Copying
+`dist/` into an app repo creates a second, and the failure mode of a second copy
+is that an app quietly ships last month's portal while the web deployment moved
+on — which nobody notices until a chamber reports a bug that was fixed weeks
+ago.
+
+**What it costs, stated plainly:** three repositories now move in lockstep. A
+portal change is a commit here **plus a submodule bump in both app repos**;
+forgetting one ships a stale app. `DEPLOYMENT.md` §11 has the release steps and
+they do both bumps. It also means each app's CI needs a token that can read a
+private submodule, which the default `GITHUB_TOKEN` cannot.
+
+### The Capacitor plugins are pinned twice, and CI compares the two
+
+**Decided:** every plugin appears in this repo's `practice-portal/package.json`
+**and** in each app repo's, at the same exact version, with a
+`check-plugin-versions.mjs` in each app repo that fails the build if they
+disagree.
+
+**Why the duplication is not a mistake:** a plugin has two halves. The
+TypeScript half is imported by the SPA and belongs here. The native half is an
+Android library project or a Swift package, and `cap sync` discovers it by
+reading the **app repo's** `node_modules` to write `capacitor.settings.gradle`
+or `CapApp-SPM/Package.swift`. Neither location can be dropped.
+
+Two pins with no compiler between them is the shape of bug that ships quietly:
+the app builds, the plugin loads, and a call fails at runtime on a handset
+because the JavaScript is talking to a native library of a different version.
+The check costs a second and moves that failure to CI.
+
+### `@capacitor-firebase/messaging`, not `@capacitor/push-notifications`
+
+**Decided:** the messaging plugin is the Firebase one, on both platforms.
+
+**Why:** `lib/push.ts` sends through FCM HTTP v1, which accepts an **FCM
+registration token** and nothing else. The stock Capacitor plugin returns one on
+Android — so Android worked — but on iOS it returns the raw APNs device token,
+hex-encoded. FCM rejects it, every send comes back `INVALID_ARGUMENT`, the
+outbox marks the token dead and revokes the device, and the switch in Settings
+appears to have worked while the handset receives nothing, for ever. There is no
+error anywhere a user or an operator would look.
+
+The Firebase plugin returns an FCM token on both platforms, because the Firebase
+SDK is what performs the exchange. So this stays one client path and one server
+transport, rather than a platform branch in the client and a second APNs sender
+here.
+
+It also matters for maintenance that it arrives as a **plugin**: `cap sync`
+regenerates `CapApp-SPM/Package.swift` from the installed plugins, so the
+Firebase iOS SDK added to that file by hand would be erased on the next sync.
+Coming in as a plugin dependency is the only way it survives.
+
+**The cost:** the plugin's _web_ implementation imports the Firebase JavaScript
+SDK, an optional peer this workspace does not install. Rollup fails the
+production build on it — for a module the app cannot reach, since every call
+sits behind `isNative()`. `vite.config.ts` aliases `firebase/messaging` to
+`src/lib/firebase-messaging-web-stub.ts`, whose exports **throw**. A silent
+no-op would turn "somebody removed an `isNative()` guard" into a notification
+that never arrives and nothing in the log; throwing turns it into a stack trace
+naming the file.
+
+### There is no camera
+
+**Decided:** no camera plugin, no `CAMERA` permission, no
+`NSCameraUsageDescription`, no capture UI.
+
+**Why:** every permission is a line on a Play data-safety form or an App Privacy
+answer that has to be justified, and one a reader of the listing sees before
+they install. For an app holding client-confidential legal files, a camera
+declaration that nothing uses is a question asked at review with no good answer.
+Files still reach a matter through the ordinary file picker, exactly as on the
+web, which needs no permission at all.
+
+### The biometric lock is a UX control, not a security boundary
+
+**Decided:** the app lock asks for Face ID or a passcode after 90 seconds away,
+and the description in Settings says plainly what it does and does not do.
+
+**Why the honesty matters:** the session token lives in the webview whether the
+lock is on or off, and the overlay renders _above_ the router with children
+still mounted — unmounting would throw away every cached query and every
+in-progress form. So it keeps a passer-by out of your files on an unlocked
+handset. It is not encryption and it does not change what the app can reach.
+Describing it as "protected" or "encrypted" would be false, and the person most
+likely to rely on the claim is the one holding the client's papers.
+
+### `AdaptiveTable` supersedes "wide tables lose columns on phones"
+
+**Decided:** `components/ui/adaptive-table.tsx` renders a `<table>` from `md` up
+and a card list below it, from **one** column definition.
+
+**This replaces the decision above at "Wide tables lose columns on phones rather
+than becoming cards".** That one dropped secondary columns with
+`hidden sm:table-cell` and kept a scroll container as the fallback, on the
+reasoning that restructuring into cards was a larger change than a design pass.
+That was true for a design pass and false for an app: on a handset the dropped
+columns are simply information the reader cannot get to, and sideways scrolling
+inside a page that also scrolls vertically is the interaction people most often
+fail to discover.
+
+Both layouts call the same `cell()`, so they cannot drift — which was the real
+risk in writing a second mobile rendering of the same data.
+
+### The nav breakpoint moved from `lg` to `md`
+
+**Decided:** the permanent labelled sidebar appears at `md` (768px) rather than
+`lg` (1024px).
+
+**Why:** every tablet in portrait sat below `lg` and therefore got the
+slide-over meant for phones — an iPad at 768×1024 has ample room for a sidebar
+and no reason to hide navigation behind a button.
+
+Browser tests should anchor on `nav[aria-label="Main"]`, which exists in both
+layouts. The **"Open navigation menu"** button is now `md:hidden`, so a test
+looking for it above 768px will not find it.
+
+While moving it, a dead breakpoint surfaced: the workspace switcher was
+`hidden xs:block`, and `xs` is not a Tailwind 4 breakpoint and no
+`--breakpoint-xs` was defined. No rule was ever emitted, so `hidden` was never
+overridden and the switcher was invisible at **every** width, desktop included.
+Deleted rather than defining a breakpoint for one use.
+
+### What is deliberately not proven
+
+Two boundaries, the same for anyone shipping this app:
+
+- **Signed release builds.** CI proves both projects compile. A signed Android
+  release needs an upload keystore; a distributable IPA needs Apple Developer
+  certificates. Neither belongs in a repository.
+- **Push delivery.** Everything up to and including the FCM send call is built
+  and covered by `scripts/ci/suites/push.mjs`. Reaching a handset needs a
+  Firebase project and an APNs `.p8`. Unconfigured, the server records
+  `suppressed` rather than pretending to have sent — the rule mail already
+  follows, and the one that keeps a chamber from believing a reminder went out
+  when it did not.

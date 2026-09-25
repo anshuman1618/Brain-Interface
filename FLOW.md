@@ -1313,6 +1313,97 @@ before that.
   alone deliberately.
 - **`/invites` still renders a 529px table at 375px.** It scrolls in place.
 
+### The native half (2026-09-25, `claude/mobile-apps-lmx9g4`)
+
+Android and iOS ship from **separate repositories** — `lex-practice-android`
+and `lex-practice-ios` — each holding a Capacitor shell with this repository as
+a submodule. Nothing native lives here. What lives here is the half of the SPA
+that knows it might be running inside one.
+
+#### Boot, when there is a shell around it
+
+```
+MainActivity / SceneDelegate        (the app repos)
+  └─ Capacitor bridge starts a webview
+      └─ loads the BUNDLED index.html      — copied in by `cap sync`
+          └─ App.tsx
+              ├─ ThemeProvider
+              ├─ NativeShell            practice-portal/src/lib/native.ts
+              │    ├─ initNativeShell()  back button, appUrlOpen, theme
+              │    ├─ onPushOpened()     native-push.ts → setLocation(link)
+              │    └─ dismissSplash()    once React has painted, NOT on a timer
+              └─ AppLockGate → routes
+```
+
+`isNative()` in `lib/platform.ts` is the single predicate. Everything native is
+behind it, and on the web each of these is inert — `MobileSettings` renders
+`null` rather than offering a Face ID switch a browser cannot honour.
+
+**`appUrlOpen` drops anything that is not our scheme**, and `onPushOpened`
+follows `data.link` only when it `startsWith("/")`. Both are attacker-influenced
+inputs: a deep link is whatever the OS was handed, and a push payload is
+whatever reached the FCM project.
+
+#### Push is a third channel off `notify()`, not a parallel system
+
+```
+reminder-scheduler.ts  (node-cron, every 30 min)
+  ├─ task deadlines        T-24h / T-2h
+  ├─ consultations         T-24h / T-2h
+  └─ calendar entries      today / tomorrow      ← NEW, see below
+       │
+       ▼
+  notify()                 api-server/src/lib/notify.ts
+    ├─ notifications row   always — and it is also the dedup key
+    ├─ sendMail()          if they have a verified address
+    └─ sendPush()          lib/push.ts
+         └─ device_tokens WHERE workspace_id = … AND user_id = …
+            ▲ the tenant boundary. A person in two chambers holds a device
+              row per chamber; without the filter a reminder about one
+              chamber's matter appears on a lock screen while they are
+              working in the other.
+         └─ push_outbox → FCM HTTP v1, drained every minute on the same
+            mutex and the same backoff ladder as mail
+```
+
+Unconfigured, rows are written `suppressed` rather than dropped — the rule mail
+already follows. `/api/readyz` reports `pushConfigured`, and it never gates
+ready.
+
+**`calendar_entries` was not read by the scheduler at all.** Tasks and
+consultations were covered only because those tables happen to carry an
+assignee, so the single most important thing in an advocate's week — the date
+they have to be in court — was the one event nobody was ever reminded about.
+`emitCalendarReminders()` fans out over the entry's own `audience` through
+`audienceIncludes()`, the same function `routes/calendar.ts` filters reads with,
+so the calendar and its reminders cannot disagree about who an entry is for.
+That would be a disclosure rather than a bug.
+
+`POST /api/preview/run-reminders` is the seam that makes the sweep testable at
+all — it 404s outside preview mode, and `scripts/ci/suites/push.mjs` is what it
+exists for.
+
+#### New in this repository
+
+| File                                                              | What it does                                                        |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `practice-portal/src/lib/platform.ts`                             | `isNative()`, `authRedirectBase()`, `APP_URL_SCHEME`                |
+| `practice-portal/src/lib/native.ts`                               | Back button, `appUrlOpen`, status-bar theme, splash dismissal       |
+| `practice-portal/src/lib/native-push.ts`                          | Permission, FCM token, tap → route                                  |
+| `practice-portal/src/lib/app-lock.ts` + `components/app-lock.tsx` | The biometric overlay. UX, not a boundary                           |
+| `practice-portal/src/components/ui/adaptive-table.tsx`            | Table from `md` up, cards below, from one column definition         |
+| `practice-portal/src/components/mobile-settings.tsx`              | The two handset switches. `null` on the web                         |
+| `api-server/src/lib/push.ts`                                      | FCM HTTP v1, hand-rolled service-account JWT, outbox drain          |
+| `api-server/src/lib/notify.ts`                                    | The fan-out above                                                   |
+| `api-server/src/routes/devices.ts`                                | `POST /devices`, `DELETE /devices/:id` — workspace from the session |
+| `db/src/schema/push.ts`                                           | `device_tokens`, `push_outbox`                                      |
+| `scripts/ci/suites/push.mjs`                                      | 22 checks, registration and the tenant boundary                     |
+
+Request-pipeline position: `devices.ts` is an ordinary router added in
+`routes/index.ts`, behind `requireWorkspace`. It is deliberately **not** behind
+the plan gate — a device registering is not a billable action, and refusing it
+would silence an expired chamber's hearing reminders.
+
 ---
 
 ## 6. Going live

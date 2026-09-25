@@ -907,6 +907,165 @@ first.
 
 ---
 
+## 11. The Android and iOS apps
+
+The apps live in two repositories of their own, each holding a Capacitor shell
+around **this** portal, which they carry as a submodule:
+
+- `anshuman1618/lex-practice-android`
+- `anshuman1618/lex-practice-ios`
+
+Each has its own `README.md`, `DECISIONS.md` and `FLOW.md`. This section is the
+part that spans all three.
+
+### 11a. The release runbook, in order
+
+Three repositories move in lockstep. **A portal change that is not bumped into
+both app repos ships a stale app** — and the way you find out is a chamber
+reporting a bug you fixed weeks ago.
+
+```bash
+# 1. Land the portal change here, as usual.
+git push origin main          # Render redeploys the web app by itself
+
+# 2. Bump the submodule in EACH app repo. Both. Every time.
+cd ../lex-practice-android
+git submodule update --remote brain-interface
+git add brain-interface
+git commit -m "Bump the portal to <short sha>"
+git push
+
+cd ../lex-practice-ios
+git submodule update --remote brain-interface
+git add brain-interface
+git commit -m "Bump the portal to <short sha>"
+git push
+```
+
+Each push runs that repo's build workflow. Android assembles a debug APK on
+`ubuntu-latest`; iOS does an unsigned simulator build on `macos-latest`. Both
+prove the project compiles. Neither produces something installable — see 11d
+and 11e.
+
+### 11b. What the API needs
+
+Add **both** webview origins to `CORS_ALLOWED_ORIGINS`. They are different
+strings and both are required:
+
+```
+CORS_ALLOWED_ORIGINS=https://chambers.example.com,https://localhost,capacitor://localhost
+```
+
+`https://localhost` is Android's (`androidScheme: "https"`, so the webview is a
+secure context and `crypto.subtle` exists). `capacitor://localhost` is iOS's.
+Both are shared with any other Capacitor app on the device, which is only
+acceptable because auth rides on a bearer token another app cannot read.
+
+In **Clerk**, add `in.lexpractice.app://portal/callback` to the allowed redirect
+URLs. Without it the OAuth round trip is refused before Google is ever reached.
+
+### 11c. Push notifications
+
+One transport, FCM HTTP v1, for both platforms. The server never speaks APNs;
+Firebase relays to Apple.
+
+On the **server**:
+
+| Variable                   | What it is                                                |
+| -------------------------- | --------------------------------------------------------- |
+| `FCM_SERVICE_ACCOUNT_JSON` | The whole service-account JSON, as one string             |
+| `FCM_PROJECT_ID`           | Optional — read from the JSON's `project_id` when omitted |
+
+Newlines in the private key may be written `\n`; `lib/push.ts` restores them,
+because a real newline cannot survive an environment variable.
+
+In **Firebase**, once:
+
+1. Create the project. Add an **Android** app with the id `in.lexpractice.app`,
+   download `google-services.json` → `android/app/` in the Android repo.
+2. Add an **iOS** app with the same bundle id, download
+   `GoogleService-Info.plist` → `ios/App/App/` in the iOS repo, and add it to
+   the Xcode target.
+3. **Upload the APNs auth key (`.p8`)** under Project settings → Cloud
+   Messaging, with its Key ID and your Team ID. **This is the step that is
+   invisible when it is missing**: Android notifications arrive, iOS ones do
+   not, and nothing anywhere reports an error. Check it first.
+
+Neither file is in any repository — both are per-account, and both builds
+succeed without them. An app built without one simply has no working push.
+
+**Verifying it:** `/api/readyz` reports `pushConfigured`. It is advisory and
+never gates readiness, because a chamber with no notifications is still a
+working service. With it false, messages are written to `push_outbox` as
+`suppressed` rather than dropped, so "did we notify them?" is answerable either
+way.
+
+### 11d. Releasing Android
+
+Not in the repository, and neither can be:
+
+- **`google-services.json`** — see 11c.
+- **An upload keystore, plus `android/keystore.properties`.** Back it up
+  somewhere you will still have in five years. Losing it means you can never
+  update the listing; the only remedy is a new listing under a new package name.
+
+```bash
+cd lex-practice-android
+npm run build:web        # with the real VITE_* values
+npm run sync
+cd android && ./gradlew bundleRelease     # an .aab for Play
+```
+
+Play data-safety: the app handles client-confidential legal files and registers
+a device token. It uses **no** camera, microphone, location or advertising
+identifier. `docs/legal/privacy.md` has the substance.
+
+### 11e. Releasing iOS
+
+Needs a Mac with Xcode. `xcodebuild` is macOS-only and there is no
+cross-compiler.
+
+```bash
+cd lex-practice-ios
+npm run build:web        # with the real VITE_* values
+npm run sync
+npm run open             # Xcode
+```
+
+Then in Xcode: set your team under **Signing & Capabilities**, bump
+**Version** and **Build** (the store rejects a build number it has seen), then
+**Product → Archive → Distribute App**.
+
+`App/App.entitlements` carries `aps-environment: development`; Xcode rewrites it
+to `production` when archiving for the store, so do not change it by hand.
+
+App Privacy mirrors the Play answers above. **Guideline 4.2 (minimum
+functionality)** is the real risk for anything that is a webview: say in the
+review notes that assets are bundled rather than fetched, that the app works
+offline until its first API call, and that it uses notifications, Face ID and
+the system browser.
+
+### 11f. A review account, for both stores
+
+The platform is invite-only. Without credentials that reach a **populated**
+chamber, a reviewer sees a sign-in wall and rejects the build as
+non-functional. Put them in the review notes, on both stores, every submission.
+
+### 11g. Store submission checklist
+
+- [ ] `in.lexpractice.app` is the id you want — it is permanent once published
+- [ ] Icons replaced (the generated ones are serviceable, not designed)
+- [ ] `CORS_ALLOWED_ORIGINS` has both webview origins (11b)
+- [ ] `in.lexpractice.app://portal/callback` in Clerk's redirect URLs (11b)
+- [ ] `FCM_SERVICE_ACCOUNT_JSON` set on the API; `/api/readyz` shows
+      `pushConfigured: true`
+- [ ] APNs `.p8` uploaded to Firebase (11c — the silent one)
+- [ ] A notification received on a real handset of each platform
+- [ ] Review credentials that reach a populated chamber (11f)
+- [ ] Keystore backed up somewhere durable (11d)
+
+---
+
 ## Local development
 
 ```bash

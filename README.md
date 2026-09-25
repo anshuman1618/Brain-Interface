@@ -92,6 +92,13 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the two supported hosting topologies
 | `scripts/ci`                | Integration suites, browser suites, and the startup guards          |
 | `docs/legal`                | Terms, privacy policy, DPDP notice, DPA — served at `/legal/<slug>` |
 
+The **Android and iOS apps live in their own repositories** —
+`lex-practice-android` and `lex-practice-ios` — each a Capacitor shell that
+carries this one as a submodule and bundles the same built SPA. Nothing native
+is in this tree. `DEPLOYMENT.md` §11 is the release runbook across all three,
+and `DECISIONS.md` — _The apps, and the three repositories they live in_ — is
+why it is arranged that way.
+
 `lib/api-zod` and `lib/api-client-react` are **generated**. After changing
 `lib/api-spec/openapi.yaml`, regenerate rather than editing them by hand:
 
@@ -370,21 +377,27 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs
 
 See `.env.example`. In short:
 
-| Variable                     | Required      | Notes                                                                                                                                                 |
-| ---------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`               | production    | Absent outside production → in-memory preview database                                                                                                |
-| `CLERK_SECRET_KEY`           | production    | Absent outside production → auth is mocked                                                                                                            |
-| `CLERK_PUBLISHABLE_KEY`      | production    | Server-side Clerk key                                                                                                                                 |
-| `VITE_CLERK_PUBLISHABLE_KEY` | build time    | Absent → frontend builds in preview mode                                                                                                              |
-| `VITE_API_BASE_URL`          | split hosting | Absolute API origin; unset means same-origin                                                                                                          |
-| `CORS_ALLOWED_ORIGINS`       | split hosting | Comma-separated; production sends no CORS headers without it                                                                                          |
-| `PORT` / `HOST`              | no            | Default `5000` / `0.0.0.0`                                                                                                                            |
-| `CLIENT_DIST_PATH`           | no            | Override where the API reads the built SPA from                                                                                                       |
-| `PREVIEW_DATA_DIR`           | no            | Where the file-backed preview database lives. Default `.preview-data`; delete it to start over                                                        |
-| `WORKSPACE_TOKEN_SECRET`     | recommended   | Signs scoped workspace tokens. Unset → a random per-process secret, so tokens die on restart and clients re-switch (fine in dev, not across replicas) |
+| Variable                     | Required      | Notes                                                                                                                                                             |
+| ---------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`               | production    | Absent outside production → in-memory preview database                                                                                                            |
+| `CLERK_SECRET_KEY`           | production    | Absent outside production → auth is mocked                                                                                                                        |
+| `CLERK_PUBLISHABLE_KEY`      | production    | Server-side Clerk key                                                                                                                                             |
+| `VITE_CLERK_PUBLISHABLE_KEY` | build time    | Absent → frontend builds in preview mode                                                                                                                          |
+| `VITE_API_BASE_URL`          | split hosting | Absolute API origin; unset means same-origin                                                                                                                      |
+| `CORS_ALLOWED_ORIGINS`       | split hosting | Comma-separated; production sends no CORS headers without it                                                                                                      |
+| `PORT` / `HOST`              | no            | Default `5000` / `0.0.0.0`                                                                                                                                        |
+| `CLIENT_DIST_PATH`           | no            | Override where the API reads the built SPA from                                                                                                                   |
+| `PREVIEW_DATA_DIR`           | no            | Where the file-backed preview database lives. Default `.preview-data`; delete it to start over                                                                    |
+| `WORKSPACE_TOKEN_SECRET`     | recommended   | Signs scoped workspace tokens. Unset → a random per-process secret, so tokens die on restart and clients re-switch (fine in dev, not across replicas)             |
+| `FCM_SERVICE_ACCOUNT_JSON`   | push only     | The whole Firebase service-account JSON as one string. Unset → push is recorded `suppressed`, never silently dropped. `\n` in the private key is restored on read |
+| `FCM_PROJECT_ID`             | no            | Read from the service-account JSON's `project_id` when omitted                                                                                                    |
 
 Google, Zoho and email sign-in are configured in the Clerk dashboard, not by
 environment variable — see [Sign-in providers](#sign-in-providers).
+
+Push reaches both platforms through FCM; the server never speaks APNs. The APNs
+`.p8` key is uploaded to **Firebase**, not set here — `DEPLOYMENT.md` §11c, and
+it is the step whose absence is invisible.
 
 ## Theming
 
