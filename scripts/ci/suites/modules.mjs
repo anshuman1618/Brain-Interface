@@ -257,6 +257,54 @@ if (phase === "setup") {
   check("request auto-marked fulfilled", closed.status === "fulfilled", closed?.status);
   check("...and links the fulfilling document", closed.fulfilledDocumentId === fulfil.data.id);
 
+  /*
+   * Both halves on the matter's ledger.
+   *
+   * The audit log already carried `document_request.created`, but that is the
+   * chamber-wide accountability record. The question asked of a FILE is
+   * different — "what was asked for on this matter, and did it arrive" — and
+   * it needs the pair: the ask and the closure. One without the other reads as
+   * a request nobody ever answered.
+   */
+  const reqLedger = await call(`/cases/${matter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "raising a request is recorded on the matter",
+    (reqLedger.data ?? []).some(
+      (e) => e.eventType === "document_requested" && /Notarised affidavit/.test(e.description),
+    ),
+    JSON.stringify((reqLedger.data ?? []).map((e) => e.eventType)),
+  );
+  check(
+    "...and so is the upload that closed it",
+    (reqLedger.data ?? []).some(
+      (e) =>
+        e.eventType === "document_request_fulfilled" && /Notarised affidavit/.test(e.description),
+    ),
+    JSON.stringify((reqLedger.data ?? []).map((e) => e.eventType)),
+  );
+
+  // A request with no matter belongs to no ledger. Worth pinning: the write is
+  // behind `if (created.caseId)` and a regression there would be silent.
+  const looseReq = await call("/document-requests", {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { clientId: client.userId, documentName: "General ID proof" },
+  });
+  const afterLoose = await call(`/cases/${matter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "a request naming no matter lands on no ledger",
+    looseReq.status === 201 &&
+      !(afterLoose.data ?? []).some((e) => /General ID proof/.test(e.description)),
+    `${looseReq.status}`,
+  );
+
   /* ── Stages of a matter ─────────────────────────────────────────────────
      The headings the vault files under. Four things are worth proving and
      none of them is the happy path on its own:
@@ -469,6 +517,91 @@ if (phase === "setup") {
     "...but can read the headings on their own matter",
     clientReads.status === 200 && Array.isArray(clientReads.data.options),
     `got ${clientReads.status}`,
+  );
+
+  /*
+   * The matter's ledger, which is not the audit log.
+   *
+   * `PATCH /cases/:id` wrote a timeline row for `status` and silently none for
+   * `stage` — so the one field a chamber defines its own vocabulary for was
+   * the one whose changes left no trace on the matter. The audit log did not
+   * cover it either: `document.restaged` is a DOCUMENT moving between stages.
+   */
+  section("6b. Stage changes reach the matter's ledger");
+  const beforeStage = await call(`/cases/${writMatter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  const stagedCase = await call(`/cases/${writMatter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { stage: "counter_affidavit" },
+  });
+  check("the matter's stage can be set", stagedCase.status === 200, `got ${stagedCase.status}`);
+  const afterStage = await call(`/cases/${writMatter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  const stageRows = (afterStage.data ?? []).filter((e) => e.eventType === "stage_changed");
+  check(
+    "a stage change is recorded on the matter",
+    stageRows.length ===
+      (beforeStage.data ?? []).filter((e) => e.eventType === "stage_changed").length + 1,
+    `${stageRows.length} stage_changed rows`,
+  );
+  check(
+    "...naming the LABEL a chamber reads, not the stored key",
+    stageRows.some((e) => /Counter affidavit/.test(e.description)),
+    JSON.stringify(stageRows.map((e) => e.description)),
+  );
+  check(
+    "...and who changed it",
+    stageRows.every((e) => !!e.actorName),
+    JSON.stringify(stageRows.map((e) => e.actorName)),
+  );
+
+  // Setting it to what it already is must not manufacture a row: a ledger that
+  // records non-events is one nobody reads.
+  const again = await call(`/cases/${writMatter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { stage: "counter_affidavit" },
+  });
+  const afterNoop = await call(`/cases/${writMatter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "re-setting the same stage records nothing",
+    again.status === 200 &&
+      (afterNoop.data ?? []).filter((e) => e.eventType === "stage_changed").length ===
+        stageRows.length,
+    `${(afterNoop.data ?? []).filter((e) => e.eventType === "stage_changed").length}`,
+  );
+
+  // Clearing is a change, and reads as one rather than as silence.
+  await call(`/cases/${writMatter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { stage: null },
+  });
+  const afterClear = await call(`/cases/${writMatter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "clearing the stage is recorded too",
+    (afterClear.data ?? []).some(
+      (e) => e.eventType === "stage_changed" && /cleared/i.test(e.description),
+    ),
+    JSON.stringify(
+      (afterClear.data ?? [])
+        .filter((e) => e.eventType === "stage_changed")
+        .map((e) => e.description),
+    ),
   );
 
   /* A client holds `documents.write` — it is what lets them answer a document

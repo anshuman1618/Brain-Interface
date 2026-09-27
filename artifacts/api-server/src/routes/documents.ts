@@ -239,6 +239,17 @@ router.post(
           link: "/documents",
         });
       }
+      // The ledger gets the closure, not just the upload. `document_added`
+      // below says a file arrived; this says which outstanding request it
+      // answered, which is the half that makes the pair readable a year later.
+      if (request.caseId) {
+        await addTimelineEvent(
+          request.caseId,
+          "document_request_fulfilled",
+          `"${request.documentName}" received from ${c.user.displayName}, closing the request`,
+          c.user.displayName,
+        );
+      }
     }
 
     await addTimelineEvent(
@@ -391,6 +402,15 @@ router.post(
           message: `${c.user.displayName} uploaded "${doc!.name}" for "${request.documentName}".`,
           link: "/documents",
         });
+      }
+      // See the JSON path above: the closure is its own ledger row.
+      if (request.caseId) {
+        await addTimelineEvent(
+          request.caseId,
+          "document_request_fulfilled",
+          `"${request.documentName}" received from ${c.user.displayName}, closing the request`,
+          c.user.displayName,
+        );
       }
     }
 

@@ -16,6 +16,7 @@ import {
   type AuthRequest,
 } from "../middlewares/requireAuth";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
+import { addTimelineEvent } from "../lib/timeline";
 import { displayRole } from "../lib/permissions";
 
 const router: IRouter = Router();
@@ -141,6 +142,25 @@ router.post(
       link: "/dashboard",
     });
 
+    /*
+     * On the matter's ledger too, when the request names one.
+     *
+     * The audit log already carries `document_request.created`, but that is
+     * the chamber-wide accountability record — "who did what in this
+     * workspace". The question this answers is different and is asked of the
+     * file: "what has been asked for on this matter, and did it arrive". A
+     * request with no `caseId` is general correspondence and belongs to
+     * neither.
+     */
+    if (created.caseId) {
+      await addTimelineEvent(
+        created.caseId,
+        "document_requested",
+        `"${created.documentName}" requested from ${created.requestedFromName || "the client"} by ${c.user.displayName} (${displayRole(c.role)})`,
+        c.user.displayName,
+      );
+    }
+
     res.status(201).json(await enrich(created));
   },
 );
@@ -195,6 +215,20 @@ router.patch(
         message: `${existing.requestedFromName || "The client"} marked "${existing.documentName}" as ${parsed.data.status}.`,
         link: "/dashboard",
       });
+    }
+
+    // Closing the request closes the loop on the matter's ledger. Dismissal is
+    // recorded as well as fulfilment: "we asked and decided not to chase it"
+    // is exactly the kind of thing somebody needs to find two years later.
+    if (parsed.data.status !== existing.status && existing.caseId) {
+      await addTimelineEvent(
+        existing.caseId,
+        "document_request_fulfilled",
+        parsed.data.status === "fulfilled"
+          ? `"${existing.documentName}" received, closing the request`
+          : `Request for "${existing.documentName}" marked ${parsed.data.status} by ${c.user.displayName}`,
+        c.user.displayName,
+      );
     }
 
     res.json(await enrich(updated));

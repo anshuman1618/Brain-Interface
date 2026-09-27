@@ -71,6 +71,30 @@ import { LoadFailed } from "@/components/load-failed";
 import { groupByStage } from "@/lib/case-stages";
 import { userMessage } from "@/lib/errors";
 
+/**
+ * How each ledger event type is named to a reader, and the order the filter
+ * chips appear in.
+ *
+ * The keys mirror `TIMELINE_EVENT_TYPES` in `lib/db/src/schema/timeline_events.ts`,
+ * which is what the server writes. Not imported from there: that package is the
+ * database layer and the browser bundle has no business pulling Drizzle in for
+ * ten strings. An unknown type falls back to its own name with the underscores
+ * turned into spaces, so a row from an older build is still filterable.
+ */
+const TIMELINE_LABEL: Record<string, string> = {
+  case_created: "Opened",
+  status_changed: "Status",
+  stage_changed: "Stage",
+  document_added: "Documents",
+  document_requested: "Requests",
+  document_request_fulfilled: "Requests closed",
+  task_assigned: "Tasks",
+  task_completed: "Tasks done",
+  consultation_scheduled: "Consultations",
+  delay_logged: "Delays",
+};
+const TIMELINE_ORDER = Object.keys(TIMELINE_LABEL);
+
 export default function CaseDetailPage() {
   const [, navigate] = useLocation();
   const { can } = useSession();
@@ -91,6 +115,27 @@ export default function CaseDetailPage() {
   const { data: timeline } = useGetCaseTimeline(caseId, {
     query: { enabled: !!caseId, queryKey: getGetCaseTimelineQueryKey(caseId) },
   });
+
+  // Ledger filter. Null is "everything"; a type narrows to that type.
+  const [eventFilter, setEventFilter] = useState<string | null>(null);
+  const eventTypesPresent = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const e of timeline ?? []) counts.set(e.eventType, (counts.get(e.eventType) ?? 0) + 1);
+    // Ordered by the vocabulary, so the chips read the same on every matter
+    // rather than shuffling with whatever happened most recently. Anything not
+    // in the vocabulary sorts to the end under its raw name.
+    return [...counts.entries()]
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => {
+        const ai = TIMELINE_ORDER.indexOf(a.type);
+        const bi = TIMELINE_ORDER.indexOf(b.type);
+        return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+      });
+  }, [timeline]);
+  const visibleTimeline = useMemo(
+    () => (timeline ?? []).filter((e) => eventFilter === null || e.eventType === eventFilter),
+    [timeline, eventFilter],
+  );
   const { data: tasks } = useListTasks(
     { caseId },
     { query: { enabled: !!caseId, queryKey: getListTasksQueryKey({ caseId }) } },
@@ -756,8 +801,47 @@ export default function CaseDetailPage() {
         </TabsContent>
 
         <TabsContent value="timeline" className="pt-6">
+          {/*
+            Filter chips, built from what this matter actually has.
+            Deriving the set from the rows rather than from a fixed list means
+            a matter with no consultations never shows a Consultations filter
+            that would return nothing, and a row written by an older build
+            under a type this release does not know still gets a chip — under
+            its raw name, which is ugly and honest.
+          */}
+          {eventTypesPresent.length > 1 && (
+            <div className="mb-6 flex flex-wrap gap-2" role="group" aria-label="Filter the ledger">
+              <button
+                type="button"
+                aria-pressed={eventFilter === null}
+                onClick={() => setEventFilter(null)}
+                className={`rounded-[var(--radius)] px-3 py-1.5 font-mono text-2xs uppercase tracking-widest transition-colors ${
+                  eventFilter === null
+                    ? "bg-foreground text-background"
+                    : "bg-card text-muted-foreground shadow-sm hover:text-foreground"
+                }`}
+              >
+                Everything ({timeline?.length ?? 0})
+              </button>
+              {eventTypesPresent.map(({ type, count }) => (
+                <button
+                  key={type}
+                  type="button"
+                  aria-pressed={eventFilter === type}
+                  onClick={() => setEventFilter(eventFilter === type ? null : type)}
+                  className={`rounded-[var(--radius)] px-3 py-1.5 font-mono text-2xs uppercase tracking-widest transition-colors ${
+                    eventFilter === type
+                      ? "bg-foreground text-background"
+                      : "bg-card text-muted-foreground shadow-sm hover:text-foreground"
+                  }`}
+                >
+                  {TIMELINE_LABEL[type] ?? type.replace(/_/g, " ")} ({count})
+                </button>
+              ))}
+            </div>
+          )}
           <div className="border-l-2 border-border ml-4 pl-6 space-y-8 py-4">
-            {timeline?.map((event) => (
+            {visibleTimeline?.map((event) => (
               <div key={event.id} className="relative">
                 <div className="absolute -left-[35px] h-4 w-4 rounded-full bg-background border-2 border-primary" />
                 <div className="text-xs font-mono text-muted-foreground mb-1">
@@ -773,11 +857,15 @@ export default function CaseDetailPage() {
                 </div>
               </div>
             ))}
-            {(!timeline || timeline.length === 0) && (
+            {visibleTimeline.length === 0 && (
               <div className="py-6 text-center">
-                <p className="font-medium text-sm">Nothing recorded yet</p>
+                <p className="font-medium text-sm">
+                  {eventFilter ? "Nothing of that kind on this matter" : "Nothing recorded yet"}
+                </p>
                 <p className="text-sm text-muted-foreground mt-1 leading-relaxed max-w-sm mx-auto">
-                  Status changes, tasks and uploads on this matter are logged here as they happen.
+                  {eventFilter
+                    ? "Clear the filter to see the whole ledger."
+                    : "Status and stage changes, tasks, uploads and document requests on this matter are logged here as they happen."}
                 </p>
               </div>
             )}

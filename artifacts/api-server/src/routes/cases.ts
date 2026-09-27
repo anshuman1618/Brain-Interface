@@ -501,6 +501,42 @@ router.patch(
       );
     }
 
+    /*
+     * Stage, which is not status, and which recorded nothing until now.
+     *
+     * `status` is workflow — open, closed — and has always written a row. The
+     * block above it sets `updateData.stage` and wrote none, so the one field
+     * a chamber defines its own vocabulary for was the one whose changes left
+     * no trace on the matter at all. The audit log did not cover it either:
+     * `document.restaged` is a DOCUMENT moving between stages, not the matter.
+     *
+     * `undefined` means "not in this patch" and `null` means "clear it", and
+     * they have to read differently — clearing a stage is a change worth
+     * recording, not an absence.
+     */
+    if (body.data.stage !== undefined && (body.data.stage ?? null) !== (existing.stage ?? null)) {
+      // The ledger is read by people, so it records the label a chamber sees
+      // and not the key the column stores. Resolved against the group the
+      // matter is in AFTER the patch, for the same reason the validation above
+      // is. Falling back to the key keeps the row honest if a chamber-defined
+      // label is deleted between the write and the read.
+      let label = updated.stage;
+      if (updated.stage) {
+        const group = forumGroupFor({
+          forumGroup: updated.forumGroup,
+          caseTypeNorm: updated.caseTypeNorm,
+        });
+        const options = await stageOptions(c.workspaceId, group);
+        label = options.find((o) => o.key === updated.stage)?.label ?? updated.stage;
+      }
+      await addTimelineEvent(
+        updated.id,
+        "stage_changed",
+        label ? `Stage changed to "${label}"` : "Stage cleared",
+        c.user.displayName,
+      );
+    }
+
     res.json(UpdateCaseResponse.parse(await enrichCase(updated)));
   },
 );
