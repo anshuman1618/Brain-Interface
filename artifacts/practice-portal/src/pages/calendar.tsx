@@ -360,7 +360,7 @@ export default function CalendarPage() {
             value="listings"
             className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
           >
-            Court Listings
+            Cause List
           </TabsTrigger>
         </TabsList>
 

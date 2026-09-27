@@ -23,19 +23,33 @@ import { CourtIdentityFields } from "@/components/court-identity-fields";
 import { courtIdentityPatch, courtIdentityProblem, type CourtIdentity } from "@/lib/court-identity";
 
 /**
- * The matter's court identity, on the matter itself.
+ * The matter's court identity: the four fields a cause list is matched on.
  *
- * Every matter opened before cause-list matching existed has these four fields
- * empty, and there is no other screen that can fill them in — without this the
- * feature only ever works for matters filed after the deploy, which is nearly
- * none of them. So this sits on the matter rather than in a settings screen:
- * it is a property of the filing, and it is read here in the one place someone
- * has the filing in front of them.
+ * Every matter opened before cause-list matching existed has these empty, and
+ * without somewhere to fill them in the feature only ever works for matters
+ * filed after the deploy — which is nearly none of them.
+ *
+ * ── Two shapes, and why it stopped living on the matter page ──────────────
+ *
+ * It used to be a card on the matter page, on the argument that the fields are
+ * a property of the filing and belong where the filing is. True, and it still
+ * meant every matter page carried a block that served exactly one feature.
+ * The people who actually fill these in are the people looking at a cause list
+ * wondering why a matter did not match — so the panel moved to the Cause List
+ * tab in Master Calendar, where `compact` renders it as a row in a list of
+ * matters rather than a card of its own.
  *
  * Read-only for anyone without `cases.write` — a clerk should see why a matter
  * is or is not being matched without being able to change what it matches.
  */
-export function CaseCourtIdentity({ caseData }: { caseData: Case }) {
+export function CaseCourtIdentity({
+  caseData,
+  compact = false,
+}: {
+  caseData: Case;
+  /** Row-in-a-list rather than a card, for the Cause List tab. */
+  compact?: boolean;
+}) {
   const { can } = useSession();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -85,12 +99,18 @@ export function CaseCourtIdentity({ caseData }: { caseData: Case }) {
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-card p-4 shadow-sm">
+      <div
+        className={
+          compact
+            ? "flex flex-wrap items-center justify-between gap-3 border-t border-border py-3 first:border-t-0"
+            : "flex flex-wrap items-center justify-between gap-3 rounded-lg bg-card p-4 shadow-sm"
+        }
+      >
         <div className="flex min-w-0 items-start gap-3">
-          <Gavel className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+          {!compact && <Gavel className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
           <div className="min-w-0">
             <p className="font-mono text-2xs uppercase tracking-wider text-muted-foreground">
-              Court listing identity
+              {compact ? caseData.title : "Court listing identity"}
             </p>
             {isSet ? (
               <p className="mt-1 truncate text-sm font-medium">
@@ -99,8 +119,9 @@ export function CaseCourtIdentity({ caseData }: { caseData: Case }) {
               </p>
             ) : (
               <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                Not recorded. Published cause lists cannot be matched to this matter until it
-                carries a court, case type, number and year.
+                {compact
+                  ? "No court identity — this matter is not matched against any list."
+                  : "Not recorded. Published cause lists cannot be matched to this matter until it carries a court, case type, number and year."}
               </p>
             )}
           </div>

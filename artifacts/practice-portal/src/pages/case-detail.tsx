@@ -66,7 +66,6 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { TimeLogPanel } from "@/components/time-log-panel";
-import { CaseCourtIdentity } from "@/components/case-court-identity";
 import { StagePicker } from "@/components/stage-picker";
 import { LoadFailed } from "@/components/load-failed";
 import { groupByStage } from "@/lib/case-stages";
@@ -430,16 +429,27 @@ export default function CaseDetailPage() {
         </div>
       )}
 
-      <CaseCourtIdentity caseData={caseData} />
+      {/* The court listing identity panel used to sit here. It moved to the
+          Cause List tab in Master Calendar, beside the listings it feeds — the
+          matter page was carrying a block that only mattered to one feature,
+          and the people who fill those four fields in are the people already
+          looking at unmatched listings. `components/case-court-identity.tsx`
+          still owns it. */}
 
       {/* Tabs */}
       <Tabs defaultValue="tasks" className="w-full">
-        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-lg h-12 p-0 gap-8">
+        {/* `overflow-x-auto` + `flex-nowrap` on the STRIP is the whole fix for
+            the phone. Four triggers at `gap-8` are wider than 360px, and with
+            no overflow container anywhere in this file the excess width fell
+            through to the document — so dragging the tabs dragged the entire
+            page sideways instead of the bar. `overscroll-x-contain` stops the
+            gesture chaining back out to the page once the strip hits its end. */}
+        <TabsList className="bg-transparent border-b border-border w-full justify-start rounded-lg h-12 p-0 gap-8 flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none">
           <TabsTrigger
             value="tasks"
             className="rounded-lg border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none h-full px-0 font-semibold tracking-tight text-base"
           >
-            Task Pipeline
+            Task Timeline
           </TabsTrigger>
           <TabsTrigger
             value="documents"
@@ -463,7 +473,7 @@ export default function CaseDetailPage() {
 
         <TabsContent value="tasks" className="pt-6">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold">Active Pipeline</h3>
+            <h3 className="text-lg font-semibold">Active Tasks</h3>
             <Dialog open={isTaskOpen} onOpenChange={setIsTaskOpen}>
               <DialogTrigger asChild>
                 <Button className="rounded-lg" size="sm">

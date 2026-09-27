@@ -906,14 +906,14 @@ check(
 
 await page.unroute("**/api/cases**");
 
-/* ────────── 13. Court Listings now lives inside the Master Calendar ─────── */
+/* ─────────── 13. The Cause List tab inside the Master Calendar ─────────── */
 
-section("13. Court Listings is a tab on the calendar, and the old URL still works");
+section("13. Cause List is a tab on the calendar, and the old URL still works");
 
 await page.goto(`${BASE}/calendar`, { waitUntil: "networkidle" });
 await page.waitForTimeout(600);
 const scheduleTab = page.getByRole("tab", { name: /^schedule$/i });
-const listingsTab = page.getByRole("tab", { name: /court listings/i });
+const listingsTab = page.getByRole("tab", { name: /cause list/i });
 check(
   "the calendar shows both tabs",
   (await scheduleTab.count()) === 1 && (await listingsTab.count()) === 1,
@@ -937,7 +937,7 @@ check(
 );
 check(
   "...with no second page heading competing with Master Calendar",
-  (await page.locator("h2", { hasText: /^Court Listings$/ }).count()) === 0,
+  (await page.locator("h2", { hasText: /^(Court Listings|Cause List)$/ }).count()) === 0,
 );
 
 // The nav entry is gone, so a bookmark is the only way back — it has to land.
@@ -949,9 +949,54 @@ check(
   page.url(),
 );
 check(
-  "the sidebar no longer offers Court Listings",
+  "the sidebar no longer offers a separate listings entry",
   (await page.locator('nav[aria-label="Main"] a[href="/cause-list"]').count()) === 0,
 );
+
+/* ──────────── 14. Every signed-in screen, at the narrowest phone ────────── */
+
+/*
+ * The sweep above measures the dashboard at every viewport. This measures every
+ * page at the one viewport that actually breaks things.
+ *
+ * A one-off audit of all twenty-one screens at 360px found exactly two
+ * offenders: the case page's tab strip, which had no overflow container in the
+ * file at all and so dragged the whole document sideways, and the
+ * Consultations header, which was the one page not using the app's
+ * `flex-col sm:flex-row … gap-4` header pattern and pushed its "New
+ * Consultation" button 63px past the edge. Both are fixed. This is the guard
+ * that keeps them fixed, and catches the next page that forgets the pattern.
+ *
+ * 360px and not 375: it is the narrowest width in common use, and a layout that
+ * holds there holds everywhere above it.
+ */
+section("14. No page scrolls sideways on a 360px phone");
+
+await page.setViewportSize({ width: 360, height: 740 });
+for (const path of [
+  "/dashboard",
+  "/cases",
+  "/tasks",
+  "/calendar",
+  "/documents",
+  "/invoices",
+  "/time",
+  "/consultations",
+  "/team",
+  "/invites",
+  "/activity",
+  "/governance",
+]) {
+  await page.goto(BASE + path, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(900);
+  const o = await overflow();
+  check(
+    `${path} @ 360px has no horizontal scroll`,
+    o <= 1,
+    o > 1 ? `overflow ${o}px — ${(await widest()).join(" ; ")}` : "",
+  );
+}
+await page.setViewportSize({ width: 1280, height: 800 });
 
 /* ───────────────────────────── Wrap up ──────────────────────────────────── */
 

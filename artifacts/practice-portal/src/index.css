@@ -540,6 +540,27 @@ html {
 }
 
 /*
+ * A scroll container with no visible bar, for strips that are obviously
+ * swipeable from their content.
+ *
+ * The one use is the case page's tab strip, which is wider than a phone. A
+ * themed thin scrollbar sitting under a row of tab labels reads as a second
+ * interface element rather than as an affordance, and the tabs themselves
+ * already say "there is more this way" by being cut off at the edge.
+ *
+ * It hides the bar and nothing else: the element still scrolls, still responds
+ * to a wheel and a drag, and is still reachable by keyboard, because Radix
+ * moves focus between triggers with the arrow keys and the browser scrolls the
+ * focused one into view.
+ */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/*
  * ── Scroll chaining is OPT-IN, and that is a bug fix ────────────────────────
  *
  * This was `[data-scroll], .overflow-y-auto, .overflow-auto` — every overflow

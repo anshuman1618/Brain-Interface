@@ -88,12 +88,22 @@ export function BetaFeedbackWidget() {
         - The label is revealed on hover and focus rather than shown always, so
           at rest this is a small icon rather than a competing button. It stays
           reachable by keyboard because focus-within expands it too.
+        - Pinned BOTTOM-RIGHT, at one offset, with no breakpoint in the
+          positioning. It used to be `left-4 lg:left-60` — left-aligned on a
+          phone and then jumping 14rem across the screen at `lg` to clear the
+          sidebar. Nothing was animating it; it simply stood somewhere else
+          depending on the viewport, which reads as a control that moves.
+          Bottom-right has no sidebar to dodge at any width.
+        - Deliberately quiet at rest: 60% opacity, no shadow, muted foreground.
+          It is a beta affordance, not a call to action, and it sits on top of
+          every screen in the product. Hover, and focus for the keyboard, bring
+          it back to full strength.
       */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Send feedback about this page"
-        className="group fixed left-4 lg:left-60 z-20 flex items-center gap-0 sm:hover:gap-2 focus-visible:gap-2 rounded-lg bg-card/90 text-muted-foreground backdrop-blur-sm shadow-sm hover:bg-accent hover:text-accent-foreground hover:shadow-md active:shadow-[var(--press-sm)] p-2.5 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="group fixed right-4 z-20 flex items-center gap-0 sm:hover:gap-2 focus-visible:gap-2 rounded-lg bg-card/70 text-muted-foreground/70 backdrop-blur-sm shadow-none opacity-60 hover:opacity-100 hover:bg-accent hover:text-accent-foreground hover:shadow-sm active:shadow-[var(--press-sm)] p-2.5 transition-all focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         style={{ bottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
       >
         <MessageSquarePlus className="h-4 w-4 shrink-0" />

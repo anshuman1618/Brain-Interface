@@ -255,7 +255,25 @@ export default function DocumentsPage() {
               const overdue =
                 r.dueDate && r.status === "pending" && new Date(r.dueDate) < new Date();
               return (
-                <div key={r.id} className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div
+                  key={r.id}
+                  /*
+                   * A closed request recedes rather than disappears. The list is
+                   * the record of what was asked for, so a fulfilled row has to
+                   * stay readable — but it is done, and it should not compete
+                   * with the ones still waiting on somebody. 60% opacity and a
+                   * muted ground is enough to sort the list by eye without
+                   * anyone reading the badges.
+                   *
+                   * Opacity and not a grey text colour: the row carries a badge,
+                   * a note and a date in several colours, and dimming the whole
+                   * element keeps their relationship instead of flattening them
+                   * to one shade.
+                   */
+                  className={`p-5 flex flex-col sm:flex-row sm:items-center gap-4 transition-opacity ${
+                    r.status === "fulfilled" ? "bg-muted/20 opacity-60 hover:opacity-100" : ""
+                  }`}
+                >
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-sm">{r.documentName}</span>

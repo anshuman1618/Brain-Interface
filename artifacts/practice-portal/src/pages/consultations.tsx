@@ -125,7 +125,16 @@ export default function ConsultationsPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex justify-between items-start md:items-end">
+      {/*
+        `flex-col sm:flex-row … gap-4` is the header pattern every other page in
+        the app uses, and this one was the exception: a bare `flex
+        justify-between` with no wrap and no gap. The button carries
+        `whitespace-nowrap` from the Button base, so at 360px it could neither
+        shrink nor drop below the heading and pushed 63px past the viewport —
+        the only horizontal overflow left in the product once the case page's
+        tab strip was contained.
+      */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight mb-1">Consultation Records</h2>
           <p className="text-muted-foreground">
@@ -135,7 +144,7 @@ export default function ConsultationsPage() {
         </div>
         <Button
           onClick={() => setNewModalOpen(true)}
-          className="rounded-lg bg-foreground text-background font-mono uppercase tracking-wider"
+          className="shrink-0 rounded-lg bg-foreground text-background font-mono uppercase tracking-wider"
         >
           <Plus className="mr-2 h-4 w-4" /> New Consultation
         </Button>

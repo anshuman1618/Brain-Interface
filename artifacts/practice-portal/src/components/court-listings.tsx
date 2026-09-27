@@ -6,12 +6,15 @@ import {
   useListCauseListRuns,
   useTriggerCauseListSync,
   useListCourts,
+  useListCases,
+  getListCasesQueryKey,
   getListCauseListProposalsQueryKey,
   getListCauseListRunsQueryKey,
   getListCalendarEntriesQueryKey,
   getListCourtsQueryKey,
   type CauseListProposal,
   type CauseListSyncRun,
+  type Case,
   type Court,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { userMessage } from "@/lib/errors";
 import { useSession } from "@/lib/session";
 import { LoadFailed } from "@/components/load-failed";
+import { CaseCourtIdentity } from "@/components/case-court-identity";
 
 /**
  * Listings a court published that appear to be this chamber's matters.
@@ -47,7 +51,7 @@ import { LoadFailed } from "@/components/load-failed";
  *
  * ── Why this is a component and not a page ───────────────────────────────
  *
- * It lives inside the Master Calendar's "Court Listings" tab. A proposal and
+ * It lives inside the Master Calendar's "Cause List" tab. A proposal and
  * the calendar entry it becomes are the same fact at two stages, and putting
  * them on two nav entries made a person navigate between the queue and the
  * consequence of emptying it. Extracted rather than inlined into
@@ -247,6 +251,67 @@ function SyncHealth() {
   );
 }
 
+/**
+ * Which matters can be matched at all, and a way to fix the ones that cannot.
+ *
+ * This is the half of the feature that used to live as a card on every matter
+ * page. A listing is only ever proposed for a matter carrying all four of
+ * court, case type, number and year — so an empty proposals queue has two
+ * indistinguishable causes: nothing was listed, or nothing could be matched.
+ * Putting the unmatchable matters on the same screen as the queue tells them
+ * apart without anybody opening a matter to check.
+ *
+ * Unmatched first, deliberately: those are the actionable ones. The rest are
+ * collapsed behind a toggle because a chamber with sixty live matters does not
+ * need sixty rows confirming that things are fine.
+ */
+function CourtIdentities() {
+  const [showAll, setShowAll] = useState(false);
+  const { data: cases = [] } = useListCases(undefined, {
+    query: { queryKey: getListCasesQueryKey() },
+  });
+
+  const unmatched = cases.filter((c: Case) => c.courtId == null);
+  const matched = cases.filter((c: Case) => c.courtId != null);
+  if (cases.length === 0) return null;
+
+  return (
+    <div className="rounded-lg bg-card p-4 shadow-sm">
+      <p className="font-mono text-2xs uppercase tracking-wider text-muted-foreground">
+        Matters and their court identity
+      </p>
+      <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        A matter is only matched against a published list once it carries a court, case type, number
+        and year.{" "}
+        {unmatched.length > 0 && (
+          <span className="font-medium text-foreground">
+            {unmatched.length} {unmatched.length === 1 ? "matter has" : "matters have"} none.
+          </span>
+        )}
+      </p>
+
+      <div className="mt-3">
+        {unmatched.map((c: Case) => (
+          <CaseCourtIdentity key={c.id} caseData={c} compact />
+        ))}
+        {showAll && matched.map((c: Case) => <CaseCourtIdentity key={c.id} caseData={c} compact />)}
+      </div>
+
+      {matched.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-3 font-mono text-3xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+        >
+          {showAll
+            ? "Hide the matters already set up"
+            : `Show ${matched.length} matter${matched.length === 1 ? "" : "s"} already set up`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function CourtListings() {
   const { can } = useSession();
   const [status, setStatus] = useState<"pending" | "accepted" | "dismissed">("pending");
@@ -428,6 +493,8 @@ export function CourtListings() {
           })}
         </div>
       )}
+
+      <CourtIdentities />
 
       {can("audit.read") && <SyncHealth />}
     </div>
