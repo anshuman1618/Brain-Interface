@@ -42,6 +42,8 @@ import type {
   CaseInput,
   CaseStageInput,
   CaseStages,
+  CaseStatusInput,
+  CaseStatuses,
   CaseUpdate,
   CauseListDecisionInput,
   CauseListProposal,
@@ -5469,6 +5471,156 @@ export const useAddCaseStage = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAddCaseStageMutationOptions(options));
+    }
+
+export const getListCaseStatusesUrl = () => {
+
+
+
+
+  return `/api/case-statuses`
+}
+
+/**
+ * The four standard workflow statuses, then whatever this chamber has added. Workspace-wide rather than per matter, because whether anyone is working on a matter does not depend on which court it is in. Readable by anyone who can read a matter — the chips in the register have to come from somewhere, and a client sees the status of their own file.
+ * @summary The status vocabulary for this chamber
+ */
+export const listCaseStatuses = async ( options?: RequestInit): Promise<CaseStatuses> => {
+
+  return customFetch<CaseStatuses>(getListCaseStatusesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCaseStatusesQueryKey = () => {
+    return [
+    `/api/case-statuses`
+    ] as const;
+    }
+
+
+export const getListCaseStatusesQueryOptions = <TData = Awaited<ReturnType<typeof listCaseStatuses>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCaseStatuses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCaseStatusesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCaseStatuses>>> = ({ signal }) => listCaseStatuses({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCaseStatuses>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCaseStatusesQueryResult = NonNullable<Awaited<ReturnType<typeof listCaseStatuses>>>
+export type ListCaseStatusesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary The status vocabulary for this chamber
+ */
+
+export function useListCaseStatuses<TData = Awaited<ReturnType<typeof listCaseStatuses>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCaseStatuses>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCaseStatusesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAddCaseStatusUrl = () => {
+
+
+
+
+  return `/api/case-statuses`
+}
+
+/**
+ * Saved against the workspace, so it is offered on every matter. Adding one that already exists is not an error — the list comes back unchanged. Requires `cases.write`; a client can read the list but not extend it.
+ * @summary Add a chamber-defined status
+ */
+export const addCaseStatus = async (caseStatusInput: CaseStatusInput, options?: RequestInit): Promise<CaseStatuses> => {
+
+  return customFetch<CaseStatuses>(getAddCaseStatusUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(caseStatusInput)
+  }
+);}
+
+
+
+
+
+export const getAddCaseStatusMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCaseStatus>>, TError,{data: BodyType<CaseStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof addCaseStatus>>, TError,{data: BodyType<CaseStatusInput>}, TContext> => {
+
+const mutationKey = ['addCaseStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof addCaseStatus>>, {data: BodyType<CaseStatusInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  addCaseStatus(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AddCaseStatusMutationResult = NonNullable<Awaited<ReturnType<typeof addCaseStatus>>>
+    export type AddCaseStatusMutationBody = BodyType<CaseStatusInput>
+    export type AddCaseStatusMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a chamber-defined status
+ */
+export const useAddCaseStatus = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addCaseStatus>>, TError,{data: BodyType<CaseStatusInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof addCaseStatus>>,
+        TError,
+        {data: BodyType<CaseStatusInput>},
+        TContext
+      > => {
+      return useMutation(getAddCaseStatusMutationOptions(options));
     }
 
 export const getDeleteDocumentUrl = (caseId: number,

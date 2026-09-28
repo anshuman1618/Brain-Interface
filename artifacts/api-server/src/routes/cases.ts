@@ -25,6 +25,9 @@ import {
   GetCaseTimelineResponse,
   ListCaseStagesParams,
   ListCaseStagesResponse,
+  ListCaseStatusesResponse,
+  AddCaseStatusBody,
+  AddCaseStatusResponse,
   AddCaseStageParams,
   AddCaseStageBody,
   AddCaseStageResponse,
@@ -51,6 +54,13 @@ import { screenForConflicts } from "../lib/conflicts";
 import { recordAudit } from "../lib/audit";
 import { CheckConflictsBody } from "@workspace/api-zod";
 import { zodMessage } from "../lib/validation";
+import {
+  DEFAULT_STATUS,
+  addStatus,
+  isKnownStatus,
+  statusLabelFor,
+  statusOptions,
+} from "../lib/case-statuses";
 
 const router: IRouter = Router();
 
@@ -93,7 +103,11 @@ async function enrichCase(c: typeof casesTable.$inferSelect) {
   // stage vocabulary per matter to render one word. Costs nothing on a matter
   // with no stage, which is most of them.
   const stageLabel = await stageLabelFor(c.workspaceId, forumGroupFor(c), c.stage);
-  return { ...c, clientName, courtName, stageLabel };
+  // Same again for status, which is now a chamber vocabulary rather than four
+  // fixed strings. All four standard keys answer from memory, so this costs a
+  // query only on a matter carrying a status the chamber invented.
+  const statusLabel = await statusLabelFor(c.workspaceId, c.status);
+  return { ...c, clientName, courtName, stageLabel, statusLabel };
 }
 
 /**
@@ -309,6 +323,16 @@ router.post(
       return;
     }
 
+    // Same validation as the PATCH path: the OpenAPI enum is gone, so the
+    // chamber's own list is what a status is checked against.
+    if (parsed.data.status != null && !(await isKnownStatus(c.workspaceId, parsed.data.status))) {
+      res.status(400).json({
+        error: "unknown_status",
+        message: `"${parsed.data.status}" is not a status on this chamber's list.`,
+      });
+      return;
+    }
+
     const [newCase] = await db
       .insert(casesTable)
       .values({
@@ -318,7 +342,7 @@ router.post(
         workspaceId: c.workspaceId,
         title: parsed.data.title,
         description: parsed.data.description ?? null,
-        status: parsed.data.status ?? "open",
+        status: parsed.data.status ?? DEFAULT_STATUS,
         clientId: parsed.data.clientId ?? null,
         filingRef,
         opposingParty: opposing || null,
@@ -426,6 +450,17 @@ router.patch(
     if (body.data.title != null) updateData.title = body.data.title;
     if (body.data.description != null) updateData.description = body.data.description;
     if (body.data.status != null) {
+      // The enum left the OpenAPI schema when statuses became a chamber
+      // vocabulary, so this is now the ONLY thing standing between a typo and
+      // a matter filed under a status no chip will ever show. Validated
+      // against the chamber's list, not a constant.
+      if (!(await isKnownStatus(c.workspaceId, body.data.status))) {
+        res.status(400).json({
+          error: "unknown_status",
+          message: `"${body.data.status}" is not a status on this chamber's list.`,
+        });
+        return;
+      }
       updateData.status = body.data.status;
       // Cycle time is measured to this column, so it has to move with the
       // status rather than being written once and forgotten. Reopening a closed
@@ -594,6 +629,52 @@ router.get(
       .orderBy(timelineEventsTable.createdAt);
 
     res.json(GetCaseTimelineResponse.parse(events));
+  },
+);
+
+/* ── Statuses ─────────────────────────────────────────────────────────────
+   The workflow vocabulary, workspace-wide.
+
+   Same gating as stages and for the same reasons: read on `cases.read`,
+   because a client opening their own matter sees its status and the chips in
+   the register have to come from somewhere, and the vocabulary is not
+   confidential — it is "open" and "closed". Write on `cases.write`, because
+   extending a chamber's controlled vocabulary is a chamber decision.
+
+   NOT scoped to a matter, unlike stages, so these sit on /case-statuses rather
+   than under /cases/:id. Whether anyone is working on a matter does not depend
+   on which court it is in. ─────────────────────────────────────────────── */
+
+router.get(
+  "/case-statuses",
+  requireWorkspace,
+  requireCapability("cases.read"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    res.json(ListCaseStatusesResponse.parse({ options: await statusOptions(c.workspaceId) }));
+  },
+);
+
+router.post(
+  "/case-statuses",
+  requireWorkspace,
+  requireCapability("cases.write"),
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+
+    const body = AddCaseStatusBody.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: "invalid_request", message: zodMessage(body.error) });
+      return;
+    }
+
+    const result = await addStatus(c.workspaceId, body.data.label, c.user.displayName);
+    if (!result.ok) {
+      res.status(400).json({ error: "invalid_request", message: result.message });
+      return;
+    }
+
+    res.status(201).json(AddCaseStatusResponse.parse({ options: result.options }));
   },
 );
 

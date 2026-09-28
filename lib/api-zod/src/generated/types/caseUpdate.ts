@@ -7,13 +7,13 @@
  */
 import type { CaseUpdateForumGroup } from './caseUpdateForumGroup';
 import type { CaseUpdatePriority } from './caseUpdatePriority';
-import type { CaseUpdateStatus } from './caseUpdateStatus';
 
 export interface CaseUpdate {
   /** @minLength 1 */
   title?: string;
   description?: string;
-  status?: CaseUpdateStatus;
+  /** A status key from this chamber's list. Validated server-side. */
+  status?: string;
   clientId?: number;
   /**
      * Optional on update because this is a partial patch, but it cannot be cleared: omit it to leave it alone.

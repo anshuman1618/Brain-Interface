@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useListCases } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import {
@@ -14,30 +14,36 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadFailed } from "@/components/load-failed";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Search, Plus, FileText, ChevronRight, FolderOpen } from "lucide-react";
 import { CaseFormModal } from "@/components/case-form-modal";
+import { StatusChips } from "@/components/status-chips";
 
 export default function CasesPage() {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  // Null is "all". It was the string "all", which worked only while the
+  // vocabulary was fixed and could never collide with a real status key —
+  // a chamber is now free to add one called "All".
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const { data: cases, isLoading, isError, error, refetch } = useListCases();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Counted over every matter, not the filtered set: a chip showing "(0)"
+  // because the other chip is selected would be useless for choosing where to
+  // go next.
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const c of cases ?? []) counts[c.status] = (counts[c.status] ?? 0) + 1;
+    return counts;
+  }, [cases]);
 
   const filteredCases = cases?.filter((c) => {
     const matchesSearch =
       c.title.toLowerCase().includes(search.toLowerCase()) ||
       c.clientName?.toLowerCase().includes(search.toLowerCase()) ||
       c.filingRef?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
+    const matchesStatus = statusFilter === null || c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -105,19 +111,18 @@ export default function CasesPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[180px] rounded-lg bg-background">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="open">Open</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="review">In Review</SelectItem>
-            <SelectItem value="closed">Closed</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
+
+      {/* Outside the search row and under it: the chips are a second line of
+          controls, and cramming them beside a search box means they wrap into
+          it at the first chamber-added status. Counts come from the rows
+          already loaded — see StatusChips. */}
+      <StatusChips
+        value={statusFilter}
+        onChange={setStatusFilter}
+        counts={statusCounts}
+        total={cases?.length ?? 0}
+      />
 
       {isError && (
         <LoadFailed error={error} onRetry={() => void refetch()} what="the case registry" />
@@ -236,7 +241,7 @@ export default function CasesPage() {
                       variant="outline"
                       className={`rounded-lg text-3xs uppercase font-mono tracking-wider border ${getStatusColor(c.status)}`}
                     >
-                      {c.status.replace("_", " ")}
+                      {c.statusLabel || c.status.replace(/_/g, " ")}
                     </Badge>
                   </TableCell>
                   <TableCell>

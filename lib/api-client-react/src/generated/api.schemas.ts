@@ -954,16 +954,6 @@ export interface BillingSettings {
   nextInvoiceRef?: string;
 }
 
-export type CaseStatus = typeof CaseStatus[keyof typeof CaseStatus];
-
-
-export const CaseStatus = {
-  open: 'open',
-  in_progress: 'in_progress',
-  review: 'review',
-  closed: 'closed',
-} as const;
-
 export type CasePriority = typeof CasePriority[keyof typeof CasePriority];
 
 
@@ -981,7 +971,10 @@ export interface Case {
   title: string;
   /** @nullable */
   description?: string | null;
-  status: CaseStatus;
+  /** A status key from this chamber's list — the standard four plus whatever it has added. Not an enum, because the set is per workspace; pinning it here would make a chamber's own status fail client-side validation on read. */
+  status: string;
+  /** The status resolved to what a reader sees. */
+  statusLabel?: string;
   /** @nullable */
   clientId: number | null;
   /** @nullable */
@@ -1032,16 +1025,6 @@ export interface Case {
   updatedAt: string;
 }
 
-export type CaseInputStatus = typeof CaseInputStatus[keyof typeof CaseInputStatus];
-
-
-export const CaseInputStatus = {
-  open: 'open',
-  in_progress: 'in_progress',
-  review: 'review',
-  closed: 'closed',
-} as const;
-
 export type CaseInputPriority = typeof CaseInputPriority[keyof typeof CaseInputPriority];
 
 
@@ -1076,7 +1059,8 @@ export interface CaseInput {
   /** Why the advocate judged the conflict not to apply. Recorded in the audit log. */
   conflictNote?: string;
   description?: string;
-  status?: CaseInputStatus;
+  /** A status key from this chamber's list. Validated server-side. */
+  status?: string;
   clientId?: number;
   /**
      * Court or registry reference for the matter, e.g. CV-2026-118. Required — a matter that cannot be tied back to a filing is not findable in the place that counts.
@@ -1093,16 +1077,6 @@ export interface CaseInput {
   /** Which standard stage list this matter should use. Omit to let the server read one off `caseType` — which it does on every read, so a writ petition gets writ headings without this being set. */
   forumGroup?: CaseInputForumGroup;
 }
-
-export type CaseUpdateStatus = typeof CaseUpdateStatus[keyof typeof CaseUpdateStatus];
-
-
-export const CaseUpdateStatus = {
-  open: 'open',
-  in_progress: 'in_progress',
-  review: 'review',
-  closed: 'closed',
-} as const;
 
 export type CaseUpdatePriority = typeof CaseUpdatePriority[keyof typeof CaseUpdatePriority];
 
@@ -1132,7 +1106,8 @@ export interface CaseUpdate {
   /** @minLength 1 */
   title?: string;
   description?: string;
-  status?: CaseUpdateStatus;
+  /** A status key from this chamber's list. Validated server-side. */
+  status?: string;
   clientId?: number;
   /**
      * Optional on update because this is a partial patch, but it cannot be cleared: omit it to leave it alone.
@@ -2110,6 +2085,38 @@ export interface CaseStageInput {
   label: string;
 }
 
+/**
+ * 'standard' is one of the four built-in workflow statuses, identical in every chamber. 'chamber' is one this workspace added.
+ */
+export type StatusOptionSource = typeof StatusOptionSource[keyof typeof StatusOptionSource];
+
+
+export const StatusOptionSource = {
+  standard: 'standard',
+  chamber: 'chamber',
+} as const;
+
+export interface StatusOption {
+  key: string;
+  label: string;
+  /** 'standard' is one of the four built-in workflow statuses, identical in every chamber. 'chamber' is one this workspace added. */
+  source: StatusOptionSource;
+  position: number;
+}
+
+export interface CaseStatuses {
+  options: StatusOption[];
+}
+
+export interface CaseStatusInput {
+  /**
+     * The status as it should read. Its key is derived server-side and is unique per workspace, so adding one that already exists returns the existing list rather than a duplicate.
+     * @minLength 2
+     * @maxLength 40
+     */
+  label: string;
+}
+
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
 
 
@@ -2601,19 +2608,12 @@ export const ListUsersRole = {
 } as const;
 
 export type ListCasesParams = {
-status?: ListCasesStatus;
+/**
+ * A status key. NOT an enum: a chamber defines its own statuses on top of the standard four, so the set is per workspace and the server validates against it. See GET /case-statuses.
+ */
+status?: string;
 clientId?: string;
 };
-
-export type ListCasesStatus = typeof ListCasesStatus[keyof typeof ListCasesStatus];
-
-
-export const ListCasesStatus = {
-  open: 'open',
-  in_progress: 'in_progress',
-  review: 'review',
-  closed: 'closed',
-} as const;
 
 export type ListTasksParams = {
 status?: ListTasksStatus;

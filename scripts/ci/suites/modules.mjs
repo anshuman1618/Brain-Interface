@@ -527,6 +527,126 @@ if (phase === "setup") {
    * the one whose changes left no trace on the matter. The audit log did not
    * cover it either: `document.restaged` is a DOCUMENT moving between stages.
    */
+  /*
+   * Statuses, which became a chamber vocabulary like stages.
+   *
+   * The interesting assertions are the negative ones. Dropping the OpenAPI
+   * enum means the generated validator no longer rejects an unknown status, so
+   * the server's own check against the chamber's list is the ONLY thing left
+   * between a typo and a matter filed under a status no chip will ever show.
+   */
+  section("6a. A chamber's own case statuses");
+  const stdStatuses = await call("/case-statuses", { token: as(founder), wsToken: wsTok });
+  check(
+    "the four standard statuses are offered without anybody seeding them",
+    stdStatuses.status === 200 &&
+      ["open", "in_progress", "review", "closed"].every((k) =>
+        (stdStatuses.data?.options ?? []).some((o) => o.key === k && o.source === "standard"),
+      ),
+    JSON.stringify((stdStatuses.data?.options ?? []).map((o) => o.key)),
+  );
+
+  const addedStatus = await call("/case-statuses", {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { label: "On Hold" },
+  });
+  check(
+    "a chamber adds a status of its own",
+    addedStatus.status === 201,
+    `got ${addedStatus.status}`,
+  );
+  const onHold = (addedStatus.data?.options ?? []).find((o) => o.key === "on_hold");
+  check(
+    "...keyed from the label and marked as the chamber's",
+    onHold?.label === "On Hold" && onHold?.source === "chamber",
+    JSON.stringify(onHold),
+  );
+
+  const dupStatus = await call("/case-statuses", {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { label: "on  hold" },
+  });
+  check(
+    "adding it again is not an error and does not duplicate it",
+    dupStatus.status === 201 &&
+      (dupStatus.data?.options ?? []).filter((o) => o.key === "on_hold").length === 1,
+    `${dupStatus.status}`,
+  );
+
+  const usedStatus = await call(`/cases/${matter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { status: "on_hold" },
+  });
+  check(
+    "a matter can be put on a chamber-defined status",
+    usedStatus.status === 200 && usedStatus.data.status === "on_hold",
+    `${usedStatus.status} ${usedStatus.data?.status}`,
+  );
+  check(
+    "...and the response carries the label a reader sees",
+    usedStatus.data?.statusLabel === "On Hold",
+    usedStatus.data?.statusLabel,
+  );
+
+  const bogusStatus = await call(`/cases/${matter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { status: "not_a_real_status" },
+  });
+  check(
+    "a status off the list is refused, not stored",
+    bogusStatus.status === 400 && bogusStatus.data?.error === "unknown_status",
+    `${bogusStatus.status} ${JSON.stringify(bogusStatus.data)}`,
+  );
+
+  const bogusOnCreate = await call("/cases", {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { title: "Bad status", filingRef: "CV-BAD-1", status: "invented" },
+  });
+  check(
+    "...on create as well as on update",
+    bogusOnCreate.status === 400 && bogusOnCreate.data?.error === "unknown_status",
+    `${bogusOnCreate.status} ${JSON.stringify(bogusOnCreate.data)}`,
+  );
+
+  const clientStatuses = await call("/case-statuses", {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+  });
+  check(
+    "a client can read the vocabulary — their own matter has a status",
+    clientStatuses.status === 200 && Array.isArray(clientStatuses.data.options),
+    `got ${clientStatuses.status}`,
+  );
+  const clientAddsStatus = await call("/case-statuses", {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "POST",
+    body: { label: "Whatever I like" },
+  });
+  check(
+    "...but cannot extend it (403)",
+    clientAddsStatus.status === 403,
+    `got ${clientAddsStatus.status}`,
+  );
+
+  // Put it back, so the sections after this one see the matter they expect.
+  await call(`/cases/${matter.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { status: "open" },
+  });
+
   section("6b. Stage changes reach the matter's ledger");
   const beforeStage = await call(`/cases/${writMatter.data.id}/timeline`, {
     token: as(founder),

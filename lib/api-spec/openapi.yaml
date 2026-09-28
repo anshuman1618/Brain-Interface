@@ -1428,7 +1428,10 @@ paths:
           name: status
           schema:
             type: string
-            enum: [open, in_progress, review, closed]
+            description: >
+              A status key. NOT an enum: a chamber defines its own statuses on
+              top of the standard four, so the set is per workspace and the
+              server validates against it. See GET /case-statuses.
         - in: query
           name: clientId
           schema:
@@ -1673,6 +1676,50 @@ paths:
           description: The label reduced to an empty key
         "404":
           description: No such matter, or not one this caller may see
+
+  /case-statuses:
+    get:
+      operationId: listCaseStatuses
+      tags: [cases]
+      summary: The status vocabulary for this chamber
+      description: >
+        The four standard workflow statuses, then whatever this chamber has
+        added. Workspace-wide rather than per matter, because whether anyone is
+        working on a matter does not depend on which court it is in. Readable by
+        anyone who can read a matter — the chips in the register have to come
+        from somewhere, and a client sees the status of their own file.
+      responses:
+        "200":
+          description: Status list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseStatuses"
+    post:
+      operationId: addCaseStatus
+      tags: [cases]
+      summary: Add a chamber-defined status
+      description: >
+        Saved against the workspace, so it is offered on every matter. Adding
+        one that already exists is not an error — the list comes back unchanged.
+        Requires `cases.write`; a client can read the list but not extend it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CaseStatusInput"
+      responses:
+        "201":
+          description: The status list, including the addition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseStatuses"
+        "400":
+          description: The label reduced to an empty key, or was too short or too long
+        "403":
+          description: Not permitted to extend the vocabulary
 
   /cases/{caseId}/documents/{docId}:
     delete:
@@ -3485,7 +3532,14 @@ components:
           type: ["string", "null"]
         status:
           type: string
-          enum: [open, in_progress, review, closed]
+          description: >
+            A status key from this chamber's list — the standard four plus
+            whatever it has added. Not an enum, because the set is per
+            workspace; pinning it here would make a chamber's own status fail
+            client-side validation on read.
+        statusLabel:
+          type: string
+          description: The status resolved to what a reader sees.
         clientId:
           type: ["integer", "null"]
         clientName:
@@ -3564,8 +3618,8 @@ components:
           type: string
         status:
           type: string
-          enum: [open, in_progress, review, closed]
           default: open
+          description: A status key from this chamber's list. Validated server-side.
         clientId:
           type: integer
         filingRef:
@@ -3612,7 +3666,7 @@ components:
           type: string
         status:
           type: string
-          enum: [open, in_progress, review, closed]
+          description: A status key from this chamber's list. Validated server-side.
         clientId:
           type: integer
         filingRef:
@@ -4645,6 +4699,46 @@ components:
             The heading as it should read. Its key is derived server-side and is
             unique per workspace and forum group, so adding a stage that already
             exists returns the existing list rather than a duplicate.
+
+    # ── Case statuses ──────────────────────────────────────────────────────
+    StatusOption:
+      type: object
+      required: [key, label, source, position]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        source:
+          type: string
+          enum: [standard, chamber]
+          description: >
+            'standard' is one of the four built-in workflow statuses, identical
+            in every chamber. 'chamber' is one this workspace added.
+        position:
+          type: integer
+
+    CaseStatuses:
+      type: object
+      required: [options]
+      properties:
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatusOption"
+
+    CaseStatusInput:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+          minLength: 2
+          maxLength: 40
+          description: >
+            The status as it should read. Its key is derived server-side and is
+            unique per workspace, so adding one that already exists returns the
+            existing list rather than a duplicate.
 
     # ── Task ──────────────────────────────────────────────────────────────
     Task:

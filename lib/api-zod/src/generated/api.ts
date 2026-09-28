@@ -1573,7 +1573,7 @@ export const ListUsersResponse = zod.array(ListUsersResponseItem)
  * @summary List cases (filtered by role)
  */
 export const ListCasesQueryParams = zod.object({
-  "status": zod.enum(['open', 'in_progress', 'review', 'closed']).optional(),
+  "status": zod.coerce.string().optional(),
   "clientId": zod.coerce.string().optional()
 })
 
@@ -1582,7 +1582,8 @@ export const ListCasesResponseItem = zod.object({
   "workspaceId": zod.number().describe('Tenant the matter belongs to. Always the caller\'s active workspace.'),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
+  "status": zod.string().describe('A status key from this chamber\'s list — the standard four plus whatever it has added. Not an enum, because the set is per workspace; pinning it here would make a chamber\'s own status fail client-side validation on read.\n'),
+  "statusLabel": zod.string().optional().describe('The status resolved to what a reader sees.'),
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
   "filingRef": zod.string(),
@@ -1619,7 +1620,7 @@ export const CreateCaseBody = zod.object({
   "conflictAcknowledged": zod.boolean().optional().describe('Set to proceed despite a reported conflict. Requires conflictNote.'),
   "conflictNote": zod.string().optional().describe('Why the advocate judged the conflict not to apply. Recorded in the audit log.'),
   "description": zod.string().optional(),
-  "status": zod.enum(['open', 'in_progress', 'review', 'closed']).default(createCaseBodyStatusDefault),
+  "status": zod.string().default(createCaseBodyStatusDefault).describe('A status key from this chamber\'s list. Validated server-side.'),
   "clientId": zod.number().optional(),
   "filingRef": zod.string().min(createCaseBodyFilingRefMin).describe('Court or registry reference for the matter, e.g. CV-2026-118. Required — a matter that cannot be tied back to a filing is not findable in the place that counts.'),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).default(createCaseBodyPriorityDefault),
@@ -1635,7 +1636,8 @@ export const CreateCaseResponse = zod.object({
   "workspaceId": zod.number().describe('Tenant the matter belongs to. Always the caller\'s active workspace.'),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
+  "status": zod.string().describe('A status key from this chamber\'s list — the standard four plus whatever it has added. Not an enum, because the set is per workspace; pinning it here would make a chamber\'s own status fail client-side validation on read.\n'),
+  "statusLabel": zod.string().optional().describe('The status resolved to what a reader sees.'),
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
   "filingRef": zod.string(),
@@ -1668,7 +1670,8 @@ export const GetCaseResponse = zod.object({
   "workspaceId": zod.number().describe('Tenant the matter belongs to. Always the caller\'s active workspace.'),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
+  "status": zod.string().describe('A status key from this chamber\'s list — the standard four plus whatever it has added. Not an enum, because the set is per workspace; pinning it here would make a chamber\'s own status fail client-side validation on read.\n'),
+  "statusLabel": zod.string().optional().describe('The status resolved to what a reader sees.'),
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
   "filingRef": zod.string(),
@@ -1704,7 +1707,7 @@ export const updateCaseBodyFilingRefMin = 3;
 export const UpdateCaseBody = zod.object({
   "title": zod.string().min(1).optional(),
   "description": zod.string().optional(),
-  "status": zod.enum(['open', 'in_progress', 'review', 'closed']).optional(),
+  "status": zod.string().optional().describe('A status key from this chamber\'s list. Validated server-side.'),
   "clientId": zod.number().optional(),
   "filingRef": zod.string().min(updateCaseBodyFilingRefMin).optional().describe('Optional on update because this is a partial patch, but it cannot be cleared: omit it to leave it alone.'),
   "priority": zod.enum(['low', 'medium', 'high', 'urgent']).optional(),
@@ -1721,7 +1724,8 @@ export const UpdateCaseResponse = zod.object({
   "workspaceId": zod.number().describe('Tenant the matter belongs to. Always the caller\'s active workspace.'),
   "title": zod.string(),
   "description": zod.string().nullish(),
-  "status": zod.enum(['open', 'in_progress', 'review', 'closed']),
+  "status": zod.string().describe('A status key from this chamber\'s list — the standard four plus whatever it has added. Not an enum, because the set is per workspace; pinning it here would make a chamber\'s own status fail client-side validation on read.\n'),
+  "statusLabel": zod.string().optional().describe('The status resolved to what a reader sees.'),
   "clientId": zod.number().nullable(),
   "clientName": zod.string().nullish(),
   "filingRef": zod.string(),
@@ -1925,6 +1929,43 @@ export const AddCaseStageResponse = zod.object({
   "key": zod.string(),
   "label": zod.string(),
   "source": zod.enum(['standard', 'chamber']).describe('\'standard\' is one of the built-in stages for this forum group, identical in every chamber. \'chamber\' is one this workspace added.\n'),
+  "position": zod.number()
+}))
+})
+
+
+/**
+ * The four standard workflow statuses, then whatever this chamber has added. Workspace-wide rather than per matter, because whether anyone is working on a matter does not depend on which court it is in. Readable by anyone who can read a matter — the chips in the register have to come from somewhere, and a client sees the status of their own file.
+ * @summary The status vocabulary for this chamber
+ */
+export const ListCaseStatusesResponse = zod.object({
+  "options": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "source": zod.enum(['standard', 'chamber']).describe('\'standard\' is one of the four built-in workflow statuses, identical in every chamber. \'chamber\' is one this workspace added.\n'),
+  "position": zod.number()
+}))
+})
+
+
+/**
+ * Saved against the workspace, so it is offered on every matter. Adding one that already exists is not an error — the list comes back unchanged. Requires `cases.write`; a client can read the list but not extend it.
+ * @summary Add a chamber-defined status
+ */
+export const addCaseStatusBodyLabelMin = 2;
+export const addCaseStatusBodyLabelMax = 40;
+
+
+
+export const AddCaseStatusBody = zod.object({
+  "label": zod.string().min(addCaseStatusBodyLabelMin).max(addCaseStatusBodyLabelMax).describe('The status as it should read. Its key is derived server-side and is unique per workspace, so adding one that already exists returns the existing list rather than a duplicate.\n')
+})
+
+export const AddCaseStatusResponse = zod.object({
+  "options": zod.array(zod.object({
+  "key": zod.string(),
+  "label": zod.string(),
+  "source": zod.enum(['standard', 'chamber']).describe('\'standard\' is one of the four built-in workflow statuses, identical in every chamber. \'chamber\' is one this workspace added.\n'),
   "position": zod.number()
 }))
 })

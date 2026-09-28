@@ -7,7 +7,6 @@
  */
 import type { CaseInputForumGroup } from './caseInputForumGroup';
 import type { CaseInputPriority } from './caseInputPriority';
-import type { CaseInputStatus } from './caseInputStatus';
 
 export interface CaseInput {
   /** @minLength 1 */
@@ -19,7 +18,8 @@ export interface CaseInput {
   /** Why the advocate judged the conflict not to apply. Recorded in the audit log. */
   conflictNote?: string;
   description?: string;
-  status?: CaseInputStatus;
+  /** A status key from this chamber's list. Validated server-side. */
+  status?: string;
   clientId?: number;
   /**
      * Court or registry reference for the matter, e.g. CV-2026-118. Required — a matter that cannot be tied back to a filing is not findable in the place that counts.

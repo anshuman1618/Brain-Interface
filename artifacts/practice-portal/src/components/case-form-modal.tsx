@@ -7,7 +7,6 @@ import {
   getGetDashboardSummaryQueryKey,
   type CaseInput,
   type CaseInputPriority,
-  type CaseInputStatus,
   type ConflictHit,
 } from "@workspace/api-client-react";
 import {
@@ -33,6 +32,7 @@ import { AlertCircle, AlertTriangle, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePricingModal } from "@/components/pricing-modal";
 import { CourtIdentityFields } from "@/components/court-identity-fields";
+import { StatusSelect } from "@/components/status-select";
 import {
   courtIdentityPayload,
   courtIdentityProblem,
@@ -308,20 +308,11 @@ export function CaseFormModal({
             </div>
             <div className="grid gap-2">
               <Label>Initial Status</Label>
-              <Select
-                value={newCase.status}
-                onValueChange={(v) => setNewCase({ ...newCase, status: v as CaseInputStatus })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="open">Open</SelectItem>
-                  <SelectItem value="in_progress">In Progress</SelectItem>
-                  <SelectItem value="review">Review</SelectItem>
-                  <SelectItem value="closed">Closed</SelectItem>
-                </SelectContent>
-              </Select>
+              <StatusSelect
+                value={newCase.status ?? "open"}
+                onChange={(v) => setNewCase({ ...newCase, status: v })}
+                className="rounded-lg"
+              />
             </div>
           </div>
 

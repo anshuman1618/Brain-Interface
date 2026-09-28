@@ -1276,6 +1276,37 @@ uploading a file cannot invent a heading for it.
 Migration `0016_case_stages.sql` is additive and guarded, and the three columns
 plus the table are repeated in **both** `preview.ts` blocks.
 
+### Statuses of a matter — the same pattern, one scope wider
+
+`status` is workflow (is anyone working on this) where `stage` is phase (where
+the matter has got to). Both are now vocabularies a chamber extends, and the
+implementations are deliberately the same shape:
+
+|                   | Stage                            | Status                    |
+| ----------------- | -------------------------------- | ------------------------- |
+| Standard list     | `lib/case-stages.ts`             | `lib/case-statuses.ts`    |
+| Chamber additions | `case_stage_labels`              | `workspace_status_labels` |
+| Scoped to         | workspace **+ forum group**      | workspace                 |
+| Endpoints         | `GET/POST /cases/:caseId/stages` | `GET/POST /case-statuses` |
+| Read gate         | `cases.read`                     | `cases.read`              |
+| Write gate        | `cases.write`                    | `cases.write`             |
+
+Not per forum group, because whether anyone is working on a matter does not
+depend on which court it is in — which is why the status endpoints are not
+under `/cases/:id`.
+
+**`Case.status` is a plain string on the wire, not an enum.** It was an enum in
+four places and could not stay one: a generated zod union would reject a
+chamber's own status on read. The server validates instead, on create and on
+update, in `routes/cases.ts` — and since the generated validator no longer
+does, that check is the only thing between a typo and a matter filed under a
+status nothing will ever display. `Case.statusLabel` carries the resolved label
+so a register does not fetch the vocabulary per row.
+
+Migration `0017_case_statuses.sql` adds a table and changes no column on
+`cases`, which is what makes every existing row valid on the first boot. The
+table is in **both** `preview.ts` blocks.
+
 ### One scroller, and it is the document
 
 Worth knowing before touching the shell, because it was got wrong once and the

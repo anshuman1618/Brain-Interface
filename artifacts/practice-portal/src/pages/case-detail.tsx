@@ -20,7 +20,6 @@ import {
   getListDocumentsQueryKey,
   getGetCaseQueryKey,
   Task,
-  type CaseUpdateStatus,
   type TaskInputPriority,
   type TaskCompletion,
   type TaskCompletionDelayReason,
@@ -67,6 +66,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { TimeLogPanel } from "@/components/time-log-panel";
 import { StagePicker } from "@/components/stage-picker";
+import { StatusSelect } from "@/components/status-select";
 import { LoadFailed } from "@/components/load-failed";
 import { groupByStage } from "@/lib/case-stages";
 import { userMessage } from "@/lib/errors";
@@ -200,7 +200,7 @@ export default function CaseDetailPage() {
     return <LoadFailed error={caseError} onRetry={() => void refetchCase()} what="this matter" />;
   if (!caseData) return <div>Case not found.</div>;
 
-  const handleStatusChange = (newStatus: CaseUpdateStatus) => {
+  const handleStatusChange = (newStatus: string) => {
     updateCase.mutate(
       { id: caseId, data: { status: newStatus } },
       {
@@ -389,22 +389,16 @@ export default function CaseDetailPage() {
         </div>
 
         <div className="flex flex-col items-end gap-2">
-          {/* Radix hands back a bare string; the SelectItem values below are the
-              enum, so the narrowing is safe and stays at this one boundary. */}
-          <Select
+          {/* The four hardcoded options became a chamber vocabulary, so this
+              reads the list from the server like the stage picker beside it.
+              No cast: status is a plain string now, validated server-side
+              against the chamber's own list rather than by a generated enum. */}
+          <StatusSelect
             value={caseData.status}
-            onValueChange={(v) => handleStatusChange(v as CaseUpdateStatus)}
-          >
-            <SelectTrigger className="w-[180px] rounded-lg font-mono uppercase tracking-wider text-xs font-semibold">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="open">STATUS: OPEN</SelectItem>
-              <SelectItem value="in_progress">STATUS: IN PROGRESS</SelectItem>
-              <SelectItem value="review">STATUS: REVIEW</SelectItem>
-              <SelectItem value="closed">STATUS: CLOSED</SelectItem>
-            </SelectContent>
-          </Select>
+            onChange={handleStatusChange}
+            prefixed
+            className="w-[180px] rounded-lg font-mono uppercase tracking-wider text-xs font-semibold"
+          />
           {/*
             Where the matter has GOT to, which `status` above does not say: a
             matter sits "open" for a year while travelling petition → counter →

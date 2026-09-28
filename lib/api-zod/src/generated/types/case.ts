@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CasePriority } from './casePriority';
-import type { CaseStatus } from './caseStatus';
 
 export interface Case {
   id: number;
@@ -15,7 +14,10 @@ export interface Case {
   title: string;
   /** @nullable */
   description?: string | null;
-  status: CaseStatus;
+  /** A status key from this chamber's list — the standard four plus whatever it has added. Not an enum, because the set is per workspace; pinning it here would make a chamber's own status fail client-side validation on read. */
+  status: string;
+  /** The status resolved to what a reader sees. */
+  statusLabel?: string;
   /** @nullable */
   clientId: number | null;
   /** @nullable */

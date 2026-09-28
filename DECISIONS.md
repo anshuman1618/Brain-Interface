@@ -3537,3 +3537,63 @@ to 7 days is one pass rather than a search.
 still destroyed on every deploy. Several sentences that read "two gaps" now read
 "one gap", which is a real improvement and not the one that matters: the
 remaining gap is the one that loses a chamber's file.
+
+---
+
+## Status became a chamber's vocabulary, and the enum had to go
+
+`cases.status` was four strings the product chose — open, in_progress, review,
+closed — hardcoded as a filter in the register, hardcoded again in two
+dropdowns, and pinned as an `enum` in four places in the OpenAPI schema. A
+chamber working in a state the product did not anticipate ("On hold",
+"Awaiting instructions", "Settled") had nowhere to put it but the matter's
+title.
+
+**Built as a copy of stages, deliberately.** `workspace_status_labels` is
+`case_stage_labels` without the forum group; `case-statuses.ts` is
+`case-stages.ts` with the same key derivation, the same standard-list-in-code
+split, the same idempotent add and the same refusal to delete. Two vocabularies
+with the same problem should not have two designs, and the reviewer who learns
+one has learned the other.
+
+The one difference is the scope, and it is the interesting one: stages are per
+forum group because a writ petition is answered by a counter affidavit and a
+civil suit is not, while status is per workspace because **whether anyone is
+working on a matter does not depend on which court it is in.** That is why
+these live at `/case-statuses` rather than under `/cases/:id`.
+
+**The standard four are code, not seeded rows.** Every matter in production
+already carries one of those strings, so they have to keep resolving whether or
+not a chamber ever opens the status screen — and seeding four rows per
+workspace would mean four rows to migrate every time one is reworded. The
+migration adds a table and changes no column on `cases`, which is what makes
+every existing row valid under the new vocabulary on the first boot.
+
+**Dropping the enum is the part with a real trade-off.** An enum in the schema
+generates a zod union, and a chamber's own status would then fail client-side
+validation on read — a matter's status rejected by the browser because the
+chamber invented it. So `status` is a plain string on the wire in all four
+places, and the generated `CaseInputStatus` / `CaseUpdateStatus` types
+disappeared with it, which is how the two hardcoded dropdowns were found: they
+would have shown four options while the register showed six.
+
+The cost is that the generated validator no longer rejects an unknown status.
+The server does instead, on create and on update, against the chamber's own
+list — which is the only check that could ever have been correct, since a
+constant cannot know what a chamber added. The suite asserts the negative on
+both paths, because that check is now the only thing between a typo and a
+matter filed under a status no chip will ever show.
+
+**Chips rather than a dropdown, with the counts.** A register is a screen
+somebody scans, and a four-value Select hid both the vocabulary and the
+distribution — you could not see eleven matters in review without opening it.
+The counts come from the rows the page already holds rather than a second
+query, and they count every matter rather than the filtered set, because a chip
+reading "(0)" only because another chip is selected is useless for deciding
+where to go next. "Add status" sits at the end of the row for the same reason
+"Add a stage…" sits inside the stage picker: the moment somebody notices a
+status is missing is the moment they are looking for it.
+
+**`statusFilter` stopped being the string `"all"`.** That worked only while the
+vocabulary was fixed and could never collide with a real key. A chamber is now
+free to add a status called "All"; null means all.

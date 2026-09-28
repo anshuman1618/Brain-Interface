@@ -365,6 +365,17 @@ CREATE TABLE IF NOT EXISTS case_stage_labels (
   CONSTRAINT case_stage_labels_ws_forum_key UNIQUE (workspace_id, forum_group, key)
 );
 
+CREATE TABLE IF NOT EXISTS workspace_status_labels (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  key TEXT NOT NULL,
+  label TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 900,
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT workspace_status_labels_ws_key UNIQUE (workspace_id, key)
+);
+
 CREATE TABLE IF NOT EXISTS notifications (
   id SERIAL PRIMARY KEY,
   user_id TEXT NOT NULL,
@@ -735,6 +746,21 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS stage TEXT;
 CREATE INDEX IF NOT EXISTS case_stage_labels_workspace_idx
   ON case_stage_labels (workspace_id, forum_group);
 CREATE INDEX IF NOT EXISTS documents_case_stage_idx ON documents (case_id, stage);
+
+-- Chamber-defined case statuses (migration 0017). The CREATE TABLE above only
+-- runs on a fresh database, so an existing .preview-data needs this one too.
+CREATE TABLE IF NOT EXISTS workspace_status_labels (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  key TEXT NOT NULL,
+  label TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 900,
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT workspace_status_labels_ws_key UNIQUE (workspace_id, key)
+);
+CREATE INDEX IF NOT EXISTS workspace_status_labels_workspace_idx
+  ON workspace_status_labels (workspace_id);
 `;
 
 /** Where the preview database lives on disk. */

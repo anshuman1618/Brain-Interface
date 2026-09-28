@@ -5,9 +5,11 @@
  * Private Practice Management & Client Portal API
  * OpenAPI spec version: 0.1.0
  */
-import type { ListCasesStatus } from './listCasesStatus';
 
 export type ListCasesParams = {
-status?: ListCasesStatus;
+/**
+ * A status key. NOT an enum: a chamber defines its own statuses on top of the standard four, so the set is per workspace and the server validates against it. See GET /case-statuses.
+ */
+status?: string;
 clientId?: string;
 };
