@@ -23,23 +23,65 @@ import { z } from "zod/v4";
  * a person accepts them: the machine proposes, a person decides, and the person
  * is the one on the record.
  */
+/**
+ * Every kind that has ever been stored, which is not the same as every kind
+ * that may still be asked for. See `OFFERED_DRAFT_KINDS`.
+ *
+ * Retiring a kind must never make the rows already carrying it unreadable, so
+ * nothing is removed from this list. `drafts.kind` is text with no constraint;
+ * the enum in the OpenAPI schema is what would reject a stored value, and a
+ * chamber's own past work disappearing because a menu was shortened is not a
+ * trade worth making.
+ */
 export const DRAFT_KINDS = [
+  // ── Retired: readable, never creatable ────────────────────────────────
+  // Long pleadings. A model writing an entire writ petition produces
+  // something an advocate must rewrite line by line to be able to sign, which
+  // is slower than drafting it — and it is the output most likely to be filed
+  // with less reading than it needed. The short, structured documents below
+  // are where the time actually goes.
   "petition",
   "written_statement",
   "appeal",
-  "application",
   "reply",
   "notice",
   "letter",
+
+  // ── Offered ───────────────────────────────────────────────────────────
+  "application",
   // Not "review": the earlier name described one section of what this now
   // produces. A brief covers the matter and a draft together, which is what an
   // advocate actually opens a file to get.
   "brief",
+  /**
+   * A written analysis of something already in the file: a judgment, a
+   * contract, an application, an opponent's pleading.
+   *
+   * Distinct from a brief, which assesses THE MATTER and how to run it. An
+   * analysis takes a document and reports what is in it — the obligations, the
+   * holding, the defects, the dates that bite — and asserts nothing about
+   * strategy it has not been given the file for.
+   */
+  "analysis",
 ] as const;
 export type DraftKind = (typeof DRAFT_KINDS)[number];
 
 export function isDraftKind(value: unknown): value is DraftKind {
   return typeof value === "string" && (DRAFT_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * The kinds that may still be requested.
+ *
+ * The same shape as `OFFERED_PLANS`: the full set stays valid for reading, and
+ * this is the subset the product sells today. Narrowing here rather than by
+ * deleting from `DRAFT_KINDS` is what keeps a two-year-old petition draft
+ * loading in a chamber's history.
+ */
+export const OFFERED_DRAFT_KINDS: readonly DraftKind[] = ["application", "brief", "analysis"];
+
+export function isOfferedDraftKind(value: unknown): value is DraftKind {
+  return isDraftKind(value) && OFFERED_DRAFT_KINDS.includes(value);
 }
 
 /** Kinds that get the reasoning-heavy model. See `lib/ai/models.ts`. */
@@ -48,6 +90,10 @@ export const HEAVY_KINDS: readonly DraftKind[] = [
   "written_statement",
   "appeal",
   "brief",
+  // Reading a contract or a judgment closely is the reasoning-heavy half of
+  // this feature, not the writing. An analysis on the light model summarises;
+  // on the heavy one it notices the clause that contradicts the recital.
+  "analysis",
 ] as const;
 
 export const DRAFT_STATUSES = ["generating", "ready", "failed", "kept"] as const;

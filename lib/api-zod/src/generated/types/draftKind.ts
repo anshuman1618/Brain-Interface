@@ -18,4 +18,5 @@ export const DraftKind = {
   notice: 'notice',
   letter: 'letter',
   brief: 'brief',
+  analysis: 'analysis',
 } as const;

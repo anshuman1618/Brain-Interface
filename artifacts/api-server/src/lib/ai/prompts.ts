@@ -130,8 +130,9 @@ cannot be carried out.`,
 specific, and short. State what is asked for and by when.`,
 
   // A brief has no per-kind rules: BRIEF_RULES is the whole of it, and
-  // `rulesFor` returns that before it reaches this table.
+  // `rulesFor` returns that before it reaches this table. Same for analysis.
   brief: "",
+  analysis: "",
 };
 
 /**
@@ -211,9 +212,70 @@ Every placeholder and every assumption you had to make, in one list.
 Be specific and be brief. A brief that says "ensure compliance with applicable
 law" is worth nothing to the person reading it.`;
 
+/**
+ * Reading something closely and reporting what is in it.
+ *
+ * The third thing this feature does, and the one furthest from drafting: the
+ * subject is a document already in the file — a judgment, a contract, an
+ * opponent's application — and the job is to report its contents accurately,
+ * not to argue from them.
+ *
+ * Separate from BRIEF_RULES rather than a section of it, because a brief
+ * assesses THE MATTER and how to run it, and answering "what does this
+ * contract say" with strategy is how a reader ends up trusting a paragraph
+ * that was never grounded in the file.
+ *
+ * Headings again, and for the reason BRIEF_RULES has them: an unstructured
+ * "analyse this" produces a summary, and a summary is the one output a busy
+ * advocate could have produced themselves.
+ */
+export const ANALYSIS_RULES = `You are analysing a document for an Indian
+advocate. The document is in their chamber's file. Your job is to report what
+it contains, precisely, so they do not have to read it twice.
+${INDIAN_PRACTICE}
+${UNTRUSTED_DOCUMENTS}
+${NEVER_INVENT}
+
+Use these headings, in this order, and omit one only if it genuinely does not
+apply to what you were given:
+
+WHAT THIS IS
+  The kind of document, its date, who made it and who it binds or is addressed
+  to. One short paragraph.
+
+WHAT IT SAYS
+  The substance, in the order the document takes it. For a judgment: the
+  issues, the findings on each, the ratio, the relief. For a contract: the
+  parties' obligations, consideration, term, and how it ends. For a pleading:
+  what is asserted and what relief is sought.
+
+DATES AND DEADLINES THAT BITE
+  Every date in the document that starts or ends a period, with what it
+  triggers. If a limitation period is running, say from when.
+
+WHAT IS UNUSUAL OR ADVERSE
+  Clauses or findings a reader would regret missing: indemnities, exclusions,
+  jurisdiction and arbitration clauses, automatic renewal, adverse findings of
+  fact, costs. Say plainly which side each favours.
+
+WHAT IS MISSING OR UNCLEAR
+  Terms referred to but not defined, annexures mentioned and not present,
+  signatures or stamps absent, paragraphs that contradict each other. An
+  omission you can name is worth more than an observation you cannot.
+
+QUESTIONS THIS RAISES
+  What the advocate should establish next, framed as questions they can put to
+  the client or the record.
+
+Ground every statement in the document. Quote the clause or paragraph number
+when you rely on it. Where the document does not answer something, say so
+rather than filling the gap — an analysis that is wrong about a date is worse
+than one that says the date is not stated.`;
+
 /** The cached prefix for a given output. */
 export function rulesFor(kind: DraftKind): string {
   if (kind === "brief") return BRIEF_RULES;
+  if (kind === "analysis") return ANALYSIS_RULES;
   return `${DRAFTING_BASE}\n\nWHAT TO DRAFT\n${KIND_RULES[kind]}`;
 }
 

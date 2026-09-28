@@ -10,12 +10,7 @@ export type DraftInputKind = typeof DraftInputKind[keyof typeof DraftInputKind];
 
 
 export const DraftInputKind = {
-  petition: 'petition',
-  written_statement: 'written_statement',
-  appeal: 'appeal',
   application: 'application',
-  reply: 'reply',
-  notice: 'notice',
-  letter: 'letter',
   brief: 'brief',
+  analysis: 'analysis',
 } as const;

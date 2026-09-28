@@ -45,16 +45,23 @@ import { LoadFailed } from "@/components/load-failed";
  * **Style examples** are past filings kept for their form.
  */
 
-const KINDS = [
-  "petition",
-  "written_statement",
-  "appeal",
-  "application",
-  "reply",
-  "notice",
-  "letter",
-] as const;
+/**
+ * What an example may be uploaded FOR.
+ *
+ * Only applications, because those are the only documents still drafted — an
+ * exemplar rides in the cached prefix of every draft of its kind, so one for a
+ * retired kind is an afternoon of curation applied to nothing, ever. See
+ * `OFFERED_EXEMPLAR_KINDS`.
+ */
+const KINDS = ["application"] as const;
 
+/**
+ * Labels for every kind, including the retired ones.
+ *
+ * Wider than KINDS on purpose: examples a chamber uploaded before the long
+ * pleadings were retired are still listed below, and they should render under
+ * their name rather than a raw key. They are history, not an offer.
+ */
 const KIND_LABEL: Record<string, string> = {
   petition: "Petition",
   written_statement: "Written statement",
@@ -222,7 +229,7 @@ function ExemplarsTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
-  const [kind, setKind] = useState<string>("petition");
+  const [kind, setKind] = useState<string>("application");
   const [text, setText] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
   const [redacted, setRedacted] = useState("");
@@ -238,7 +245,7 @@ function ExemplarsTab() {
 
   const add = () => {
     create.mutate(
-      { data: { kind: kind as Exemplar["kind"], title, text } },
+      { data: { kind: kind as "application", title, text } },
       {
         onSuccess: (row) => {
           setTitle("");

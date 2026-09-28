@@ -12,8 +12,8 @@ import {
   workspacesTable,
   courtLabel,
   normaliseCaseType,
-  isDraftKind,
-  isExemplarKind,
+  isOfferedDraftKind,
+  isOfferedExemplarKind,
 } from "@workspace/db";
 import {
   GetAiBudgetResponse,
@@ -369,8 +369,13 @@ router.post(
       return;
     }
     const c = ctx(req);
-    if (!isExemplarKind(body.data.kind)) {
-      res.status(400).json({ error: "invalid_request", message: "Unknown document kind." });
+    // Offered, not merely valid: an exemplar of a retired kind would ride in
+    // the prefix of no draft, ever. Stored ones still read back.
+    if (!isOfferedExemplarKind(body.data.kind)) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: `An example of a "${body.data.kind}" would not be used — only applications are drafted now.`,
+      });
       return;
     }
     if (!(await draftingIsOn(c.workspaceId))) {
@@ -623,8 +628,16 @@ router.post(
       return;
     }
     const c = ctx(req);
-    if (!isDraftKind(body.data.kind)) {
-      res.status(400).json({ error: "invalid_request", message: "Unknown document kind." });
+    // `isOfferedDraftKind`, not `isDraftKind`: the retired long-pleading kinds
+    // stay valid to READ so a chamber's past drafts still load, and must not
+    // be creatable. The generated validator already narrows this, so reaching
+    // here means a caller bypassed it — which is exactly when the server's own
+    // check is the one that counts.
+    if (!isOfferedDraftKind(body.data.kind)) {
+      res.status(400).json({
+        error: "invalid_request",
+        message: `"${body.data.kind}" is not something this chamber can ask for.`,
+      });
       return;
     }
     if (!(await draftingIsOn(c.workspaceId))) {

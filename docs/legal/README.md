@@ -203,6 +203,10 @@ Specific couplings to watch:
   `workspaces.drafting_enabled`, and the audit actions `drafting.enabled` and
   `drafting.generated` are the consent record the documents point to. If
   drafting ever becomes on-by-default, both documents are wrong that day.
+- **Which outputs search the web** (`privacy-policy.md`, "AI drafting") —
+  matches the `webSearch` condition in `lib/ai/drafting.ts`, which is briefs
+  and analyses. Adding a third makes that bullet wrong, and it is the bullet
+  that promises documents never reach a search engine.
 - **The 3-day recovery window** (`privacy-policy.md` "Retention", `dpa.md` §4
   and §7, `terms-of-service.md` §8, `data-usage-summary.md` in three places,
   `breach-runbook.md` §1, `compliance-register.md` 0.2) — matches a paid Render

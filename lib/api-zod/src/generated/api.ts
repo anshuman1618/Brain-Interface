@@ -1131,7 +1131,7 @@ export const createExemplarBodyTextMax = 200000;
 
 
 export const CreateExemplarBody = zod.object({
-  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter']),
+  "kind": zod.enum(['application']),
   "title": zod.string().min(createExemplarBodyTitleMin).max(createExemplarBodyTitleMax),
   "documentId": zod.number().nullish().describe('A document on one of this chamber\'s matters, to promote.'),
   "text": zod.string().max(createExemplarBodyTextMax).optional().describe('Pasted text, when the example is not already a stored document.')
@@ -1207,7 +1207,7 @@ export const ListDraftsParams = zod.object({
 export const ListDraftsResponseItem = zod.object({
   "id": zod.number(),
   "caseId": zod.number(),
-  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief', 'analysis']),
   "title": zod.string(),
   "instruction": zod.string().optional(),
   "body": zod.string(),
@@ -1250,7 +1250,7 @@ export const createDraftBodyDocumentIdsMax = 20;
 
 
 export const CreateDraftBody = zod.object({
-  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "kind": zod.enum(['application', 'brief', 'analysis']),
   "instruction": zod.string().min(createDraftBodyInstructionMin).max(createDraftBodyInstructionMax),
   "documentIds": zod.array(zod.number()).max(createDraftBodyDocumentIdsMax).optional().describe('The ONLY documents that will be sent. Each is re-checked against this matter and this chamber before it is read.\n'),
   "parentDraftId": zod.number().nullish().describe('Set when revising, so versions chain rather than overwrite.')
@@ -1259,7 +1259,7 @@ export const CreateDraftBody = zod.object({
 export const CreateDraftResponse = zod.object({
   "id": zod.number(),
   "caseId": zod.number(),
-  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief', 'analysis']),
   "title": zod.string(),
   "instruction": zod.string().optional(),
   "body": zod.string(),
@@ -1293,7 +1293,7 @@ export const GetDraftParams = zod.object({
 export const GetDraftResponse = zod.object({
   "id": zod.number(),
   "caseId": zod.number(),
-  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief', 'analysis']),
   "title": zod.string(),
   "instruction": zod.string().optional(),
   "body": zod.string(),
@@ -1339,7 +1339,7 @@ export const UpdateDraftBody = zod.object({
 export const UpdateDraftResponse = zod.object({
   "id": zod.number(),
   "caseId": zod.number(),
-  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief']),
+  "kind": zod.enum(['petition', 'written_statement', 'appeal', 'application', 'reply', 'notice', 'letter', 'brief', 'analysis']),
   "title": zod.string(),
   "instruction": zod.string().optional(),
   "body": zod.string(),

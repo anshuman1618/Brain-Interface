@@ -78,7 +78,7 @@ const beforeOptIn = await call(`/cases/${matter.data.id}/drafts`, {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { kind: "petition", instruction: "Draft a writ petition against the demand notice." },
+  body: { kind: "application", instruction: "Draft an application to stay the demand notice." },
 });
 // The property that makes this feature defensible. Hiding the button would not
 // be a control; refusing the request is.
@@ -181,7 +181,7 @@ const exemplar = await call("/exemplars", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { kind: "petition", title: "The good writ", text: filing },
+  body: { kind: "application", title: "The good application", text: filing },
 });
 check("an example is accepted", exemplar.status === 201, `got ${exemplar.status}`);
 check(
@@ -204,7 +204,7 @@ const tooShort = await call("/exemplars", {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { kind: "petition", title: "Too short", text: "Not really a filing." },
+  body: { kind: "application", title: "Too short", text: "Not really a filing." },
 });
 check("a scrap is refused as an example", tooShort.status === 400, `got ${tooShort.status}`);
 
@@ -216,7 +216,7 @@ const draft = await call(`/cases/${matter.data.id}/drafts`, {
   wsToken: ws,
   method: "POST",
   body: {
-    kind: "petition",
+    kind: "application",
     instruction: "Draft a writ petition challenging the demand notice dated 12.03.2026.",
   },
 });
@@ -262,7 +262,10 @@ const draft2 = await call(`/cases/${matter.data.id}/drafts`, {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { kind: "petition", instruction: "Draft the petition again, now with our house style." },
+  body: {
+    kind: "application",
+    instruction: "Draft the application again, now with our house style.",
+  },
 });
 check(
   "...and the approved example IS used from then on",
@@ -481,7 +484,7 @@ check(
       token: as(junior),
       wsToken: juniorTok,
       method: "POST",
-      body: { kind: "petition", title: "Mine", text: filing },
+      body: { kind: "application", title: "Mine", text: filing },
     })
   ).status === 403,
 );
@@ -498,7 +501,7 @@ const clientDraft = await call(`/cases/${roleMatter.data.id}/drafts`, {
   token: as(clientEmail),
   wsToken: clientSession.data?.workspaceToken,
   method: "POST",
-  body: { kind: "letter", instruction: "Write a letter about my case." },
+  body: { kind: "application", instruction: "Write a letter about my case." },
 });
 check(
   "a client may not draft, and not because they are not a member",
@@ -558,7 +561,7 @@ const crossDraft = await call(`/cases/${matter.data.id}/drafts`, {
   token: as(rival),
   wsToken: rTok,
   method: "POST",
-  body: { kind: "petition", instruction: "Draft from the other chamber's matter." },
+  body: { kind: "application", instruction: "Draft from the other chamber's matter." },
 });
 check(
   "drafting from OUR matter is a 404 for them",
@@ -573,7 +576,7 @@ const foreignDoc = await call(`/cases/${rivalMatter.data.id}/drafts`, {
   wsToken: rTok,
   method: "POST",
   body: {
-    kind: "petition",
+    kind: "application",
     instruction: "Draft using a document that is not on this matter.",
     documentIds: [999999],
   },
@@ -591,7 +594,7 @@ const noInstruction = await call(`/cases/${matter.data.id}/drafts`, {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { kind: "petition", instruction: "x" },
+  body: { kind: "application", instruction: "x" },
 });
 check(
   "a one-character instruction is refused",
@@ -612,7 +615,7 @@ check("a retired document kind is refused", badKind.status === 400, `got ${badKi
 
 const anon = await call(`/cases/${matter.data.id}/drafts`, {
   method: "POST",
-  body: { kind: "petition", instruction: "Draft without signing in." },
+  body: { kind: "application", instruction: "Draft without signing in." },
 });
 check("no token, no drafting", anon.status === 401 || anon.status === 403, `got ${anon.status}`);
 
@@ -678,11 +681,14 @@ for (let i = 0; i < 40; i += 1) {
     wsToken: dWs,
     method: "POST",
     body: {
-      kind: "petition",
+      // An OFFERED kind, or every call is a 400 on the kind and the allowance
+      // drains not at all — which is the vacuous pass this comment already
+      // warns about, arriving by a second route.
+      kind: "brief",
       // Comfortably inside the 4000-character cap; an over-long instruction is
       // a 400 and would drain nothing, which is how this test first passed
       // vacuously.
-      instruction: `Draft a full writ petition, attempt ${i}, with grounds and prayer.`,
+      instruction: `Assess this matter before filing, attempt ${i}, with the defects to cure.`,
     },
   });
   if (r.status === 402) {
@@ -709,7 +715,7 @@ if (exhausted) {
     token: as(drainOwner),
     wsToken: dWs,
     method: "POST",
-    body: { kind: "petition", title: "One more example", text: filing },
+    body: { kind: "application", title: "One more example", text: filing },
   });
   check(
     "...and so is adding an example, which also calls a model",
@@ -759,7 +765,7 @@ const poisonedExemplar = await call("/exemplars", {
   token: as(hostileOwner),
   wsToken: hWs,
   method: "POST",
-  body: { kind: "petition", title: "Hostile example", text: poisoned },
+  body: { kind: "application", title: "Hostile example", text: poisoned },
 });
 check(
   "a document containing injected instructions is still accepted",
@@ -774,6 +780,64 @@ check(
   "...and the redaction pass still returns something",
   typeof poisonedExemplar.data?.body === "string",
   JSON.stringify(poisonedExemplar.data?.body ?? null).slice(0, 80),
+);
+
+/* ── What may be asked for, and what may only be read ────────────────────
+   Long pleadings were retired. The property worth pinning is BOTH halves: a
+   retired kind must be refused on create, and a draft already stored under one
+   must still read back — narrowing the response enum instead of the request
+   enum is the mistake that would make a chamber's own past work vanish. */
+section("Retired kinds: refused on create, still readable");
+
+// Two, not all six: the drafting limiter is 6/min per user and a refusal
+// still spends a slot. "petition" is the headline retirement and "letter"
+// the least obvious one.
+for (const retired of ["petition", "letter"]) {
+  const attempt = await call(`/cases/${matter.data.id}/drafts`, {
+    token: as(owner),
+    wsToken: ws,
+    method: "POST",
+    body: { kind: retired, instruction: "Draft this long pleading for me please." },
+  });
+  check(`"${retired}" is refused`, attempt.status === 400, `got ${attempt.status}`);
+}
+
+const analysis = await call(`/cases/${matter.data.id}/drafts`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: {
+    kind: "analysis",
+    instruction: "Read the agreement and tell me what the termination clause requires.",
+  },
+});
+check("an analysis can be asked for", analysis.status === 202, `got ${analysis.status}`);
+check(
+  "...and is recorded as its own kind",
+  analysis.data?.kind === "analysis",
+  analysis.data?.kind,
+);
+
+const briefStillOffered = await call(`/cases/${matter.data.id}/drafts`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { kind: "brief", instruction: "Brief me before the hearing." },
+});
+check(
+  "a brief can still be asked for",
+  briefStillOffered.status === 202,
+  `got ${briefStillOffered.status}`,
+);
+
+// The read half. Every draft this suite has created comes back, whatever kind
+// it carries — including the "application" ones above and anything a chamber
+// stored before the menu was shortened.
+const allDrafts = await call(`/cases/${matter.data.id}/drafts`, { token: as(owner), wsToken: ws });
+check(
+  "every stored draft reads back regardless of kind",
+  allDrafts.status === 200 && (allDrafts.data ?? []).length >= 3,
+  `${allDrafts.status} ${(allDrafts.data ?? []).length}`,
 );
 
 console.log(`\n${fail === 0 ? "✓" : "✗"} ${pass} passed, ${fail} failed`);

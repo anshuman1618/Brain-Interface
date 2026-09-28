@@ -228,17 +228,22 @@ party, so it is described in full rather than in a table row.
   it on is written to the audit trail, and so is every draft generated
   afterwards — between them they answer "what of my client's was sent, and who
   authorised it".
-- **When it is on and someone drafts**, the matter's own facts, the text of
-  documents that person is already allowed to read, and any style exemplar the
-  chamber uploaded are sent to **Anthropic PBC in the United States** to produce
-  the draft. Only that matter's material is sent, and only material the person
-  drafting could already open.
+- **When it is on and someone asks for a draft, a brief or an analysis**, the
+  matter's own facts, the text of documents that person is already allowed to
+  read **and has ticked**, and any style exemplar the chamber uploaded are sent
+  to **Anthropic PBC in the United States** to produce it. Only that matter's
+  material is sent, only material the person could already open, and only the
+  documents they selected — nothing is sent because it happens to be on the
+  matter.
 - **Anthropic does not train models on it.** It is processed to return the
   draft and is not used to improve any model.
-- **A case brief may search the web.** Where it does, short queries derived from
-  the matter — a case citation, a statutory provision, a party name where the
-  matter is already public — are sent to a search provider through Anthropic.
-  Documents are never sent to a search engine.
+- **A case brief or a document analysis may search the web.** Where they do,
+  short queries derived from the matter — a case citation, a statutory
+  provision, a party name where the matter is already public — are sent to a
+  search provider through Anthropic. **Documents are never sent to a search
+  engine.** The two outputs that check things rather than write them are the
+  two that search: a brief verifies an authority exists, and an analysis checks
+  whether the judgment it is reading has been followed or overruled.
 - **Switching it off stops all of this.** Drafts already produced stay in your
   chamber, because they are your work product.
 

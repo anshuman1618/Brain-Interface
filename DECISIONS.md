@@ -3717,3 +3717,64 @@ A proceeding is part of what the matter _is_; burying the fact that a matter has
 three live applications one tab deep defeats the point of recording them.
 Decided ones are dimmed below the live ones — the same treatment a closed
 document request gets, and for the same reason.
+
+---
+
+## Drafting became Research and Analysis, and lost the long pleadings
+
+Three outputs now, not two: an **analysis** reads a document already in the
+file and reports what is in it; a **brief** assesses the matter before it is
+filed; an **application** is drafted to be edited and signed. The long
+pleadings — petition, written statement, appeal, reply, notice, letter — are
+retired.
+
+**Why retire them.** A model writing an entire writ petition produces
+something an advocate must rewrite line by line before they can put their name
+on it, which is slower than drafting it from the start. It is also the output
+most likely to be filed with less reading than it needed, and the one where
+that costs a client a matter rather than an afternoon. The short structured
+documents are where the time actually goes.
+
+**Retired is not deleted, and the split between the two enums is the whole
+design.** `DRAFT_KINDS` keeps every kind ever stored and `OFFERED_DRAFT_KINDS`
+is the subset still creatable — the same shape as `OFFERED_PLANS`. In the
+OpenAPI schema the **response** enum widened and the **request** enum narrowed.
+Narrowing the response instead would have made a chamber's two-year-old
+petition draft fail validation on read the day the menu was shortened, which
+is the mistake C nearly made with statuses and the reason it was recognisable
+here.
+
+**Analysis is separate from brief rather than a section of it.** A brief
+assesses the matter and how to run it; an analysis takes a document and reports
+its contents. Answering "what does this contract say" with strategy is how a
+reader ends up trusting a paragraph that was never grounded in the file. Six
+fixed headings, for the reason BRIEF_RULES has them: an unstructured "analyse
+this" produces a summary, and a summary is the one output a busy advocate
+could have written themselves.
+
+**Analysis searches the web, and that moved the Privacy Policy.** Briefs and
+analyses are the two outputs that _check_ things rather than write them — a
+brief verifies an authority exists, an analysis checks whether the judgment it
+is reading has been followed. Enabling it made the policy's "a case brief may
+search the web" bullet wrong, so it changed in the same commit, and
+`docs/legal/README.md` now lists which outputs search as a coupling to watch.
+Documents still never reach a search engine; only short queries derived from
+the matter do.
+
+**Exemplars narrowed too, and the compiler found it.** An exemplar rides in the
+cached prefix of every draft OF ITS KIND, so once petitions could not be
+drafted, a petition exemplar was an afternoon of a chamber's curation applied
+to nothing, ever. `OFFERED_EXEMPLAR_KINDS` is `["application"]` — briefs and
+analyses are assessments in the product's voice, not filings in the chamber's,
+and never took one. Stored exemplars of retired kinds still list, under their
+own labels, because deleting curated work because a menu was shortened is not
+a trade worth making.
+
+**The suites caught two fixtures that had quietly stopped testing anything.**
+`case-access` created a `letter` draft to prove a narrowed junior cannot reach
+a draft on a matter they were not granted — the create started returning 400,
+so the id was undefined and four isolation assertions were failing rather than
+passing vacuously. And the trial-allowance drain loop in `drafting.mjs` had a
+comment warning it had once passed vacuously by drafting nothing; it was about
+to do so again by a second route, since every call would have been a 400 on the
+kind and drained no allowance at all.

@@ -30,6 +30,10 @@ import { z } from "zod/v4";
  * An exemplar is unusable until `reviewedAt` is set. That is enforced at the
  * point of assembly, not merely encouraged here.
  */
+/**
+ * Every kind an exemplar has ever been stored under. Read-only history for the
+ * retired ones — see `OFFERED_EXEMPLAR_KINDS`.
+ */
 export const EXEMPLAR_KINDS = [
   "petition",
   "written_statement",
@@ -40,6 +44,29 @@ export const EXEMPLAR_KINDS = [
   "letter",
 ] as const;
 export type ExemplarKind = (typeof EXEMPLAR_KINDS)[number];
+
+/**
+ * The kinds an exemplar may still be uploaded for.
+ *
+ * An exemplar rides in the cached prefix of every draft OF ITS KIND. Once the
+ * long pleadings were retired from `OFFERED_DRAFT_KINDS`, an exemplar of a
+ * petition became something a chamber could spend an afternoon curating and
+ * have applied to nothing, ever. Offering it would be offering a feature that
+ * does not work.
+ *
+ * Only `application`, because those are the only documents still drafted. A
+ * brief and an analysis are assessments in the product's own voice, not
+ * filings in the chamber's, and never took an exemplar.
+ *
+ * The rows already stored under the retired kinds stay readable, and the
+ * chamber-knowledge screen still lists them — deleting a chamber's curated
+ * work because a menu was shortened is not a trade worth making.
+ */
+export const OFFERED_EXEMPLAR_KINDS: readonly ExemplarKind[] = ["application"];
+
+export function isOfferedExemplarKind(value: unknown): value is ExemplarKind {
+  return typeof value === "string" && (OFFERED_EXEMPLAR_KINDS as readonly string[]).includes(value);
+}
 
 export function isExemplarKind(value: unknown): value is ExemplarKind {
   return typeof value === "string" && (EXEMPLAR_KINDS as readonly string[]).includes(value);

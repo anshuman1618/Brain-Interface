@@ -54,7 +54,7 @@ import {
   Menu,
   History,
   Receipt,
-  PenLine,
+  ScanSearch,
   Lightbulb,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -271,7 +271,12 @@ function DashboardLayoutContent() {
   const navItems = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, show: true },
     { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: can("calendar.read") },
-    { href: "/drafting", label: "Drafting", icon: PenLine, show: can("drafting.use") },
+    {
+      href: "/drafting",
+      label: "Research & Analysis",
+      icon: ScanSearch,
+      show: can("drafting.use"),
+    },
     {
       href: "/chamber-knowledge",
       label: "Chamber Knowledge",
@@ -523,14 +528,14 @@ function DashboardLayoutContent() {
                       drafting request spends the chamber's money. */}
                   <Route path="/drafting/:caseId">
                     <RequireCapability capability="drafting.use">
-                      <ErrorBoundary label="Drafting">
+                      <ErrorBoundary label="Research & Analysis">
                         <DraftingPage />
                       </ErrorBoundary>
                     </RequireCapability>
                   </Route>
                   <Route path="/drafting">
                     <RequireCapability capability="drafting.use">
-                      <ErrorBoundary label="Drafting">
+                      <ErrorBoundary label="Research & Analysis">
                         <DraftingPage />
                       </ErrorBoundary>
                     </RequireCapability>

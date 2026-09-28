@@ -1700,13 +1700,7 @@ export type ExemplarInputKind = typeof ExemplarInputKind[keyof typeof ExemplarIn
 
 
 export const ExemplarInputKind = {
-  petition: 'petition',
-  written_statement: 'written_statement',
-  appeal: 'appeal',
   application: 'application',
-  reply: 'reply',
-  notice: 'notice',
-  letter: 'letter',
 } as const;
 
 export interface ExemplarInput {
@@ -1753,6 +1747,7 @@ export const DraftKind = {
   notice: 'notice',
   letter: 'letter',
   brief: 'brief',
+  analysis: 'analysis',
 } as const;
 
 export type DraftStatus = typeof DraftStatus[keyof typeof DraftStatus];
@@ -1814,14 +1809,9 @@ export type DraftInputKind = typeof DraftInputKind[keyof typeof DraftInputKind];
 
 
 export const DraftInputKind = {
-  petition: 'petition',
-  written_statement: 'written_statement',
-  appeal: 'appeal',
   application: 'application',
-  reply: 'reply',
-  notice: 'notice',
-  letter: 'letter',
   brief: 'brief',
+  analysis: 'analysis',
 } as const;
 
 export interface DraftInput {

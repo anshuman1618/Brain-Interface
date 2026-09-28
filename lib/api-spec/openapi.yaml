@@ -4464,7 +4464,11 @@ components:
       properties:
         kind:
           type: string
-          enum: [petition, written_statement, appeal, application, reply, notice, letter]
+          # Only the kinds still drafted. An exemplar rides in the prefix of
+          # every draft OF ITS KIND, so one for a retired kind would be
+          # applied to nothing. Stored exemplars still read back — see the
+          # Exemplar schema, whose enum is deliberately wider.
+          enum: [application]
         title:
           type: string
           minLength: 3
@@ -4503,7 +4507,21 @@ components:
           type: integer
         kind:
           type: string
-          enum: [petition, written_statement, appeal, application, reply, notice, letter, brief]
+          # Every kind ever STORED, which is wider than what may be requested —
+          # see DraftInput. Narrowing this would make a chamber's own past
+          # work fail validation on read the day a menu was shortened.
+          enum:
+            [
+              petition,
+              written_statement,
+              appeal,
+              application,
+              reply,
+              notice,
+              letter,
+              brief,
+              analysis,
+            ]
         title:
           type: string
         instruction:
@@ -4566,7 +4584,11 @@ components:
       properties:
         kind:
           type: string
-          enum: [petition, written_statement, appeal, application, reply, notice, letter, brief]
+          # What may still be asked for. Long pleadings were retired: a model
+          # writing an entire writ petition produces something an advocate
+          # must rewrite line by line to be able to sign. Existing drafts of
+          # those kinds still read back — see the Draft schema.
+          enum: [application, brief, analysis]
         instruction:
           type: string
           minLength: 5

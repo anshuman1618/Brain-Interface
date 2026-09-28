@@ -13,6 +13,7 @@ import {
   getListCasesQueryKey,
   getListDocumentsQueryKey,
   type Draft,
+  type DraftInputKind,
   type Case,
   type Document,
 } from "@workspace/api-client-react";
@@ -63,16 +64,20 @@ const VERIFY_NOTICE =
   "is filed, served or shown to a client — an advocate signs, and an advocate is on " +
   "the record.";
 
-const DRAFT_KINDS = [
-  "petition",
-  "written_statement",
-  "appeal",
-  "application",
-  "reply",
-  "notice",
-  "letter",
-] as const;
+/**
+ * What can be asked for, which is narrower than what can be read back.
+ *
+ * Long pleadings — petition, written statement, appeal, reply, notice, letter
+ * — were retired. A model writing an entire writ petition produces something
+ * an advocate has to rewrite line by line before they can sign it, which is
+ * slower than drafting it, and it is the output most likely to be filed with
+ * less reading than it needed. Drafts already stored under those kinds still
+ * load; see `DRAFT_KINDS` in `lib/db/src/schema/drafts.ts`.
+ */
+const OFFERED_KINDS = ["application", "brief", "analysis"] as const;
 
+// Includes the retired kinds, so a draft written before they were retired
+// still renders under its name rather than a raw key.
 const KIND_LABEL: Record<string, string> = {
   petition: "Petition",
   written_statement: "Written statement",
@@ -82,6 +87,7 @@ const KIND_LABEL: Record<string, string> = {
   notice: "Legal notice",
   letter: "Letter",
   brief: "Case brief",
+  analysis: "Document analysis",
 };
 
 /** Types the server can actually take text out of. Anything else is inert. */
@@ -267,16 +273,20 @@ export default function DraftingPage() {
     queryClient.invalidateQueries({ queryKey: getGetAiBudgetQueryKey() });
   };
 
-  const run = (which: "draft" | "brief") => {
+  const DEFAULT_INSTRUCTION: Record<string, string> = {
+    brief: "Prepare a brief on this matter before the hearing.",
+    analysis: "Analyse the documents I have ticked and report what is in them.",
+  };
+
+  const run = (which: "chosen" | "brief") => {
     if (activeCase === null) return;
+    const asked = which === "brief" ? "brief" : kind;
     create.mutate(
       {
         id: activeCase,
         data: {
-          kind: which === "brief" ? "brief" : (kind as Draft["kind"]),
-          instruction:
-            instruction.trim() ||
-            (which === "brief" ? "Prepare a brief on this matter before the hearing." : ""),
+          kind: asked as DraftInputKind,
+          instruction: instruction.trim() || (DEFAULT_INSTRUCTION[asked] ?? ""),
           documentIds: picked,
         },
       },
@@ -284,7 +294,12 @@ export default function DraftingPage() {
         onSuccess: () => {
           refresh();
           toast({
-            title: which === "brief" ? "Preparing the brief" : "Drafting",
+            title:
+              asked === "brief"
+                ? "Preparing the brief"
+                : asked === "analysis"
+                  ? "Reading the documents"
+                  : "Drafting",
             description: "It will appear below as it is written.",
           });
         },
@@ -311,11 +326,22 @@ export default function DraftingPage() {
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="font-mono text-lg uppercase tracking-wider">Drafting &amp; AI analysis</h1>
+          <h1 className="font-mono text-lg uppercase tracking-wider">Research &amp; Analysis</h1>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-            Prepare a first draft from this chamber&rsquo;s own records, or ask for a brief on the
-            matter before it is filed — the facts on the record, the chronology, the merits, how the
-            other side will run it, the objections to anticipate and the defects to cure.
+            Three things, from this chamber&rsquo;s own records. An{" "}
+            <strong className="font-medium text-foreground">analysis</strong> reads a judgment,
+            contract, application or pleading and reports what is in it — the obligations, the dates
+            that bite, what is adverse and what is missing. A{" "}
+            <strong className="font-medium text-foreground">brief</strong> assesses the matter
+            before it is filed: the facts on the record, the merits, how the other side will run it,
+            the defects to cure. An{" "}
+            <strong className="font-medium text-foreground">application</strong> is drafted for you
+            to edit and sign.
+          </p>
+          <p className="mt-1 max-w-3xl text-2xs leading-relaxed text-muted-foreground">
+            Long pleadings are deliberately not offered. A machine-written writ petition has to be
+            rewritten line by line before an advocate can sign it, which is slower than drafting it
+            — and it is the one output most likely to be filed with less reading than it needed.
           </p>
         </div>
       </div>
@@ -357,14 +383,14 @@ export default function DraftingPage() {
           </div>
           <div className="grid gap-1">
             <label className="font-mono text-3xs uppercase tracking-wider text-muted-foreground">
-              Document
+              What to produce
             </label>
             <Select value={kind} onValueChange={setKind}>
               <SelectTrigger className="w-[240px] rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {DRAFT_KINDS.map((k) => (
+                {OFFERED_KINDS.map((k) => (
                   <SelectItem key={k} value={k}>
                     {KIND_LABEL[k]}
                   </SelectItem>
@@ -427,9 +453,13 @@ export default function DraftingPage() {
         )}
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button className="rounded-lg" disabled={!canRun} onClick={() => run("draft")}>
-            <PenLine className="mr-1.5 h-3.5 w-3.5" />
-            Draft it
+          <Button className="rounded-lg" disabled={!canRun} onClick={() => run("chosen")}>
+            {kind === "analysis" ? (
+              <ScanSearch className="mr-1.5 h-3.5 w-3.5" />
+            ) : (
+              <PenLine className="mr-1.5 h-3.5 w-3.5" />
+            )}
+            {kind === "analysis" ? "Analyse it" : kind === "brief" ? "Prepare it" : "Draft it"}
           </Button>
           <Button
             variant="outline"

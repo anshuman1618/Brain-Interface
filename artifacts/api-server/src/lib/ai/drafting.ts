@@ -39,6 +39,10 @@ const MAX_OUTPUT: Record<DraftKind, number> = {
   reply: 8_000,
   notice: 4_000,
   letter: 3_000,
+  // Six headings over a document that may be a forty-page contract. Longer
+  // than a brief because an analysis quotes the clauses it relies on, and an
+  // analysis that runs out of room mid-heading is worse than none.
+  analysis: 14_000,
 };
 
 export type DraftRequest = {
@@ -124,7 +128,14 @@ export async function runDraft(
         // Only the brief asks the model to name authorities, so only the brief
         // pays for searches. A drafting call with search enabled would wander
         // off to look things up nobody asked about.
-        webSearch: req.kind === "brief" ? { maxUses: 8 } : undefined,
+        // Research, for the two outputs that check things rather than write
+        // them. A brief verifies an authority exists; an analysis checks
+        // whether the judgment it is reading has been followed or overruled.
+        // Bounded to court and case-law hosts in `client.ts`, and DOCUMENTS
+        // ARE NEVER SENT to a search engine — only short queries derived from
+        // the matter. The Privacy Policy says so under "AI drafting" and both
+        // kinds are named there.
+        webSearch: req.kind === "brief" || req.kind === "analysis" ? { maxUses: 8 } : undefined,
       },
       onDelta,
     );
@@ -132,7 +143,7 @@ export async function runDraft(
     await recordSpend({
       workspaceId: req.workspaceId,
       draftId: draft.id,
-      purpose: req.kind === "brief" ? "brief" : "draft",
+      purpose: req.kind === "brief" ? "brief" : req.kind === "analysis" ? "analysis" : "draft",
       model: result.model,
       inputTokens: result.usage.inputTokens,
       outputTokens: result.usage.outputTokens,
@@ -177,7 +188,7 @@ export async function runDraft(
     await recordSpend({
       workspaceId: req.workspaceId,
       draftId: draft.id,
-      purpose: req.kind === "brief" ? "brief" : "draft",
+      purpose: req.kind === "brief" ? "brief" : req.kind === "analysis" ? "analysis" : "draft",
       model,
       inputTokens: context.estimatedInputTokens,
       outputTokens: 0,

@@ -180,7 +180,7 @@ export async function checkBudget(
 export async function recordSpend(input: {
   workspaceId: number;
   draftId: number | null;
-  purpose: "draft" | "brief" | "anonymise";
+  purpose: "draft" | "brief" | "analysis" | "anonymise";
   model: string;
   inputTokens: number;
   outputTokens: number;

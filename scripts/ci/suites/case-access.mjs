@@ -284,7 +284,7 @@ const hiddenDraft = await call(`/cases/${beta.data.id}/drafts`, {
   token: as(owner),
   wsToken: ws,
   method: "POST",
-  body: { kind: "letter", instruction: "A letter on the matter the junior cannot see." },
+  body: { kind: "application", instruction: "An application on the matter the junior cannot see." },
 });
 
 // Narrow the junior again — the section above lifted the restriction.
