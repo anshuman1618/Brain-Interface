@@ -200,6 +200,44 @@ for (const [slug, expect] of [
     res?.status() === 200 && expect.test(body),
     `status ${res?.status()}`,
   );
+
+  /*
+   * The deployment claims these pages make, checked against the deployment.
+   *
+   * Register item 0.5 is this coupling failing twice. The web service moved
+   * off Render's free plan on 25 September 2026 and stopped sleeping when
+   * idle; Terms §8, the Data Usage Summary and two passages in the legal
+   * README went on saying it slept — including Terms §8 wording written that
+   * same day, by someone holding the coupling list that named it.
+   *
+   * The register's own conclusion is that a lesson which has to be remembered
+   * is not a control, so this is the control. It is deliberately a check on a
+   * SERVED page rather than on the markdown: what a chamber reads is what
+   * matters, and `LEGAL_DOCS_DIR` means the file on disk is not always it.
+   *
+   * If the service ever goes back on a sleeping plan, this is the assertion to
+   * delete — along with the same sentence in the two documents.
+   *
+   * `routes/legal.ts` caches each rendered page in process for the lifetime of
+   * the server, so a server started BEFORE a document was edited serves the
+   * old text and this check passes against a file that no longer says what it
+   * is reading. Restart between editing a legal document and running this.
+   */
+  // Affirmative claims only. Both documents now say what USED to be true —
+  // "the application no longer sleeps", "it used to sleep when idle" — and a
+  // pattern loose enough to catch a stale claim catches its own correction
+  // too, which is how the first version of this check failed on the fix.
+  const stillClaimsSleep = [
+    /\bapplication sleeps\b/i,
+    /\bsleeps when idle\b/i,
+    /puts the application to sleep\b/i,
+    /first request after an idle period takes\b/i,
+  ].find((re) => re.test(body));
+  check(
+    `...and /legal/${slug} does not claim the application sleeps`,
+    !stillClaimsSleep,
+    stillClaimsSleep ? (body.match(stillClaimsSleep)?.[0] ?? "") : "",
+  );
 }
 // They must be readable on a phone too — counsel reads these on the move.
 await page.setViewportSize({ width: 360, height: 740 });

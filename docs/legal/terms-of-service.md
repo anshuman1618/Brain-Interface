@@ -2,7 +2,7 @@
 
 **LEX Practice**
 
-Last updated: 28 August 2026 · Version 1.0
+Last updated: 28 September 2026 · Version 1.0
 
 > **Draft pending review by counsel.** No placeholders remain. See
 > `docs/legal/README.md`.
@@ -147,14 +147,19 @@ it is choosing.
 application answering requests, excluding the exclusions below. That is a
 target we hold ourselves to and report against if you ask — not a warranty.
 
-**What the deployment actually is, today.** One instance, in Singapore, on a
-plan that **puts the application to sleep after a period with no traffic**. The
-consequences are worth stating plainly because you will notice them:
+**What the deployment actually is, today.** **One instance**, in Singapore, on
+a paid plan that runs continuously. The consequences are worth stating plainly
+because you will notice them:
 
-- The **first request after an idle period takes up to about a minute** while
-  the application starts. Subsequent requests are normal.
-- A deploy, a restart or an instance fault is a **short full outage**, not a
-  rolling one, because there is no second instance to take the traffic.
+- The application **no longer sleeps**. Until 25 September 2026 it ran on a
+  plan that stopped an idle instance, and the first request after a quiet
+  period took up to about a minute; that is no longer true, and earlier
+  versions of these terms said so.
+- A deploy, a restart or an instance fault is still a **short full outage**,
+  not a rolling one, because there is still no second instance to take the
+  traffic. Expect the application to be unreachable for **roughly a minute**
+  during a deploy. This is the bullet that did not change, and it is the one
+  you are most likely to meet.
 - Uploaded documents do not survive a restart. See the Privacy Policy under
   "Retention"; it is the most consequential item on this page and it is not a
   policy choice, it is an unfinished piece of infrastructure. The **database**
@@ -162,8 +167,10 @@ consequences are worth stating plainly because you will notice them:
   three days — but that does not cover a file the database only holds a row
   about.
 
-Moving off that plan removes the first two and is a change to the deployment,
-not to these terms. This paragraph is here until it is done.
+A second instance would remove the second bullet. It is not deployed today,
+and this paragraph stays until it is. Both remaining facts are properties of
+the deployment rather than of this agreement, and changing them changes no
+term here.
 
 **Maintenance.** We will schedule disruptive maintenance **outside Indian court
 hours** — that is, outside 09:00–18:00 IST on a working day — wherever we

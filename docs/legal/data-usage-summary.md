@@ -2,7 +2,7 @@
 
 **LEX Practice**
 
-Last updated: 25 September 2026 · Version 1.0
+Last updated: 28 September 2026 · Version 1.0
 
 > **This page is a guide, not the agreement.** It summarises the
 > [Terms](/legal/terms), the [Privacy Policy](/legal/privacy), the
@@ -98,9 +98,12 @@ in that window for up to three days before it is gone completely; nobody can
 reach in and remove one record from it early.
 
 **3. One instance, one person.** No second server, no on-call rota, no status
-page. The application sleeps when idle, so the first request after a quiet
-period takes about a minute. Support is one address, answered in Indian business
-hours. See [Terms §8](/legal/terms).
+page. The application runs continuously — it used to sleep when idle, and the
+first request after a quiet period took about a minute, which stopped being
+true on 25 September 2026 — but with only one instance a deploy or a restart
+is still a full outage of roughly a minute rather than a rolling one. Support
+is one address, answered in Indian business hours. See
+[Terms §8](/legal/terms).
 
 **4. Liability is capped at what you paid us.** On the ₹99 trial pack, that is
 ₹99. Read that against what you are about to store, and read

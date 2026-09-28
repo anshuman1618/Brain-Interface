@@ -77,9 +77,12 @@ system as it is rather than as it should be:
   lands rather than after, with the §3(c)(ii) and §17(1) basis recorded so it
   can be argued with. It also admits that nothing prunes fetched listings.
 - **A service level** (Terms §8). A 99% target, the maintenance window, the
-  exclusions, and the three facts a chamber will otherwise discover by itself:
-  one instance, a plan that sleeps when idle, and documents that do not survive
-  a restart.
+  exclusions, and the facts a chamber will otherwise discover by itself: one
+  instance, so a deploy is a full outage rather than a rolling one, and
+  documents that do not survive a restart. It also said the application slept
+  when idle, which stopped being true on 25 September 2026 and was corrected
+  on the 28th — see the coupling list below, which is what should have caught
+  it sooner.
 - **Document durability** (Privacy Policy, DPA §4, summary). `R2_*` is confirmed
   unset on the Render service, so uploaded files are lost on every deploy. It is
   now disclosed the way the backup gap already was. Disclosure is not the fix.
@@ -217,10 +220,14 @@ Specific couplings to watch:
   `dpa.md` §4, `terms-of-service.md` §8, `data-usage-summary.md`,
   `responsible-disclosure.md` out-of-scope) — matches `R2_*` being unset.
   Setting those four variables makes five passages wrong the same afternoon.
-- **The service level** (`terms-of-service.md` §8, `data-usage-summary.md`) —
-  matches one instance on Render's `free` web-service plan, which sleeps. Both
-  say the first request after an idle period is slow; neither is true once the
-  service moves off that plan.
+- **The service level** (`terms-of-service.md` §8, `data-usage-summary.md`,
+  the §0 summary above, and item 1.4 in the register) — matches **one
+  instance** on Render's `0.5c-512mb` plan. The sleep half of this coupling
+  has already fired once: the service moved off the free plan on 25 September
+  2026 and four passages went on saying the application slept for three days.
+  What is still live is the instance count. Deploy a second instance and both
+  documents are wrong the same afternoon, because each of them says a deploy
+  is a full outage.
 - **Cause-list sync is off** (`privacy-policy.md` "Court cause lists") — matches
   `CAUSE_LIST_SYNC` being unset. Turning it on makes the policy's opening claim
   false that day.
