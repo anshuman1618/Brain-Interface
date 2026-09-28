@@ -3857,3 +3857,35 @@ that naive injection signatures dislike, an edge rate limit well above the
 application's own, and then **restrict Render's IP allow list to Cloudflare's
 ranges**. That last step is the one people skip, and skipping it makes the
 other four cosmetic.
+
+## Query retries stop at refusals
+
+`new QueryClient()` with no options takes TanStack Query's default: three
+retries on everything. That default is written for an API where a failure
+means a dropped packet. It is wrong for this one, where most failures are the
+authorization model working — a 401 from a signed-out browser, a 403 from the
+capability matrix, and the 404 `getVisibleCase` returns for a matter outside a
+narrowed user's grant, which is deliberately indistinguishable from a matter
+that does not exist.
+
+None of those come out differently on the second ask. The cost was three round
+trips of exponential backoff before the user saw the message, and four times
+the requests on every refused page load. The production logs for 28 September
+show a single signed-out visit producing eight endpoints × three attempts;
+`pages/operator.tsx` had already worked around it locally with `retry: false`,
+which is the tell that the default was wrong rather than that one page was
+special.
+
+**429 stays on the do-not-retry side even though it is the one transient
+refusal here.** `express-rate-limit` counts refused requests as requests, so a
+retry inside the window moves the reset further away — retrying a rate limit
+lengthens the lockout it is trying to wait out. `userMessage` already returns
+"Too many attempts. Wait a moment and try again."
+
+What does retry is a 5xx and anything that is not an `ApiError`, which means it
+never reached the server: a network fault or a parse failure. Twice, not three
+times, because each attempt is already bounded by the client's own timeout.
+
+Pinned by counting attempts rather than by timing the error state, in browser
+section 12: three for an aborted request, exactly one for a 403. Both were run
+against the old policy first and both failed, reporting four.

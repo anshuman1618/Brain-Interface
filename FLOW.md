@@ -1421,6 +1421,28 @@ Distinct from the per-page skeletons (`DocumentsSkeleton` and friends), which
 run once the page's code exists and its own query is in flight. This one runs
 before that.
 
+### Retry: only the failures that can come out differently
+
+The `QueryClient` in `App.tsx` was `new QueryClient()`, which takes TanStack's
+default of three retries on every failure. A refusal is not a flaky request —
+a 401 from a signed-out browser, a 403 from the capability matrix, the 404
+this API returns for a matter outside a narrowed user's grant — and asking
+three more times changes none of them. It cost three round trips of backoff
+before the message appeared and multiplied every refused page load by four:
+the production logs for 28 September show eight endpoints each 401ing three
+times on a single visit.
+
+Now `retry` returns true only for a 5xx or for an error that is not an
+`ApiError` at all — a network fault or a parse failure, neither of which
+reached the server — and caps at two. **429 is deliberately on the
+do-not-retry side** even though it is transient: the limiters count refused
+requests too, so a retry inside the window pushes the reset further out, and
+`userMessage` already tells the user to wait.
+
+Browser suite section 12 counts the attempts on both paths, three for an
+aborted request and exactly one for a 403. Both assertions were confirmed
+against the old policy first, which reported four.
+
 ### Known, unfixed
 
 - **The eight-day outage of 9-17 September was a database, not a commit.** Kept

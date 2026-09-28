@@ -10,6 +10,7 @@ import { publishableKeyFromHost } from "@clerk/react/internal";
 import { shadcn } from "@clerk/themes";
 import { Switch, Route, useLocation, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@workspace/api-client-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import LandingPage from "@/pages/landing";
@@ -165,7 +166,38 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
-const queryClient = new QueryClient();
+/**
+ * Retry the failures that can succeed on a second attempt, and no others.
+ *
+ * TanStack's default is three retries on everything, and this client was using
+ * it. A refusal is not a flaky request: a 401 from a signed-out browser, a 403
+ * from the capability matrix and the 404 this API returns for a matter outside
+ * a narrowed user's grant are all final answers, and asking three more times
+ * changes none of them. It cost three round trips of latency before the
+ * message appeared, and multiplied every refused page load by four — the
+ * production logs show eight endpoints each 401ing three times on one visit.
+ *
+ * 429 is deliberately in the do-not-retry list even though it is transient.
+ * The limiters count refused requests too, so a retry inside the window pushes
+ * the reset further out; `userMessage` already tells the user to wait.
+ *
+ * A 5xx and a network failure are the two that genuinely may differ next time,
+ * so they retry — twice, not three times, because the API's own client timeout
+ * already bounds each attempt.
+ */
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        if (failureCount >= 2) return false;
+        // Anything that is not an ApiError never reached the server — a
+        // network fault or a parse failure, both worth one more attempt.
+        if (!(error instanceof ApiError)) return true;
+        return error.status >= 500;
+      },
+    },
+  },
+});
 
 /**
  * Preview tree. Renders no ClerkProvider at all — Clerk hooks throw outside one,

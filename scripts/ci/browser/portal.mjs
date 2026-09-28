@@ -885,12 +885,21 @@ await touchCtx.close();
  */
 section("12. A failed request says so, and does not claim the chamber is empty");
 
-await page.route("**/api/cases**", (route) => route.abort("failed"));
+// Counted, not just aborted. The retry policy is the other half of this
+// section: a network fault is the one failure worth asking again about, and a
+// refusal is not — see the QueryClient in App.tsx.
+let listAttempts = 0;
+const isCaseList = (route) => new URL(route.request().url()).pathname === "/api/cases";
+
+await page.route("**/api/cases**", (route) => {
+  if (isCaseList(route)) listAttempts++;
+  return route.abort("failed");
+});
 await page.goto(`${BASE}/cases`, { waitUntil: "domcontentloaded" });
-// `new QueryClient()` takes TanStack Query's default retry: three attempts
-// with exponential backoff, so `isError` does not settle for roughly seven
-// seconds. Waiting less than that tests the loading state, not the error one.
-await page.waitForTimeout(12000);
+// A network fault retries twice with exponential backoff, so `isError` does
+// not settle for a few seconds. Waiting less than that tests the loading
+// state, not the error one.
+await page.waitForTimeout(9000);
 const failedText = await text();
 
 check(
@@ -903,6 +912,46 @@ check(
   !/no matters yet/i.test(failedText),
   "an empty state over a failed request tells a chamber its files are gone",
 );
+check(
+  "a network fault is retried, and bounded at three attempts",
+  listAttempts === 3,
+  `attempts: ${listAttempts}`,
+);
+
+await page.unroute("**/api/cases**");
+
+/*
+ * A refusal is a final answer, and asking again does not change it.
+ *
+ * The default was three retries on everything, so a 403 took four round trips
+ * and several seconds of backoff before the user was told they lack access —
+ * and on 429 the retries pushed the limiter's reset further out, because the
+ * limiters count refused requests too.
+ */
+let refusedAttempts = 0;
+await page.route("**/api/cases**", (route) => {
+  if (!isCaseList(route)) return route.continue();
+  refusedAttempts++;
+  return route.fulfill({
+    status: 403,
+    contentType: "application/json",
+    body: JSON.stringify({ error: "forbidden", message: "You do not have access to that." }),
+  });
+});
+expectingRefusal = true;
+await page.goto(`${BASE}/cases`, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(9000);
+check(
+  "a refused matter list is asked for exactly once",
+  refusedAttempts === 1,
+  `attempts: ${refusedAttempts}`,
+);
+check(
+  "...and the refusal is what the page shows",
+  /could not load|do not have access/i.test(await text()),
+  (await text()).slice(0, 200),
+);
+expectingRefusal = false;
 
 await page.unroute("**/api/cases**");
 
