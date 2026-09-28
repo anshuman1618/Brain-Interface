@@ -815,6 +815,16 @@ Boot order is therefore: **migrate → the §2a startup sequence → listen.** T
 migration finishes before `initDatabase()` is even called, in a separate
 process, so nothing queries a half-migrated schema.
 
+**The closing log line names a count**, because it used to name nothing. Every
+successful run — one that applied three migrations and one that applied none —
+printed the same "schema is up to date", so the deploy that first carried
+`case_proceedings` was indistinguishable in the logs from one that carried no
+schema change at all, and answering "did 0019 land" meant querying production.
+It reads `[migrate] applied 1 migration(s); 20 in total.` or `[migrate] nothing
+pending; 20 already applied.` now, counted either side of the migrator from
+`drizzle.__drizzle_migrations`. An unreadable journal degrades to a third line
+and never fails the boot: this is a log, and no deploy stops over one.
+
 Speed matters here more than it looks. Render gives a new instance a limited
 window to bind a port, and on the free plan most of that window is already spent
 scheduling the container — one failed deploy logged eight and a half minutes

@@ -1263,7 +1263,7 @@ failed.`, which is what a process killed for memory looks like on a 512 MB box.
 
 **The ledger is the same ledger.** Verified in both directions against real
 Postgres 16: a database migrated by `drizzle-kit migrate` then handed to the
-programmatic migrator reports "schema is up to date" and re-applies nothing —
+programmatic migrator reports nothing pending and re-applies nothing —
 25 tables and 6 ledger rows before and after — and a database migrated
 programmatically is still readable by `drizzle-kit migrate` by hand. Production
 already carries a drizzle-kit-written ledger, so that first direction is the one
@@ -1273,11 +1273,12 @@ Failure is still fatal: a bad `DATABASE_URL` exits 1, and the `&&` chain stops
 before the server starts.
 
 **Not fixed by this, and not fixable from the repository:** the service has
-`healthCheckPath: ""` and runs on the free plan. With no health check, Render
-falls back to blind port scanning, and the free plan is what produces both the
-eight-minute scheduling delay and the memory pressure. Setting the health check
-path is a dashboard field; `render.yaml` already specifies `/api/healthz` and is
-still not read.
+`healthCheckPath: ""`. With no health check, Render falls back to blind port
+scanning. Setting the health check path is a dashboard field; `render.yaml`
+already specifies `/api/healthz` and is still not read. The free plan that
+produced the eight-minute scheduling delay and the memory pressure is gone —
+the service moved to `0.5c-512mb` on 25 September — but the missing health
+check outlived it, and it is what made the 502 that followed that move silent.
 
 ### `drizzle-kit push` refuses to run on a deployed instance
 
