@@ -296,6 +296,82 @@ await call(`/memberships/${juniorM}/case-access`, {
 });
 const jTok = juniorS.workspaceToken;
 
+/*
+ * Proceedings, which inherit the matter's visibility and have none of their
+ * own. The steering case at the end is the one worth having: naming a matter
+ * the caller CAN see, with a proceeding id belonging to one they cannot. Every
+ * handler bounds its query by `caseId` as well as `id` precisely so that
+ * cannot work, and an assertion is the only thing that keeps it that way.
+ */
+const hiddenProc = await call(`/cases/${beta.data.id}/proceedings`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { title: "Stay application the junior cannot see" },
+});
+const grantedProc = await call(`/cases/${alpha.data.id}/proceedings`, {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { title: "Stay application the junior can see" },
+});
+
+check(
+  "a narrowed junior lists proceedings on the matter they were granted",
+  (await call(`/cases/${alpha.data.id}/proceedings`, { token: as(junior), wsToken: jTok }))
+    .status === 200,
+);
+check(
+  "...and gets 404 on the proceedings of one they were not",
+  (await call(`/cases/${beta.data.id}/proceedings`, { token: as(junior), wsToken: jTok }))
+    .status === 404,
+);
+const jProcEdit = await call(`/cases/${beta.data.id}/proceedings/${hiddenProc.data?.id}`, {
+  token: as(junior),
+  wsToken: jTok,
+  method: "PATCH",
+  body: { title: "Renamed by somebody who cannot see it" },
+});
+check(
+  "...cannot edit one on an ungranted matter",
+  jProcEdit.status === 404,
+  `got ${jProcEdit.status}`,
+);
+const jProcDelete = await call(`/cases/${beta.data.id}/proceedings/${hiddenProc.data?.id}`, {
+  token: as(junior),
+  wsToken: jTok,
+  method: "DELETE",
+});
+check("...nor delete one", jProcDelete.status === 404, `got ${jProcDelete.status}`);
+const steered = await call(`/cases/${alpha.data.id}/proceedings/${hiddenProc.data?.id}`, {
+  token: as(junior),
+  wsToken: jTok,
+  method: "PATCH",
+  body: { title: "Steered in through a matter I can see" },
+});
+check(
+  "...and cannot steer it in through a matter they CAN see",
+  steered.status === 404,
+  `got ${steered.status}`,
+);
+const procsAfter = await call(`/cases/${beta.data.id}/proceedings`, {
+  token: as(owner),
+  wsToken: ws,
+});
+check(
+  "...with the proceeding surviving every refusal, unrenamed",
+  (procsAfter.data ?? []).some(
+    (x) => x.id === hiddenProc.data?.id && x.title === "Stay application the junior cannot see",
+  ),
+  JSON.stringify((procsAfter.data ?? []).map((x) => x.title)),
+);
+check(
+  "the granted matter's own proceeding is untouched too",
+  (await call(`/cases/${alpha.data.id}/proceedings`, { token: as(owner), wsToken: ws })).data?.some(
+    (x) => x.id === grantedProc.data?.id,
+  ),
+);
+
 check(
   "GET /tasks/:id on an ungranted matter is 404, not the task",
   (await call(`/tasks/${hiddenTask.data.id}`, { token: as(junior), wsToken: jTok })).status === 404,
