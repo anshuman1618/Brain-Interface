@@ -106,10 +106,12 @@ export async function getOrCreateUser(req: Request): Promise<AppUser | null> {
     // address or a number, so a user record exists. It still reaches nothing
     // until they create a chamber, or the access list / an admin admits them.
     return insertUser(clerkId, {
-      displayName:
-        identity.displayName ||
-        (identity.email ? identity.email.split("@")[0] : identity.phone) ||
-        "User",
+      // Whatever the preview token carried, and nothing invented on its
+      // behalf — same rule as the Clerk path above. A preview token with no
+      // name part is a fixture that did not supply one, and it should produce
+      // the same nameless user a real email sign-in produces, or the state the
+      // app has to handle is the one state never exercised here.
+      displayName: identity.displayName,
       email: identity.email,
       phone: identity.phone,
       authProvider: identity.provider,
@@ -135,7 +137,25 @@ async function identityFromClerk(clerkId: string): Promise<Identity> {
   const phone = verifiedPhone ? normalisePhone(verifiedPhone.phoneNumber) : "";
 
   return {
-    displayName: nameFromClerk || "User",
+    /*
+     * Empty when the provider has no name, never a placeholder.
+     *
+     * This used to be `nameFromClerk || "User"`, and Clerk is passwordless by
+     * design: an email one-time code establishes an address and nothing else,
+     * so `firstName`/`lastName` are empty for every user who signs in that way
+     * — which is most of them. The literal string "User" was then stored in
+     * `users.display_name` and became that person's name everywhere it is
+     * read: "Good evening, User" on the dashboard, "requested by User" in a
+     * notification, and `createdBy: "User"` on the matter's own ledger, where
+     * it is permanent.
+     *
+     * A placeholder is worse than a blank because it is indistinguishable from
+     * a real answer. `resyncIdentity` only ever fills a field that is EMPTY,
+     * so "User" was also sticky: a user who later added their name at the
+     * provider kept the placeholder for good. Blank asks to be filled in; the
+     * app prompts for it, and `greet()` simply drops the name until it is.
+     */
+    displayName: nameFromClerk,
     email: verified ? normaliseEmail(verified.emailAddress) : "",
     // Null rather than "" so the column reads as absent in the database; the
     // access-list matcher treats both as no-identifier either way.

@@ -30,6 +30,7 @@ import {
 } from "../middlewares/requireAuth";
 import { addTimelineEvent } from "../lib/timeline";
 import { caseInWorkspace, getVisibleCase, visibleCaseIds, visibleTasks } from "../lib/scope";
+import { personName, personNameOrNull } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -37,7 +38,7 @@ async function enrichTask(t: typeof tasksTable.$inferSelect) {
   let assigneeName: string | null = null;
   if (t.assigneeId) {
     const [u] = await db.select().from(usersTable).where(eq(usersTable.clerkId, t.assigneeId));
-    assigneeName = u?.displayName ?? null;
+    assigneeName = personNameOrNull(u);
   }
   const today = new Date().toISOString().split("T")[0];
   const isOverdue = !t.completedAt && t.deadline < today;
@@ -185,7 +186,7 @@ router.post(
       task.caseId,
       "task_assigned",
       `Task "${task.title}" assigned`,
-      c.user.displayName,
+      personName(c.user),
     );
 
     res.status(201).json(CreateTaskResponse.parse(await enrichTask(task)));
@@ -341,7 +342,7 @@ router.post(
       task.caseId,
       "task_completed",
       `Task "${task.title}" completed${isLate ? " (late)" : ""}`,
-      c.user.displayName,
+      personName(c.user),
     );
 
     res.json(CompleteTaskResponse.parse(await enrichTask(updated)));

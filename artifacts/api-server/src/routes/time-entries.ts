@@ -15,6 +15,7 @@ import {
 } from "../middlewares/requireAuth";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { zodMessage } from "../lib/validation";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -129,7 +130,7 @@ router.post(
         caseId: matter.id,
         userId: c.user.id,
         clerkId: c.user.clerkId,
-        userName: c.user.displayName,
+        userName: personName(c.user),
         workDate: parsed.data.workDate,
         minutes: parsed.data.minutes,
         description: parsed.data.description?.trim() || null,
@@ -232,7 +233,7 @@ router.post(
           caseId: matter.id,
           userId: c.user.id,
           clerkId: c.user.clerkId,
-          userName: c.user.displayName,
+          userName: personName(c.user),
           // Local calendar day, so an entry started at 23:50 is not filed as
           // tomorrow for a reader in a different offset.
           workDate: new Date().toISOString().slice(0, 10),

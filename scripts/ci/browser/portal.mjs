@@ -115,6 +115,43 @@ check(
   consoleErrors.slice(0, 3).join(" | "),
 );
 
+/*
+ * The tab icon, which was a plain #FF3C00 rounded square — Replit scaffolding
+ * that survived every other cleanup because nothing in the product renders it.
+ * Three things are worth pinning and none of them is how it looks:
+ *
+ *   - it PARSES. The first version of the replacement had a double hyphen
+ *     inside its XML comment, which is illegal and made the whole file render
+ *     as a missing image at every size. Nothing would have said so.
+ *   - it is the LEX mark, not the scaffolding colour.
+ *   - it is not drawn with currentColor, which resolves to black outside a
+ *     document and is why public/logo.svg cannot serve as one.
+ */
+const faviconHref = await page.getAttribute('link[rel="icon"]', "href");
+const favicon = await page.request.get(new URL(faviconHref ?? "/favicon.svg", BASE).href);
+const faviconSvg = await favicon.text();
+check("the tab icon is served", favicon.status() === 200, `status ${favicon.status()}`);
+check(
+  "...and is valid XML, not a silently broken file",
+  await page.evaluate(
+    (s) =>
+      !new DOMParser().parseFromString(s, "image/svg+xml").querySelector("parsererror") &&
+      new DOMParser().parseFromString(s, "image/svg+xml").documentElement.tagName === "svg",
+    faviconSvg,
+  ),
+);
+check("...and carries the LEX mark", /<text[^>]*>\s*LEX\s*<\/text>/.test(faviconSvg));
+// The DRAWING, not the prose. The file's header explains what it replaced and
+// why logo.svg cannot serve as a favicon, so it names both #FF3C00 and
+// currentColor in a comment — and the first version of this check read that
+// explanation as the thing it was warning about.
+const faviconDrawing = faviconSvg.replace(/<!--[\s\S]*?-->/g, "");
+check(
+  "...and none of the scaffolding is left in what it draws",
+  !/FF3C00/i.test(faviconDrawing) && !/currentColor/.test(faviconDrawing),
+  faviconDrawing.slice(0, 160),
+);
+
 /* ── 2. Nothing is fetched from a third party ───────────────────────────────
  * The privacy policy states this in terms. A regression here makes a written
  * claim false, which is worse than the request itself.
@@ -446,6 +483,32 @@ const signedIn =
   (await page.locator('nav[aria-label="Main"]').count()) > 0 ||
   (await page.getByRole("button", { name: /Open navigation menu/i }).count()) > 0;
 check("reached the application", signedIn, `${page.url()} — ${inApp.slice(0, 220)}`);
+
+/*
+ * The salutation, which for a long time read "Good evening, User".
+ *
+ * `greet()` was never the bug — the stored name was the literal string "User",
+ * written by `identityFromClerk` whenever the passwordless provider had no
+ * first or last name, which with email one-time codes is almost everybody.
+ * This session signed in as "B Founder", so the heading proves three things at
+ * once: the name reaches the claim, the greeting uses it, and it uses only the
+ * FIRST word of it.
+ */
+check(
+  "the dashboard greets by first name",
+  /Good (morning|afternoon|evening), B\b/.test(inApp),
+  inApp.slice(0, 160),
+);
+check(
+  "...and never by the placeholder that used to be stored",
+  !/Good (morning|afternoon|evening), User\b/.test(inApp),
+  "the name is a placeholder, not the person",
+);
+check(
+  "...so nothing offers to add a name that is already there",
+  !/add your name/i.test(inApp),
+  inApp.slice(0, 160),
+);
 
 if (signedIn) {
   for (const { w, h, label } of VIEWPORTS) {

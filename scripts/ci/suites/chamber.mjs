@@ -376,5 +376,83 @@ check(
 );
 check("but CAN assign work", senior2.capabilities.includes("tasks.write"));
 
+/* ───────────────── 10. A person with no name, and how they get one ─────────
+ *
+ * Clerk is passwordless. An email one-time code establishes an address and
+ * nothing else, so `firstName`/`lastName` are empty for most users and the
+ * server used to store the literal string "User" in their place. That
+ * placeholder then became their name on every record they touched — "Good
+ * evening, User", `createdBy: "User"` on a matter's ledger, permanently — and
+ * because `resyncIdentity` only fills a field that is EMPTY, it was also
+ * sticky: adding a name at the provider afterwards changed nothing.
+ *
+ * A preview token with no name part is the same shape of identity, which is
+ * what makes this testable here at all.
+ */
+section("10. No name from the provider, and the repair");
+
+const nameless = `nameless+${Date.now()}@chambers.test`;
+const namelessSession = await call("/session", { token: as(nameless) });
+check(
+  "a user the provider gave no name is created",
+  namelessSession.status === 200,
+  `got ${namelessSession.status}`,
+);
+check(
+  "...and their name is EMPTY, not the placeholder",
+  namelessSession.data?.displayName === "",
+  JSON.stringify(namelessSession.data?.displayName),
+);
+check(
+  "...which is what lets the app know to ask",
+  namelessSession.data?.displayName !== "User",
+  "a placeholder is indistinguishable from a real answer",
+);
+
+const blank = await call("/users/me", {
+  token: as(nameless),
+  method: "PATCH",
+  body: { displayName: "   " },
+});
+check("a whitespace-only name is refused (400)", blank.status === 400, `got ${blank.status}`);
+
+const empty = await call("/users/me", {
+  token: as(nameless),
+  method: "PATCH",
+  body: { displayName: "" },
+});
+check("...and so is an empty one (400)", empty.status === 400, `got ${empty.status}`);
+
+const named = await call("/users/me", {
+  token: as(nameless),
+  method: "PATCH",
+  body: { displayName: "  Ananya Rao  " },
+});
+check("a real name is accepted", named.status === 200, `got ${named.status}`);
+check(
+  "...stored trimmed, so two ledger rows cannot differ by a space",
+  named.data?.displayName === "Ananya Rao",
+  JSON.stringify(named.data?.displayName),
+);
+
+const after = await call("/session", { token: as(nameless) });
+check(
+  "...and the session claim carries it on the next read",
+  after.data?.displayName === "Ananya Rao",
+  JSON.stringify(after.data?.displayName),
+);
+
+/*
+ * The name the provider DOES give still wins on first sight — removing the
+ * placeholder must not have removed the ordinary path with it.
+ */
+const withName = `named+${Date.now()}@chambers.test`;
+const fromProvider = await call("/session", { token: as(withName, "Vikram Mehta") });
+check(
+  "a name the provider supplies is kept",
+  fromProvider.data?.displayName === "Vikram Mehta",
+  JSON.stringify(fromProvider.data?.displayName),
+);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

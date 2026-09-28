@@ -17,6 +17,7 @@ import {
   type AuthRequest,
 } from "../middlewares/requireAuth";
 import { resolveCasePin } from "../lib/case-pin";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -156,7 +157,7 @@ router.post(
           revokedAt: null,
           role: parsed.data.role,
           caseId,
-          addedBy: c.user.displayName,
+          addedBy: personName(c.user),
         })
         .where(eq(workspaceAccessListTable.id, existing.id));
       entryId = existing.id;
@@ -170,7 +171,7 @@ router.post(
           role: parsed.data.role,
           caseId,
           note: "Invited",
-          addedBy: c.user.displayName,
+          addedBy: personName(c.user),
         })
         .returning();
       entryId = inserted!.id;

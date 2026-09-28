@@ -18,6 +18,7 @@ import {
 } from "../middlewares/requireAuth";
 import { caseInWorkspace, visibleCaseIds } from "../lib/scope";
 import { displayRole, isWorkspaceRole } from "../lib/permissions";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -171,7 +172,7 @@ router.post(
         entryTime: parsed.data.entryTime ?? null,
         caseId: parsed.data.caseId ?? null,
         audience,
-        createdBy: c.user.displayName,
+        createdBy: personName(c.user),
         createdByRole: c.role,
         createdByClerkId: c.user.clerkId,
       })

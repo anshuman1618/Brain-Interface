@@ -146,6 +146,11 @@ export interface UserProfile {
 }
 
 export interface UserProfileUpdate {
+  /**
+     * What to call this person. Stored as given and shown to their own chamber on every record they touch, so it is bounded rather than free: 120 characters holds an Indian name with honorifics and nothing that would break a ledger row's layout. Empty is refused — the way to have no name is to never set one, not to clear it.
+     * @minLength 1
+     * @maxLength 120
+     */
   displayName?: string;
 }
 

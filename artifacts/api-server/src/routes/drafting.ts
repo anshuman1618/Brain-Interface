@@ -47,6 +47,7 @@ import { getVisibleCase, mayDraftOnCase } from "../lib/scope";
 import { roleHasCapability } from "../lib/permissions";
 import { extractText } from "../lib/ai/extract";
 import * as blobStore from "../lib/blob-store";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -151,7 +152,7 @@ router.post(
       .update(workspacesTable)
       .set({
         draftingEnabled: body.data.enabled,
-        draftingEnabledBy: body.data.enabled ? c.user.displayName : null,
+        draftingEnabledBy: body.data.enabled ? personName(c.user) : null,
         draftingEnabledAt: body.data.enabled ? new Date() : null,
       })
       .where(eq(workspacesTable.id, c.workspaceId))
@@ -251,7 +252,7 @@ router.post(
         // same rule the cause-list matcher uses.
         caseTypeNorm: body.data.caseType ? normaliseCaseType(body.data.caseType) : null,
         authorClerkId: c.user.clerkId,
-        authorName: c.user.displayName,
+        authorName: personName(c.user),
         authorRole: c.role,
       })
       .returning();
@@ -467,7 +468,7 @@ router.post(
         sourceText,
         body: "",
         addedByClerkId: c.user.clerkId,
-        addedByName: c.user.displayName,
+        addedByName: personName(c.user),
       })
       .returning();
 
@@ -517,7 +518,7 @@ router.patch(
         // Approval is what makes an exemplar usable at all. Recorded with a
         // name, because "a person checked this" is only meaningful if you can
         // say which person.
-        ...(body.data.approve ? { reviewedAt: new Date(), reviewedBy: c.user.displayName } : {}),
+        ...(body.data.approve ? { reviewedAt: new Date(), reviewedBy: personName(c.user) } : {}),
       })
       .where(
         and(
@@ -673,7 +674,7 @@ router.post(
       documentIds: body.data.documentIds ?? [],
       parentDraftId: body.data.parentDraftId ?? null,
       tier: budget.tier,
-      actor: { clerkId: c.user.clerkId, name: c.user.displayName },
+      actor: { clerkId: c.user.clerkId, name: personName(c.user) },
     });
 
     if (!outcome.ok) {

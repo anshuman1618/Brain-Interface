@@ -52,6 +52,7 @@ import { reconcileAccessList } from "../lib/access-list";
 import { recordAudit } from "../lib/audit";
 import { assertSeatAvailable, checkQuota, quotaMessage, usageFor } from "../lib/quota";
 import { resolveCasePin } from "../lib/case-pin";
+import { personName, personNameOrNull } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -123,6 +124,12 @@ async function buildSessionClaims(userId: number, activeWorkspaceId: number | nu
   return {
     userId: user.id,
     clerkId: user.clerkId,
+    // Raw, and deliberately NOT personName(). This is the claim the portal
+    // reads to decide whether to ask the signed-in person for their name, and
+    // a fallback here would answer that question with the email address —
+    // nobody would ever be asked, and every record would carry an address
+    // where a name belongs. Everywhere the name is shown to somebody ELSE
+    // uses personName; this is the one place empty has to survive.
     displayName: user.displayName,
     email: user.email,
     phone: user.phone ?? null,
@@ -258,7 +265,7 @@ async function foundChamber(
             value: identifier.value,
             role,
             note: "Chamber founder",
-            addedBy: user.displayName,
+            addedBy: personName(user),
             lastUsedAt: new Date(),
           });
         }
@@ -452,7 +459,7 @@ router.post("/access-requests", requireAuth, async (req: AuthRequest, res): Prom
       action: "access.requested",
       entityType: "membership",
       entityId: created.id,
-      summary: `${user.displayName || user.email} requested access to "${workspace.name}"`,
+      summary: `${personName(user)} requested access to "${workspace.name}"`,
     },
   );
 
@@ -460,7 +467,7 @@ router.post("/access-requests", requireAuth, async (req: AuthRequest, res): Prom
     CreateAccessRequestResponse.parse({
       ...created,
       workspaceName: workspace.name,
-      displayName: user.displayName,
+      displayName: personName(user),
       email: user.email,
       decidedAt: created.decidedAt?.toISOString() ?? null,
     }),
@@ -475,7 +482,7 @@ async function membershipView(
   return {
     ...row,
     workspaceName,
-    displayName: u?.displayName ?? null,
+    displayName: personNameOrNull(u),
     email: u?.email ?? null,
     decidedAt: row.decidedAt?.toISOString() ?? null,
   };
@@ -569,7 +576,7 @@ router.post(
         .set({
           role: grantedRole,
           status: "active",
-          decidedBy: c.user.displayName,
+          decidedBy: personName(c.user),
           decidedAt: new Date(),
         })
         .where(eq(workspaceMembershipsTable.id, id))
@@ -594,7 +601,7 @@ router.post(
 
     const [updated] = await db
       .update(workspaceMembershipsTable)
-      .set({ status: "revoked", decidedBy: c.user.displayName, decidedAt: new Date() })
+      .set({ status: "revoked", decidedBy: personName(c.user), decidedAt: new Date() })
       .where(eq(workspaceMembershipsTable.id, id))
       .returning();
 
@@ -748,7 +755,7 @@ router.post(
           role: parsed.data.role,
           caseId,
           note: parsed.data.note ?? null,
-          addedBy: c.user.displayName,
+          addedBy: personName(c.user),
         })
         .where(eq(workspaceAccessListTable.id, existing.id))
         .returning();
@@ -773,7 +780,7 @@ router.post(
         role: parsed.data.role,
         caseId,
         note: parsed.data.note ?? null,
-        addedBy: c.user.displayName,
+        addedBy: personName(c.user),
       })
       .returning();
 
@@ -913,7 +920,7 @@ router.patch(
     }
 
     const update: Partial<typeof workspaceMembershipsTable.$inferSelect> = {
-      decidedBy: c.user.displayName,
+      decidedBy: personName(c.user),
       decidedAt: new Date(),
     };
     if (parsed.data.role) update.role = parsed.data.role;
@@ -1071,7 +1078,7 @@ router.put(
           workspaceId: c.workspaceId,
           membershipId,
           caseId,
-          grantedBy: c.user.displayName,
+          grantedBy: personName(c.user),
           grantedByClerkId: c.user.clerkId,
           note: body.data.note ?? null,
         })),

@@ -27,6 +27,7 @@ import {
 import { createOrder, paymentsEnabled, razorpayConfig } from "../lib/razorpay";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
+import { personName } from "../lib/person-name";
 
 /**
  * Taking money.
@@ -240,7 +241,7 @@ router.post(
           workspaceId: String(c.workspaceId),
           aiTopup: pack.code,
           boughtBy: c.user.clerkId,
-          boughtByName: c.user.displayName,
+          boughtByName: personName(c.user),
         },
       });
 

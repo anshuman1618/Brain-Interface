@@ -29,6 +29,7 @@ import { addTimelineEvent } from "../lib/timeline";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { zodMessage } from "../lib/validation";
 import { roleHasCapability } from "../lib/permissions";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -100,7 +101,7 @@ router.post(
       consultation.caseId,
       "consultation_scheduled",
       `Consultation "${consultation.title}" scheduled`,
-      c.user.displayName,
+      personName(c.user),
     );
 
     res.status(201).json(CreateConsultationResponse.parse(consultation));
@@ -196,8 +197,8 @@ router.post(
     await addTimelineEvent(
       matter.id,
       "consultation_scheduled",
-      `Consultation requested by ${c.user.displayName}: "${created!.title}"`,
-      c.user.displayName,
+      `Consultation requested by ${personName(c.user)}: "${created!.title}"`,
+      personName(c.user),
     );
 
     /*
@@ -234,7 +235,7 @@ router.post(
         recipients.map((m) => ({
           userId: m.clerkId,
           type: "consultation_request",
-          message: `${c.user.displayName} has asked for a consultation on ${matter.title}: "${created!.title}".`,
+          message: `${personName(c.user)} has asked for a consultation on ${matter.title}: "${created!.title}".`,
           link: "/consultations",
         })),
       );

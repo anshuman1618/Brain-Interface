@@ -6,6 +6,7 @@ import { getOrCreateUser } from "../lib/jit";
 import { listActiveMemberships } from "../middlewares/requireAuth";
 import { zodMessage } from "../lib/validation";
 import { logger } from "../lib/logger";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -50,7 +51,7 @@ router.post("/beta-feedback", requireAuth, async (req: AuthRequest, res): Promis
       userId: user.id,
       clerkId: user.clerkId,
       email: user.email,
-      displayName: user.displayName,
+      displayName: personName(user),
       workspaceId: memberships[0]?.workspace.id ?? null,
       message,
       pagePath: parsed.data.pagePath.slice(0, 512),

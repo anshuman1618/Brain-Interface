@@ -18,6 +18,7 @@ import {
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
 import { addTimelineEvent } from "../lib/timeline";
 import { displayRole } from "../lib/permissions";
+import { personName, personNameOrNull } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -35,8 +36,8 @@ async function enrich(dr: typeof documentRequestsTable.$inferSelect) {
   }
   return {
     ...dr,
-    clientName: recipient?.displayName ?? null,
-    requestedFromName: dr.requestedFromName || recipient?.displayName || null,
+    clientName: personNameOrNull(recipient),
+    requestedFromName: dr.requestedFromName || personNameOrNull(recipient),
     requestedFromEmail: recipient?.email ?? null,
     requestedByRole: dr.requestedByRole ? displayRole(dr.requestedByRole) : null,
     caseTitle,
@@ -123,8 +124,8 @@ router.post(
         workspaceId: c.workspaceId,
         clientId: recipient.id,
         clientClerkId: recipient.clerkId,
-        requestedFromName: recipient.displayName,
-        requestedBy: c.user.displayName,
+        requestedFromName: personName(recipient),
+        requestedBy: personName(c.user),
         requestedByClerkId: c.user.clerkId,
         requestedByRole: c.role,
         documentName: parsed.data.documentName,
@@ -138,7 +139,7 @@ router.post(
     await db.insert(notificationsTable).values({
       userId: recipient.clerkId,
       type: "document_request",
-      message: `Action required: "${parsed.data.documentName}" has been requested by ${c.user.displayName} (${displayRole(c.role)}).`,
+      message: `Action required: "${parsed.data.documentName}" has been requested by ${personName(c.user)} (${displayRole(c.role)}).`,
       link: "/dashboard",
     });
 
@@ -156,8 +157,8 @@ router.post(
       await addTimelineEvent(
         created.caseId,
         "document_requested",
-        `"${created.documentName}" requested from ${created.requestedFromName || "the client"} by ${c.user.displayName} (${displayRole(c.role)})`,
-        c.user.displayName,
+        `"${created.documentName}" requested from ${created.requestedFromName || "the client"} by ${personName(c.user)} (${displayRole(c.role)})`,
+        personName(c.user),
       );
     }
 
@@ -226,8 +227,8 @@ router.patch(
         "document_request_fulfilled",
         parsed.data.status === "fulfilled"
           ? `"${existing.documentName}" received, closing the request`
-          : `Request for "${existing.documentName}" marked ${parsed.data.status} by ${c.user.displayName}`,
-        c.user.displayName,
+          : `Request for "${existing.documentName}" marked ${parsed.data.status} by ${personName(c.user)}`,
+        personName(c.user),
       );
     }
 

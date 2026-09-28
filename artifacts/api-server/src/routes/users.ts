@@ -45,9 +45,24 @@ router.patch("/users/me", requireAuth, async (req: AuthRequest, res): Promise<vo
     return;
   }
 
+  /*
+   * Trimmed here, not in the browser.
+   *
+   * This name is written onto ledger rows, audit entries and notifications as
+   * the answer to "who did this", and a trailing space makes two of those
+   * strings differ for no reason anyone can see. `minLength: 1` in the spec
+   * refuses an empty string but not "   ", so the whitespace-only case is
+   * caught after trimming rather than before.
+   */
+  const name = parsed.data.displayName?.trim();
+  if (parsed.data.displayName !== undefined && !name) {
+    res.status(400).json({ error: "invalid_request", message: "Give a name to go by." });
+    return;
+  }
+
   const [updated] = await db
     .update(usersTable)
-    .set({ displayName: parsed.data.displayName ?? user.displayName })
+    .set({ displayName: name ?? user.displayName })
     .where(eq(usersTable.id, user.id))
     .returning();
 

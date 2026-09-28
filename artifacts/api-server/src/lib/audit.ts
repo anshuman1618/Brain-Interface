@@ -3,6 +3,7 @@ import { db, auditEventsTable, type AuditAction } from "@workspace/db";
 import { logger } from "./logger";
 import { clientAddress } from "./client-address";
 import type { WorkspaceContext } from "../middlewares/requireAuth";
+import { personName } from "./person-name";
 
 /**
  * Write one line into the workspace's audit log.
@@ -52,7 +53,7 @@ export async function recordAudit(
     await db.insert(auditEventsTable).values({
       workspaceId: ctx.workspaceId,
       actorClerkId: ctx.user.clerkId,
-      actorName: ctx.user.displayName || ctx.user.email || ctx.user.clerkId,
+      actorName: personName(ctx.user),
       actorRole: ctx.role,
       action: input.action,
       entityType: input.entityType ?? "",

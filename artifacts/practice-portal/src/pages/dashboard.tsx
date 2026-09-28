@@ -45,7 +45,8 @@ import {
   type StatRow,
 } from "@/components/stat-detail-dialog";
 import { useSession } from "@/lib/session";
-import { greet, todayLong } from "@/lib/greeting";
+import { todayLong } from "@/lib/greeting";
+import { GreetingHeading } from "@/components/greeting-heading";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { LoadFailed } from "@/components/load-failed";
@@ -129,7 +130,7 @@ function StaffDashboard() {
 
   // Quick actions are gated on the capability list the backend issued, not on a
   // role the browser worked out for itself.
-  const { can, activeWorkspace, displayName } = useSession();
+  const { can, activeWorkspace } = useSession();
   const [, setLocation] = useLocation();
   const [docRequestOpen, setDocRequestOpen] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
@@ -226,7 +227,7 @@ function StaffDashboard() {
               it. A heading that names the screen you are already looking at is
               the least useful line on the page; the chamber, the day and the
               refresh cadence underneath carry the orientation it was doing. */}
-          <h2 className="text-3xl font-bold tracking-tight mb-1">{greet(displayName)}</h2>
+          <GreetingHeading />
           <p className="text-muted-foreground text-sm">
             {activeWorkspace?.name} &middot; {todayLong()} &middot; Refreshes every 30s
           </p>
@@ -761,7 +762,7 @@ function StaffDashboard() {
 }
 
 function ClientDashboard() {
-  const { activeWorkspace, displayName } = useSession();
+  const { activeWorkspace } = useSession();
   const { data: requests = [], isLoading } = useListDocumentRequests({
     query: { queryKey: getListDocumentRequestsQueryKey() },
   });
@@ -790,7 +791,7 @@ function ClientDashboard() {
             read their own matter is a person arriving, not a lesser case of
             one — and the chamber's name is the thing they need to see, since
             they may be a client of more than one. */}
-        <h2 className="text-3xl font-bold tracking-tight mb-1">{greet(displayName)}</h2>
+        <GreetingHeading />
         <p className="text-muted-foreground font-mono text-sm uppercase tracking-wider mb-3">
           {activeWorkspace?.name} &middot; {todayLong()}
         </p>

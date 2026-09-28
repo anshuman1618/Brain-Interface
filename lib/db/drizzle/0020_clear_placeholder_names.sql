@@ -1,0 +1,28 @@
+-- Clear the "User" placeholder from display names.
+--
+-- Until this release, `identityFromClerk` stored the literal string 'User'
+-- whenever the identity provider had no name for somebody — which, with a
+-- passwordless Clerk, is everyone who signed in with an email one-time code.
+-- That placeholder then read back as the person's name everywhere: "Good
+-- evening, User" on the dashboard, "requested by User" in a notification.
+--
+-- It is also self-perpetuating. `resyncIdentity` only ever fills a field that
+-- is EMPTY, so a user who later added their name at the provider kept 'User'
+-- for good, and the app had no way to tell a placeholder from a choice. Only
+-- clearing it makes the app ask.
+--
+-- This is a DATA correction, not a schema change, and it is the narrowest one
+-- that works: exactly the rows whose name is the placeholder this codebase
+-- wrote, matched case-sensitively and in full. A row where somebody typed
+-- their own name is untouched, and no column is dropped or retyped. Rerunning
+-- it is a no-op, because after the first run nothing matches.
+--
+-- Nothing is lost that was ever worth keeping: the string carries no
+-- information about the person it was standing in for. Attribution already
+-- written onto ledger rows and audit entries is NOT rewritten — those are
+-- historical records of what was displayed at the time, and editing them to
+-- say something the chamber never saw would be worse than leaving them.
+-- `personName()` keeps the rows written from here on readable by falling back
+-- to the address that admitted the person.
+
+UPDATE users SET display_name = '' WHERE display_name = 'User';

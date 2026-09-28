@@ -25,6 +25,7 @@ import { recordAudit } from "../lib/audit";
 import { usageFor } from "../lib/quota";
 import { sendMail } from "../lib/mailer";
 import { visibleCaseIds } from "../lib/scope";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -125,14 +126,14 @@ router.get("/privacy/export", requireWorkspace, async (req: AuthRequest, res): P
     action: "data.exported",
     entityType: "user",
     entityId: c.user.id,
-    summary: `${c.user.displayName || c.user.email} exported their own data`,
+    summary: `${personName(c.user)} exported their own data`,
   });
 
   res.setHeader("Content-Disposition", 'attachment; filename="lex-practice-export.json"');
   res.json({
     generatedAt: new Date().toISOString(),
     subject: {
-      name: c.user.displayName,
+      name: personName(c.user),
       email: c.user.email,
       role: c.role,
       joinedAt: membership?.createdAt?.toISOString() ?? null,
@@ -215,7 +216,7 @@ router.post("/privacy/erasure", requireWorkspace, async (req: AuthRequest, res):
       userId: c.user.id,
       clerkId: c.user.clerkId,
       requestedEmail: c.user.email,
-      requestedName: c.user.displayName,
+      requestedName: personName(c.user),
       reason: body.data.reason ?? null,
     })
     .returning();
@@ -224,7 +225,7 @@ router.post("/privacy/erasure", requireWorkspace, async (req: AuthRequest, res):
     action: "erasure.requested",
     entityType: "user",
     entityId: c.user.id,
-    summary: `${c.user.displayName || c.user.email} requested erasure of their data`,
+    summary: `${personName(c.user)} requested erasure of their data`,
   });
 
   res.status(201).json(viewErasure(row!));

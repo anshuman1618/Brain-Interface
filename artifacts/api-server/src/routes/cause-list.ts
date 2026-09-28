@@ -27,6 +27,7 @@ import { zodMessage } from "../lib/validation";
 import { adapterFor } from "../lib/cause-list/registry";
 import { acceptMatch, dismissMatch } from "../lib/cause-list/decide";
 import { courtByCode, syncCourt } from "../lib/cause-list/sync";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -181,7 +182,7 @@ router.post(
     }
 
     const decide = body.data.decision === "accept" ? acceptMatch : dismissMatch;
-    const result = await decide(c.workspaceId, id, c.user.displayName);
+    const result = await decide(c.workspaceId, id, personName(c.user));
 
     if (!result.ok) {
       // 404 for another chamber's id as well as a missing one — an outsider

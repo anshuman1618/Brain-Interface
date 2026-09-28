@@ -10,6 +10,7 @@ import {
 import { requireWorkspace, ctx, type AuthRequest } from "../middlewares/requireAuth";
 import { visibleCaseIds, visibleTasks } from "../lib/scope";
 import { roleHasCapability } from "../lib/permissions";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -136,7 +137,7 @@ router.get("/search", requireWorkspace, async (req: AuthRequest, res): Promise<v
       title: row.title,
       subtitle: `Consultation · ${row.status}`,
     })),
-    clients: userRows.map((r) => ({ id: r.user.id, title: r.user.displayName, subtitle: r.role })),
+    clients: userRows.map((r) => ({ id: r.user.id, title: personName(r.user), subtitle: r.role })),
   });
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Scale, LogOut, AlertCircle, ArrowRight } from "lucide-react";
-import { useGetMe, useSetBarRegistration } from "@workspace/api-client-react";
+import { useGetMe, useSetBarRegistration, useUpdateMe } from "@workspace/api-client-react";
 import { useSession } from "@/lib/session";
 import { userMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
@@ -42,11 +42,13 @@ import { LoadFailed } from "@/components/load-failed";
 export default function CompleteProfilePage({ onDone }: { onDone?: () => void }) {
   const { displayName, email, displayRole, signOut, refreshSession } = useSession();
   const setBarRegistration = useSetBarRegistration();
+  const updateMe = useUpdateMe();
   // Reached two ways: as the hard gate (nothing declared yet, starts blank)
   // and as a deliberate revisit from Team Roles to correct what was declared
   // — this is what fills the form with the latter's current values.
   const { data: me, isError: meFailed, error: meError, refetch: refetchMe } = useGetMe();
 
+  const [name, setName] = useState("");
   const [barCouncilState, setBarCouncilState] = useState("");
   const [barEnrolmentNo, setBarEnrolmentNo] = useState("");
   const [aorNo, setAorNo] = useState("");
@@ -57,6 +59,7 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
 
   useEffect(() => {
     if (!me) return;
+    setName(me.displayName ?? "");
     setBarCouncilState(me.barCouncilState ?? "");
     setBarEnrolmentNo(me.barEnrolmentNo ?? "");
     setAorNo(me.aorNo ?? "");
@@ -69,13 +72,23 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
   // means the six months are up and the gate is already refusing requests.
   const daysLeft = me?.allIndiaBarDaysLeft ?? null;
 
-  const canSubmit = !!barCouncilState.trim() && !!barEnrolmentNo.trim();
+  const canSubmit = !!name.trim() && !!barCouncilState.trim() && !!barEnrolmentNo.trim();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     setError(null);
     try {
+      /*
+       * The name first, and awaited, because the two writes are not
+       * interchangeable. Saving the enrolment clears `profileComplete`, this
+       * screen unmounts, and anything still in flight from it is a request
+       * nobody is waiting on. Sent only when it CHANGED: re-saving the same
+       * name on every revisit from Team Roles is a write for nothing.
+       */
+      if (name.trim() !== (me?.displayName ?? "")) {
+        await updateMe.mutateAsync({ data: { displayName: name.trim() } });
+      }
       await setBarRegistration.mutateAsync({
         data: {
           barCouncilState: barCouncilState.trim(),
@@ -147,6 +160,27 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
         )}
 
         <form onSubmit={submit} className="rounded-lg bg-card shadow-sm p-6 flex flex-col gap-5">
+          {/* First, because it is the only field here that is not about a bar
+              council, and because signing in by email tells the app an address
+              and nothing else — see `identityFromClerk` in the API. This name
+              goes on every record its owner touches, so it is asked for once,
+              at the one moment a practice role is already stopped. */}
+          <div className="space-y-2">
+            <Label htmlFor="display-name">Your name</Label>
+            <Input
+              id="display-name"
+              value={name}
+              maxLength={120}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="As your chamber should see it"
+              autoFocus
+              required
+            />
+            <p className="text-3xs text-muted-foreground font-mono uppercase tracking-wider">
+              Shown on everything you file, request or approve.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="bar-state">State Bar Council</Label>
             <Input
@@ -154,7 +188,6 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
               value={barCouncilState}
               onChange={(e) => setBarCouncilState(e.target.value)}
               placeholder="e.g. Bar Council of Delhi"
-              autoFocus
               required
             />
           </div>
@@ -244,10 +277,12 @@ export default function CompleteProfilePage({ onDone }: { onDone?: () => void })
             <Button
               type="submit"
               className="rounded-lg px-8"
-              disabled={!canSubmit || setBarRegistration.isPending}
+              disabled={!canSubmit || setBarRegistration.isPending || updateMe.isPending}
             >
-              {setBarRegistration.isPending ? "Saving..." : "Continue"}
-              {!setBarRegistration.isPending && <ArrowRight className="h-4 w-4 ml-2" />}
+              {setBarRegistration.isPending || updateMe.isPending ? "Saving..." : "Continue"}
+              {!setBarRegistration.isPending && !updateMe.isPending && (
+                <ArrowRight className="h-4 w-4 ml-2" />
+              )}
             </Button>
           </div>
         </form>

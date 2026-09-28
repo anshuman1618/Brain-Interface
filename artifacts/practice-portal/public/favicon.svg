@@ -1,3 +1,49 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<!--
+  The LEX mark, as a tab icon.
+
+  This replaces a plain #FF3C00 rounded square: Replit scaffolding, the last of
+  it, and the only brand-coloured thing in the product that was not the brand's
+  colour.
+
+  Drawn to match what the app actually shows. The sidebar and the landing
+  header both render a SHARP-cornered square filled with the `primary` token,
+  carrying "LEX" in bold tight monospace. The colours below are those tokens
+  resolved to hex, because a favicon is loaded outside the document and cannot
+  read a CSS variable:
+
+    light   primary hsl(29 53% 23%) = #5a3a1c   on foreground #ffffff
+    dark    primary hsl(35 63% 60%) = #d9a459   on foreground #261808
+
+  The dark pair is the app's own dark theme, switched on the BROWSER's
+  preference rather than the app's. A tab icon sits in the browser's chrome,
+  not in the page, so the chrome is what it has to stay legible against.
+
+  Nothing here is currentColor. public/logo.svg is, which is why that file
+  cannot serve as a favicon: outside a document it resolves to black.
+
+  Beware editing this header. A double hyphen is illegal inside an XML comment
+  and silently breaks the whole file, which is how the first version of this
+  icon rendered as a missing image at every size.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <style>
+    .plate { fill: #5a3a1c; }
+    .mark  { fill: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .plate { fill: #d9a459; }
+      .mark  { fill: #261808; }
+    }
+  </style>
+  <rect class="plate" width="64" height="64" />
+  <text
+    class="mark"
+    x="32"
+    y="33"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="ui-monospace, 'DejaVu Sans Mono', Menlo, Consolas, monospace"
+    font-size="25"
+    font-weight="700"
+    letter-spacing="-1.9"
+  >LEX</text>
 </svg>

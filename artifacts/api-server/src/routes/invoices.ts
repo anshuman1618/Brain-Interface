@@ -40,6 +40,7 @@ import {
   peekNextNumber,
   type InvoiceStatus,
 } from "../lib/invoice-number";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -368,7 +369,7 @@ router.post("/invoices", ...requireBilling, async (req: AuthRequest, res): Promi
       .values({
         workspaceId: c.workspaceId,
         status: "draft",
-        createdBy: c.user.displayName,
+        createdBy: personName(c.user),
         createdByClerkId: c.user.clerkId,
         issueDate: d.issueDate ?? null,
         dueDate: d.dueDate ?? null,
@@ -390,7 +391,7 @@ router.post("/invoices", ...requireBilling, async (req: AuthRequest, res): Promi
     action: "invoice.created",
     entityType: "invoice",
     entityId: created.id,
-    summary: `Created draft invoice for ${client.displayName}`,
+    summary: `Created draft invoice for ${personName(client)}`,
   });
 
   const loaded = await loadInvoice(c, created.id);
@@ -577,13 +578,13 @@ router.post(
           financialYear: number.financialYear,
           invoiceRef: number.invoiceRef,
           status: "issued",
-          issuedBy: c.user.displayName,
+          issuedBy: personName(c.user),
           issuedAt: new Date(),
           issueDate: issueDate.toISOString().slice(0, 10),
           dueDate,
           // The snapshot. Taken now, never refreshed — the client's address on
           // this document must keep saying what it said when it was sent.
-          clientName: client.displayName,
+          clientName: personName(client),
           clientAddress: client.billingAddress,
           clientEmail: client.email,
           clientGstin: client.billingGstin ?? null,
@@ -599,7 +600,7 @@ router.post(
       action: "invoice.issued",
       entityType: "invoice",
       entityId: id,
-      summary: `Issued ${after!.invoice.invoiceRef} to ${client.displayName}`,
+      summary: `Issued ${after!.invoice.invoiceRef} to ${personName(client)}`,
     });
     res.json(view(after!.invoice, after!.lines));
   },
@@ -643,7 +644,7 @@ router.post(
         sentAt: to === "sent" ? now : loaded.invoice.sentAt,
         paidAt: to === "paid" ? now : loaded.invoice.paidAt,
         voidedAt: to === "void" ? now : loaded.invoice.voidedAt,
-        voidedBy: to === "void" ? c.user.displayName : loaded.invoice.voidedBy,
+        voidedBy: to === "void" ? personName(c.user) : loaded.invoice.voidedBy,
         voidReason: to === "void" ? (parsed.data.reason ?? null) : loaded.invoice.voidReason,
       })
       .where(eq(invoicesTable.id, id));

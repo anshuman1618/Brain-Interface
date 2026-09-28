@@ -14,6 +14,7 @@ import {
 } from "../middlewares/requireAuth";
 import { zodMessage } from "../lib/validation";
 import { logger } from "../lib/logger";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -79,7 +80,7 @@ router.post(
         userId: c.user.id,
         clerkId: c.user.clerkId,
         email: c.user.email,
-        displayName: c.user.displayName,
+        displayName: personName(c.user),
         serviceKind: parsed.data.serviceKind,
         message,
         contactPreference: parsed.data.contactPreference,

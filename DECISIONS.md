@@ -3889,3 +3889,77 @@ times, because each attempt is already bounded by the client's own timeout.
 Pinned by counting attempts rather than by timing the error state, in browser
 section 12: three for an aborted request, exactly one for a 403. Both were run
 against the old policy first and both failed, reporting four.
+
+## A missing name is stored as missing
+
+`identityFromClerk` stored `nameFromClerk || "User"`. The fallback looks
+harmless and is not, because of what this app does with a name: it writes it
+onto the record. "User" appeared in the dashboard salutation, in
+`requestedBy` on a document request, in `createdBy` on a matter's ledger, and
+in the audit log — places a chamber reads later to find out who did something.
+
+**A placeholder is worse than a blank**, and the reason is not aesthetics. A
+blank is a question the application can answer by asking. "User" is
+indistinguishable from a real answer, so nothing asked — and
+`resyncIdentity`, which fills only fields that are EMPTY, could not repair it
+either. Somebody who added their name at the provider afterwards kept the
+placeholder for good. The fallback did not paper over a gap; it made the gap
+permanent.
+
+This is the same mistake as trusting a user id, one field along: a value that
+is always present is not the same as a value that means something.
+
+**`personName()` is the one place that decides what to print**, because blank
+is honest storage and blank is not a thing to put in a sentence. The order is
+the name, then the address that admitted them, then the provider id. The last
+step is the one that matters: an audit row reading `""` is a record nobody can
+read back, and an unreadable record is worse than an ugly one. The address is
+acceptable in the middle because the only audience for any of these strings is
+the person's own chamber, which already knows it.
+
+**The session claim is deliberately exempt.** `SessionClaims.displayName`
+returns the stored value unchanged, empty and all, because that is what the
+portal reads to decide whether to ask. Applying the fallback there would have
+answered the question with an email address, nobody would ever have been
+asked, and every record would carry an address where a name belongs. One
+export, two behaviours, and the comment at the call site says which is which.
+
+**Asked, not gated.** The obvious place for the question is `profileComplete`,
+and that gate only covers practice roles — a client or a clerk would never
+meet it, and their names are on document requests and ledger rows just the
+same. Gating everybody would mean standing between a client and their own
+matter over a field that is nobody's business but the chamber's. It is a
+control beside the greeting instead: it reaches every role, on the screen they
+land on, and somebody who declines keeps a working dashboard.
+
+**Migration 0020 clears the placeholder rather than rewriting history.**
+`UPDATE users SET display_name = '' WHERE display_name = 'User'` — matched in
+full and case-sensitively, so a name somebody typed is untouched, and a no-op
+on the second run. Attribution already written onto ledger rows and audit
+entries is left exactly as it is: those record what the chamber saw at the
+time, and editing them to say something it never saw would be the worse lie.
+
+## The favicon was the last of the scaffolding
+
+`public/favicon.svg` was a `#FF3C00` rounded square, from the Replit template
+this started on. It outlived the `index.html` cleanup that went with the CSP
+work for the reason these things always outlive a cleanup: nothing in the
+product renders it, so no screen ever looked wrong.
+
+It is now the mark the app already draws — a sharp square in `primary` with
+LEX in bold tight monospace — with the colours written as hex rather than
+tokens, because a favicon is fetched outside the document and cannot read a
+CSS variable. The dark pair is switched on the **browser's**
+`prefers-color-scheme` rather than the app's theme: a tab icon sits in the
+browser's chrome, and the chrome is what it has to stay legible against.
+
+`public/logo.svg` was the other candidate and cannot do this job: it is drawn
+with `currentColor`, which outside a document resolves to black, and with
+strokes that disappear at 16px. It stays where it is used, as Clerk's
+`logoImageUrl`.
+
+The test asserts that the file **parses** before it asserts anything about
+what it draws. The first version of the replacement carried a double hyphen
+inside its XML comment — illegal in XML — and rendered as a missing image at
+every size, silently, which is exactly the failure mode that let a bright
+orange square sit in the tab for months.

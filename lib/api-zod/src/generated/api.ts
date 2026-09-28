@@ -44,8 +44,12 @@ export const GetMeResponse = zod.object({
 /**
  * @summary Update current user profile
  */
+export const updateMeBodyDisplayNameMax = 120;
+
+
+
 export const UpdateMeBody = zod.object({
-  "displayName": zod.string().optional()
+  "displayName": zod.string().min(1).max(updateMeBodyDisplayNameMax).optional().describe('What to call this person. Stored as given and shown to their own chamber on every record they touch, so it is bounded rather than free: 120 characters holds an Indian name with honorifics and nothing that would break a ledger row\'s layout. Empty is refused — the way to have no name is to never set one, not to clear it.\n')
 })
 
 export const UpdateMeResponse = zod.object({

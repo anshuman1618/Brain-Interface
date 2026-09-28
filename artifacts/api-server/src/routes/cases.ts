@@ -61,6 +61,7 @@ import {
   statusLabelFor,
   statusOptions,
 } from "../lib/case-statuses";
+import { personName, personNameOrNull } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -88,7 +89,7 @@ async function enrichCase(c: typeof casesTable.$inferSelect) {
   let clientName: string | null = null;
   if (c.clientId) {
     const [u] = await db.select().from(usersTable).where(eq(usersTable.id, c.clientId));
-    clientName = u?.displayName ?? null;
+    clientName = personNameOrNull(u);
   }
   // Resolved for display rather than stored on the matter: the court's name is
   // the court's, and a matter holding a stale copy of it is a bug waiting for
@@ -361,7 +362,7 @@ router.post(
       newCase.id,
       "case_created",
       `Case "${newCase.title}" created`,
-      c.user.displayName,
+      personName(c.user),
     );
     await recordAudit(req, c, {
       action: "case.created",
@@ -532,7 +533,7 @@ router.patch(
         updated.id,
         "status_changed",
         `Status changed to "${body.data.status}"`,
-        c.user.displayName,
+        personName(c.user),
       );
     }
 
@@ -568,7 +569,7 @@ router.patch(
         updated.id,
         "stage_changed",
         label ? `Stage changed to "${label}"` : "Stage cleared",
-        c.user.displayName,
+        personName(c.user),
       );
     }
 
@@ -668,7 +669,7 @@ router.post(
       return;
     }
 
-    const result = await addStatus(c.workspaceId, body.data.label, c.user.displayName);
+    const result = await addStatus(c.workspaceId, body.data.label, personName(c.user));
     if (!result.ok) {
       res.status(400).json({ error: "invalid_request", message: result.message });
       return;
@@ -778,7 +779,7 @@ router.post(
         forumGroup: group,
         key,
         label,
-        createdBy: c.user.displayName,
+        createdBy: personName(c.user),
       })
       .onConflictDoNothing();
 

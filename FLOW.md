@@ -1443,6 +1443,59 @@ Browser suite section 12 counts the attempts on both paths, three for an
 aborted request and exactly one for a 403. Both assertions were confirmed
 against the old policy first, which reported four.
 
+### Names: the placeholder that became people's names
+
+`identityFromClerk` in `lib/jit.ts` stored `nameFromClerk || "User"`. Clerk is
+passwordless by design, so an email one-time code establishes an address and
+nothing else and `firstName`/`lastName` are empty for most users — the literal
+string **"User"** went into `users.display_name` and became that person's name
+everywhere it is read: the dashboard salutation, `requestedBy` on a document
+request, `createdBy` on a matter's ledger, where it is permanent.
+
+It was self-perpetuating too. `resyncIdentity` only ever fills a field that is
+EMPTY, so somebody who later added their name at the provider kept the
+placeholder for good, and nothing in the app could tell a placeholder from a
+choice.
+
+Three pieces now, in request order:
+
+| Where                | What                                                                                                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/jit.ts`         | Stores the provider's name or **nothing**. Both paths — Clerk and the preview token — invent no name on anybody's behalf.                                                                                                           |
+| `lib/person-name.ts` | **New.** `personName(user)` is the one place that decides what to print when the stored name is blank: the name, then the address that admitted them, then the provider id. Used by every ledger row, audit entry and notification. |
+| `routes/session.ts`  | The `displayName` claim stays **raw**, deliberately — it is what the portal reads to decide whether to ask. A fallback there would mean nobody is ever asked.                                                                       |
+
+`PATCH /users/me` trims and refuses a blank, so two ledger rows cannot differ
+by a trailing space. Migration `0020` clears the placeholder from rows that
+already carry it, matched in full and case-sensitively; attribution already
+written onto ledgers is **not** rewritten, because those record what the
+chamber actually saw at the time.
+
+In the browser, `components/greeting-heading.tsx` renders the salutation and,
+when there is no name, an "Add your name" control beside it. A prompt rather
+than a gate: the bar-registration gate only applies to practice roles, and a
+client's name appears on the same records. The same field is the first one on
+the bar-registration screen, saved before the enrolment because that write
+unmounts the screen.
+
+### The tab icon
+
+`public/favicon.svg` was a plain `#FF3C00` rounded square — Replit
+scaffolding, the last of it, which survived every other cleanup because
+nothing in the product renders it. It is now the mark the sidebar and the
+landing header already draw: a sharp-cornered square in the `primary` token
+with **LEX** in bold tight monospace, with the app's dark-theme pair behind
+`prefers-color-scheme` — the browser's preference, not the app's, since a tab
+icon sits in the browser's chrome.
+
+`public/logo.svg` is a different, abstract glyph used only as Clerk's
+`logoImageUrl`. It is drawn with `currentColor`, which resolves to black
+outside a document, so it cannot serve as a favicon. Browser section 1 pins
+that the icon parses, carries the mark, and draws neither the scaffolding
+colour nor `currentColor` — parsing included because the first replacement had
+a double hyphen inside an XML comment, which is illegal and rendered the file
+as a missing image at every size without a word of complaint.
+
 ### Known, unfixed
 
 - **The eight-day outage of 9-17 September was a database, not a commit.** Kept

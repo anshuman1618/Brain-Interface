@@ -33,6 +33,7 @@ import { displayRole } from "../lib/permissions";
 import { recordAudit } from "../lib/audit";
 import * as blobs from "../lib/blob-store";
 import { logger } from "../lib/logger";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -215,7 +216,7 @@ router.post(
         note: body.data.note ?? null,
         stage: stage.value,
         visibility,
-        uploadedBy: c.user.displayName,
+        uploadedBy: personName(c.user),
         uploadedByClerkId: c.user.clerkId,
         uploadedByRole: c.role,
         documentRequestId: request?.id ?? null,
@@ -235,7 +236,7 @@ router.post(
         await db.insert(notificationsTable).values({
           userId: request.requestedByClerkId,
           type: "document_request",
-          message: `${c.user.displayName} uploaded "${doc.name}" for "${request.documentName}".`,
+          message: `${personName(c.user)} uploaded "${doc.name}" for "${request.documentName}".`,
           link: "/documents",
         });
       }
@@ -246,8 +247,8 @@ router.post(
         await addTimelineEvent(
           request.caseId,
           "document_request_fulfilled",
-          `"${request.documentName}" received from ${c.user.displayName}, closing the request`,
-          c.user.displayName,
+          `"${request.documentName}" received from ${personName(c.user)}, closing the request`,
+          personName(c.user),
         );
       }
     }
@@ -255,8 +256,8 @@ router.post(
     await addTimelineEvent(
       pathParams.data.caseId,
       "document_added",
-      `Document "${doc.name}" added by ${c.user.displayName} (${displayRole(c.role)})`,
-      c.user.displayName,
+      `Document "${doc.name}" added by ${personName(c.user)} (${displayRole(c.role)})`,
+      personName(c.user),
     );
 
     res.status(201).json(UploadDocumentResponse.parse(doc));
@@ -382,7 +383,7 @@ router.post(
         checksum: stored.checksum,
         stage: stage.value,
         visibility,
-        uploadedBy: c.user.displayName,
+        uploadedBy: personName(c.user),
         uploadedByClerkId: c.user.clerkId,
         uploadedByRole: c.role,
         documentRequestId: request?.id ?? null,
@@ -399,7 +400,7 @@ router.post(
         await db.insert(notificationsTable).values({
           userId: request.requestedByClerkId,
           type: "document_request",
-          message: `${c.user.displayName} uploaded "${doc!.name}" for "${request.documentName}".`,
+          message: `${personName(c.user)} uploaded "${doc!.name}" for "${request.documentName}".`,
           link: "/documents",
         });
       }
@@ -408,8 +409,8 @@ router.post(
         await addTimelineEvent(
           request.caseId,
           "document_request_fulfilled",
-          `"${request.documentName}" received from ${c.user.displayName}, closing the request`,
-          c.user.displayName,
+          `"${request.documentName}" received from ${personName(c.user)}, closing the request`,
+          personName(c.user),
         );
       }
     }
@@ -417,8 +418,8 @@ router.post(
     await addTimelineEvent(
       caseId,
       "document_added",
-      `Document "${doc!.name}" uploaded by ${c.user.displayName} (${displayRole(c.role)})`,
-      c.user.displayName,
+      `Document "${doc!.name}" uploaded by ${personName(c.user)} (${displayRole(c.role)})`,
+      personName(c.user),
     );
     await recordAudit(req, c, {
       action: "document.uploaded",

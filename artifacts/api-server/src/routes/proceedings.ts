@@ -25,6 +25,7 @@ import { zodMessage } from "../lib/validation";
 import { isKnownStatus, statusLabelFor, DEFAULT_STATUS } from "../lib/case-statuses";
 import { forumGroupFor, isKnownStage, stageLabelFor } from "../lib/case-stages";
 import { recordAudit } from "../lib/audit";
+import { personName } from "../lib/person-name";
 
 /**
  * Proceedings under a matter.
@@ -173,7 +174,7 @@ router.post(
         filingRef: body.data.filingRef?.trim() || null,
         filedOn: body.data.filedOn ?? null,
         note: body.data.note?.trim() || null,
-        createdBy: c.user.displayName,
+        createdBy: personName(c.user),
       })
       .returning();
 
@@ -181,7 +182,7 @@ router.post(
       matter.id,
       "proceeding_opened",
       `${created!.kind} opened: "${created!.title}"${created!.filingRef ? ` (${created!.filingRef})` : ""}`,
-      c.user.displayName,
+      personName(c.user),
     );
 
     res.status(201).json(CreateCaseProceedingResponse.parse(await enrich(c, created!)));
@@ -302,7 +303,7 @@ router.patch(
         // differently in a filtered ledger from an ordinary correction.
         closing ? "proceeding_closed" : "proceeding_updated",
         `${updated!.kind} "${updated!.title}": ${changes.join(", ")}`,
-        c.user.displayName,
+        personName(c.user),
       );
     }
 
@@ -351,7 +352,7 @@ router.delete(
       matter.id,
       "proceeding_deleted",
       `${existing.kind} removed: "${existing.title}"`,
-      c.user.displayName,
+      personName(c.user),
     );
     await recordAudit(req, c, {
       action: "case.updated",

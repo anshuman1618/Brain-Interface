@@ -15,6 +15,7 @@ import {
   type AuthRequest,
 } from "../middlewares/requireAuth";
 import { getVisibleCase, visibleCaseIds } from "../lib/scope";
+import { personName } from "../lib/person-name";
 
 const router: IRouter = Router();
 
@@ -112,7 +113,7 @@ router.post(
         caseId: matter.id,
         clientId: c.user.id,
         clientClerkId: c.user.clerkId,
-        clientName: c.user.displayName,
+        clientName: personName(c.user),
         rating,
         comment: parsed.data.comment?.trim() || null,
       })
@@ -158,7 +159,7 @@ router.post(
       .update(feedbackTable)
       .set({
         response: parsed.data.response.trim(),
-        respondedBy: c.user.displayName,
+        respondedBy: personName(c.user),
         respondedAt: new Date(),
       })
       .where(eq(feedbackTable.id, id))
