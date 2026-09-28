@@ -1496,6 +1496,33 @@ colour nor `currentColor` — parsing included because the first replacement had
 a double hyphen inside an XML comment, which is illegal and rendered the file
 as a missing image at every size without a word of complaint.
 
+**The SVG alone was not enough, and three things were wrong at once.** The tab
+stayed blank on a phone after that change shipped:
+
+1. **Safari supports no SVG favicon**, on macOS or iOS, and the SVG was the
+   only icon declared. `favicon.ico`, `favicon-32.png` and
+   `apple-touch-icon.png` now ship beside it, generated from the SVG and
+   carrying the light pair because a PNG holds no media query. Declaration
+   order is `.ico`, `.png`, `.svg`, `apple-touch-icon`: a browser takes the
+   last icon it understands, so modern ones still get the scalable one.
+2. **`/favicon.ico` and `/apple-touch-icon.png` returned `index.html` at 200.**
+   `express.static` missed and `spaFallback` answered every non-`/api` GET, so
+   a request for an image got 2.6 KB of markup with a success status — which a
+   browser cannot report as a failure. The fallback now 404s any path whose
+   last segment ends in a known file extension (`FILE_EXTENSIONS`, a closed
+   list, because a missing entry serves an asset the SPA while a wrong entry
+   only 404s a route that works).
+3. **Everything in the build directory was served `immutable` for a year**,
+   including the files Vite does _not_ fingerprint. `immutable` entitles a
+   browser to skip revalidation even on a reload, so the old red square was
+   pinned in every browser that had seen it and no redeploy could dislodge it.
+   `immutable` is now applied only under `/assets`; unfingerprinted files get
+   `max-age=86400, must-revalidate`.
+
+The third is the one worth remembering: it made a corrected asset
+un-shippable, and it would have done the same to any future icon, manifest or
+`robots.txt`.
+
 ### Known, unfixed
 
 - **The eight-day outage of 9-17 September was a database, not a commit.** Kept

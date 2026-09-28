@@ -127,7 +127,7 @@ check(
  *   - it is not drawn with currentColor, which resolves to black outside a
  *     document and is why public/logo.svg cannot serve as one.
  */
-const faviconHref = await page.getAttribute('link[rel="icon"]', "href");
+const faviconHref = await page.getAttribute('link[rel="icon"][type="image/svg+xml"]', "href");
 const favicon = await page.request.get(new URL(faviconHref ?? "/favicon.svg", BASE).href);
 const faviconSvg = await favicon.text();
 check("the tab icon is served", favicon.status() === 200, `status ${favicon.status()}`);
@@ -150,6 +150,81 @@ check(
   "...and none of the scaffolding is left in what it draws",
   !/FF3C00/i.test(faviconDrawing) && !/currentColor/.test(faviconDrawing),
   faviconDrawing.slice(0, 160),
+);
+
+/*
+ * The rasters, because the SVG alone left the tab blank on a phone.
+ *
+ * Safari supports no SVG favicon — not on macOS, not on iOS — and the SVG was
+ * the only icon declared. There was nothing to fall back to, and /favicon.ico
+ * and /apple-touch-icon.png did not exist, so the SPA catch-all answered both
+ * with index.html: 2.6 KB of markup, at status 200, to a request for an image.
+ * A browser cannot report that as a failure, which is why it went unnoticed
+ * through a deploy and a redeploy.
+ */
+for (const [href, type] of [
+  ["/favicon.ico", /^image\/(vnd\.microsoft\.icon|x-icon)$/],
+  ["/favicon-32.png", /^image\/png$/],
+  ["/apple-touch-icon.png", /^image\/png$/],
+]) {
+  check(
+    `${href} is declared in the document`,
+    (await page.locator(`link[href="${href}"]`).count()) > 0,
+  );
+  const res = await page.request.get(new URL(href, BASE).href);
+  const ctype = (res.headers()["content-type"] ?? "").split(";")[0].trim();
+  check(
+    `...and ${href} is served as an image, not as the SPA`,
+    res.status() === 200 && type.test(ctype),
+    `status ${res.status()}, content-type ${ctype}`,
+  );
+}
+
+/*
+ * A missing file must 404, not be answered with the application.
+ *
+ * This is the general form of the bug above: `express.static` misses, the
+ * fallback runs, and every non-/api GET got index.html — so a typo'd asset
+ * URL returned a success carrying the wrong content type rather than
+ * something a browser or a log could act on.
+ */
+const missing = await page.request.get(new URL("/definitely-not-here.png", BASE).href);
+check(
+  "a missing asset 404s rather than returning the SPA",
+  missing.status() === 404,
+  `status ${missing.status()}, content-type ${missing.headers()["content-type"]}`,
+);
+check(
+  "...while a client route still serves the application",
+  (await page.request.get(new URL("/cases/12", BASE).href)).status() === 200,
+);
+
+/*
+ * Cache headers, which are the reason a corrected icon can fail to ship.
+ *
+ * Every file in the build directory was served `immutable` for a year. That
+ * is right for Vite's fingerprinted bundles, where a changed file is a changed
+ * URL, and wrong for everything else here: favicon.svg keeps its name, so
+ * `immutable` promised browsers the red square would never change and
+ * entitled them to skip revalidating it. Replacing the file shipped something
+ * nobody would fetch.
+ */
+const iconCache = (await page.request.get(new URL("/favicon.svg", BASE).href)).headers()[
+  "cache-control"
+];
+check(
+  "the unfingerprinted icon is revalidated, not immutable",
+  !/immutable/.test(iconCache ?? ""),
+  `cache-control: ${iconCache}`,
+);
+const bundleHref = await page.getAttribute('script[src*="/assets/"]', "src");
+const bundleCache = (await page.request.get(new URL(bundleHref ?? "/", BASE).href)).headers()[
+  "cache-control"
+];
+check(
+  "...while a fingerprinted bundle still is immutable",
+  /immutable/.test(bundleCache ?? ""),
+  `cache-control: ${bundleCache}`,
 );
 
 /* ── 2. Nothing is fetched from a third party ───────────────────────────────

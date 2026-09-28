@@ -3963,3 +3963,58 @@ what it draws. The first version of the replacement carried a double hyphen
 inside its XML comment — illegal in XML — and rendered as a missing image at
 every size, silently, which is exactly the failure mode that let a bright
 orange square sit in the tab for months.
+
+## `immutable` belongs to fingerprinted files and nothing else
+
+`mountStaticClient` served every file in the build directory with
+`Cache-Control: public, max-age=31536000, immutable`. The comment above it
+said this was safe "because Vite fingerprints filenames under /assets" — which
+is true of `/assets`, and of nothing else in that directory. `favicon.svg`,
+`favicon.ico`, `logo.svg` and `robots.txt` keep their names across every build
+there will ever be.
+
+`immutable` is not a hint about freshness. It is a promise that the body at
+this URL will never change, and a browser holding one may skip revalidation
+even on a reload. So the corrected favicon shipped a file that nobody would
+fetch: every browser that had already seen the red square kept it, for a year,
+and a redeploy could not dislodge it. **An asset served this way is not
+cached, it is frozen** — the bug is not that the icon looked wrong, it is that
+the icon could not be replaced.
+
+Now `immutable` applies only under `/assets`, where a changed file is a
+changed URL and the promise is true. Everything else gets a day and
+`must-revalidate`: small files, rarely changed, one conditional request a day
+that usually returns 304.
+
+## Four icons, because Safari supports none of the good one
+
+An SVG favicon is the right primary: one file, sharp at every size, and it
+follows the system theme through `prefers-color-scheme`. It was also the only
+icon declared, and **Safari supports SVG favicons on neither macOS nor iOS**,
+so on a phone there was nothing at all to fall back to.
+
+The rasters — `.ico` at 16/32/48, a 32px PNG, and a 180px `apple-touch-icon` —
+are generated from the SVG rather than drawn separately, so there is one
+source for the mark. They carry the light pair, because a PNG cannot hold a
+media query; a dark plate with white letters reads on a light and a dark tab
+strip alike, and the browsers where dark mode matters most are the ones that
+take the SVG anyway.
+
+Declaration order is `.ico`, `.png`, `.svg`, then `apple-touch-icon`, because a
+browser takes the **last** icon it understands.
+
+## A missing file is a 404, not the application
+
+`spaFallback` returned `index.html` for every GET outside `/api`, which is
+right for `/dashboard` and `/cases/12` and wrong for `/favicon.ico`. A request
+for an image was answered with an HTML document at status 200: not the thing
+asked for, and not an error the browser or the log could act on. That is how
+two missing icon files went unnoticed through a deploy and a redeploy.
+
+The rule is a closed list of file extensions rather than "has a dot", because
+the two mistakes do not cost the same. An extension missing from the list
+serves an asset request the SPA — the bug itself. A route wrongly matched by
+it 404s a page that works, which is loud and immediate. Every client route
+here is static segments plus a numeric id, so the list cannot collide with one
+today, and a route ending in a literal dot-something would be the thing worth
+noticing anyway.

@@ -30,7 +30,26 @@
       name="twitter:description"
       content="Invite-only chamber management for a legal practice: matters, cause list, tasks and SLAs, time capture, invoicing, and a read-only client portal."
     />
+    <!--
+      Four icons, because one was not enough.
+
+      The SVG alone was shipped first and the tab stayed blank on a phone.
+      Safari does not support SVG favicons at all — not on macOS, not on iOS —
+      and it was the only icon declared, so there was nothing for it to fall
+      back to. Worse, /favicon.ico and /apple-touch-icon.png did not exist, so
+      the SPA's catch-all answered both with index.html: HTML, at status 200,
+      to a request for an image.
+
+      Order matters. A browser takes the LAST declared icon it understands, so
+      the SVG goes after the .ico: anything modern gets the scalable one that
+      follows the system theme, and everything else falls back up the list.
+      The rasters are generated from favicon.svg and carry the light pair,
+      since a PNG cannot hold a media query.
+    -->
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <!--
       No webfont CDN on purpose.
 
