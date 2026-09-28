@@ -4,6 +4,7 @@ import {
   db,
   invitesTable,
   workspaceAccessListTable,
+  accessListCasesTable,
   normaliseEmail,
   normalisePhone,
 } from "@workspace/db";
@@ -15,7 +16,7 @@ import {
   ctx,
   type AuthRequest,
 } from "../middlewares/requireAuth";
-import { caseInWorkspace } from "../lib/scope";
+import { resolveCasePin } from "../lib/case-pin";
 
 const router: IRouter = Router();
 
@@ -49,33 +50,11 @@ router.post(
       return;
     }
 
-    /**
-     * A case restriction only means anything for a client — every other role
-     * reaches the whole workspace regardless, so a caseId on them would sit
-     * on the row unread. Rejecting it here rather than silently ignoring it
-     * catches the mistake at the point someone made it, not later when they
-     * wonder why "restricting" a clerk did nothing.
-     *
-     * For a client it is mandatory, not merely encouraged: an unrestricted
-     * client sees every matter their `clientId` is attached to, which is
-     * rarely what an admin handing out one invite link intended.
-     */
-    if (parsed.data.role !== "client") {
-      if (parsed.data.caseId != null) {
-        res.status(400).json({
-          error: "invalid_request",
-          message: "Restrict to Case ID only applies to the Client role.",
-        });
-        return;
-      }
-    } else if (parsed.data.caseId == null) {
-      res.status(400).json({
-        error: "invalid_request",
-        message: "A client invite must be restricted to a matter.",
-      });
-      return;
-    } else if (!(await caseInWorkspace(c, parsed.data.caseId))) {
-      res.status(404).json({ error: "That matter was not found in this chamber." });
+    // The pin rule lives in `lib/case-pin.ts` because the other admission
+    // door applies the identical rule, and the two drifted once already.
+    const pin = await resolveCasePin(c, parsed.data.role, parsed.data);
+    if (!pin.ok) {
+      res.status(pin.status).json({ error: pin.error, message: pin.message });
       return;
     }
 
@@ -130,7 +109,10 @@ router.post(
     const token = randomBytes(24).toString("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    const caseId = parsed.data.caseId ?? null;
+    // The invite row keeps one matter — it is a link, and the set that governs
+    // is the access-list entry's. First of the set, for the same
+    // fail-narrower reason the legacy columns are still written.
+    const caseId = pin.caseIds[0] ?? null;
 
     const [invite] = await db
       .insert(invitesTable)
@@ -166,6 +148,7 @@ router.post(
         ),
       );
 
+    let entryId: number;
     if (existing) {
       await db
         .update(workspaceAccessListTable)
@@ -176,16 +159,32 @@ router.post(
           addedBy: c.user.displayName,
         })
         .where(eq(workspaceAccessListTable.id, existing.id));
+      entryId = existing.id;
     } else {
-      await db.insert(workspaceAccessListTable).values({
-        workspaceId: c.workspaceId,
-        kind,
-        value,
-        role: parsed.data.role,
-        caseId,
-        note: "Invited",
-        addedBy: c.user.displayName,
-      });
+      const [inserted] = await db
+        .insert(workspaceAccessListTable)
+        .values({
+          workspaceId: c.workspaceId,
+          kind,
+          value,
+          role: parsed.data.role,
+          caseId,
+          note: "Invited",
+          addedBy: c.user.displayName,
+        })
+        .returning();
+      entryId = inserted!.id;
+    }
+
+    // Replaced rather than merged. Re-inviting somebody with a different set
+    // of matters is a correction, and leaving the old rows would quietly widen
+    // the access the admin just narrowed.
+    await db.delete(accessListCasesTable).where(eq(accessListCasesTable.entryId, entryId));
+    if (pin.caseIds.length > 0) {
+      await db
+        .insert(accessListCasesTable)
+        .values(pin.caseIds.map((id) => ({ entryId, caseId: id })))
+        .onConflictDoNothing();
     }
 
     res.status(201).json(CreateInviteResponse.parse(invite));

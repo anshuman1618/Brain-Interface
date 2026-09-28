@@ -14,6 +14,10 @@ import {
 import { verifyWorkspaceToken } from "../lib/workspace-token";
 import { touchLastSeen } from "../lib/last-seen";
 import { planStateFor, type PlanState } from "../lib/quota";
+// Its own module rather than lib/scope.ts: scope.ts imports WorkspaceContext
+// from this file, so pulling a runtime function back out of it would be a
+// genuine import cycle rather than a type-only one.
+import { restrictedCaseIdsFor } from "../lib/restricted-cases";
 
 /**
  * The verified request context. Everything downstream reads from here and
@@ -52,7 +56,14 @@ export type WorkspaceContext = {
    * `lib/access-list.ts`. Null for everyone else, including an unrestricted
    * client, which is why `lib/scope.ts` intersects rather than replaces.
    */
-  restrictedCaseId: number | null;
+  /**
+   * The matters this membership is pinned to, or null when it is not pinned.
+   *
+   * An EMPTY ARRAY is not the same as null and must never be produced by the
+   * resolver: null means unrestricted, and [] would mean pinned to nothing.
+   * See `restrictedCaseIdsFor`.
+   */
+  restrictedCaseIds: number[] | null;
 };
 
 export interface AuthRequest extends Request {
@@ -316,7 +327,7 @@ export const requireWorkspace = async (
     caseScope: caseScopeForRole(target.role),
     taskScope: taskScopeForRole(target.role),
     planState,
-    restrictedCaseId: target.caseId,
+    restrictedCaseIds: await restrictedCaseIdsFor(target.membershipId, target.caseId),
     membershipId: target.membershipId,
     // Only ever true for a junior advocate or a clerk. Admin and senior
     // advocate direct the chamber's work and cannot be narrowed out of it; a

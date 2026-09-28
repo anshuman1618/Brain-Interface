@@ -165,6 +165,181 @@ section("The admin can see who is restricted to what");
 const list = await call("/workspace/access-list", { token: as(owner), wsToken: ws });
 const entry = list.data.find((e) => e.value === clientEmail);
 check("the entry round-trips its caseId", entry?.caseId === caseA.data.id, JSON.stringify(entry));
+check(
+  "...and the set it is really pinned to",
+  Array.isArray(entry?.caseIds) && entry.caseIds.length === 1 && entry.caseIds[0] === caseA.data.id,
+  JSON.stringify(entry?.caseIds),
+);
+
+/* ─────────── Many matters on one entry ─────────── */
+/*
+ * The reason this section exists at all: the single `case_id` column became a
+ * join table, and the chain from grant to enforcement has four links —
+ * access-list entry, reconcile, membership, scope filter. A break anywhere in
+ * it either hides a matter the client should see or, far worse, shows one they
+ * should not. Both directions are asserted below.
+ */
+section("One entry, several matters");
+
+const multiEmail = `restrict.multi+${suffix}@r.test`;
+// The user row has to exist before the matters do, because a client's `own`
+// scope is `cases.client_id = me` and the pin INTERSECTS that rather than
+// replacing it. Matters naming a different client would leave this caller
+// seeing nothing, and the suite would then be asserting that a broken pin
+// works — which is exactly what it did on the first run.
+const multiPre = (await call("/session", { token: as(multiEmail, "Multi Client") })).data;
+
+const caseC = await call("/cases", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { title: "Matter C", filingRef: `CV-R-${suffix}-C`, clientId: multiPre.userId },
+});
+const caseD = await call("/cases", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { title: "Matter D", filingRef: `CV-R-${suffix}-D`, clientId: multiPre.userId },
+});
+// A third naming them too, and deliberately NOT pinned: without it "they see
+// the two they were pinned to" is also true of a pin that does nothing at all,
+// because `own` scope alone would return exactly those two.
+const caseE = await call("/cases", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { title: "Matter E", filingRef: `CV-R-${suffix}-E`, clientId: multiPre.userId },
+});
+
+const bothAndBogus = await call("/workspace/access-list", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: {
+    kind: "email",
+    value: `multiBad+${suffix}@r.test`,
+    role: "client",
+    caseIds: [caseC.data.id, 9_999_999],
+  },
+});
+check(
+  "a set containing one matter from another chamber is refused entirely",
+  bothAndBogus.status === 404,
+  `got ${bothAndBogus.status}`,
+);
+
+const bothFields = await call("/workspace/access-list", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: {
+    kind: "email",
+    value: `multiBoth+${suffix}@r.test`,
+    role: "client",
+    caseId: caseC.data.id,
+    caseIds: [caseD.data.id],
+  },
+});
+check(
+  "giving both caseId and caseIds is refused rather than one silently winning",
+  bothFields.status === 400,
+  `got ${bothFields.status}`,
+);
+
+const emptySet = await call("/workspace/access-list", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { kind: "email", value: `multiEmpty+${suffix}@r.test`, role: "client", caseIds: [] },
+});
+check(
+  "an empty set is refused — a client pinned to nothing is not unrestricted",
+  emptySet.status === 400,
+  `got ${emptySet.status}`,
+);
+
+const multi = await call("/workspace/access-list", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: {
+    kind: "email",
+    value: multiEmail,
+    role: "client",
+    caseIds: [caseC.data.id, caseD.data.id],
+  },
+});
+check("a client is admitted to two matters at once", multi.status === 201, `got ${multi.status}`);
+check(
+  "...and the response carries both back",
+  (multi.data?.caseIds ?? []).length === 2,
+  JSON.stringify(multi.data?.caseIds),
+);
+check(
+  "...with the legacy caseId still holding the first, so an old reader narrows rather than opens",
+  multi.data?.caseId === caseC.data.id,
+  `${multi.data?.caseId}`,
+);
+
+const multiSession = await call("/session", { token: as(multiEmail, "Multi Client") });
+check(
+  "the multi-matter client is admitted",
+  multiSession.data.accessStatus === "active",
+  multiSession.data.accessStatus,
+);
+const multiWs = multiSession.data.workspaceToken;
+
+const multiCases = await call("/cases", { token: as(multiEmail), wsToken: multiWs });
+const seen = (multiCases.data ?? []).map((c) => c.id).sort((a, b) => a - b);
+check(
+  "they see BOTH matters they were pinned to",
+  seen.length === 2 && seen.includes(caseC.data.id) && seen.includes(caseD.data.id),
+  JSON.stringify(seen),
+);
+check(
+  "...and NOT Matter E, which names them as client but was never pinned",
+  !seen.includes(caseE.data.id),
+  JSON.stringify(seen),
+);
+check(
+  "...nor the other client's matters",
+  !seen.includes(caseA.data.id) && !seen.includes(caseB.data.id),
+  JSON.stringify(seen),
+);
+
+// getVisibleCase is a separate entry point from visibleCaseIds and has its own
+// copy of the intersection, so it gets its own assertions.
+const directC = await call(`/cases/${caseC.data.id}`, { token: as(multiEmail), wsToken: multiWs });
+check(
+  "fetching the second pinned matter directly succeeds",
+  directC.status === 200,
+  `got ${directC.status}`,
+);
+const directD = await call(`/cases/${caseD.data.id}`, { token: as(multiEmail), wsToken: multiWs });
+check(
+  "fetching the first pinned matter directly succeeds",
+  directD.status === 200,
+  `got ${directD.status}`,
+);
+const directUnpinned = await call(`/cases/${caseE.data.id}`, {
+  token: as(multiEmail),
+  wsToken: multiWs,
+});
+check(
+  "fetching their OWN unpinned matter directly is 404 — the pin beats the scope",
+  directUnpinned.status === 404,
+  `got ${directUnpinned.status}`,
+);
+
+// The single-matter client from the sections above must be untouched by any of
+// this: the legacy fallback is what keeps every membership written before the
+// join table existed working, and this is the only place it is exercised.
+const stillOne = await call("/cases", { token: as(clientEmail), wsToken: clientWs });
+check(
+  "the single-matter client is unaffected — the legacy fallback still narrows",
+  (stillOne.data ?? []).length === 1 && stillOne.data[0].id === caseA.data.id,
+  JSON.stringify((stillOne.data ?? []).map((c) => c.id)),
+);
 
 console.log(`\n${fail === 0 ? "✓" : "✗"} ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

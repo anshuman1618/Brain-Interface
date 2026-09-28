@@ -15,10 +15,12 @@ export interface AccessListEntry {
   value: string;
   role: AccessListEntryRole;
   /**
-     * Set only when role is "client". Copied onto the membership on first sign-in.
+     * LEGACY. The first matter of caseIds, kept so a client of this API written before multi-matter pinning still restricts to something rather than to nothing. Read caseIds instead.
      * @nullable
      */
   caseId?: number | null;
+  /** Every matter this entry pins to, copied onto the membership on first sign-in. Empty when the entry pins none, which is every role but "client". */
+  caseIds: number[];
   /** @nullable */
   note?: string | null;
   /** @nullable */

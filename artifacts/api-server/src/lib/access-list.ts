@@ -1,9 +1,11 @@
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import {
   db,
   workspacesTable,
   workspaceAccessListTable,
   workspaceMembershipsTable,
+  accessListCasesTable,
+  membershipCasesTable,
   domainOf,
   normaliseEmail,
   normalisePhone,
@@ -33,6 +35,8 @@ export type AccessListMatch = {
   kind: string;
   /** Carried onto the membership at reconcile. Only ever set on a client entry. */
   caseId: number | null;
+  /** Every matter the entry pins to. Empty when it pins none. */
+  caseIds: number[];
 };
 
 /**
@@ -109,10 +113,37 @@ export async function findAccessListMatches(identity: {
       entryId: row.entry.id,
       kind: row.entry.kind,
       caseId: row.entry.caseId,
+      // Filled in below, in one query for the whole set rather than one per
+      // workspace — a person on several chambers' lists is rare but a query
+      // per match on every session read is not something to leave lying about.
+      caseIds: [],
     });
   }
 
-  return [...bestByWorkspace.values()];
+  const best = [...bestByWorkspace.values()];
+
+  // The pinned set for the entries that actually won. Read after precedence is
+  // settled so a losing entry's matters cannot leak into the winner's.
+  const entryIds = best.map((m) => m.entryId);
+  if (entryIds.length > 0) {
+    const pinned = await db
+      .select()
+      .from(accessListCasesTable)
+      .where(inArray(accessListCasesTable.entryId, entryIds));
+    const byEntry = new Map<number, number[]>();
+    for (const row of pinned) {
+      const list = byEntry.get(row.entryId) ?? [];
+      list.push(row.caseId);
+      byEntry.set(row.entryId, list);
+    }
+    for (const m of best) {
+      // Falls back to the legacy column for an entry written before migration
+      // 0018, the same way the membership resolver does.
+      m.caseIds = byEntry.get(m.entryId) ?? (m.caseId == null ? [] : [m.caseId]);
+    }
+  }
+
+  return best;
 }
 
 /**
@@ -150,16 +181,33 @@ export async function reconcileAccessList(user: AppUser): Promise<number> {
     const status = seatBreach ? "pending" : "active";
     const decidedBy = seatBreach ? "seat unavailable" : "access list";
 
-    await db.insert(workspaceMembershipsTable).values({
-      workspaceId: match.workspace.id,
-      userId: user.id,
-      clerkId: user.clerkId,
-      role: match.role,
-      caseId: match.caseId,
-      status,
-      decidedBy,
-      decidedAt: new Date(),
-    });
+    const [membership] = await db
+      .insert(workspaceMembershipsTable)
+      .values({
+        workspaceId: match.workspace.id,
+        userId: user.id,
+        clerkId: user.clerkId,
+        role: match.role,
+        // Still written, and still the first of the set. Not the source of
+        // truth any more — see `restrictedCaseIdsFor` — but a read path that
+        // misses the join table then narrows to one matter rather than to
+        // none, which is the direction a mistake here has to fail in.
+        caseId: match.caseIds[0] ?? match.caseId,
+        status,
+        decidedBy,
+        decidedAt: new Date(),
+      })
+      .returning();
+
+    // The set travels onto the membership, because the membership is what
+    // `lib/scope.ts` enforces from — an access-list row is never consulted
+    // again after admission.
+    if (membership && match.caseIds.length > 0) {
+      await db
+        .insert(membershipCasesTable)
+        .values(match.caseIds.map((caseId) => ({ membershipId: membership.id, caseId })))
+        .onConflictDoNothing();
+    }
 
     await db
       .update(workspaceAccessListTable)

@@ -3107,7 +3107,12 @@ components:
 
     AccessListEntry:
       type: object
-      required: [id, workspaceId, kind, value, role, createdAt]
+      # caseIds is required, not optional: the server always sends it, falling
+      # back to the legacy column for an entry written before multi-matter
+      # pinning. An optional array would make every reader handle an absence
+      # that cannot occur — and on an access-control screen, "undefined" and
+      # "restricted to nothing" are not a distinction to leave to a reader.
+      required: [id, workspaceId, kind, value, role, caseIds, createdAt]
       properties:
         id:
           type: integer
@@ -3123,7 +3128,18 @@ components:
           enum: [admin, senior_advocate, junior_advocate, clerk_intern, client]
         caseId:
           type: ["integer", "null"]
-          description: Set only when role is "client". Copied onto the membership on first sign-in.
+          description: >
+            LEGACY. The first matter of caseIds, kept so a client of this API
+            written before multi-matter pinning still restricts to something
+            rather than to nothing. Read caseIds instead.
+        caseIds:
+          type: array
+          items:
+            type: integer
+          description: >
+            Every matter this entry pins to, copied onto the membership on
+            first sign-in. Empty when the entry pins none, which is every role
+            but "client".
         note:
           type: ["string", "null"]
         addedBy:
@@ -3161,10 +3177,19 @@ components:
         caseId:
           type: integer
           description: >
-            Required when role is "client" — the server rejects a client
-            entry with no caseId, and rejects a caseId on any other role.
-            Same rule as InviteInput.caseId; this is the other of the two
-            paths that can create a client membership.
+            DEPRECATED, and still accepted: a single matter, equivalent to a
+            one-element caseIds. Give one or the other, not both.
+        caseIds:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          description: >
+            The matters to pin this entry to. Required when role is "client" —
+            the server rejects a client entry pinned to nothing, and rejects
+            any pin on another role, because only a client is narrowed this
+            way. Same rule as InviteInput; this is the other of the two paths
+            that can create a client membership.
         note:
           type: string
 
@@ -5095,11 +5120,19 @@ components:
         caseId:
           type: integer
           description: >
-            Required when role is "client" — the server rejects a client
-            invite with no caseId, and rejects a caseId on any other role.
-            Not modelled as conditionally required here because it depends on
-            a sibling field's value, which JSON Schema expresses badly; see
-            routes/invites.ts for the actual rule.
+            DEPRECATED, and still accepted: a single matter, equivalent to a
+            one-element caseIds. Give one or the other, not both.
+        caseIds:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          description: >
+            The matters the invited client is restricted to. Required when role
+            is "client" — the server rejects a client invite pinned to nothing,
+            and rejects a pin on any other role. Not modelled as conditionally
+            required here because it depends on a sibling field's value, which
+            JSON Schema expresses badly; see routes/invites.ts for the rule.
 
     # ── Notifications ───────────────────────────────────────────────────────
     Notification:

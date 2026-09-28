@@ -17,7 +17,12 @@ export interface AccessListEntryInput {
   value: string;
   /** The role granted on first sign-in. Chosen by the admin. */
   role: AccessListEntryInputRole;
-  /** Required when role is "client" — the server rejects a client entry with no caseId, and rejects a caseId on any other role. Same rule as InviteInput.caseId; this is the other of the two paths that can create a client membership. */
+  /** DEPRECATED, and still accepted: a single matter, equivalent to a one-element caseIds. Give one or the other, not both. */
   caseId?: number;
+  /**
+     * The matters to pin this entry to. Required when role is "client" — the server rejects a client entry pinned to nothing, and rejects any pin on another role, because only a client is narrowed this way. Same rule as InviteInput; this is the other of the two paths that can create a client membership.
+     * @minItems 1
+     */
+  caseIds?: number[];
   note?: string;
 }

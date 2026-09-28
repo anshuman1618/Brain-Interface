@@ -1276,6 +1276,36 @@ uploading a file cannot invent a heading for it.
 Migration `0016_case_stages.sql` is additive and guarded, and the three columns
 plus the table are repeated in **both** `preview.ts` blocks.
 
+### Restricting a client to matters — the four-link chain
+
+A client may be pinned to one or more matters. The set travels:
+
+```
+POST /invites  or  POST /workspace/access-list
+      │  lib/case-pin.ts — one rule, both doors
+      ▼
+workspace_access_list (+ access_list_cases)   the standing grant
+      │  reconcileAccessList(), on first sign-in
+      ▼
+workspace_memberships (+ membership_cases)    the real membership
+      │  restrictedCaseIdsFor(), per request
+      ▼
+ctx.restrictedCaseIds  →  visibleCaseIds() and getVisibleCase()
+```
+
+Three properties hold this together and each is load-bearing:
+
+- **`restrictedCaseIds` is `number[] | null`, never `[]`.** Null means
+  unpinned. An empty array would mean pinned to nothing, and conflating the two
+  opens a tenant up.
+- **`workspace_memberships.case_id` still holds the first of the set.** It is
+  not read where the join table is available, but a missed read then narrows to
+  one matter rather than none — the only direction a mistake here may fail in.
+  It is also what makes every pre-0018 membership work with no backfill.
+- **The pin intersects the role's scope, it does not replace it.** A client's
+  `own` scope is `cases.client_id = me`; pinning narrows that further. A matter
+  that names the client but is not pinned is 404, and the suite asserts it.
+
 ### Statuses of a matter — the same pattern, one scope wider
 
 `status` is workflow (is anyone working on this) where `stage` is phase (where

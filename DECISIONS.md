@@ -3597,3 +3597,66 @@ status is missing is the moment they are looking for it.
 **`statusFilter` stopped being the string `"all"`.** That worked only while the
 vocabulary was fixed and could never collide with a real key. A chamber is now
 free to add a status called "All"; null means all.
+
+---
+
+## One access-list entry, many matters
+
+"Restrict to Case ID" pinned a client to exactly one matter, through a
+`type="number"` box that ran `parseInt` on whatever was typed. Two problems,
+and the second is the serious one: an admin had to know a matter's numeric id,
+which is displayed nowhere they would be looking, and **a typo admitted
+somebody to a different client's file** — indistinguishable from a correct id
+until that client rang up about a matter that was not theirs.
+
+**The chain has four links and all four had to widen.** Access-list entry →
+`reconcileAccessList` → membership → the two filters in `lib/scope.ts`. A break
+anywhere in it either hides a matter the client should see or shows one they
+should not, which is why this is the change in this batch with the most
+assertions behind it rather than the most code.
+
+**Two join tables, not one**, because there are two objects with two
+lifetimes: the standing grant an admin wrote in advance, and the real
+membership created on first sign-in. The set is copied across at reconcile
+exactly as the single column already was — an access-list row is never
+consulted again after admission, and the membership is what scope enforces
+from.
+
+**The legacy columns stay, and still receive the first matter of the set.**
+This is the load-bearing decision. They are not the source of truth any more,
+but if some read path is missed, restricting to one matter of three is narrower
+than intended rather than wider. **A missed read that fails open is a data
+leak; one that fails closed is a support ticket.** That asymmetry is the whole
+reason nothing was dropped, and it is also why no backfill was needed: every
+membership written before 0018 has the column, no join rows, and a resolver
+that falls back to it.
+
+**An empty set is not the absence of a restriction**, and
+`restrictedCaseIdsFor` must never return `[]`. Null means unpinned; an empty
+array would mean pinned to nothing. Conflating them is the one mistake in that
+function that opens a tenant up, so the two states are distinguishable by
+construction and the suite asserts that an empty `caseIds` is refused at the
+door rather than stored.
+
+**The rule moved into `lib/case-pin.ts` because it is applied at two doors.**
+`POST /invites` and `POST /workspace/access-list` both create a client
+membership, and they had drifted once before — one validated the identifier's
+shape and the other did not, so garbage could be written through one door and
+not the other. Every matter in the set is checked against the workspace, not
+just the first: checking one and trusting the rest would let an admin pin a
+client to another chamber's matter by putting a real id first.
+
+**The picker filters in the browser.** A chamber has tens of matters and the
+register is already loaded; a search endpoint would be a round trip per
+keystroke. Selected matters stay pinned above the search results, because on an
+access-control screen a narrowing search that hides what is already ticked is
+the difference between granting two matters and believing you granted three.
+
+**The suite caught my own fixture, not the code.** The first run had the
+multi-matter client seeing nothing, because I created the matters naming a
+different client — and a client's `own` scope is `cases.client_id = me`, which
+the pin _intersects_ rather than replaces. Worth recording because the failure
+was in the safe direction, and a test that had been written the other way round
+would have passed while proving nothing. There is now a fourth matter that
+names the client and is deliberately not pinned, so "they see the two they were
+pinned to" cannot also be true of a pin that does nothing.

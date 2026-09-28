@@ -499,10 +499,12 @@ export interface AccessListEntry {
   value: string;
   role: AccessListEntryRole;
   /**
-     * Set only when role is "client". Copied onto the membership on first sign-in.
+     * LEGACY. The first matter of caseIds, kept so a client of this API written before multi-matter pinning still restricts to something rather than to nothing. Read caseIds instead.
      * @nullable
      */
   caseId?: number | null;
+  /** Every matter this entry pins to, copied onto the membership on first sign-in. Empty when the entry pins none, which is every role but "client". */
+  caseIds: number[];
   /** @nullable */
   note?: string | null;
   /** @nullable */
@@ -546,8 +548,13 @@ export interface AccessListEntryInput {
   value: string;
   /** The role granted on first sign-in. Chosen by the admin. */
   role: AccessListEntryInputRole;
-  /** Required when role is "client" — the server rejects a client entry with no caseId, and rejects a caseId on any other role. Same rule as InviteInput.caseId; this is the other of the two paths that can create a client membership. */
+  /** DEPRECATED, and still accepted: a single matter, equivalent to a one-element caseIds. Give one or the other, not both. */
   caseId?: number;
+  /**
+     * The matters to pin this entry to. Required when role is "client" — the server rejects a client entry pinned to nothing, and rejects any pin on another role, because only a client is narrowed this way. Same rule as InviteInput; this is the other of the two paths that can create a client membership.
+     * @minItems 1
+     */
+  caseIds?: number[];
   note?: string;
 }
 
@@ -2446,8 +2453,13 @@ export interface InviteInput {
   phone?: string;
   /** The role the invited person is admitted at. Chosen by the admin. */
   role: InviteInputRole;
-  /** Required when role is "client" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field's value, which JSON Schema expresses badly; see routes/invites.ts for the actual rule. */
+  /** DEPRECATED, and still accepted: a single matter, equivalent to a one-element caseIds. Give one or the other, not both. */
   caseId?: number;
+  /**
+     * The matters the invited client is restricted to. Required when role is "client" — the server rejects a client invite pinned to nothing, and rejects a pin on any other role. Not modelled as conditionally required here because it depends on a sibling field's value, which JSON Schema expresses badly; see routes/invites.ts for the rule.
+     * @minItems 1
+     */
+  caseIds?: number[];
 }
 
 export type NotificationType = typeof NotificationType[keyof typeof NotificationType];

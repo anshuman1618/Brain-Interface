@@ -97,15 +97,16 @@ export async function visibleCaseIds(ctx: WorkspaceContext): Promise<number[]> {
     ids = rows.map((r) => r.id);
   }
 
-  // An invite pinned to one matter narrows visibility to exactly that matter,
-  // on top of whatever the role's own scope already computed. Intersected
+  // An invite pinned to one or more matters narrows visibility to exactly
+  // those, on top of whatever the role's own scope already computed. Intersected
   // rather than substituted: a restricted caller still cannot see a case
   // their scope would not otherwise permit, even if the ids happened to match.
   // In practice this only ever fires for a client ("own" scope, see
   // invites.ts), but checking it here rather than only where "own" is handled
   // means the guarantee holds regardless of what role ends up carrying one.
-  if (ctx.restrictedCaseId != null) {
-    ids = ids.filter((id) => id === ctx.restrictedCaseId);
+  if (ctx.restrictedCaseIds !== null) {
+    const pinned = new Set(ctx.restrictedCaseIds);
+    ids = ids.filter((id) => pinned.has(id));
   }
 
   return ids;
@@ -123,7 +124,7 @@ export async function getVisibleCase(
   // Same intersection as visibleCaseIds, checked here too since this is a
   // separate entry point (GET /cases/:id, and every write that loads the
   // existing row first) rather than a filter over that function's result.
-  if (ctx.restrictedCaseId != null && caseId !== ctx.restrictedCaseId) return null;
+  if (ctx.restrictedCaseIds !== null && !ctx.restrictedCaseIds.includes(caseId)) return null;
 
   const [row] = await db
     .select()

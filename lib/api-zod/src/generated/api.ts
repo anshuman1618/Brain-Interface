@@ -1438,7 +1438,8 @@ export const ListAccessListResponseItem = zod.object({
   "kind": zod.enum(['email', 'domain', 'phone']),
   "value": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
-  "caseId": zod.number().nullish().describe('Set only when role is \"client\". Copied onto the membership on first sign-in.'),
+  "caseId": zod.number().nullish().describe('LEGACY. The first matter of caseIds, kept so a client of this API written before multi-matter pinning still restricts to something rather than to nothing. Read caseIds instead.\n'),
+  "caseIds": zod.array(zod.number()).describe('Every matter this entry pins to, copied onto the membership on first sign-in. Empty when the entry pins none, which is every role but \"client\".\n'),
   "note": zod.string().nullish(),
   "addedBy": zod.string().nullish(),
   "lastUsedAt": zod.coerce.date().nullish(),
@@ -1455,11 +1456,13 @@ export const createAccessListEntryBodyValueMin = 3;
 
 
 
+
 export const CreateAccessListEntryBody = zod.object({
   "kind": zod.enum(['email', 'domain', 'phone']),
   "value": zod.string().min(createAccessListEntryBodyValueMin).describe('An exact email address, a bare domain such as \"chambers.in\", or a mobile number. A number is normalised to E.164 on write, so any readable form is accepted and matching stays an equality check. A phone entry carries a risk the others do not: telcos reassign a disconnected number after about ninety days.\n'),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role granted on first sign-in. Chosen by the admin.'),
-  "caseId": zod.number().optional().describe('Required when role is \"client\" — the server rejects a client entry with no caseId, and rejects a caseId on any other role. Same rule as InviteInput.caseId; this is the other of the two paths that can create a client membership.\n'),
+  "caseId": zod.number().optional().describe('DEPRECATED, and still accepted: a single matter, equivalent to a one-element caseIds. Give one or the other, not both.\n'),
+  "caseIds": zod.array(zod.number()).min(1).optional().describe('The matters to pin this entry to. Required when role is \"client\" — the server rejects a client entry pinned to nothing, and rejects any pin on another role, because only a client is narrowed this way. Same rule as InviteInput; this is the other of the two paths that can create a client membership.\n'),
   "note": zod.string().optional()
 })
 
@@ -1469,7 +1472,8 @@ export const CreateAccessListEntryResponse = zod.object({
   "kind": zod.enum(['email', 'domain', 'phone']),
   "value": zod.string(),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']),
-  "caseId": zod.number().nullish().describe('Set only when role is \"client\". Copied onto the membership on first sign-in.'),
+  "caseId": zod.number().nullish().describe('LEGACY. The first matter of caseIds, kept so a client of this API written before multi-matter pinning still restricts to something rather than to nothing. Read caseIds instead.\n'),
+  "caseIds": zod.array(zod.number()).describe('Every matter this entry pins to, copied onto the membership on first sign-in. Empty when the entry pins none, which is every role but \"client\".\n'),
   "note": zod.string().nullish(),
   "addedBy": zod.string().nullish(),
   "lastUsedAt": zod.coerce.date().nullish(),
@@ -2544,11 +2548,15 @@ export const ListInvitesResponse = zod.array(ListInvitesResponseItem)
 /**
  * @summary Generate an invite link for a client
  */
+
+
+
 export const CreateInviteBody = zod.object({
   "email": zod.string().optional().describe('The address to invite. Exactly one of email or phone must be given; the server rejects both and neither, and validates the shape of whichever was supplied.\n'),
   "phone": zod.string().optional().describe('The mobile number to invite, in any readable form — \"+91 98765 43210\", \"098765 43210\" and \"9876543210\" all normalise to the same E.164 value. For the clerk or client who has a phone and no work address.\n'),
   "role": zod.enum(['admin', 'senior_advocate', 'junior_advocate', 'clerk_intern', 'client']).describe('The role the invited person is admitted at. Chosen by the admin.'),
-  "caseId": zod.number().optional().describe('Required when role is \"client\" — the server rejects a client invite with no caseId, and rejects a caseId on any other role. Not modelled as conditionally required here because it depends on a sibling field\'s value, which JSON Schema expresses badly; see routes\/invites.ts for the actual rule.\n')
+  "caseId": zod.number().optional().describe('DEPRECATED, and still accepted: a single matter, equivalent to a one-element caseIds. Give one or the other, not both.\n'),
+  "caseIds": zod.array(zod.number()).min(1).optional().describe('The matters the invited client is restricted to. Required when role is \"client\" — the server rejects a client invite pinned to nothing, and rejects a pin on any other role. Not modelled as conditionally required here because it depends on a sibling field\'s value, which JSON Schema expresses badly; see routes\/invites.ts for the rule.\n')
 })
 
 export const CreateInviteResponse = zod.object({

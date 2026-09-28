@@ -9,6 +9,7 @@ import {
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CaseMultiSelect } from "@/components/case-multi-select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -50,7 +51,7 @@ export function AccessListManager() {
   const [kind, setKind] = useState<"email" | "domain" | "phone">("email");
   const [value, setValue] = useState("");
   const [role, setRole] = useState("client");
-  const [caseId, setCaseId] = useState("");
+  const [caseIds, setCaseIds] = useState<number[]>([]);
   const [note, setNote] = useState("");
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: getListAccessListQueryKey() });
@@ -61,7 +62,8 @@ export function AccessListManager() {
   // admits into, so this mirrors that rather than letting the request
   // round-trip to learn it.
   const caseIdRequired = role === "client";
-  const canSubmit = !!value.trim() && (!caseIdRequired || !!caseId) && !createEntry.isPending;
+  const canSubmit =
+    !!value.trim() && (!caseIdRequired || caseIds.length > 0) && !createEntry.isPending;
 
   const add = (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +74,7 @@ export function AccessListManager() {
           kind,
           value: value.trim(),
           role: role as never,
-          ...(role === "client" ? { caseId: parseInt(caseId, 10) } : {}),
+          ...(role === "client" ? { caseIds } : {}),
           note: note.trim() || undefined,
         },
       },
@@ -84,7 +86,7 @@ export function AccessListManager() {
             description: `Will sign in as ${roleLabel(created.role)} in ${activeWorkspace?.name}.`,
           });
           setValue("");
-          setCaseId("");
+          setCaseIds([]);
           setNote("");
         },
         onError: (err: unknown) => {
@@ -198,15 +200,17 @@ export function AccessListManager() {
           {role === "client" && (
             <div className="sm:col-span-4 space-y-1.5">
               <label className="block text-3xs font-mono uppercase tracking-wider text-muted-foreground">
-                Restrict to Case ID (Required)
+                Restrict to matters (Required)
               </label>
-              <Input
-                type="number"
-                value={caseId}
-                onChange={(e) => setCaseId(e.target.value)}
-                className="rounded-lg font-mono text-sm sm:max-w-[180px]"
-                placeholder="e.g. 42"
-              />
+              <p className="text-2xs leading-relaxed text-muted-foreground">
+                This client will see these matters and nothing else. Tick as many as apply.
+              </p>
+              {/* Was a number box taking one id and parseInt-ing whatever was
+                  typed: an admin had to know an id that is shown nowhere they
+                  would be looking, and a typo admitted somebody to a different
+                  client's file — indistinguishable from a correct id until
+                  that client rang up. */}
+              <CaseMultiSelect value={caseIds} onChange={setCaseIds} />
             </div>
           )}
 
@@ -290,9 +294,12 @@ export function AccessListManager() {
                     {entry.role === "admin" && <ShieldCheck className="h-3 w-3" />}
                     {roleLabel(entry.role) || entry.role}
                   </Badge>
-                  {entry.caseId != null && (
+                  {entry.caseIds.length > 0 && (
                     <p className="text-3xs text-muted-foreground font-mono mt-1">
-                      RESTRICTED TO CASE-{entry.caseId}
+                      RESTRICTED TO{" "}
+                      {entry.caseIds.length === 1
+                        ? `CASE-${entry.caseIds[0]}`
+                        : `${entry.caseIds.length} MATTERS`}
                     </p>
                   )}
                 </TableCell>

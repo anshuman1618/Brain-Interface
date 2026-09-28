@@ -365,6 +365,20 @@ CREATE TABLE IF NOT EXISTS case_stage_labels (
   CONSTRAINT case_stage_labels_ws_forum_key UNIQUE (workspace_id, forum_group, key)
 );
 
+CREATE TABLE IF NOT EXISTS access_list_cases (
+  id SERIAL PRIMARY KEY,
+  entry_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  CONSTRAINT access_list_cases_entry_case_key UNIQUE (entry_id, case_id)
+);
+
+CREATE TABLE IF NOT EXISTS membership_cases (
+  id SERIAL PRIMARY KEY,
+  membership_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  CONSTRAINT membership_cases_membership_case_key UNIQUE (membership_id, case_id)
+);
+
 CREATE TABLE IF NOT EXISTS workspace_status_labels (
   id SERIAL PRIMARY KEY,
   workspace_id INTEGER NOT NULL,
@@ -761,6 +775,24 @@ CREATE TABLE IF NOT EXISTS workspace_status_labels (
 );
 CREATE INDEX IF NOT EXISTS workspace_status_labels_workspace_idx
   ON workspace_status_labels (workspace_id);
+
+-- Many matters per pinned grant (migration 0018). The CREATE TABLEs above only
+-- run on a fresh database, so an existing .preview-data needs these too.
+CREATE TABLE IF NOT EXISTS access_list_cases (
+  id SERIAL PRIMARY KEY,
+  entry_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  CONSTRAINT access_list_cases_entry_case_key UNIQUE (entry_id, case_id)
+);
+
+CREATE TABLE IF NOT EXISTS membership_cases (
+  id SERIAL PRIMARY KEY,
+  membership_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  CONSTRAINT membership_cases_membership_case_key UNIQUE (membership_id, case_id)
+);
+CREATE INDEX IF NOT EXISTS access_list_cases_entry_idx ON access_list_cases (entry_id);
+CREATE INDEX IF NOT EXISTS membership_cases_membership_idx ON membership_cases (membership_id);
 `;
 
 /** Where the preview database lives on disk. */

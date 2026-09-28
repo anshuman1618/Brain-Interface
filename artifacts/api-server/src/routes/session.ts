@@ -6,6 +6,7 @@ import {
   workspacesTable,
   workspaceMembershipsTable,
   workspaceAccessListTable,
+  accessListCasesTable,
   normaliseDomain,
   normaliseEmail,
   normalisePhone,
@@ -50,7 +51,7 @@ import { mintWorkspaceToken, verifyWorkspaceToken } from "../lib/workspace-token
 import { reconcileAccessList } from "../lib/access-list";
 import { recordAudit } from "../lib/audit";
 import { assertSeatAvailable, checkQuota, quotaMessage, usageFor } from "../lib/quota";
-import { caseInWorkspace } from "../lib/scope";
+import { resolveCasePin } from "../lib/case-pin";
 
 const router: IRouter = Router();
 
@@ -620,10 +621,33 @@ router.get(
       .from(workspaceAccessListTable)
       .where(eq(workspaceAccessListTable.workspaceId, c.workspaceId));
 
+    // One query for the whole page's pins rather than one per row.
+    const pins = rows.length
+      ? await db
+          .select()
+          .from(accessListCasesTable)
+          .where(
+            inArray(
+              accessListCasesTable.entryId,
+              rows.map((r) => r.id),
+            ),
+          )
+      : [];
+    const byEntry = new Map<number, number[]>();
+    for (const pin of pins) {
+      const list = byEntry.get(pin.entryId) ?? [];
+      list.push(pin.caseId);
+      byEntry.set(pin.entryId, list);
+    }
+
     res.json(
       ListAccessListResponse.parse(
         rows.map((r) => ({
           ...r,
+          // Falls back to the legacy column for an entry written before
+          // migration 0018, so the admin screen shows what it always showed
+          // rather than an empty list where a restriction plainly exists.
+          caseIds: byEntry.get(r.id) ?? (r.caseId == null ? [] : [r.caseId]),
           lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
           revokedAt: r.revokedAt?.toISOString() ?? null,
         })),
@@ -631,6 +655,23 @@ router.get(
     );
   },
 );
+
+/**
+ * Replace an entry's pinned matters.
+ *
+ * Replaced and not merged: re-adding somebody with a different set of matters
+ * is a correction, and keeping the old rows would quietly widen the access an
+ * admin has just narrowed. Deleting first also means the reinstate path for a
+ * revoked entry does not inherit whatever it was pinned to a year ago.
+ */
+async function setEntryCases(entryId: number, caseIds: number[]): Promise<void> {
+  await db.delete(accessListCasesTable).where(eq(accessListCasesTable.entryId, entryId));
+  if (caseIds.length === 0) return;
+  await db
+    .insert(accessListCasesTable)
+    .values(caseIds.map((caseId) => ({ entryId, caseId })))
+    .onConflictDoNothing();
+}
 
 router.post(
   "/workspace/access-list",
@@ -672,28 +713,15 @@ router.post(
       return;
     }
 
-    // The same rule as invites.ts, because this is the other of the two paths
-    // that can create a client membership — closing it on only one would
-    // leave "mandatory" false for whichever door was left open.
-    if (parsed.data.role !== "client") {
-      if (parsed.data.caseId != null) {
-        res.status(400).json({
-          error: "invalid_request",
-          message: "Restrict to Case ID only applies to the Client role.",
-        });
-        return;
-      }
-    } else if (parsed.data.caseId == null) {
-      res.status(400).json({
-        error: "invalid_request",
-        message: "A client entry must be restricted to a matter.",
-      });
-      return;
-    } else if (!(await caseInWorkspace(c, parsed.data.caseId))) {
-      res.status(404).json({ error: "That matter was not found in this chamber." });
+    // Shared with invites.ts, because this is the other of the two paths that
+    // can create a client membership — the rule written twice is the rule that
+    // drifts, and these two already did once.
+    const pin = await resolveCasePin(c, parsed.data.role, parsed.data);
+    if (!pin.ok) {
+      res.status(pin.status).json({ error: pin.error, message: pin.message });
       return;
     }
-    const caseId = parsed.data.caseId ?? null;
+    const caseId = pin.caseIds[0] ?? null;
 
     const [existing] = await db
       .select()
@@ -724,9 +752,11 @@ router.post(
         })
         .where(eq(workspaceAccessListTable.id, existing.id))
         .returning();
+      await setEntryCases(existing.id, pin.caseIds);
       res.status(201).json(
         CreateAccessListEntryResponse.parse({
           ...reinstated,
+          caseIds: pin.caseIds,
           lastUsedAt: reinstated.lastUsedAt?.toISOString() ?? null,
           revokedAt: null,
         }),
@@ -747,9 +777,12 @@ router.post(
       })
       .returning();
 
+    await setEntryCases(created.id, pin.caseIds);
+
     res.status(201).json(
       CreateAccessListEntryResponse.parse({
         ...created,
+        caseIds: pin.caseIds,
         lastUsedAt: null,
         revokedAt: null,
       }),
