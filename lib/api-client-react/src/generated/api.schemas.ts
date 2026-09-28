@@ -2092,6 +2092,121 @@ export interface CaseStageInput {
   label: string;
 }
 
+export type CaseProceedingKind = typeof CaseProceedingKind[keyof typeof CaseProceedingKind];
+
+
+export const CaseProceedingKind = {
+  application: 'application',
+  appeal: 'appeal',
+  execution: 'execution',
+  review: 'review',
+  caveat: 'caveat',
+  contempt: 'contempt',
+  misc: 'misc',
+} as const;
+
+export interface CaseProceeding {
+  id: number;
+  caseId: number;
+  title: string;
+  kind: CaseProceedingKind;
+  /** A key from the chamber's case-status list. Not an enum, for the reason Case.status is not. */
+  status: string;
+  statusLabel?: string;
+  /**
+     * A key from the matter's stage list, or null.
+     * @nullable
+     */
+  stage?: string | null;
+  /** @nullable */
+  stageLabel?: string | null;
+  /** @nullable */
+  filingRef?: string | null;
+  /**
+     * @nullable
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  filedOn?: string | null;
+  /**
+     * @nullable
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  decidedOn?: string | null;
+  /** @nullable */
+  note?: string | null;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export type CaseProceedingInputKind = typeof CaseProceedingInputKind[keyof typeof CaseProceedingInputKind];
+
+
+export const CaseProceedingInputKind = {
+  application: 'application',
+  appeal: 'appeal',
+  execution: 'execution',
+  review: 'review',
+  caveat: 'caveat',
+  contempt: 'contempt',
+  misc: 'misc',
+} as const;
+
+export interface CaseProceedingInput {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  title: string;
+  kind?: CaseProceedingInputKind;
+  status?: string;
+  /** @nullable */
+  stage?: string | null;
+  filingRef?: string;
+  /**
+     * A patterned string, not `format: date` — that generates zod.date(), which rejects the string a browser's date input sends.
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  filedOn?: string;
+  note?: string;
+}
+
+export type CaseProceedingUpdateKind = typeof CaseProceedingUpdateKind[keyof typeof CaseProceedingUpdateKind];
+
+
+export const CaseProceedingUpdateKind = {
+  application: 'application',
+  appeal: 'appeal',
+  execution: 'execution',
+  review: 'review',
+  caveat: 'caveat',
+  contempt: 'contempt',
+  misc: 'misc',
+} as const;
+
+export interface CaseProceedingUpdate {
+  /**
+     * @minLength 2
+     * @maxLength 200
+     */
+  title?: string;
+  kind?: CaseProceedingUpdateKind;
+  status?: string;
+  /** @nullable */
+  stage?: string | null;
+  filingRef?: string;
+  /**
+     * @nullable
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  filedOn?: string | null;
+  /**
+     * @nullable
+     * @pattern ^\d{4}-\d{2}-\d{2}$
+     */
+  decidedOn?: string | null;
+  note?: string;
+}
+
 /**
  * 'standard' is one of the four built-in workflow statuses, identical in every chamber. 'chamber' is one this workspace added.
  */

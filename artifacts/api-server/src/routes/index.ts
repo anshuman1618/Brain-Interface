@@ -18,6 +18,7 @@ import invoicesRouter from "./invoices";
 import subscriptionRouter from "./subscription";
 import serviceEnquiriesRouter from "./service-enquiries";
 import causeListRouter from "./cause-list";
+import proceedingsRouter from "./proceedings";
 import operatorRouter from "./operator";
 import governanceRouter from "./governance";
 import draftingRouter from "./drafting";
@@ -46,6 +47,9 @@ router.use(invoicesRouter);
 router.use(subscriptionRouter);
 router.use(serviceEnquiriesRouter);
 router.use(causeListRouter);
+// After casesRouter: both mount /cases/:id paths and Express matches in
+// declaration order, so anything here must not shadow a literal on that prefix.
+router.use(proceedingsRouter);
 router.use(draftingRouter);
 // Cross-tenant by design and gated on OPERATOR_EMAILS, not on any capability.
 router.use(operatorRouter);

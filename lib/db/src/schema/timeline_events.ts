@@ -31,6 +31,16 @@ export const TIMELINE_EVENT_TYPES = [
   "task_assigned",
   "task_completed",
   "consultation_scheduled",
+  /**
+   * A proceeding under the matter — an application, an appeal — opened,
+   * changed or removed. The whole point of proceedings being a first-class
+   * object rather than a note in the title is that their movement is traceable
+   * here.
+   */
+  "proceeding_opened",
+  "proceeding_updated",
+  "proceeding_closed",
+  "proceeding_deleted",
   "delay_logged",
 ] as const;
 export type TimelineEventType = (typeof TIMELINE_EVENT_TYPES)[number];

@@ -1276,6 +1276,32 @@ uploading a file cannot invent a heading for it.
 Migration `0016_case_stages.sql` is additive and guarded, and the three columns
 plus the table are repeated in **both** `preview.ts` blocks.
 
+### Proceedings — a matter's sub-branches
+
+`case_proceedings` holds applications, appeals and executions under a matter.
+Served by `routes/proceedings.ts` at `/cases/:caseId/proceedings`, mounted
+after `casesRouter` in `routes/index.ts`.
+
+**A proceeding has no visibility of its own.** Every handler loads the matter
+through `getVisibleCase` and answers 404 when it returns null. Nothing
+establishes access from a proceeding's id — the id finds the row only after the
+matter is proved visible, and every query is bounded by `caseId` too, so a
+proceeding belonging to another matter cannot be reached by naming a matter the
+caller can see.
+
+**Not a row in `cases`.** A case carries a client, billing, plan quota, a
+conflict acknowledgement and an access pin; an application has none of those
+independently. See DECISIONS.md — the short version is that every list, count
+and scope in the app would have to learn parent from child.
+
+`status` and `stage` hold keys from the vocabularies of 0017 and 0016. `kind`
+is a closed list in code. Every change writes one row to the matter's Activity
+Ledger — `proceeding_opened` / `_updated` / `_closed` / `_deleted` — which is
+what the feature is for.
+
+Migration `0019_case_proceedings.sql`; the table is in **both** `preview.ts`
+blocks.
+
 ### Restricting a client to matters — the four-link chain
 
 A client may be pinned to one or more matters. The set travels:

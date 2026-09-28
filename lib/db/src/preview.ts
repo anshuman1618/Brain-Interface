@@ -365,6 +365,23 @@ CREATE TABLE IF NOT EXISTS case_stage_labels (
   CONSTRAINT case_stage_labels_ws_forum_key UNIQUE (workspace_id, forum_group, key)
 );
 
+CREATE TABLE IF NOT EXISTS case_proceedings (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'application',
+  status TEXT NOT NULL DEFAULT 'open',
+  stage TEXT,
+  filing_ref TEXT,
+  filed_on DATE,
+  decided_on DATE,
+  note TEXT,
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS access_list_cases (
   id SERIAL PRIMARY KEY,
   entry_id INTEGER NOT NULL,
@@ -793,6 +810,26 @@ CREATE TABLE IF NOT EXISTS membership_cases (
 );
 CREATE INDEX IF NOT EXISTS access_list_cases_entry_idx ON access_list_cases (entry_id);
 CREATE INDEX IF NOT EXISTS membership_cases_membership_idx ON membership_cases (membership_id);
+
+-- Proceedings under a matter (migration 0019). The CREATE TABLE above only
+-- runs on a fresh database, so an existing .preview-data needs this too.
+CREATE TABLE IF NOT EXISTS case_proceedings (
+  id SERIAL PRIMARY KEY,
+  workspace_id INTEGER NOT NULL,
+  case_id INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'application',
+  status TEXT NOT NULL DEFAULT 'open',
+  stage TEXT,
+  filing_ref TEXT,
+  filed_on DATE,
+  decided_on DATE,
+  note TEXT,
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS case_proceedings_case_idx ON case_proceedings (case_id);
 `;
 
 /** Where the preview database lives on disk. */

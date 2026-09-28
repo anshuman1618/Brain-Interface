@@ -67,6 +67,7 @@ import { useToast } from "@/hooks/use-toast";
 import { TimeLogPanel } from "@/components/time-log-panel";
 import { StagePicker } from "@/components/stage-picker";
 import { StatusSelect } from "@/components/status-select";
+import { CaseProceedings } from "@/components/case-proceedings";
 import { LoadFailed } from "@/components/load-failed";
 import { groupByStage } from "@/lib/case-stages";
 import { userMessage } from "@/lib/errors";
@@ -91,6 +92,10 @@ const TIMELINE_LABEL: Record<string, string> = {
   task_assigned: "Tasks",
   task_completed: "Tasks done",
   consultation_scheduled: "Consultations",
+  proceeding_opened: "Proceedings",
+  proceeding_updated: "Proceedings changed",
+  proceeding_closed: "Proceedings decided",
+  proceeding_deleted: "Proceedings removed",
   delay_logged: "Delays",
 };
 const TIMELINE_ORDER = Object.keys(TIMELINE_LABEL);
@@ -467,6 +472,8 @@ export default function CaseDetailPage() {
           </Button>
         </div>
       )}
+
+      <CaseProceedings caseId={caseId} />
 
       {/* The court listing identity panel used to sit here. It moved to the
           Cause List tab in Master Calendar, beside the listings it feeds — the

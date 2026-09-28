@@ -134,6 +134,13 @@
       "when": 1787090000008,
       "tag": "0018_restricted_cases",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1787090000009,
+      "tag": "0019_case_proceedings",
+      "breakpoints": true
     }
   ]
 }

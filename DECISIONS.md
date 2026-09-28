@@ -3660,3 +3660,60 @@ was in the safe direction, and a test that had been written the other way round
 would have passed while proving nothing. There is now a fourth matter that
 names the client and is deliberately not pinned, so "they see the two they were
 pinned to" cannot also be true of a pin that does nothing.
+
+---
+
+## Proceedings: a matter's sub-branches, and why they are not child cases
+
+A writ petition spawns a stay application, a contempt, an appeal. Each has its
+own number, its own dates and its own progress, and until now they were
+recorded by typing them into the matter's title or leaving them in somebody's
+head — neither of which survives the advocate who did it.
+
+**The obvious implementation is `cases.parent_case_id`, and it is wrong here.**
+A `cases` row carries a client, a filing reference, billing, plan quota, a
+conflict acknowledgement and an access pin. An interlocutory application has
+none of those independently of the matter it belongs to — same client, same
+file, same people. Making it a case would mean every list, count, quota and
+access scope in the application learning to tell a parent from a child, and
+getting one of them wrong either **doubles a chamber's matter count** or **leaks
+a child past a pin**. The upside would be separate billing and staffing per
+application, which no chamber has asked for.
+
+So `case_proceedings` is deliberately thin: a title, a kind, its own progress,
+its own dates. Everything else is inherited.
+
+**Visibility is inherited, and enforced by loading the matter first.** Every
+handler calls `getVisibleCase` and answers 404 when it returns null, so a
+junior narrowed away from a matter or a client pinned elsewhere cannot reach
+its proceedings and does not learn one exists. Nothing in the file establishes
+access from a proceeding's own id — the id is used to find the row only after
+the matter has been proved visible, and every query is additionally bounded by
+`caseId`, so a proceeding id belonging to another matter cannot be steered into
+one the caller can see. That last property has its own assertion.
+
+**Status and stage are the vocabularies that already exist**, not a third one.
+A proceeding's status is a key from the chamber's case-status list (C) and its
+stage from the matter's forum-group stage list (0016). Inventing a third
+vocabulary for the same two questions would be one more thing to define per
+chamber and one more place for the same word to mean two things. `kind` IS a
+closed list in code, because unlike the other two it is a category of thing
+rather than a position in a workflow, and an appeal is an appeal in every
+chamber in the country.
+
+**One save is one ledger row, naming what moved.** Not one row per field — an
+advocate correcting a title and a number in the same save should read as one
+edit — and not a bare "updated", which is the entry that makes a ledger
+unreadable. A save that changes nothing records nothing. A proceeding gaining a
+decision date writes `proceeding_closed` rather than `proceeding_updated`,
+because an ending reads differently from a correction in a filtered ledger, and
+the ledger is filtered now.
+
+**Deleting a proceeding does not delete the fact that it existed.** The ledger
+is append-only, and after a delete its rows are the only record left.
+
+**Rendered above the tabs, beside where the court identity panel used to be.**
+A proceeding is part of what the matter _is_; burying the fact that a matter has
+three live applications one tab deep defeats the point of recording them.
+Decided ones are dimmed below the live ones — the same treatment a closed
+document request gets, and for the same reason.

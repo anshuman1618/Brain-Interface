@@ -1939,6 +1939,144 @@ export const AddCaseStageResponse = zod.object({
 
 
 /**
+ * Applications, appeals, executions and the like. Visibility is inherited from the matter — whoever may read the matter may read its proceedings, and a caller who may not gets the same 404 the matter itself gives.
+ * @summary The proceedings under a matter
+ */
+export const ListCaseProceedingsParams = zod.object({
+  "caseId": zod.coerce.number()
+})
+
+export const listCaseProceedingsResponseFiledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const listCaseProceedingsResponseDecidedOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const ListCaseProceedingsResponseItem = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "title": zod.string(),
+  "kind": zod.enum(['application', 'appeal', 'execution', 'review', 'caveat', 'contempt', 'misc']),
+  "status": zod.string().describe('A key from the chamber\'s case-status list. Not an enum, for the reason Case.status is not.'),
+  "statusLabel": zod.string().optional(),
+  "stage": zod.string().nullish().describe('A key from the matter\'s stage list, or null.'),
+  "stageLabel": zod.string().nullish(),
+  "filingRef": zod.string().nullish(),
+  "filedOn": zod.string().regex(listCaseProceedingsResponseFiledOnRegExp).nullish(),
+  "decidedOn": zod.string().regex(listCaseProceedingsResponseDecidedOnRegExp).nullish(),
+  "note": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "createdAt": zod.coerce.date()
+})
+export const ListCaseProceedingsResponse = zod.array(ListCaseProceedingsResponseItem)
+
+
+/**
+ * @summary Open a proceeding under a matter
+ */
+export const CreateCaseProceedingParams = zod.object({
+  "caseId": zod.coerce.number()
+})
+
+export const createCaseProceedingBodyTitleMin = 2;
+export const createCaseProceedingBodyTitleMax = 200;
+
+export const createCaseProceedingBodyKindDefault = `application`;
+export const createCaseProceedingBodyFiledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const CreateCaseProceedingBody = zod.object({
+  "title": zod.string().min(createCaseProceedingBodyTitleMin).max(createCaseProceedingBodyTitleMax),
+  "kind": zod.enum(['application', 'appeal', 'execution', 'review', 'caveat', 'contempt', 'misc']).default(createCaseProceedingBodyKindDefault),
+  "status": zod.string().optional(),
+  "stage": zod.string().nullish(),
+  "filingRef": zod.string().optional(),
+  "filedOn": zod.string().regex(createCaseProceedingBodyFiledOnRegExp).optional().describe('A patterned string, not `format: date` — that generates zod.date(), which rejects the string a browser\'s date input sends.\n'),
+  "note": zod.string().optional()
+})
+
+export const createCaseProceedingResponseFiledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const createCaseProceedingResponseDecidedOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const CreateCaseProceedingResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "title": zod.string(),
+  "kind": zod.enum(['application', 'appeal', 'execution', 'review', 'caveat', 'contempt', 'misc']),
+  "status": zod.string().describe('A key from the chamber\'s case-status list. Not an enum, for the reason Case.status is not.'),
+  "statusLabel": zod.string().optional(),
+  "stage": zod.string().nullish().describe('A key from the matter\'s stage list, or null.'),
+  "stageLabel": zod.string().nullish(),
+  "filingRef": zod.string().nullish(),
+  "filedOn": zod.string().regex(createCaseProceedingResponseFiledOnRegExp).nullish(),
+  "decidedOn": zod.string().regex(createCaseProceedingResponseDecidedOnRegExp).nullish(),
+  "note": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * Every field that changes is recorded on the matter's Activity Ledger, which is the point of the feature — a proceeding nobody can trace is a note in a title by another name.
+ * @summary Update a proceeding
+ */
+export const UpdateCaseProceedingParams = zod.object({
+  "caseId": zod.coerce.number(),
+  "proceedingId": zod.coerce.number()
+})
+
+export const updateCaseProceedingBodyTitleMin = 2;
+export const updateCaseProceedingBodyTitleMax = 200;
+
+export const updateCaseProceedingBodyFiledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateCaseProceedingBodyDecidedOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const UpdateCaseProceedingBody = zod.object({
+  "title": zod.string().min(updateCaseProceedingBodyTitleMin).max(updateCaseProceedingBodyTitleMax).optional(),
+  "kind": zod.enum(['application', 'appeal', 'execution', 'review', 'caveat', 'contempt', 'misc']).optional(),
+  "status": zod.string().optional(),
+  "stage": zod.string().nullish(),
+  "filingRef": zod.string().optional(),
+  "filedOn": zod.string().regex(updateCaseProceedingBodyFiledOnRegExp).nullish(),
+  "decidedOn": zod.string().regex(updateCaseProceedingBodyDecidedOnRegExp).nullish(),
+  "note": zod.string().optional()
+})
+
+export const updateCaseProceedingResponseFiledOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+export const updateCaseProceedingResponseDecidedOnRegExp = new RegExp('^\\d{4}-\\d{2}-\\d{2}$');
+
+
+export const UpdateCaseProceedingResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "title": zod.string(),
+  "kind": zod.enum(['application', 'appeal', 'execution', 'review', 'caveat', 'contempt', 'misc']),
+  "status": zod.string().describe('A key from the chamber\'s case-status list. Not an enum, for the reason Case.status is not.'),
+  "statusLabel": zod.string().optional(),
+  "stage": zod.string().nullish().describe('A key from the matter\'s stage list, or null.'),
+  "stageLabel": zod.string().nullish(),
+  "filingRef": zod.string().nullish(),
+  "filedOn": zod.string().regex(updateCaseProceedingResponseFiledOnRegExp).nullish(),
+  "decidedOn": zod.string().regex(updateCaseProceedingResponseDecidedOnRegExp).nullish(),
+  "note": zod.string().nullish(),
+  "createdBy": zod.string().optional(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * For something opened by mistake. Requires `cases.write`. The deletion is recorded on the matter's ledger, so removing a proceeding does not remove the fact that it existed.
+ * @summary Delete a proceeding
+ */
+export const DeleteCaseProceedingParams = zod.object({
+  "caseId": zod.coerce.number(),
+  "proceedingId": zod.coerce.number()
+})
+
+export const DeleteCaseProceedingResponse = zod.void()
+
+
+/**
  * The four standard workflow statuses, then whatever this chamber has added. Workspace-wide rather than per matter, because whether anyone is working on a matter does not depend on which court it is in. Readable by anyone who can read a matter — the chips in the register have to come from somewhere, and a client sees the status of their own file.
  * @summary The status vocabulary for this chamber
  */

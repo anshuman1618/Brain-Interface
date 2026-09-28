@@ -535,6 +535,176 @@ if (phase === "setup") {
    * the server's own check against the chamber's list is the ONLY thing left
    * between a typo and a matter filed under a status no chip will ever show.
    */
+  /*
+   * Proceedings: the sub-branches of a matter.
+   *
+   * Two things are worth proving beyond the happy path. A proceeding has no
+   * visibility of its own — it inherits the matter's — so the assertions that
+   * matter are the ones showing a caller who cannot see the matter cannot see
+   * or reach its proceedings either. And every change has to land on the
+   * matter's ledger, because a proceeding nobody can trace is a note in the
+   * title by another name.
+   */
+  section("6c. Proceedings under a matter");
+  const openedProc = await call(`/cases/${matter.data.id}/proceedings`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: {
+      title: "Application for interim stay",
+      kind: "application",
+      filingRef: "IA 45/2026",
+      filedOn: plus(0),
+    },
+  });
+  check(
+    "a proceeding is opened under a matter",
+    openedProc.status === 201,
+    `got ${openedProc.status}`,
+  );
+  check(
+    "...carrying the chamber's default status, resolved for display",
+    openedProc.data?.status === "open" && openedProc.data?.statusLabel === "Open",
+    JSON.stringify([openedProc.data?.status, openedProc.data?.statusLabel]),
+  );
+
+  const procLedger = await call(`/cases/${matter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "opening it is on the matter's ledger",
+    (procLedger.data ?? []).some(
+      (e) => e.eventType === "proceeding_opened" && /interim stay/.test(e.description),
+    ),
+    JSON.stringify((procLedger.data ?? []).map((e) => e.eventType)),
+  );
+
+  const badKind = await call(`/cases/${matter.data.id}/proceedings`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { title: "Nonsense", kind: "not_a_kind" },
+  });
+  check("an unknown kind is refused", badKind.status === 400, `got ${badKind.status}`);
+
+  const badProcStatus = await call(`/cases/${matter.data.id}/proceedings`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: { title: "Nonsense", status: "invented_status" },
+  });
+  check(
+    "a status off the chamber's list is refused on a proceeding too",
+    badProcStatus.status === 400 && badProcStatus.data?.error === "unknown_status",
+    `${badProcStatus.status} ${JSON.stringify(badProcStatus.data)}`,
+  );
+
+  // One save touching several fields is one ledger row naming all of them, not
+  // one row per field and not a bare "updated".
+  const editedProc = await call(`/cases/${matter.data.id}/proceedings/${openedProc.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { title: "Application for interim stay (amended)", filingRef: "IA 46/2026" },
+  });
+  check("a proceeding can be edited", editedProc.status === 200, `got ${editedProc.status}`);
+  const afterEdit = await call(`/cases/${matter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  const editRows = (afterEdit.data ?? []).filter((e) => e.eventType === "proceeding_updated");
+  check(
+    "one ledger row names everything that moved",
+    editRows.length === 1 &&
+      /renamed/.test(editRows[0].description) &&
+      /IA 46/.test(editRows[0].description),
+    JSON.stringify(editRows.map((e) => e.description)),
+  );
+
+  const noopProc = await call(`/cases/${matter.data.id}/proceedings/${openedProc.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { title: "Application for interim stay (amended)" },
+  });
+  const afterNoopProc = await call(`/cases/${matter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "a save that changes nothing records nothing",
+    noopProc.status === 200 &&
+      (afterNoopProc.data ?? []).filter((e) => e.eventType === "proceeding_updated").length === 1,
+    `${(afterNoopProc.data ?? []).filter((e) => e.eventType === "proceeding_updated").length}`,
+  );
+
+  // A decision date is an ending, and reads as one in a filtered ledger.
+  await call(`/cases/${matter.data.id}/proceedings/${openedProc.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { decidedOn: plus(1) },
+  });
+  const afterDecide = await call(`/cases/${matter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "deciding it is its own kind of ledger row, not another update",
+    (afterDecide.data ?? []).some((e) => e.eventType === "proceeding_closed"),
+    JSON.stringify((afterDecide.data ?? []).map((e) => e.eventType)),
+  );
+
+  // Visibility is inherited, so the client's own matter is the one to test on.
+  const clientProcs = await call(`/cases/${matter.data.id}/proceedings`, {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+  });
+  check(
+    "a client reads the proceedings on their own matter",
+    clientProcs.status === 200 && Array.isArray(clientProcs.data),
+    `got ${clientProcs.status}`,
+  );
+  const clientOpens = await call(`/cases/${matter.data.id}/proceedings`, {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "POST",
+    body: { title: "One I invented" },
+  });
+  check("...but cannot open one (403)", clientOpens.status === 403, `got ${clientOpens.status}`);
+
+  // The isolation assertion: a proceeding id is never a way into a matter.
+  const wrongMatter = await call(`/cases/${writMatter.data.id}/proceedings/${openedProc.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { title: "Moved" },
+  });
+  check(
+    "a proceeding cannot be reached through a matter it does not belong to",
+    wrongMatter.status === 404,
+    `got ${wrongMatter.status}`,
+  );
+
+  const goneProc = await call(`/cases/${matter.data.id}/proceedings/${openedProc.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "DELETE",
+  });
+  check("a proceeding can be removed", goneProc.status === 204, `got ${goneProc.status}`);
+  const afterDelete = await call(`/cases/${matter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "...and the ledger keeps the record that it existed",
+    (afterDelete.data ?? []).some(
+      (e) => e.eventType === "proceeding_deleted" && /interim stay/.test(e.description),
+    ),
+    JSON.stringify((afterDelete.data ?? []).map((e) => e.eventType)),
+  );
+
   section("6a. A chamber's own case statuses");
   const stdStatuses = await call("/case-statuses", { token: as(founder), wsToken: wsTok });
   check(

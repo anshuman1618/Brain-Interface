@@ -40,6 +40,9 @@ import type {
   CaseAccess,
   CaseAccessInput,
   CaseInput,
+  CaseProceeding,
+  CaseProceedingInput,
+  CaseProceedingUpdate,
   CaseStageInput,
   CaseStages,
   CaseStatusInput,
@@ -5471,6 +5474,305 @@ export const useAddCaseStage = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAddCaseStageMutationOptions(options));
+    }
+
+export const getListCaseProceedingsUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/proceedings`
+}
+
+/**
+ * Applications, appeals, executions and the like. Visibility is inherited from the matter — whoever may read the matter may read its proceedings, and a caller who may not gets the same 404 the matter itself gives.
+ * @summary The proceedings under a matter
+ */
+export const listCaseProceedings = async (caseId: number, options?: RequestInit): Promise<CaseProceeding[]> => {
+
+  return customFetch<CaseProceeding[]>(getListCaseProceedingsUrl(caseId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCaseProceedingsQueryKey = (caseId: number,) => {
+    return [
+    `/api/cases/${caseId}/proceedings`
+    ] as const;
+    }
+
+
+export const getListCaseProceedingsQueryOptions = <TData = Awaited<ReturnType<typeof listCaseProceedings>>, TError = ErrorType<void>>(caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCaseProceedings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCaseProceedingsQueryKey(caseId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCaseProceedings>>> = ({ signal }) => listCaseProceedings(caseId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: caseId !== null && caseId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCaseProceedings>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCaseProceedingsQueryResult = NonNullable<Awaited<ReturnType<typeof listCaseProceedings>>>
+export type ListCaseProceedingsQueryError = ErrorType<void>
+
+
+/**
+ * @summary The proceedings under a matter
+ */
+
+export function useListCaseProceedings<TData = Awaited<ReturnType<typeof listCaseProceedings>>, TError = ErrorType<void>>(
+ caseId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCaseProceedings>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCaseProceedingsQueryOptions(caseId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCaseProceedingUrl = (caseId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/proceedings`
+}
+
+/**
+ * @summary Open a proceeding under a matter
+ */
+export const createCaseProceeding = async (caseId: number,
+    caseProceedingInput: CaseProceedingInput, options?: RequestInit): Promise<CaseProceeding> => {
+
+  return customFetch<CaseProceeding>(getCreateCaseProceedingUrl(caseId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(caseProceedingInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCaseProceedingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCaseProceeding>>, TError,{caseId: number;data: BodyType<CaseProceedingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCaseProceeding>>, TError,{caseId: number;data: BodyType<CaseProceedingInput>}, TContext> => {
+
+const mutationKey = ['createCaseProceeding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCaseProceeding>>, {caseId: number;data: BodyType<CaseProceedingInput>}> = (props) => {
+          const {caseId,data} = props ?? {};
+
+          return  createCaseProceeding(caseId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCaseProceedingMutationResult = NonNullable<Awaited<ReturnType<typeof createCaseProceeding>>>
+    export type CreateCaseProceedingMutationBody = BodyType<CaseProceedingInput>
+    export type CreateCaseProceedingMutationError = ErrorType<void>
+
+    /**
+ * @summary Open a proceeding under a matter
+ */
+export const useCreateCaseProceeding = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCaseProceeding>>, TError,{caseId: number;data: BodyType<CaseProceedingInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCaseProceeding>>,
+        TError,
+        {caseId: number;data: BodyType<CaseProceedingInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCaseProceedingMutationOptions(options));
+    }
+
+export const getUpdateCaseProceedingUrl = (caseId: number,
+    proceedingId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/proceedings/${proceedingId}`
+}
+
+/**
+ * Every field that changes is recorded on the matter's Activity Ledger, which is the point of the feature — a proceeding nobody can trace is a note in a title by another name.
+ * @summary Update a proceeding
+ */
+export const updateCaseProceeding = async (caseId: number,
+    proceedingId: number,
+    caseProceedingUpdate: CaseProceedingUpdate, options?: RequestInit): Promise<CaseProceeding> => {
+
+  return customFetch<CaseProceeding>(getUpdateCaseProceedingUrl(caseId,proceedingId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(caseProceedingUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateCaseProceedingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCaseProceeding>>, TError,{caseId: number;proceedingId: number;data: BodyType<CaseProceedingUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCaseProceeding>>, TError,{caseId: number;proceedingId: number;data: BodyType<CaseProceedingUpdate>}, TContext> => {
+
+const mutationKey = ['updateCaseProceeding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCaseProceeding>>, {caseId: number;proceedingId: number;data: BodyType<CaseProceedingUpdate>}> = (props) => {
+          const {caseId,proceedingId,data} = props ?? {};
+
+          return  updateCaseProceeding(caseId,proceedingId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCaseProceedingMutationResult = NonNullable<Awaited<ReturnType<typeof updateCaseProceeding>>>
+    export type UpdateCaseProceedingMutationBody = BodyType<CaseProceedingUpdate>
+    export type UpdateCaseProceedingMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a proceeding
+ */
+export const useUpdateCaseProceeding = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCaseProceeding>>, TError,{caseId: number;proceedingId: number;data: BodyType<CaseProceedingUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCaseProceeding>>,
+        TError,
+        {caseId: number;proceedingId: number;data: BodyType<CaseProceedingUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateCaseProceedingMutationOptions(options));
+    }
+
+export const getDeleteCaseProceedingUrl = (caseId: number,
+    proceedingId: number,) => {
+
+
+
+
+  return `/api/cases/${caseId}/proceedings/${proceedingId}`
+}
+
+/**
+ * For something opened by mistake. Requires `cases.write`. The deletion is recorded on the matter's ledger, so removing a proceeding does not remove the fact that it existed.
+ * @summary Delete a proceeding
+ */
+export const deleteCaseProceeding = async (caseId: number,
+    proceedingId: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteCaseProceedingUrl(caseId,proceedingId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCaseProceedingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCaseProceeding>>, TError,{caseId: number;proceedingId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCaseProceeding>>, TError,{caseId: number;proceedingId: number}, TContext> => {
+
+const mutationKey = ['deleteCaseProceeding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCaseProceeding>>, {caseId: number;proceedingId: number}> = (props) => {
+          const {caseId,proceedingId} = props ?? {};
+
+          return  deleteCaseProceeding(caseId,proceedingId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCaseProceedingMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCaseProceeding>>>
+
+    export type DeleteCaseProceedingMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a proceeding
+ */
+export const useDeleteCaseProceeding = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCaseProceeding>>, TError,{caseId: number;proceedingId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCaseProceeding>>,
+        TError,
+        {caseId: number;proceedingId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteCaseProceedingMutationOptions(options));
     }
 
 export const getListCaseStatusesUrl = () => {
