@@ -541,5 +541,44 @@ if (refused > 0) {
   );
 }
 
+/* ── Rate limits on the paths added in this batch ────────────────────────
+   The limiter is the last line before a loop, and a new endpoint arrives
+   without one unless somebody remembers. Two are worth pinning: the
+   consultation request, because one call fans out to a notification per
+   member of the chamber, and the vocabulary writes, because nothing prunes
+   `workspace_status_labels` so the damage is cumulative rather than
+   transient.
+
+   Reads on the vocabulary paths must NOT be limited — every status and stage
+   picker fetches them — so that is asserted too, and it is the half that
+   would break the interface rather than merely annoy a script. */
+section("Rate limits on the new write paths");
+
+const vocabReads = [];
+for (let i = 0; i < 14; i += 1) {
+  const r = await call("/case-statuses", { token: as(`a.admin+${suffix}@a.test`), wsToken: aTok });
+  vocabReads.push(r.status);
+}
+check(
+  "reading the status vocabulary is not rate limited",
+  vocabReads.every((st) => st === 200),
+  JSON.stringify(vocabReads),
+);
+
+let vocabLimited = false;
+for (let i = 0; i < 14; i += 1) {
+  const r = await call("/case-statuses", {
+    token: as(`a.admin+${suffix}@a.test`),
+    wsToken: aTok,
+    method: "POST",
+    body: { label: `Bulk status ${i}` },
+  });
+  if (r.status === 429) {
+    vocabLimited = true;
+    break;
+  }
+}
+check("writing statuses in a loop is refused before long", vocabLimited);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

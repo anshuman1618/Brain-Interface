@@ -705,6 +705,170 @@ if (phase === "setup") {
     JSON.stringify((afterDelete.data ?? []).map((e) => e.eventType)),
   );
 
+  /*
+   * A client asking for a consultation.
+   *
+   * The assertions that matter are the boundaries: a client may ask, may not
+   * schedule, and may not ask about a matter that is not theirs. A request
+   * with a time on it would be a client booking an advocate's diary, so the
+   * preferred time must land in the notes and `scheduledAt` must stay null
+   * until the chamber confirms.
+   */
+  section("6d. A client requests a consultation");
+  const clientAsk = await call("/consultation-requests", {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "POST",
+    body: {
+      caseId: matter.data.id,
+      title: "The notice received on 12 March",
+      notes: "I do not understand what it asks for.",
+      preferredAt: new Date(Date.now() + 86_400_000).toISOString(),
+    },
+  });
+  check("a client can ask for one", clientAsk.status === 201, `got ${clientAsk.status}`);
+  check(
+    "...and it arrives unscheduled, awaiting the chamber",
+    clientAsk.data?.status === "requested" && clientAsk.data?.scheduledAt == null,
+    JSON.stringify([clientAsk.data?.status, clientAsk.data?.scheduledAt]),
+  );
+  check(
+    "...with the preferred time recorded as a preference, not as the appointment",
+    /would prefer/i.test(clientAsk.data?.notes ?? ""),
+    clientAsk.data?.notes,
+  );
+  check(
+    "...and consent not assumed on the client's behalf",
+    clientAsk.data?.consentGiven === false,
+    `${clientAsk.data?.consentGiven}`,
+  );
+
+  // The boundary that makes this safe to expose: a client still cannot create
+  // a real consultation, which is what would let them set a time.
+  const clientSchedules = await call("/consultations", {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "POST",
+    body: {
+      caseId: matter.data.id,
+      title: "One I scheduled myself",
+      consentGiven: true,
+      category: "legal_solution",
+      scheduledAt: new Date().toISOString(),
+    },
+  });
+  check(
+    "a client still cannot schedule one (403)",
+    clientSchedules.status === 403,
+    `got ${clientSchedules.status}`,
+  );
+
+  // And cannot ask about somebody else's matter. `writMatter` belongs to the
+  // chamber and the client is pinned to `matter`.
+  const clientAsksElsewhere = await call("/consultation-requests", {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "POST",
+    body: { caseId: writMatter.data.id, title: "A matter that is not mine" },
+  });
+  check(
+    "...nor ask about a matter that is not theirs (404)",
+    clientAsksElsewhere.status === 404,
+    `got ${clientAsksElsewhere.status}`,
+  );
+
+  // The chamber turns it into an appointment.
+  const when = new Date(Date.now() + 172_800_000).toISOString();
+  const confirmed = await call(`/consultations/${clientAsk.data.id}`, {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "PATCH",
+    body: { status: "scheduled", scheduledAt: when },
+  });
+  check(
+    "the chamber confirms it with a time",
+    confirmed.status === 200 &&
+      confirmed.data?.status === "scheduled" &&
+      confirmed.data?.scheduledAt != null,
+    JSON.stringify([confirmed.status, confirmed.data?.status, confirmed.data?.scheduledAt]),
+  );
+
+  /*
+   * Who hears about it, which is the part that was wrong first.
+   *
+   * The notification fan-out originally selected every ACTIVE MEMBERSHIP —
+   * which includes other clients — so one client's request would have pushed
+   * their matter's title to every other client in the chamber. Every
+   * membership in a workspace is not a colleague.
+   */
+  // A SECOND client, and the reason there is one: the requesting client was
+  // always excluded by the `clerkId !== me` filter, so checking their own
+  // inbox would have passed whether or not the bug existed. It takes a
+  // bystander to prove a fan-out does not reach them.
+  const otherClientPre = (await call("/session", { token: as("arch.client2@x.test", "B Client") }))
+    .data;
+  const otherMatter = await call("/cases", {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: {
+      title: "The other client's matter",
+      filingRef: "CV-2026-021",
+      clientId: otherClientPre.userId,
+    },
+  });
+  await call("/invites", {
+    token: as(founder),
+    wsToken: wsTok,
+    method: "POST",
+    body: {
+      email: "arch.client2@x.test",
+      role: "client",
+      caseIds: [otherMatter.data.id],
+    },
+  });
+  const otherClient = (await call("/session", { token: as("arch.client2@x.test", "B Client") }))
+    .data;
+
+  // The request happens AFTER the bystander exists, or the fan-out could not
+  // have reached them whatever it selected.
+  const secondAsk = await call("/consultation-requests", {
+    token: as("arch.client@x.test"),
+    wsToken: client.workspaceToken,
+    method: "POST",
+    body: { caseId: matter.data.id, title: "A second question about my notice" },
+  });
+  check("the request goes through", secondAsk.status === 201, `got ${secondAsk.status}`);
+
+  const bystanderInbox = await call("/notifications", {
+    token: as("arch.client2@x.test"),
+    wsToken: otherClient.workspaceToken,
+  });
+  check(
+    "another client is NOT told about it, nor the matter it names",
+    !(bystanderInbox.data ?? []).some(
+      (n) =>
+        /asked for a consultation/i.test(n.message ?? "") || /my notice/i.test(n.message ?? ""),
+    ),
+    JSON.stringify((bystanderInbox.data ?? []).map((n) => n.message).slice(0, 3)),
+  );
+  const staffInbox = await call("/notifications", { token: as(founder), wsToken: wsTok });
+  check(
+    "...but the chamber is",
+    (staffInbox.data ?? []).some((n) => /asked for a consultation/i.test(n.message ?? "")),
+    JSON.stringify((staffInbox.data ?? []).map((n) => n.message).slice(0, 3)),
+  );
+
+  const askLedger = await call(`/cases/${matter.data.id}/timeline`, {
+    token: as(founder),
+    wsToken: wsTok,
+  });
+  check(
+    "the request is on the matter's ledger",
+    (askLedger.data ?? []).some((e) => /Consultation requested/i.test(e.description)),
+    JSON.stringify((askLedger.data ?? []).map((e) => e.description).slice(-4)),
+  );
+
   section("6a. A chamber's own case statuses");
   const stdStatuses = await call("/case-statuses", { token: as(founder), wsToken: wsTok });
   check(

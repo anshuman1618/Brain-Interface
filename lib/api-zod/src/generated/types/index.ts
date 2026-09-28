@@ -82,6 +82,7 @@ export * from './consultation';
 export * from './consultationCategory';
 export * from './consultationInput';
 export * from './consultationInputCategory';
+export * from './consultationRequestInput';
 export * from './consultationStatus';
 export * from './consultationUpdate';
 export * from './consultationUpdateCategory';

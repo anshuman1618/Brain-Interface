@@ -2355,7 +2355,7 @@ export const ListConsultationsResponseItem = zod.object({
   "title": zod.string(),
   "notes": zod.string().nullish(),
   "consentGiven": zod.boolean(),
-  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "status": zod.enum(['requested', 'scheduled', 'completed', 'cancelled']),
   "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
@@ -2384,7 +2384,38 @@ export const CreateConsultationResponse = zod.object({
   "title": zod.string(),
   "notes": zod.string().nullish(),
   "consentGiven": zod.boolean(),
-  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "status": zod.enum(['requested', 'scheduled', 'completed', 'cancelled']),
+  "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
+  "scheduledAt": zod.coerce.date().nullish(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * For a client. Creates a consultation in the `requested` state with no time on it — the chamber sets that by confirming it. Deliberately not `POST /consultations`, which needs `consultations.write`: writing a consultation sets the time, the category and the consent flag, and a client choosing when an advocate is available is not something this product should allow. The matter must be one the caller can already see, so a client can only ask about their own.
+ * @summary Ask the chamber for a consultation
+ */
+export const requestConsultationBodyTitleMin = 3;
+export const requestConsultationBodyTitleMax = 200;
+
+export const requestConsultationBodyNotesMax = 2000;
+
+
+
+export const RequestConsultationBody = zod.object({
+  "caseId": zod.number(),
+  "title": zod.string().min(requestConsultationBodyTitleMin).max(requestConsultationBodyTitleMax).describe('What the client wants to discuss, in their words.'),
+  "notes": zod.string().max(requestConsultationBodyNotesMax).optional(),
+  "preferredAt": zod.coerce.date().optional().describe('When the client would prefer, recorded in the notes rather than as the appointment time. A request is not a booking; only the chamber writes `scheduledAt`.\n')
+})
+
+export const RequestConsultationResponse = zod.object({
+  "id": zod.number(),
+  "caseId": zod.number(),
+  "title": zod.string(),
+  "notes": zod.string().nullish(),
+  "consentGiven": zod.boolean(),
+  "status": zod.enum(['requested', 'scheduled', 'completed', 'cancelled']),
   "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
@@ -2404,7 +2435,7 @@ export const GetConsultationResponse = zod.object({
   "title": zod.string(),
   "notes": zod.string().nullish(),
   "consentGiven": zod.boolean(),
-  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "status": zod.enum(['requested', 'scheduled', 'completed', 'cancelled']),
   "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()
@@ -2421,7 +2452,7 @@ export const UpdateConsultationParams = zod.object({
 export const UpdateConsultationBody = zod.object({
   "title": zod.string().optional(),
   "notes": zod.string().optional(),
-  "status": zod.enum(['scheduled', 'completed', 'cancelled']).optional(),
+  "status": zod.enum(['requested', 'scheduled', 'completed', 'cancelled']).optional(),
   "category": zod.enum(['legal_solution', 'regulatory_solution', 'business_consultation', 'procedural_compliance']).optional(),
   "scheduledAt": zod.coerce.date().optional()
 })
@@ -2432,7 +2463,7 @@ export const UpdateConsultationResponse = zod.object({
   "title": zod.string(),
   "notes": zod.string().nullish(),
   "consentGiven": zod.boolean(),
-  "status": zod.enum(['scheduled', 'completed', 'cancelled']),
+  "status": zod.enum(['requested', 'scheduled', 'completed', 'cancelled']),
   "category": zod.union([zod.literal('legal_solution'),zod.literal('regulatory_solution'),zod.literal('business_consultation'),zod.literal('procedural_compliance'),zod.literal(null)]).nullish(),
   "scheduledAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date()

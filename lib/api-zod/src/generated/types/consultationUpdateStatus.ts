@@ -10,6 +10,7 @@ export type ConsultationUpdateStatus = typeof ConsultationUpdateStatus[keyof typ
 
 
 export const ConsultationUpdateStatus = {
+  requested: 'requested',
   scheduled: 'scheduled',
   completed: 'completed',
   cancelled: 'cancelled',

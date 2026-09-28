@@ -41,6 +41,16 @@ export const CAPABILITIES = [
   "tasks.delete",
   "consultations.read",
   "consultations.write",
+  /**
+   * Ask for a consultation without being able to schedule one.
+   *
+   * Deliberately its own capability rather than giving a client
+   * `consultations.write`: writing a consultation sets the time, the category
+   * and the consent flag, and a client choosing when an advocate is available
+   * is not a thing this product should let them do. A request is a message the
+   * chamber turns into an appointment.
+   */
+  "consultations.request",
   "documents.read",
   "documents.write",
   "document_requests.read",
@@ -206,6 +216,8 @@ const ROLE_DEFINITIONS: Record<WorkspaceRole, RoleDefinition> = {
       "documents.read",
       "documents.write",
       "consultations.read",
+      // Ask for one; the chamber decides when. See the capability's note.
+      "consultations.request",
       "document_requests.read",
       "document_requests.respond",
       "feedback.write",

@@ -3778,3 +3778,81 @@ passing vacuously. And the trial-allowance drain loop in `drafting.mjs` had a
 comment warning it had once passed vacuously by drafting nothing; it was about
 to do so again by a second route, since every call would have been a 400 on the
 kind and drained no allowance at all.
+
+---
+
+## A client can ask for a consultation, and one query nearly leaked because of it
+
+A client holds `consultations.read` and could see appointments they had no way
+to request. Now they can ask.
+
+**Its own capability and its own route**, not `POST /consultations` with a
+looser gate. Writing a consultation sets the time, the category and the
+consent flag; a client choosing when an advocate is available is not something
+this product should allow. `consultations.request` creates a row in the
+`requested` state with `scheduledAt` null, and the chamber turns it into an
+appointment by patching it — which still needs `consultations.write`.
+
+**A preferred time goes in the notes, not in `scheduledAt`.** That column is
+what the calendar draws and what everyone treats as settled. Writing a
+client's preference there would put an appointment nobody agreed to in front
+of the whole chamber. The dialog says so in as many words, because a client
+who reads a request as a booking turns up on a day nobody agreed to.
+
+**The bug, which I wrote and then found.** The notification fan-out selected
+every ACTIVE MEMBERSHIP in the workspace — and a workspace's memberships
+include its clients. One client asking for a consultation would have pushed
+their matter's title to every other client in the chamber. It is the same
+mistake as trusting a user id, one table along: _every membership in a
+workspace is not a colleague._ Filtered now by the capability that describes
+who can actually answer, `consultations.write`.
+
+**The first test for it was vacuous and I nearly shipped it.** It checked the
+requesting client's own inbox — and the requester was already excluded by the
+`clerkId !== me` filter, so it passed whether or not the bug existed. It takes
+a **bystander** to prove a fan-out does not reach them, so the suite now
+creates a second client with their own matter and asserts on their inbox.
+Verified by reintroducing the bug and watching it fail with the leaked message
+quoted in the output, then restoring the fix. A negative assertion nobody has
+seen fail is a negative assertion nobody should believe.
+
+---
+
+## The security work that actually raises the cost of an attack
+
+You asked for right-click blocking, text-selection blocking and keyboard-
+shortcut blocking, and chose to skip them once the trade was clear. Recording
+why, because it will come up again: none of the three stops anybody — view
+source, devtools, the network tab and the API itself are all still there — and
+each has a real cost here. An advocate who cannot copy a case citation or a
+party name out of a matter is slowed down every day, and a screen reader
+breaks outright. They deter a curious client for about forty seconds.
+
+What was done instead:
+
+**Rate limits on the two shapes this batch added.** Not because the requests
+are expensive, but because of what they impose on others. A consultation
+request fans out to one notification per person who can answer it, so it is
+6/min per user. The vocabulary writes are 10/min because **nothing deletes
+from `workspace_status_labels` or `case_stage_labels` by design** — a loop
+adding statuses grows a table that can only be read and never pruned, and
+every picker in the chamber gets permanently longer. Cumulative damage earns a
+tighter limit than transient damage.
+
+**Reads on those paths are deliberately NOT limited**, and the suite asserts
+it. `app.use` on a path matches every method, and the status and stage lists
+are fetched by every picker and the register's chips — a 10/min ceiling would
+have broken the interface for anyone opening ten matters in a minute. That is
+the half of the change that would have hurt, so it is the half with a test.
+
+**DEPLOYMENT.md §6 now states what the application cannot do for itself.** The
+limiter's counters are in process memory: fine with one instance, doubled with
+two, emptied by a restart. And they are per identified caller _after_
+authentication, so nothing in the application sees a volumetric flood or a
+botnet sending one request each. That is what a WAF is for, and the section is
+a Cloudflare runbook — proxy the domain, Full (strict), managed ruleset in Log
+mode for a week first because a legal platform sends citations and clause text
+that naive injection signatures dislike, an edge rate limit well above the
+application's own, and then **restrict Render's IP allow list to Cloudflare's
+ranges**. That last step is the one people skip, and skipping it makes the
+other four cosmetic.

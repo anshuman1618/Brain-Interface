@@ -2386,6 +2386,7 @@ export type ConsultationStatus = typeof ConsultationStatus[keyof typeof Consulta
 
 
 export const ConsultationStatus = {
+  requested: 'requested',
   scheduled: 'scheduled',
   completed: 'completed',
   cancelled: 'cancelled',
@@ -2443,6 +2444,7 @@ export type ConsultationUpdateStatus = typeof ConsultationUpdateStatus[keyof typ
 
 
 export const ConsultationUpdateStatus = {
+  requested: 'requested',
   scheduled: 'scheduled',
   completed: 'completed',
   cancelled: 'cancelled',
@@ -2464,6 +2466,20 @@ export interface ConsultationUpdate {
   status?: ConsultationUpdateStatus;
   category?: ConsultationUpdateCategory;
   scheduledAt?: string;
+}
+
+export interface ConsultationRequestInput {
+  caseId: number;
+  /**
+     * What the client wants to discuss, in their words.
+     * @minLength 3
+     * @maxLength 200
+     */
+  title: string;
+  /** @maxLength 2000 */
+  notes?: string;
+  /** When the client would prefer, recorded in the notes rather than as the appointment time. A request is not a booking; only the chamber writes `scheduledAt`. */
+  preferredAt?: string;
 }
 
 export interface TaskStatusCount {

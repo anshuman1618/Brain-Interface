@@ -8,6 +8,7 @@ import {
   type Invoice,
 } from "@workspace/api-client-react";
 import { Card } from "@/components/ui/card";
+import { RequestConsultation } from "@/components/request-consultation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -243,6 +244,9 @@ function CaseOverviewCard({
             {caseTitle}
           </h3>
         </div>
+        {/* On the matter it concerns: "which matter is this about" is the one
+            thing a client would otherwise get wrong and the chamber chase. */}
+        <RequestConsultation caseId={caseId} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">

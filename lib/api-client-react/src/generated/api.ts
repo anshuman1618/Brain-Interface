@@ -59,6 +59,7 @@ import type {
   ConflictCheckInput,
   Consultation,
   ConsultationInput,
+  ConsultationRequestInput,
   ConsultationUpdate,
   Court,
   DashboardSummary,
@@ -6747,6 +6748,78 @@ export const useCreateConsultation = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateConsultationMutationOptions(options));
+    }
+
+export const getRequestConsultationUrl = () => {
+
+
+
+
+  return `/api/consultation-requests`
+}
+
+/**
+ * For a client. Creates a consultation in the `requested` state with no time on it — the chamber sets that by confirming it. Deliberately not `POST /consultations`, which needs `consultations.write`: writing a consultation sets the time, the category and the consent flag, and a client choosing when an advocate is available is not something this product should allow. The matter must be one the caller can already see, so a client can only ask about their own.
+ * @summary Ask the chamber for a consultation
+ */
+export const requestConsultation = async (consultationRequestInput: ConsultationRequestInput, options?: RequestInit): Promise<Consultation> => {
+
+  return customFetch<Consultation>(getRequestConsultationUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(consultationRequestInput)
+  }
+);}
+
+
+
+
+
+export const getRequestConsultationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestConsultation>>, TError,{data: BodyType<ConsultationRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestConsultation>>, TError,{data: BodyType<ConsultationRequestInput>}, TContext> => {
+
+const mutationKey = ['requestConsultation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestConsultation>>, {data: BodyType<ConsultationRequestInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestConsultation(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestConsultationMutationResult = NonNullable<Awaited<ReturnType<typeof requestConsultation>>>
+    export type RequestConsultationMutationBody = BodyType<ConsultationRequestInput>
+    export type RequestConsultationMutationError = ErrorType<void>
+
+    /**
+ * @summary Ask the chamber for a consultation
+ */
+export const useRequestConsultation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestConsultation>>, TError,{data: BodyType<ConsultationRequestInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestConsultation>>,
+        TError,
+        {data: BodyType<ConsultationRequestInput>},
+        TContext
+      > => {
+      return useMutation(getRequestConsultationMutationOptions(options));
     }
 
 export const getGetConsultationUrl = (id: number,) => {

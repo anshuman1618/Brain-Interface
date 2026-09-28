@@ -2067,6 +2067,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/Consultation"
 
+  /consultation-requests:
+    post:
+      operationId: requestConsultation
+      tags: [consultations]
+      summary: Ask the chamber for a consultation
+      description: >
+        For a client. Creates a consultation in the `requested` state with no
+        time on it — the chamber sets that by confirming it. Deliberately not
+        `POST /consultations`, which needs `consultations.write`: writing a
+        consultation sets the time, the category and the consent flag, and a
+        client choosing when an advocate is available is not something this
+        product should allow. The matter must be one the caller can already
+        see, so a client can only ask about their own.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsultationRequestInput"
+      responses:
+        "201":
+          description: The request, awaiting the chamber
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Consultation"
+        "404":
+          description: No such matter, or not one this caller may see
+
   /consultations/{id}:
     get:
       operationId: getConsultation
@@ -5153,7 +5182,7 @@ components:
           type: boolean
         status:
           type: string
-          enum: [scheduled, completed, cancelled]
+          enum: [requested, scheduled, completed, cancelled]
         category:
           type: ["string", "null"]
           enum:
@@ -5200,13 +5229,35 @@ components:
           type: string
         status:
           type: string
-          enum: [scheduled, completed, cancelled]
+          enum: [requested, scheduled, completed, cancelled]
         category:
           type: string
           enum: [legal_solution, regulatory_solution, business_consultation, procedural_compliance]
         scheduledAt:
           type: string
           format: date-time
+
+    ConsultationRequestInput:
+      type: object
+      required: [caseId, title]
+      properties:
+        caseId:
+          type: integer
+        title:
+          type: string
+          minLength: 3
+          maxLength: 200
+          description: What the client wants to discuss, in their words.
+        notes:
+          type: string
+          maxLength: 2000
+        preferredAt:
+          type: string
+          format: date-time
+          description: >
+            When the client would prefer, recorded in the notes rather than as
+            the appointment time. A request is not a booking; only the chamber
+            writes `scheduledAt`.
 
     # ── KPI ───────────────────────────────────────────────────────────────
     KpiDashboard:

@@ -7,6 +7,7 @@ import {
   getListConsultationsQueryKey,
   type ConsultationInputCategory,
 } from "@workspace/api-client-react";
+import { type Consultation } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Table,
@@ -30,8 +31,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle2, Plus } from "lucide-react";
+import { CheckCircle2, Plus, CalendarPlus } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
+import { userMessage } from "@/lib/errors";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { LoadFailed } from "@/components/load-failed";
@@ -52,6 +54,40 @@ export default function ConsultationsPage() {
   // Empty until the advocate picks one; the Create button stays disabled meanwhile.
   const [newCategory, setNewCategory] = useState<ConsultationInputCategory | "">("");
   const [newConsent, setNewConsent] = useState(false);
+
+  /*
+   * Confirming a client's request: the chamber sets the time, not the client.
+   *
+   * A request arrives with `scheduledAt` null and the client's preference in
+   * the notes — see `POST /consultation-requests`. This is where it becomes an
+   * appointment, which is why the time is required here and was refused there.
+   */
+  const [confirming, setConfirming] = useState<Consultation | null>(null);
+  const [confirmAt, setConfirmAt] = useState("");
+
+  const confirmRequest = () => {
+    if (!confirming || !confirmAt) return;
+    updateConsultation.mutate(
+      {
+        id: confirming.id,
+        data: { status: "scheduled", scheduledAt: new Date(confirmAt).toISOString() },
+      },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListConsultationsQueryKey() });
+          setConfirming(null);
+          setConfirmAt("");
+          toast({ title: "Confirmed", description: "The client's request now has a time." });
+        },
+        onError: (err: Error) =>
+          toast({
+            title: "Could not confirm it",
+            description: userMessage(err),
+            variant: "destructive",
+          }),
+      },
+    );
+  };
 
   // Closing a consultation is the one state change this screen makes. It used
   // to be the end of a recording that never happened; now it is what it always
@@ -234,17 +270,32 @@ export default function ConsultationsPage() {
                   <TableCell>
                     <span
                       className={`inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-semibold font-mono uppercase tracking-wider ${
-                        c.status === "scheduled"
-                          ? "bg-secondary text-secondary-foreground"
-                          : c.status === "completed"
-                            ? "bg-success text-success-foreground"
-                            : "bg-muted text-muted-foreground"
+                        c.status === "requested"
+                          ? // A client is waiting on somebody. Loud on purpose:
+                            // a request that reads like every other row is a
+                            // request nobody answers.
+                            "bg-destructive/10 text-destructive"
+                          : c.status === "scheduled"
+                            ? "bg-secondary text-secondary-foreground"
+                            : c.status === "completed"
+                              ? "bg-success text-success-foreground"
+                              : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {c.status}
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
+                    {c.status === "requested" && (
+                      <Button
+                        size="sm"
+                        className="font-mono uppercase tracking-wider"
+                        onClick={() => setConfirming(c)}
+                        disabled={updateConsultation.isPending}
+                      >
+                        <CalendarPlus className="mr-2 h-4 w-4" /> Confirm a time
+                      </Button>
+                    )}
                     {c.status === "scheduled" && (
                       <Button
                         size="sm"
@@ -268,6 +319,46 @@ export default function ConsultationsPage() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={confirming !== null} onOpenChange={(o) => !o && setConfirming(null)}>
+        <DialogContent className="rounded-lg border-border sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="font-mono uppercase tracking-widest">
+              Confirm a time
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <p className="text-sm font-medium">{confirming?.title}</p>
+            {confirming?.notes && (
+              <p className="whitespace-pre-line rounded-[var(--radius)] bg-muted/40 p-2 text-xs leading-relaxed text-muted-foreground">
+                {confirming.notes}
+              </p>
+            )}
+            <div className="grid gap-2">
+              <Label htmlFor="confirm-at">When</Label>
+              <Input
+                id="confirm-at"
+                type="datetime-local"
+                value={confirmAt}
+                onChange={(e) => setConfirmAt(e.target.value)}
+                className="rounded-lg"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" className="rounded-lg" onClick={() => setConfirming(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="rounded-lg font-mono uppercase tracking-wider"
+                disabled={!confirmAt || updateConsultation.isPending}
+                onClick={confirmRequest}
+              >
+                Confirm
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={newModalOpen} onOpenChange={setNewModalOpen}>
         <DialogContent className="sm:max-w-[425px] rounded-lg border-border">

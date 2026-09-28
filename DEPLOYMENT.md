@@ -548,6 +548,63 @@ a redeploy, not a restart.
 
 ## 6. Harden the edge
 
+### What the application already does, and what it cannot
+
+Before reaching for a product, know what is in place. The API rate-limits by
+bucket, in process memory:
+
+| Bucket                                 | Limit             | Keyed by |
+| -------------------------------------- | ----------------- | -------- |
+| `auth` (`/session`, `/workspaces`)     | 30/min            | address  |
+| `access-requests`                      | 20/min            | address  |
+| `privacy`                              | 20/min            | user     |
+| `service-enquiries`                    | 10/min            | user     |
+| `cause-list-sync`                      | 6/min             | user     |
+| `drafting`                             | 6/min             | user     |
+| `drafting-exemplar`                    | 10/min            | user     |
+| `consultation-request`                 | 6/min             | user     |
+| `vocabulary` (status/stage **writes**) | 10/min            | user     |
+| `expensive` (KPI, invoice PDF)         | 20/min            | user     |
+| `read` / `write` (everything else)     | 300 / 120 per min | user     |
+
+**Two limits of that, and they are the reason a WAF is worth having.**
+
+1. **The counters live in process memory.** One instance today, so they work.
+   The moment there are two, each holds its own counters and every limit
+   doubles — and a restart empties them. This is not a bug to fix in the
+   application: a shared counter means a shared store, and a rate limiter that
+   fails when its store is unreachable is a worse outage than the one it
+   prevents.
+2. **They are per identified caller, after authentication.** Nothing here
+   stops a flood that never gets as far as a bucket — a volumetric attack, a
+   scan of the whole URL space, or a botnet each sending one request.
+
+### Put Cloudflare in front
+
+This is the piece the application cannot do for itself, and it is free at the
+tier this needs.
+
+1. Move the domain's nameservers to Cloudflare and let it proxy
+   `www.lexpractice.co` (orange cloud). Render stays the origin.
+2. Set SSL/TLS mode to **Full (strict)** — Render presents a valid
+   certificate, and anything less lets the hop from Cloudflare to Render be
+   intercepted.
+3. Turn on the **Managed Ruleset** (OWASP core) in _Log_ mode first. Look at a
+   week of it before enforcing: a legal platform sends things — case citations
+   with quotes, clause text with angle brackets — that naive SQL-injection
+   signatures dislike.
+4. Add a rate-limiting rule at the edge for `/api/*`: something like 600
+   requests per minute per IP, well above the application's own ceilings so it
+   catches only what the application would never see anyway.
+5. **Restrict the origin.** Once traffic is proxied, set Render's IP allow
+   list to Cloudflare's published ranges, or an attacker simply addresses
+   `lex-practice.onrender.com` and the WAF is decoration.
+
+Step 5 is the one people skip, and skipping it makes the other four
+cosmetic.
+
+### The headers the API already sets
+
 The API sets these on every response already:
 
 | Header                      | Value                                                   |

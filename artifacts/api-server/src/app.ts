@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type RequestHandler } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
@@ -149,6 +149,42 @@ app.use(
   "/api/cause-list/sync",
   rateLimit({ name: "cause-list-sync", max: 6, windowMs: 60_000, perUser: true }),
 );
+
+/*
+ * A client asking for a consultation fans out: one request writes a
+ * notification row per member of the chamber who can answer it. That is the
+ * shape worth limiting — not the cost of the request, but the cost it imposes
+ * on everyone else's inbox. Six a minute is more than anybody asks and far
+ * less than a script, and it is keyed per user so one client cannot spend
+ * another's budget.
+ */
+app.use(
+  "/api/consultation-requests",
+  rateLimit({ name: "consultation-request", max: 6, windowMs: 60_000, perUser: true }),
+);
+
+/*
+ * Extending a chamber's controlled vocabularies. Nothing deletes from
+ * `workspace_status_labels` or `case_stage_labels` by design, so a loop adding
+ * statuses grows a table that can only be read and never pruned — every status
+ * picker in the chamber gets longer, permanently. Tighter than an ordinary
+ * write because the damage is cumulative rather than transient.
+ */
+const vocabularyLimiter = rateLimit({
+  name: "vocabulary",
+  max: 10,
+  windowMs: 60_000,
+  perUser: true,
+});
+// WRITES ONLY. Both paths are read constantly — every status picker, every
+// stage picker, the register's chips — and a 10/min ceiling on the reads
+// would break the interface for anyone opening more than ten matters in a
+// minute. `app.use` on a path matches every method, so the guard is here
+// rather than in the limiter.
+const vocabularyWrite: RequestHandler = (req, res, next) =>
+  req.method === "GET" || req.method === "HEAD" ? next() : vocabularyLimiter(req, res, next);
+app.use("/api/case-statuses", vocabularyWrite);
+app.use("/api/cases/:id/stages", vocabularyWrite);
 
 /**
  * The expensive reads. 20/min is far above any human use — opening every
