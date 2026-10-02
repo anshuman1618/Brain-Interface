@@ -66,6 +66,8 @@
   --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
   --color-sidebar-accent-border: var(--sidebar-accent-border);
   --color-sidebar-ring: hsl(var(--sidebar-ring));
+  --color-sidebar-destructive: hsl(var(--sidebar-destructive));
+  --color-sidebar-muted-foreground: hsl(var(--sidebar-muted-foreground));
 
   --font-sans: var(--app-font-sans);
   --font-serif: var(--app-font-serif);
@@ -120,56 +122,81 @@
   --elevate-1: rgba(36, 23, 8, 0.04);
   --elevate-2: rgba(36, 23, 8, 0.09);
 
-  /* Dark-wood neumorphic palette.
-     One warm ground (#e6ded2) that everything is either carved out of or
-     extruded from, rather than a set of separately coloured surfaces. Hues stay
-     in the 27-36 band so nothing reads as a different material; separation
-     comes from lightness and from relief, not from hue. */
-  --background: 36 29% 86%; /* ground      #e6ded2 */
-  --foreground: 32 64% 9%; /* ink         #241708 */
-  --border: 35 25% 77%; /* line        #d3c7b6 */
-  --card: 35 31% 89%; /* raised      #ece5db */
-  --card-foreground: 32 64% 9%;
-  --card-border: 35 25% 77%;
+  /* Dark-wood neumorphic palette, with the contrast pushed up.
+     One warm ground (#e6ddd1) that most things are carved out of or extruded
+     from. Hues stay in the 27-38 band so nothing reads as a different
+     material; separation comes from lightness and from relief, not from hue.
 
-  /* The rail sits on the same ground as the page. A neumorphic surface is one
-     continuous sheet, so giving the sidebar its own background would put a seam
-     down the middle of the material. */
-  --sidebar: 36 29% 86%;
-  --sidebar-foreground: 30 29% 28%; /* ink2        #5a4632 */
-  --sidebar-border: 35 25% 77%;
-  --sidebar-primary: 29 53% 23%; /* accent      #5b3a1c */
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 35 30% 78%; /* accent-soft #d8cab6 */
-  --sidebar-accent-foreground: 29 57% 15%; /* accent-ink  #3a2410 */
-  --sidebar-ring: 29 53% 23%;
+     Two things changed from the first version of this palette, both because
+     the page read as too pale to a reader rather than to a contrast checker:
+     the ink and the accent stepped darker, and the muted text with them. Every
+     pairing is computed against WCAG AA rather than chosen by eye — the table
+     is in DECISIONS.md and the browser suite now measures it on every run.
 
-  --popover: 35 31% 89%;
-  --popover-foreground: 32 64% 9%;
-  --popover-border: 35 25% 77%;
-  --primary: 29 53% 23%;
-  --primary-foreground: 0 0% 100%;
-  --secondary: 35 30% 78%;
-  --secondary-foreground: 29 57% 15%;
-  --muted: 35 26% 82%;
-  --muted-foreground: 34 24% 34%; /* ink3        #6b5942 */
-  --accent: 35 30% 78%;
-  --accent-foreground: 29 57% 15%;
-  --destructive: 6 70% 32%; /* crit        #8a2318 */
+     THE RAIL IS THE EXCEPTION, and a deliberate one. See --sidebar below. */
+  --background: 36 29% 86%; /* ground      #e6ddd1 */
+  --foreground: 32 66% 7%; /* ink         #1e1306 */
+  --border: 35 25% 70%; /* line        #c6b69f */
+  --card: 35 33% 91%; /* raised      #f0e9e0 */
+  --card-foreground: 32 66% 7%;
+  --card-border: 35 25% 70%;
+
+  /* The rail no longer shares the page ground, and that reverses the rule this
+     block used to state. The old reasoning was sound — a neumorphic surface is
+     one continuous sheet, and a differently-coloured sidebar puts a seam down
+     the middle of the material. The seam is now the point: a dark brown rail
+     against a beige page is the strongest piece of structure on the screen,
+     it tells you instantly where navigation ends and work begins, and at
+     11.2:1 against the ground nobody has to hunt for the edge.
+
+     What that costs, and how it is paid: relief inside the rail would be wrong
+     here, because --lift and --sink are sampled off the PAGE ground and a
+     beige highlight on dark brown reads as a mistake. The [data-rail] block
+     further down re-samples both off the rail's own colour. */
+  --sidebar: 28 42% 14%; /* rail        #332315 */
+  --sidebar-foreground: 36 38% 86%; /* rail-ink    #e9dece */
+  --sidebar-border: 28 34% 22%;
+  --sidebar-primary: 38 70% 62%; /* brass       #e2b465 */
+  --sidebar-primary-foreground: 29 62% 10%;
+  --sidebar-accent: 28 34% 24%; /* rail-raised #523c28 */
+  --sidebar-accent-foreground: 38 62% 84%;
+  --sidebar-ring: 38 70% 62%;
+  /* The rail needs its own red and its own dim ink. --destructive is #7f1f15,
+     a dark red chosen to sit on a beige page; on a near-black brown rail it is
+     all but invisible (1.5:1). --muted-foreground has the same problem. Both
+     measured on the rail, not on the page: 5.02:1 and 7.20:1. */
+  --sidebar-destructive: 6 70% 65%;
+  --sidebar-muted-foreground: 36 24% 68%;
+
+  --popover: 35 33% 91%;
+  --popover-foreground: 32 66% 7%;
+  --popover-border: 35 25% 70%;
+  --primary: 28 60% 18%; /* walnut      #492c12 */
+  --primary-foreground: 36 44% 95%;
+  --secondary: 33 30% 74%;
+  --secondary-foreground: 29 60% 12%;
+  --muted: 35 26% 80%;
+  --muted-foreground: 32 30% 28%; /* ink3        #5d4932 */
+  --accent: 33 30% 74%;
+  --accent-foreground: 29 60% 12%;
+  --destructive: 6 72% 29%; /* crit        #7f1f15 */
   --destructive-foreground: 0 0% 100%;
-  --warning: 35 45% 82%; /* warn-soft   #e6d5bd */
-  --warning-foreground: 28 77% 31%; /* warn        #8a4a12 */
-  --success: 79 20% 81%; /* ok-soft     #d3d9c6 */
-  --success-foreground: 105 25% 28%; /* ok         #3f5a36 */
-  --input: 34 23% 67%; /* line2       #bfae98 */
-  --ring: 29 53% 23%;
+  --warning: 38 52% 84%;
+  --warning-foreground: 27 82% 24%;
+  --success: 95 24% 84%;
+  --success-foreground: 105 32% 22%;
+  /* 3.17:1 on the ground. A form control's boundary is a UI component under
+     WCAG 1.4.11 and has to be identifiable on its own — the recessed relief
+     that also marks a field is exactly what low vision may not perceive. */
+  --input: 33 26% 45%; /* line2       #917655 */
+  --ring: 28 60% 18%;
 
   /* Status hues, desaturated enough to sit on wood without vibrating. */
-  --chart-1: 29 53% 23%; /* accent */
+  --chart-1: 28 60% 18%; /* walnut */
   --chart-2: 36 77% 27%; /* amber       #7a5010 */
-  --chart-3: 105 25% 28%; /* ok          #3f5a36 */
-  --chart-4: 34 24% 34%; /* ink3 */
-  --chart-5: 34 23% 67%; /* line2 */
+  --chart-3: 105 32% 22%; /* ok */
+  --chart-4: 32 30% 28%; /* ink3 */
+  --chart-5: 33 26% 45%; /* line2 */
 
   /* The two lights the relief is built from: a highlight from the top left and
      a shadow to the bottom right, both sampled off the ground rather than being
@@ -189,7 +216,12 @@
   --app-font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --app-font-mono:
     ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  --radius: 0.875rem; /* 14px — soft enough for the relief to read as extruded */
+  /* 10px. Was 14px, which on a 36px-tall control is half the height and reads
+     as a pill rather than as a key. A curved square keeps the corner soft
+     enough for paired relief shadows to follow it — DECISIONS.md records that
+     relief on a HARD corner reads as a printing error — while leaving the
+     shape square enough to look like something you press. */
+  --radius: 0.625rem;
 
   /* Relief primitives, defined once in terms of --lift and --sink so the dark
      theme inverts the entire system by redefining just those two colours.
@@ -238,51 +270,84 @@
   --elevate-2: rgba(240, 230, 216, 0.1);
 
   /* The same wood at night. The accent inverts from dark walnut to lit brass,
-     because a 23%-lightness brown is invisible on a 10%-lightness ground. */
-  --background: 30 31% 10%; /* ground      #221a12 */
-  --foreground: 35 44% 89%; /* ink         #f0e6d8 */
-  --border: 30 25% 19%; /* line        #3d3125 */
-  --card: 27 27% 13%; /* raised      #2a2018 */
-  --card-foreground: 35 44% 89%;
-  --card-border: 30 25% 19%;
-  --sidebar: 30 31% 10%;
-  --sidebar-foreground: 35 27% 72%; /* ink2        #cbbba4 */
-  --sidebar-border: 30 25% 19%;
-  --sidebar-primary: 35 63% 60%; /* accent      #d9a45a */
-  --sidebar-primary-foreground: 32 64% 9%; /* on-accent   #241708 */
-  --sidebar-accent: 33 41% 17%; /* accent-soft #3c2c19 */
-  --sidebar-accent-foreground: 35 77% 75%; /* accent-ink  #f0c78c */
-  --sidebar-ring: 35 63% 60%;
-  --popover: 27 27% 13%;
-  --popover-foreground: 35 44% 89%;
-  --popover-border: 30 25% 19%;
-  --primary: 35 63% 60%;
-  --primary-foreground: 32 64% 9%;
-  --secondary: 33 41% 17%;
-  --secondary-foreground: 35 77% 75%;
-  --muted: 30 25% 19%;
-  --muted-foreground: 35 17% 53%; /* ink3        #9c8b74 */
-  --accent: 33 41% 17%;
-  --accent-foreground: 35 77% 75%;
-  --destructive: 6 62% 60%;
-  --destructive-foreground: 32 64% 9%;
-  --warning: 30 35% 18%;
-  --warning-foreground: 38 66% 64%;
-  --success: 100 15% 18%;
-  --success-foreground: 105 22% 62%;
-  --input: 34 27% 25%; /* line2       #51422f */
-  --ring: 35 63% 60%;
+     because an 18%-lightness brown is invisible on a 10%-lightness ground.
 
-  --chart-1: 35 63% 60%;
-  --chart-2: 38 66% 64%; /* amber       #e0b467 */
-  --chart-3: 105 22% 55%;
-  --chart-4: 35 17% 53%;
-  --chart-5: 34 27% 25%;
+     The rail goes the other way here: LIGHTER than the page, not darker. The
+     ground is already at 10% lightness, so a darker rail has nowhere to go —
+     measured at 1.08 against the page, which is no seam at all. Raising it
+     makes the rail a sheet lying on the page instead, which is what the relief
+     system says a distinct surface is, and gets the separation back. */
+  --background: 30 31% 10%; /* ground      #211a12 */
+  --foreground: 35 46% 93%; /* ink         #f5efe5 */
+  --border: 30 25% 24%; /* line        #4d3d2e */
+  --card: 27 27% 13%; /* raised      #2a2018 */
+  --card-foreground: 35 46% 93%;
+  --card-border: 30 25% 24%;
+  --sidebar: 28 36% 20%; /* rail        #453221 */
+  --sidebar-foreground: 36 34% 84%; /* rail-ink    #e4d9c8 */
+  --sidebar-border: 28 30% 31%;
+  --sidebar-primary: 38 70% 62%; /* brass       #e2b465 */
+  --sidebar-primary-foreground: 29 62% 9%;
+  --sidebar-accent: 28 34% 30%; /* rail-raised #674b32 */
+  --sidebar-accent-foreground: 38 66% 84%;
+  --sidebar-ring: 38 70% 62%;
+  --sidebar-destructive: 6 70% 72%; /* 5.10:1 on the rail */
+  --sidebar-muted-foreground: 36 20% 66%; /* 5.45:1 on the rail */
+  --popover: 27 27% 13%;
+  --popover-foreground: 35 46% 93%;
+  --popover-border: 30 25% 24%;
+  --primary: 38 68% 64%;
+  --primary-foreground: 29 62% 9%;
+  --secondary: 31 38% 20%;
+  --secondary-foreground: 36 70% 84%;
+  --muted: 30 25% 24%;
+  --muted-foreground: 35 22% 68%; /* ink3        #bfb09b */
+  --accent: 31 38% 20%;
+  --accent-foreground: 36 70% 84%;
+  --destructive: 6 64% 64%;
+  --destructive-foreground: 29 62% 9%;
+  --warning: 30 35% 20%;
+  --warning-foreground: 38 70% 70%;
+  --success: 100 18% 19%;
+  --success-foreground: 105 26% 66%;
+  --input: 33 26% 40%; /* line2       #81694b */
+  --ring: 38 68% 64%;
+
+  --chart-1: 38 68% 64%;
+  --chart-2: 38 70% 70%;
+  --chart-3: 105 26% 66%;
+  --chart-4: 35 22% 68%;
+  --chart-5: 33 26% 40%;
 
   /* Inverting these two inverts every raised and recessed surface in the app:
      the --raise/--press definitions in :root are written in terms of them. */
   --lift: #33271b;
   --sink: #130d07;
+}
+
+/*
+ * The rail is its own material, so it carries its own two lights.
+ *
+ * --lift and --sink are sampled off the PAGE ground, and every --raise/--press
+ * in :root is written in terms of them. That is exactly right while there is
+ * one continuous surface, and wrong the moment the sidebar becomes a dark
+ * brown sheet on a beige page: a #fdf9f2 highlight on #332315 is not a
+ * material deformed, it is a cream line drawn on brown.
+ *
+ * Redefining the two variables on the rail re-resolves every shadow inside it,
+ * with no change to any component — the same mechanism that lets the dark
+ * theme invert the whole app by moving two colours. Sampled off the rail the
+ * same way the originals were sampled off the ground: a step up in its own
+ * hue for the light, a step down for the shadow.
+ */
+[data-rail] {
+  --lift: #4a3523;
+  --sink: #140d06;
+}
+
+.dark [data-rail] {
+  --lift: #5c452f;
+  --sink: #180f08;
 }
 
 @layer base {
@@ -599,5 +664,46 @@ html {
 @media (prefers-reduced-motion: no-preference) {
   html {
     scroll-behavior: smooth;
+  }
+}
+
+/*
+ * Bigger on a big screen.
+ *
+ * The complaint was that the application looks small on a 16- or 17-inch
+ * laptop, and it did: every size in the app was tuned on a 1280px screen and
+ * then rendered unchanged on a 1728 or 1920px one, so the same layout simply
+ * sat in the middle of more glass.
+ *
+ * This is one lever rather than a hundred. The whole scale is in `rem` —
+ * Tailwind 4's type steps, its spacing (`--spacing: 0.25rem`) and `--radius`
+ * alike — so moving the root size moves type, gaps, padding and corner radii
+ * together, in proportion. Editing `text-*` classes page by page would have
+ * grown the words and left the space around them where it was, which is the
+ * version of this change that looks worse than doing nothing.
+ *
+ * PERCENTAGES, not pixels. `font-size: 17px` would override a reader who has
+ * set a larger default in their browser — the exact person this is meant to
+ * help. A percentage scales whatever they chose: 106.25% is 17px on a stock
+ * 16px browser and 21.25px on a 20px one.
+ *
+ * The breakpoints are screens, not guesses. 1536px is Tailwind's `2xl` and
+ * the floor for a 16-inch laptop (a 16" MacBook Pro reports 1728 CSS px);
+ * 1920px is a 17-inch panel and most external monitors. Below 1536 nothing
+ * changes at all, so every phone, tablet and 1280px laptop renders exactly as
+ * it did — which is also why the existing viewport sweep keeps passing.
+ *
+ * Container widths need no edit: `max-w-6xl` is 72rem, so it widens with the
+ * root size on its own.
+ */
+@media (min-width: 1536px) {
+  html {
+    font-size: 106.25%; /* 17px at a stock 16px default */
+  }
+}
+
+@media (min-width: 1920px) {
+  html {
+    font-size: 112.5%; /* 18px at a stock 16px default */
   }
 }

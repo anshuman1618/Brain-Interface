@@ -43,6 +43,12 @@ const VIEWPORTS = [
   { w: 1024, h: 768, label: "tablet landscape" },
   { w: 1280, h: 800, label: "laptop" },
   { w: 1440, h: 900, label: "desktop" },
+  // Above these two the root font-size steps up (index.css, the "Bigger on a
+  // big screen" block), so everything in rem grows: type, spacing, radii. That
+  // is exactly the change most likely to push a fixed-width element past the
+  // viewport, and neither size was covered before it existed.
+  { w: 1728, h: 1117, label: "16-inch laptop" },
+  { w: 1920, h: 1080, label: "17-inch and desktop" },
 ];
 
 const browser = await chromium.launch(EXECUTABLE ? { executablePath: EXECUTABLE } : {});
@@ -102,6 +108,98 @@ const widest = () =>
           `${el.tagName}.${String(el.className).slice(0, 40)} w=${Math.round(r.width)} right=${Math.round(r.right)}`,
       );
   });
+
+/*
+ * Contrast, measured on a rendered page rather than promised in a palette.
+ *
+ * There was no contrast check anywhere in CI — DECISIONS.md records a careful
+ * audit across twelve pages and both themes, but it was a scratch script run
+ * once and never kept, so the palette drifted unguarded until a reader
+ * complained the page was too pale.
+ *
+ * It runs on the SIGNED-IN app as well as the landing page, and that is not
+ * thoroughness for its own sake. The sidebar became a dark brown rail while
+ * three things inside it still used page-ground tokens — the wordmark, the
+ * sign-out row and the identity block — and every one of them was unreadable.
+ * A landing-only check saw none of it.
+ *
+ * WCAG 2.1: 4.5:1 for body text, 3:1 for large (>=24px, or >=18.66px bold).
+ * The effective background is the first ancestor with a near-opaque
+ * background-color, which is what the eye resolves too. It does NOT model
+ * text sitting over an image or a blurred decorative blob.
+ */
+async function contrastFailures(page) {
+  return page.evaluate(() => {
+    const srgb = (c) => {
+      const v = c / 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    const lum = ([r, g, b]) => 0.2126 * srgb(r) + 0.7152 * srgb(g) + 0.0722 * srgb(b);
+    const parse = (s) => {
+      const m = s.match(/rgba?\(([^)]+)\)/);
+      if (!m) return null;
+      const p = m[1].split(",").map((x) => parseFloat(x));
+      return { rgb: [p[0], p[1], p[2]], a: p.length > 3 ? p[3] : 1 };
+    };
+    const bgOf = (el) => {
+      for (let n = el; n; n = n.parentElement) {
+        const c = parse(getComputedStyle(n).backgroundColor);
+        if (c && c.a > 0.85) return c.rgb;
+      }
+      return parse(getComputedStyle(document.body).backgroundColor)?.rgb ?? [255, 255, 255];
+    };
+
+    const out = [];
+    const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = walk.nextNode())) {
+      const txt = (n.nodeValue ?? "").trim();
+      if (!txt) continue;
+      const el = n.parentElement;
+      if (!el) continue;
+      const st = getComputedStyle(el);
+      if (st.visibility === "hidden" || st.display === "none") continue;
+      if (parseFloat(st.opacity) < 0.95) continue;
+      if (!el.getClientRects().length) continue;
+      const fg = parse(st.color);
+      if (!fg || fg.a < 0.95) continue;
+
+      const size = parseFloat(st.fontSize);
+      const weight = parseInt(st.fontWeight, 10) || 400;
+      const large = size >= 24 || (size >= 18.66 && weight >= 700);
+      const floor = large ? 3 : 4.5;
+
+      const bg = bgOf(el);
+      const l1 = lum(fg.rgb);
+      const l2 = lum(bg);
+      const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      if (ratio < floor) {
+        out.push(`${ratio.toFixed(2)}<${floor} ${Math.round(size)}px "${txt.slice(0, 28)}"`);
+      }
+    }
+    return [...new Set(out)].slice(0, 6);
+  });
+}
+
+/** Measure the page that is already open, in both themes, and restore. */
+async function checkContrast(page, label) {
+  const wasDark = await page.evaluate(() => document.documentElement.classList.contains("dark"));
+  for (const theme of ["dark", "light"]) {
+    await page.evaluate((t) => {
+      document.documentElement.classList.toggle("dark", t === "dark");
+    }, theme);
+    await page.waitForTimeout(250);
+    const failures = await contrastFailures(page);
+    check(
+      `${label}, ${theme}: every text node meets WCAG AA`,
+      failures.length === 0,
+      failures.join(" | "),
+    );
+  }
+  await page.evaluate((d) => {
+    document.documentElement.classList.toggle("dark", d);
+  }, wasDark);
+}
 
 /* ─────────────────────────── 1. It loads at all ─────────────────────────── */
 
@@ -243,6 +341,14 @@ const thirdParty = await page.evaluate(() =>
     .getEntriesByType("resource")
     .map((e) => e.name)
     .filter((u) => {
+      // A data: or blob: URL is inline — it is bytes already in the document,
+      // not a request to anybody. They were counted here only because
+      // `new URL("data:…").origin` is the string "null", which is not our
+      // origin. The landing page's grid pattern is one, and it has been
+      // inline since long before this check noticed it. What this guards
+      // against is fonts, analytics and tracking, and neither scheme can be
+      // either of those.
+      if (/^(data|blob):/.test(u)) return false;
       try {
         return new URL(u).origin !== location.origin;
       } catch {
@@ -256,6 +362,10 @@ check(
   thirdParty.slice(0, 4).join(" | "),
 );
 check("no request failed", failedRequests.length === 0, failedRequests.slice(0, 3).join(" | "));
+
+section("2a. Contrast, in both themes");
+await page.goto(BASE, { waitUntil: "networkidle" });
+await checkContrast(page, "landing");
 
 /* ─────────────────────── 3. The legal documents ─────────────────────────── */
 
@@ -596,6 +706,12 @@ const signedIn =
   (await page.locator('nav[aria-label="Main"]').count()) > 0 ||
   (await page.getByRole("button", { name: /Open navigation menu/i }).count()) > 0;
 check("reached the application", signedIn, `${page.url()} — ${inApp.slice(0, 220)}`);
+
+// The dashboard, both themes. This is where the rail lives, and the rail is
+// the surface whose children are most likely to be wearing the page's colours
+// by mistake — every token inside it has to be measured against the rail,
+// not against the ground it is sitting on.
+await checkContrast(page, "dashboard");
 
 /*
  * The salutation, which for a long time read "Good evening, User".

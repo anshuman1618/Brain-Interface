@@ -145,7 +145,7 @@ function NavList({
       <button
         type="button"
         onClick={onSignOut}
-        className={`${row} text-destructive hover:bg-destructive/10`}
+        className={`${row} text-sidebar-destructive hover:bg-sidebar-destructive/15`}
       >
         <LogOut className="h-4 w-4 shrink-0" />
         <span className="truncate">Sign out</span>
@@ -337,13 +337,18 @@ function DashboardLayoutContent() {
           it, so the identity block at the bottom stays reachable on a long page
           rather than being pushed below the fold.
         */}
-        <aside className="hidden lg:flex w-56 border-r border-border bg-sidebar shrink-0 flex-col sticky top-0 h-dvh z-20">
+        <aside
+          data-rail
+          className="hidden lg:flex w-56 border-r border-sidebar-border bg-sidebar shrink-0 flex-col sticky top-0 h-dvh z-20"
+        >
           <div className="h-16 flex items-center gap-2.5 px-4 border-b border-sidebar-border shrink-0">
             <Link href="/dashboard" title="LEX Practice" className="flex items-center gap-2.5">
               <div className="h-9 w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-xs shrink-0">
                 LEX
               </div>
-              <span className="font-mono font-bold tracking-tight text-sm">PRACTICE</span>
+              <span className="font-mono font-bold tracking-tight text-sm text-sidebar-foreground">
+                PRACTICE
+              </span>
             </Link>
           </div>
 
@@ -358,12 +363,12 @@ function DashboardLayoutContent() {
           {/* Identity stays visible: which account you are signed in as should
               never require opening anything to discover. */}
           <div className="border-t border-sidebar-border px-3 py-3 flex items-center gap-2.5 shrink-0">
-            <div className="h-8 w-8 bg-muted flex items-center justify-center text-xs font-medium uppercase shrink-0">
+            <div className="h-8 w-8 rounded-md bg-sidebar-accent text-sidebar-accent-foreground flex items-center justify-center text-xs font-medium uppercase shrink-0">
               {initial}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-medium truncate">{displayName}</p>
-              <p className="text-3xs font-mono uppercase tracking-wider text-muted-foreground truncate">
+              <p className="text-xs font-medium truncate text-sidebar-foreground">{displayName}</p>
+              <p className="text-3xs font-mono uppercase tracking-wider text-sidebar-muted-foreground truncate">
                 {displayRole}
               </p>
             </div>
@@ -374,7 +379,7 @@ function DashboardLayoutContent() {
             opened from the header. Same list, same component — a second copy
             would drift from the first the next time an item is added. */}
         <Sheet open={navOpen} onOpenChange={setNavOpen}>
-          <SheetContent side="left" className="w-64 p-0 bg-sidebar flex flex-col gap-0">
+          <SheetContent data-rail side="left" className="w-64 p-0 bg-sidebar flex flex-col gap-0">
             <SheetHeader className="h-16 px-4 border-b border-sidebar-border flex-row items-center gap-2.5 space-y-0 shrink-0">
               <div className="h-9 w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-xs shrink-0">
                 LEX
