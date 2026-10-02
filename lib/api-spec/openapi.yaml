@@ -4357,7 +4357,19 @@ components:
     AiBudget:
       type: object
       required:
-        [plan, allowanceMinor, topupMinor, spentMinor, remainingMinor, tier, draftingEnabled]
+        [
+          plan,
+          allowanceMinor,
+          topupMinor,
+          spentMinor,
+          remainingMinor,
+          allowanceTokens,
+          topupTokens,
+          spentTokens,
+          remainingTokens,
+          tier,
+          draftingEnabled,
+        ]
       properties:
         plan:
           type: string
@@ -4381,6 +4393,23 @@ components:
             `economy` routes everything to the lighter model. It is what the
             trial runs on, so an evaluation cannot spend a plan's worth of
             tokens on one petition.
+        allowanceTokens:
+          type: integer
+          description: >
+            The allowance expressed as the tokens it will buy on this tier's
+            model, at a 3 input : 1 output blend. An ESTIMATE for display:
+            paise remains the stored unit and the only one billing uses. A
+            draft leaning on a long matter file costs more per output token
+            than this implies, and a short note costs less.
+        topupTokens:
+          type: integer
+          description: Top-up grants, in the same estimated tokens.
+        spentTokens:
+          type: integer
+          description: Spend so far, in the same estimated tokens.
+        remainingTokens:
+          type: integer
+          description: What is left, in the same estimated tokens.
         draftingEnabled:
           type: boolean
           description: Whether an admin has switched drafting on for this chamber.

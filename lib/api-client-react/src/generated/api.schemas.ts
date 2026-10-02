@@ -1611,6 +1611,14 @@ export interface AiBudget {
   resetsAt?: string | null;
   /** `economy` routes everything to the lighter model. It is what the trial runs on, so an evaluation cannot spend a plan's worth of tokens on one petition. */
   tier: AiBudgetTier;
+  /** The allowance expressed as the tokens it will buy on this tier's model, at a 3 input : 1 output blend. An ESTIMATE for display: paise remains the stored unit and the only one billing uses. A draft leaning on a long matter file costs more per output token than this implies, and a short note costs less. */
+  allowanceTokens: number;
+  /** Top-up grants, in the same estimated tokens. */
+  topupTokens: number;
+  /** Spend so far, in the same estimated tokens. */
+  spentTokens: number;
+  /** What is left, in the same estimated tokens. */
+  remainingTokens: number;
   /** Whether an admin has switched drafting on for this chamber. */
   draftingEnabled: boolean;
   /** Whether the deployment has an API key at all. False means every draft is served by the preview stub — useful to know before wondering why the output reads oddly. */

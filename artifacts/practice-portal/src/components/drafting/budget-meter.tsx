@@ -15,10 +15,29 @@ import { Sparkles } from "lucide-react";
  * component. It is therefore on every screen that can spend, not tucked into
  * settings.
  *
- * Amounts come from the server in integer paise and are rendered by
- * `formatMinor`, the one place in the frontend that turns either unit into
- * text.
+ * **Shown in tokens, billed in rupees.** "₹40 left" says nothing about
+ * whether that is one more petition or ten; a token count is the unit the
+ * model actually consumes and the one a chamber can plan against. The money
+ * is still the money — paise is what is stored, spent and invoiced — so the
+ * rupee figure stays beside it in the detail line rather than disappearing.
+ * The conversion is a server-side estimate at a 3 input : 1 output blend on
+ * the tier's model; see `tokensForMinor` in lib/ai/models.ts for why it is an
+ * estimate and not a rate.
  */
+
+/**
+ * Tokens, in the shape a person reads rather than the shape a machine stores.
+ *
+ * 237,000 is noise at a glance; "237k" is a quantity. Below ten thousand the
+ * exact figure matters more than the shape of it — that is the range where a
+ * chamber is deciding whether one more draft will fit — so it is grouped and
+ * printed in full.
+ */
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
+  return n.toLocaleString("en-IN");
+}
 export function BudgetMeter({ compact = false }: { compact?: boolean }) {
   const { data } = useGetAiBudget({ query: { queryKey: getGetAiBudgetQueryKey() } });
   const { setOpen } = usePricingModal();
@@ -57,9 +76,13 @@ export function BudgetMeter({ compact = false }: { compact?: boolean }) {
     );
   }
 
+  // The PERCENTAGE is computed from paise, not from the rounded tokens: the
+  // bar has to agree with the limit that actually refuses a draft, and the
+  // token figures are an estimate that rounds.
   const total = data.allowanceMinor + data.topupMinor;
   const used = total > 0 ? Math.min(100, Math.round((data.spentMinor / total) * 100)) : 100;
   const empty = data.remainingMinor <= 0;
+  const totalTokens = data.allowanceTokens + data.topupTokens;
 
   if (compact) {
     return (
@@ -68,7 +91,7 @@ export function BudgetMeter({ compact = false }: { compact?: boolean }) {
           empty ? "text-destructive" : "text-muted-foreground"
         }`}
       >
-        {formatMinor(data.remainingMinor)} drafting left
+        {formatTokens(data.remainingTokens)} tokens left
       </span>
     );
   }
@@ -80,7 +103,7 @@ export function BudgetMeter({ compact = false }: { compact?: boolean }) {
           Drafting budget
         </p>
         <p className={`text-sm font-medium ${empty ? "text-destructive" : ""}`}>
-          {formatMinor(data.remainingMinor)} left
+          about {formatTokens(data.remainingTokens)} tokens left
         </p>
       </div>
 
@@ -88,9 +111,13 @@ export function BudgetMeter({ compact = false }: { compact?: boolean }) {
 
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted-foreground">
         <span>
-          {formatMinor(data.spentMinor)} of {formatMinor(total)} used
+          {formatTokens(data.spentTokens)} of {formatTokens(totalTokens)} used
         </span>
-        {data.topupMinor > 0 && <span>includes {formatMinor(data.topupMinor)} topped up</span>}
+        {/* The money, kept in sight. A chamber is billed in rupees and tops up
+            in rupees, so the unit it pays in should not vanish behind the one
+            it plans in. */}
+        <span>{formatMinor(data.remainingMinor)} of budget</span>
+        {data.topupMinor > 0 && <span>includes {formatTokens(data.topupTokens)} topped up</span>}
         {data.resetsAt && <span>resets {new Date(data.resetsAt).toLocaleDateString()}</span>}
         {/* The trial routes every document to the lighter model. Said here
             rather than left to be inferred from output that reads thinner. */}

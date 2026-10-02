@@ -39,6 +39,7 @@ import { zodMessage } from "../lib/validation";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { budgetFor, checkBudget } from "../lib/ai/budget";
+import { tokensForMinor } from "../lib/ai/models";
 import { aiConfigured, estimateTokens, usingStubModel } from "../lib/ai/client";
 import { estimateMinor, UTILITY_MODEL } from "../lib/ai/models";
 import { runDraft } from "../lib/ai/drafting";
@@ -121,6 +122,14 @@ router.get(
         topupMinor: state.topupMinor,
         spentMinor: state.spentMinor,
         remainingMinor: state.remainingMinor,
+        // The same four numbers in the unit a chamber asked to see them in.
+        // Sent alongside the paise rather than instead of it: billing, the
+        // audit trail and every invoice still speak money, and the conversion
+        // is an estimate that must never become the stored figure.
+        allowanceTokens: tokensForMinor(state.allowanceMinor, state.tier),
+        topupTokens: tokensForMinor(state.topupMinor, state.tier),
+        spentTokens: tokensForMinor(state.spentMinor, state.tier),
+        remainingTokens: tokensForMinor(state.remainingMinor, state.tier),
         resetsAt: state.resetsAt?.toISOString() ?? null,
         tier: state.tier,
         draftingEnabled: await draftingIsOn(c.workspaceId),

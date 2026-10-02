@@ -266,15 +266,53 @@ function ExemplarsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg bg-card p-4 shadow-sm">
-        <p className="font-mono text-2xs uppercase tracking-wider text-muted-foreground">
-          Add a past filing as an example
+      {/*
+        What this tab is FOR, before anything asks to be filled in.
+
+        It previously opened with "Add a past filing as an example" in 11px
+        mono and a 11px paragraph about redaction — a description of the
+        mechanism, at the size of a footnote, to somebody who did not yet know
+        why they were here. The question people actually arrive with is what
+        this does to their drafts, and that was the one thing it never said.
+      */}
+      <div className="rounded-lg bg-card p-5 shadow-sm">
+        <h3 className="text-base font-bold tracking-tight">
+          Teach the AI to draft the way this chamber drafts
+        </h3>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+          Without examples, a draft comes back correct and anonymous — it reads like software wrote
+          it. Add two or three of your own past filings and every future draft of that kind borrows
+          their structure, their headings and their turn of phrase.
         </p>
-        <p className="mt-1 max-w-3xl text-2xs leading-relaxed text-muted-foreground">
-          Paste one of the chamber&rsquo;s own filings. Names, numbers and identifying facts are
-          removed automatically — then you check the result before it is used. Examples are kept for
-          their <em>structure and voice</em>, never their facts.
-        </p>
+
+        <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-3">
+          <div>
+            <dt className="font-semibold">What to paste</dt>
+            <dd className="mt-0.5 leading-relaxed text-muted-foreground">
+              A filing you were happy with. One good one beats five ordinary ones.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold">What happens to it</dt>
+            <dd className="mt-0.5 leading-relaxed text-muted-foreground">
+              Names, numbers and identifying facts are stripped automatically. You read the redacted
+              copy and approve it; nothing is used until you do.
+            </dd>
+          </div>
+          <div>
+            <dt className="font-semibold">What it is not</dt>
+            <dd className="mt-0.5 leading-relaxed text-muted-foreground">
+              Not a precedent bank and not a source of facts. Examples are kept for their{" "}
+              <em>form</em> — the AI never copies what they say, only how they say it.
+            </dd>
+          </div>
+        </dl>
+
+        <div className="mt-5 border-t border-border pt-4">
+          <p className="font-mono text-2xs uppercase tracking-wider text-muted-foreground">
+            Add a past filing
+          </p>
+        </div>
         <div className="mt-3 flex flex-wrap items-end gap-2">
           <Input
             className="w-[280px] rounded-lg"
@@ -311,6 +349,13 @@ function ExemplarsTab() {
           {create.isPending ? "Redacting…" : "Add and redact"}
         </Button>
       </div>
+
+      {exemplars.length === 0 && (
+        <p className="rounded-lg bg-secondary p-4 text-sm leading-relaxed text-secondary-foreground shadow-[var(--raise-sm)]">
+          No examples yet, so drafts come back in a neutral house style. Nothing is broken — this is
+          the difference between a draft you edit and one you recognise.
+        </p>
+      )}
 
       <ul className="space-y-2">
         {exemplars.map((e: Exemplar) => (

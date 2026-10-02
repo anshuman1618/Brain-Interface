@@ -3,7 +3,7 @@ import { Link, Redirect, Route, Switch, useLocation } from "wouter";
 import { useSession } from "@/lib/session";
 import { PreviewBar } from "@/components/preview-bar";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
-import { RequireCapability } from "@/components/auth/route-guard";
+import { RequireCapability, RequireAnyCapability } from "@/components/auth/route-guard";
 import DashboardPage from "@/pages/dashboard";
 /**
  * Everything except the dashboard is loaded on demand.
@@ -48,7 +48,6 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
   CreditCard,
-  ShieldCheck,
   FileText,
   Star,
   Menu,
@@ -306,8 +305,30 @@ function DashboardLayoutContent() {
     },
     { href: "/kpi", label: "KPI Engine", icon: BarChart2, show: can("kpi.read") },
     { href: "/invoices", label: "Invoices", icon: Receipt, show: can("billing.manage") },
-    { href: "/invites", label: "Access Control", icon: Users, show: can("access_control.manage") },
-    { href: "/team", label: "Team Roles", icon: ShieldCheck, show: can("team.manage") },
+    /*
+     * One entry, two pages.
+     *
+     * Access Control and Team Roles were adjacent in the rail and asked the
+     * same question from two sides — who is in this chamber, and what may
+     * they do. Two entries made it a choice, and the wrong one was a
+     * fifty-fifty guess.
+     *
+     * The ROUTES both survive on purpose: /team is linked directly from the
+     * bar-registration gate ("editable later") and from a member's own row,
+     * and breaking those to tidy a menu would be a poor trade. The rail shows
+     * one door; the page puts access control first and team roles below it.
+     *
+     * `show` is an OR because the two are gated by different capabilities.
+     * Whoever holds either sees the entry, and the page itself renders only
+     * the sections they can manage — so somebody with `team.manage` alone
+     * still arrives somewhere useful rather than at an empty screen.
+     */
+    {
+      href: "/invites",
+      label: "Access Control",
+      icon: Users,
+      show: can("access_control.manage") || can("team.manage"),
+    },
     { href: "/activity", label: "Activity", icon: History, show: can("audit.read") },
     // Everyone gets their own data rights; admins additionally see the queue.
   ].filter((item) => item.show);
@@ -596,10 +617,28 @@ function DashboardLayoutContent() {
                       <InvoicesPage />
                     </RequireCapability>
                   </Route>
+                  {/*
+                    The merged door. Access control first, team roles below it,
+                    on one page under one nav entry.
+
+                    NOT wrapped in a single RequireCapability, because the two
+                    halves are gated differently — `access_control.manage` and
+                    `team.manage` — and someone may hold one without the other.
+                    A single gate would either lock out a team manager or let
+                    an access manager past a check they should meet. Each
+                    section carries its own.
+                  */}
                   <Route path="/invites">
-                    <RequireCapability capability="access_control.manage">
-                      <InvitesPage />
-                    </RequireCapability>
+                    <RequireAnyCapability capabilities={["access_control.manage", "team.manage"]}>
+                      <div className="space-y-10">
+                        <RequireCapability capability="access_control.manage" quiet>
+                          <InvitesPage />
+                        </RequireCapability>
+                        <RequireCapability capability="team.manage" quiet>
+                          <TeamPage />
+                        </RequireCapability>
+                      </div>
+                    </RequireAnyCapability>
                   </Route>
                   <Route path="/team">
                     <RequireCapability capability="team.manage">

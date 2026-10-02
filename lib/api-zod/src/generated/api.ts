@@ -979,6 +979,10 @@ export const GetAiBudgetResponse = zod.object({
   "remainingMinor": zod.number(),
   "resetsAt": zod.coerce.date().nullish(),
   "tier": zod.enum(['full', 'economy']).describe('`economy` routes everything to the lighter model. It is what the trial runs on, so an evaluation cannot spend a plan\'s worth of tokens on one petition.\n'),
+  "allowanceTokens": zod.number().describe('The allowance expressed as the tokens it will buy on this tier\'s model, at a 3 input : 1 output blend. An ESTIMATE for display: paise remains the stored unit and the only one billing uses. A draft leaning on a long matter file costs more per output token than this implies, and a short note costs less.\n'),
+  "topupTokens": zod.number().describe('Top-up grants, in the same estimated tokens.'),
+  "spentTokens": zod.number().describe('Spend so far, in the same estimated tokens.'),
+  "remainingTokens": zod.number().describe('What is left, in the same estimated tokens.'),
   "draftingEnabled": zod.boolean().describe('Whether an admin has switched drafting on for this chamber.'),
   "configured": zod.boolean().optional().describe('Whether the deployment has an API key at all. False means every draft is served by the preview stub — useful to know before wondering why the output reads oddly.\n')
 })

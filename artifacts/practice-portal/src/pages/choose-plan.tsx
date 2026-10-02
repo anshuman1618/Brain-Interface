@@ -34,12 +34,25 @@ import { LoadFailed } from "@/components/load-failed";
  * every role and gates only its button.
  */
 
-/** What ninety-nine rupees actually buys, stated before anyone is asked to pay. */
+/**
+ * What ninety-nine rupees actually buys, stated before anyone is asked to pay.
+ *
+ * The drafting line used to read "AI drafting on a Rs 40 allowance" and was
+ * wrong twice over. The allowance is `TRIAL_LIMITS.aiBudgetMinor` in the API's
+ * lib/plans.ts, which is ₹90, not ₹40 — ₹40 is a figure from the comment above
+ * it weighing two options, and the smaller one lost. And rupees were never the
+ * useful unit here: a chamber deciding whether to pay wants to know how much
+ * drafting it gets, which is what tokens say.
+ *
+ * ~235k is ₹90 at economy rates through `tokensForMinor`. Hardcoded because
+ * this screen is sold before any budget exists to read; if the trial allowance
+ * moves, this line moves with it.
+ */
 const TRIAL_POINTS = [
   "Two months of every module",
   "10 open matters, 5 seats",
   "Cause lists, invoicing, the client portal",
-  "AI drafting on a Rs 40 allowance",
+  "AI drafting, about 235k tokens included",
 ];
 
 const PLAN_LABEL: Record<string, string> = {

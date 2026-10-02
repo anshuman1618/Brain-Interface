@@ -158,3 +158,39 @@ export function estimateMinor(model: string, inputTokens: number, maxOutputToken
     outputTokens: maxOutputTokens,
   });
 }
+
+/**
+ * A budget in paise, expressed as the tokens it will actually buy.
+ *
+ * A chamber asked to see its drafting allowance in tokens rather than in
+ * rupees, and they are right that it is the more useful unit: "₹40 left" says
+ * nothing about whether that is one more petition or ten, whereas a token
+ * count is the thing the model actually consumes.
+ *
+ * **The money stays the money.** Paise remains the stored unit everywhere —
+ * `ai_usage_events.cost_minor`, the plan allowances, the top-up products and
+ * every rupee Razorpay sees. This converts for display only. Re-denominating
+ * the budget itself would mean a token being worth different money on
+ * different models, which is the problem this function makes visible rather
+ * than the one it solves.
+ *
+ * **The blend, stated because it is a choice and not a fact.** Drafting
+ * spends roughly three input tokens — the matter file, the chamber's
+ * exemplars, the prompt — for every output token it writes. Pricing one
+ * "drafting token" at that 3:1 mix on the tier's own model gives a number a
+ * chamber can plan with. It is an estimate by construction: a draft that
+ * leans on a long file costs more per output token than this says, and one
+ * writing a short note costs less. The meter rounds and says "about".
+ *
+ * Returns whole tokens, floored, because a budget that rounds up is a budget
+ * that promises a draft it cannot pay for.
+ */
+export function tokensForMinor(minor: number, tier: "full" | "economy"): number {
+  if (minor <= 0) return 0;
+  const model = tier === "economy" ? LIGHT_MODEL : HEAVY_MODEL;
+  const price = PRICES[model];
+  // Cents per million tokens at a 3 input : 1 output mix.
+  const blendedCentsPerMTok = (price.input * 3 + price.output) / 4;
+  const paisePerMTok = blendedCentsPerMTok * paisePerCent();
+  return Math.floor((minor / paisePerMTok) * 1_000_000);
+}
