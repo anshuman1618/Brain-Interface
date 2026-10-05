@@ -30,40 +30,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { DraftingOptIn } from "@/components/drafting/drafting-opt-in";
 import { useToast } from "@/hooks/use-toast";
-
-/**
- * Razorpay's checkout script, loaded on demand.
- *
- * Deliberately not in index.html: a third-party script on every page load is
- * exactly the disclosure the fonts were removed for. It is fetched the moment
- * somebody chooses to pay, and not before. The deployment's CSP has to allow
- * checkout.razorpay.com — see DEPLOYMENT.md.
- */
-const CHECKOUT_SRC = "https://checkout.razorpay.com/v1/checkout.js";
-
-declare global {
-  interface Window {
-    Razorpay?: new (options: Record<string, unknown>) => { open: () => void };
-  }
-}
-
-function loadCheckout(): Promise<void> {
-  if (window.Razorpay) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${CHECKOUT_SRC}"]`);
-    if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("checkout script failed to load")));
-      return;
-    }
-    const el = document.createElement("script");
-    el.src = CHECKOUT_SRC;
-    el.async = true;
-    el.onload = () => resolve();
-    el.onerror = () => reject(new Error("checkout script failed to load"));
-    document.head.appendChild(el);
-  });
-}
+import { loadCheckout } from "@/lib/checkout";
 
 interface PricingModalContextType {
   open: boolean;

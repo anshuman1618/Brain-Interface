@@ -67,6 +67,9 @@
   --color-sidebar-accent-border: var(--sidebar-accent-border);
   --color-sidebar-ring: hsl(var(--sidebar-ring));
   --color-sidebar-destructive: hsl(var(--sidebar-destructive));
+  --color-sidebar-brand: hsl(var(--sidebar-brand));
+  --color-sidebar-brand-foreground: hsl(var(--sidebar-brand-foreground));
+  --color-sidebar-brand-border: hsl(var(--sidebar-brand-border));
   --color-sidebar-muted-foreground: hsl(var(--sidebar-muted-foreground));
 
   --font-sans: var(--app-font-sans);
@@ -167,6 +170,23 @@
      measured on the rail, not on the page: 5.02:1 and 7.20:1. */
   --sidebar-destructive: 6 70% 65%;
   --sidebar-muted-foreground: 36 24% 68%;
+  /*
+   * The LEX plate, kept as it was.
+   *
+   * It used to take --sidebar-primary, which went brass when the rail went
+   * dark — so the mark changed from a walnut block with white letters into a
+   * gold one. Its own token now, pinned to the original walnut, because the
+   * logo should not move every time the furniture around it does.
+   *
+   * White on walnut is 10.2:1, so the LETTERS were never the problem. The
+   * plate's EDGE is: walnut on the dark rail is 1.48:1, which is no edge at
+   * all. The brass hairline is what gives the block its shape back — 7.6:1
+   * against the rail — and it is the whole reason this is three tokens and
+   * not one.
+   */
+  --sidebar-brand: 29 53% 23%; /* walnut      #5a3a1c */
+  --sidebar-brand-foreground: 0 0% 100%;
+  --sidebar-brand-border: 38 70% 58%;
 
   --popover: 35 33% 91%;
   --popover-foreground: 32 66% 7%;
@@ -293,6 +313,14 @@
   --sidebar-ring: 38 70% 62%;
   --sidebar-destructive: 6 70% 72%; /* 5.10:1 on the rail */
   --sidebar-muted-foreground: 36 20% 66%; /* 5.45:1 on the rail */
+  /* At night the plate was ALWAYS brass — a 23%-lightness walnut is invisible
+     on a dark ground, which is why the original inverted it here. "As it was"
+     therefore means something different in each theme, and this is it. No
+     hairline: brass on the rail already has its own edge, so the border is
+     set to the plate's own colour rather than drawing a line nobody needs. */
+  --sidebar-brand: 35 63% 60%; /* brass       #d9a45a */
+  --sidebar-brand-foreground: 32 64% 9%;
+  --sidebar-brand-border: 35 63% 60%;
   --popover: 27 27% 13%;
   --popover-foreground: 35 46% 93%;
   --popover-border: 30 25% 24%;

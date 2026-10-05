@@ -26,6 +26,8 @@ import type {
   AccessRequest,
   AccessRequestInput,
   AiBudget,
+  AiTopupInput,
+  AiTopupPacks,
   AuditEvent,
   BarRegistration,
   BarRegistrationInput,
@@ -3014,6 +3016,156 @@ export function useGetAiBudget<TData = Awaited<ReturnType<typeof getAiBudget>>, 
 
 
 
+
+export const getListAiTopupsUrl = () => {
+
+
+
+
+  return `/api/ai/topups`
+}
+
+/**
+ * Held to `ai_topup.purchase` rather than `billing.manage`. A senior advocate running the practice's work should be able to keep the chamber drafting on a Friday afternoon without also being handed the plan, the payment methods and the subscription.
+ * @summary The drafting top-up packs on sale (ai_topup.purchase only)
+ */
+export const listAiTopups = async ( options?: RequestInit): Promise<AiTopupPacks> => {
+
+  return customFetch<AiTopupPacks>(getListAiTopupsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAiTopupsQueryKey = () => {
+    return [
+    `/api/ai/topups`
+    ] as const;
+    }
+
+
+export const getListAiTopupsQueryOptions = <TData = Awaited<ReturnType<typeof listAiTopups>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAiTopups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAiTopupsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAiTopups>>> = ({ signal }) => listAiTopups({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAiTopups>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListAiTopupsQueryResult = NonNullable<Awaited<ReturnType<typeof listAiTopups>>>
+export type ListAiTopupsQueryError = ErrorType<void>
+
+
+/**
+ * @summary The drafting top-up packs on sale (ai_topup.purchase only)
+ */
+
+export function useListAiTopups<TData = Awaited<ReturnType<typeof listAiTopups>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listAiTopups>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListAiTopupsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAiTopupUrl = () => {
+
+
+
+
+  return `/api/ai/topups`
+}
+
+/**
+ * Creates an order with the payment provider. Nothing is granted here — the GRANT is written by the signed webhook from the provider's own confirmation, because a browser saying a payment succeeded is not evidence that it did.
+ * @summary Create a payment order for a top-up pack (ai_topup.purchase only)
+ */
+export const createAiTopup = async (aiTopupInput: AiTopupInput, options?: RequestInit): Promise<CheckoutOrder> => {
+
+  return customFetch<CheckoutOrder>(getCreateAiTopupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(aiTopupInput)
+  }
+);}
+
+
+
+
+
+export const getCreateAiTopupMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAiTopup>>, TError,{data: BodyType<AiTopupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAiTopup>>, TError,{data: BodyType<AiTopupInput>}, TContext> => {
+
+const mutationKey = ['createAiTopup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAiTopup>>, {data: BodyType<AiTopupInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAiTopup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAiTopupMutationResult = NonNullable<Awaited<ReturnType<typeof createAiTopup>>>
+    export type CreateAiTopupMutationBody = BodyType<AiTopupInput>
+    export type CreateAiTopupMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a payment order for a top-up pack (ai_topup.purchase only)
+ */
+export const useCreateAiTopup = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAiTopup>>, TError,{data: BodyType<AiTopupInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createAiTopup>>,
+        TError,
+        {data: BodyType<AiTopupInput>},
+        TContext
+      > => {
+      return useMutation(getCreateAiTopupMutationOptions(options));
+    }
 
 export const getSetDraftingEnabledUrl = () => {
 

@@ -1410,6 +1410,28 @@ export interface BillingConfig {
   provider?: string | null;
 }
 
+export interface AiTopupPack {
+  code: string;
+  label: string;
+  /** What the chamber pays, in paise, and the WHOLE of it. No tax is added at checkout: the operator is not GST-registered, and an unregistered supplier may not collect GST. See Terms §6. */
+  priceMinor: number;
+  /** Drafting budget granted, in paise. Equal to priceMinor — top-ups are sold at cost. */
+  grantMinor: number;
+  /** The grant as the tokens it will buy on this chamber's tier, at the same 3:1 blend the budget meter uses. An estimate, for display. */
+  grantTokens: number;
+}
+
+export interface AiTopupPacks {
+  packs: AiTopupPack[];
+  currency: string;
+  paymentsEnabled: boolean;
+}
+
+export interface AiTopupInput {
+  /** A pack `code` from the list endpoint. */
+  pack: string;
+}
+
 export type CheckoutOrderPlan = typeof CheckoutOrderPlan[keyof typeof CheckoutOrderPlan];
 
 

@@ -1,10 +1,11 @@
 import { useGetAiBudget, getGetAiBudgetQueryKey } from "@workspace/api-client-react";
-import { formatMinor } from "@/lib/format";
+import { formatMinor, formatTokens } from "@/lib/format";
 import { Progress } from "@/components/ui/progress";
 import { usePricingModal } from "@/components/pricing-modal";
 import { useSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
+import { BuyTokens } from "@/components/drafting/buy-tokens";
 
 /**
  * What is left of the chamber's drafting budget, shown all month.
@@ -25,19 +26,6 @@ import { Sparkles } from "lucide-react";
  * estimate and not a rate.
  */
 
-/**
- * Tokens, in the shape a person reads rather than the shape a machine stores.
- *
- * 237,000 is noise at a glance; "237k" is a quantity. Below ten thousand the
- * exact figure matters more than the shape of it — that is the range where a
- * chamber is deciding whether one more draft will fit — so it is grouped and
- * printed in full.
- */
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)}M`;
-  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
-  return n.toLocaleString("en-IN");
-}
 export function BudgetMeter({ compact = false }: { compact?: boolean }) {
   const { data } = useGetAiBudget({ query: { queryKey: getGetAiBudgetQueryKey() } });
   const { setOpen } = usePricingModal();
@@ -102,9 +90,14 @@ export function BudgetMeter({ compact = false }: { compact?: boolean }) {
         <p className="font-mono text-2xs uppercase tracking-wider text-muted-foreground">
           Drafting budget
         </p>
-        <p className={`text-sm font-medium ${empty ? "text-destructive" : ""}`}>
-          about {formatTokens(data.remainingTokens)} tokens left
-        </p>
+        <div className="flex items-center gap-3">
+          <p className={`text-sm font-medium ${empty ? "text-destructive" : ""}`}>
+            about {formatTokens(data.remainingTokens)} tokens left
+          </p>
+          {/* On the screen that spends it, not behind the plan screen. Renders
+              nothing without `ai_topup.purchase`. */}
+          <BuyTokens />
+        </div>
       </div>
 
       <Progress value={used} className="mt-2 h-1.5" />
@@ -126,8 +119,8 @@ export function BudgetMeter({ compact = false }: { compact?: boolean }) {
 
       {empty && (
         <p className="mt-2 text-2xs leading-relaxed text-destructive">
-          Drafting is paused until the budget resets. An admin or senior advocate can add more from
-          the plan screen.
+          Drafting is paused until the budget resets, or until someone tops it up — the button above
+          does that without leaving this page. An admin or senior advocate can use it.
         </p>
       )}
 

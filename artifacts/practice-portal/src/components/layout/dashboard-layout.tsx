@@ -272,7 +272,7 @@ function DashboardLayoutContent() {
     { href: "/calendar", label: "Master Calendar", icon: CalendarIcon, show: can("calendar.read") },
     {
       href: "/drafting",
-      label: "Research & Analysis",
+      label: "Research",
       icon: ScanSearch,
       show: can("drafting.use"),
     },
@@ -364,7 +364,7 @@ function DashboardLayoutContent() {
         >
           <div className="h-16 flex items-center gap-2.5 px-4 border-b border-sidebar-border shrink-0">
             <Link href="/dashboard" title="LEX Practice" className="flex items-center gap-2.5">
-              <div className="h-9 w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-xs shrink-0">
+              <div className="h-9 w-9 bg-sidebar-brand text-sidebar-brand-foreground border border-sidebar-brand-border flex items-center justify-center font-mono font-bold tracking-tighter text-xs shrink-0">
                 LEX
               </div>
               <span className="font-mono font-bold tracking-tight text-sm text-sidebar-foreground">
@@ -402,7 +402,7 @@ function DashboardLayoutContent() {
         <Sheet open={navOpen} onOpenChange={setNavOpen}>
           <SheetContent data-rail side="left" className="w-64 p-0 bg-sidebar flex flex-col gap-0">
             <SheetHeader className="h-16 px-4 border-b border-sidebar-border flex-row items-center gap-2.5 space-y-0 shrink-0">
-              <div className="h-9 w-9 bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center font-mono font-bold tracking-tighter text-xs shrink-0">
+              <div className="h-9 w-9 bg-sidebar-brand text-sidebar-brand-foreground border border-sidebar-brand-border flex items-center justify-center font-mono font-bold tracking-tighter text-xs shrink-0">
                 LEX
               </div>
               <SheetTitle className="font-mono font-bold tracking-tight text-sm">

@@ -60,3 +60,17 @@ export function formatMinutes(total: number): string {
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
 }
+
+/**
+ * Tokens, in the shape a person reads rather than the shape a machine stores.
+ *
+ * 237,000 is noise at a glance; "237k" is a quantity. Below ten thousand the
+ * exact figure matters more than the shape of it — that is the range where a
+ * chamber is deciding whether one more draft will fit — so it is grouped and
+ * printed in full.
+ */
+export function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)}M`;
+  if (n >= 10_000) return `${Math.round(n / 1000)}k`;
+  return n.toLocaleString("en-IN");
+}

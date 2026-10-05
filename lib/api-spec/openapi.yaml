@@ -892,6 +892,54 @@ paths:
         "403":
           description: Forbidden
 
+  /ai/topups:
+    get:
+      operationId: listAiTopups
+      tags: [drafting]
+      summary: The drafting top-up packs on sale (ai_topup.purchase only)
+      description: >
+        Held to `ai_topup.purchase` rather than `billing.manage`. A senior
+        advocate running the practice's work should be able to keep the chamber
+        drafting on a Friday afternoon without also being handed the plan, the
+        payment methods and the subscription.
+      responses:
+        "200":
+          description: The packs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiTopupPacks"
+        "403":
+          description: Forbidden
+    post:
+      operationId: createAiTopup
+      tags: [drafting]
+      summary: Create a payment order for a top-up pack (ai_topup.purchase only)
+      description: >
+        Creates an order with the payment provider. Nothing is granted here —
+        the GRANT is written by the signed webhook from the provider's own
+        confirmation, because a browser saying a payment succeeded is not
+        evidence that it did.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AiTopupInput"
+      responses:
+        "200":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckoutOrder"
+        "400":
+          description: Unknown pack
+        "403":
+          description: Forbidden
+        "503":
+          description: Payments are not configured on this deployment
+
   /workspace/drafting:
     post:
       operationId: setDraftingEnabled
@@ -4139,6 +4187,52 @@ components:
           description: The provider's PUBLIC key, for the browser checkout.
         provider:
           type: ["string", "null"]
+
+    AiTopupPacks:
+      type: object
+      required: [packs, currency, paymentsEnabled]
+      properties:
+        packs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiTopupPack"
+        currency:
+          type: string
+        paymentsEnabled:
+          type: boolean
+
+    AiTopupPack:
+      type: object
+      required: [code, label, priceMinor, grantMinor, grantTokens]
+      properties:
+        code:
+          type: string
+        label:
+          type: string
+        priceMinor:
+          type: integer
+          description: >
+            What the chamber pays, in paise, and the WHOLE of it. No tax is
+            added at checkout: the operator is not GST-registered, and an
+            unregistered supplier may not collect GST. See Terms §6.
+        grantMinor:
+          type: integer
+          description: >
+            Drafting budget granted, in paise. Equal to priceMinor — top-ups
+            are sold at cost.
+        grantTokens:
+          type: integer
+          description: >
+            The grant as the tokens it will buy on this chamber's tier, at the
+            same 3:1 blend the budget meter uses. An estimate, for display.
+
+    AiTopupInput:
+      type: object
+      required: [pack]
+      properties:
+        pack:
+          type: string
+          description: A pack `code` from the list endpoint.
 
     CheckoutOrder:
       type: object

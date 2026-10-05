@@ -989,6 +989,40 @@ export const GetAiBudgetResponse = zod.object({
 
 
 /**
+ * Held to `ai_topup.purchase` rather than `billing.manage`. A senior advocate running the practice's work should be able to keep the chamber drafting on a Friday afternoon without also being handed the plan, the payment methods and the subscription.
+ * @summary The drafting top-up packs on sale (ai_topup.purchase only)
+ */
+export const ListAiTopupsResponse = zod.object({
+  "packs": zod.array(zod.object({
+  "code": zod.string(),
+  "label": zod.string(),
+  "priceMinor": zod.number().describe('What the chamber pays, in paise, and the WHOLE of it. No tax is added at checkout: the operator is not GST-registered, and an unregistered supplier may not collect GST. See Terms §6.\n'),
+  "grantMinor": zod.number().describe('Drafting budget granted, in paise. Equal to priceMinor — top-ups are sold at cost.\n'),
+  "grantTokens": zod.number().describe('The grant as the tokens it will buy on this chamber\'s tier, at the same 3:1 blend the budget meter uses. An estimate, for display.\n')
+})),
+  "currency": zod.string(),
+  "paymentsEnabled": zod.boolean()
+})
+
+
+/**
+ * Creates an order with the payment provider. Nothing is granted here — the GRANT is written by the signed webhook from the provider's own confirmation, because a browser saying a payment succeeded is not evidence that it did.
+ * @summary Create a payment order for a top-up pack (ai_topup.purchase only)
+ */
+export const CreateAiTopupBody = zod.object({
+  "pack": zod.string().describe('A pack `code` from the list endpoint.')
+})
+
+export const CreateAiTopupResponse = zod.object({
+  "orderId": zod.string(),
+  "amountMinor": zod.number().describe('Total in paise, computed server-side.'),
+  "currency": zod.string(),
+  "plan": zod.enum(['trial', 'pro', 'firm', 'custom']),
+  "billingPeriod": zod.enum(['one_time', 'monthly', 'half_yearly', 'yearly'])
+})
+
+
+/**
  * Off until an admin turns it on, having read what leaves the server. Drafting sends matter facts — and whichever documents an advocate ticks — to a third party. That is a decision a practice makes deliberately, and this records who made it and when.
  * @summary Turn AI drafting on or off for this chamber (admin only)
  */

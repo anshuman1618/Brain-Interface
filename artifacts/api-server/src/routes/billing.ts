@@ -28,6 +28,9 @@ import { createOrder, paymentsEnabled, razorpayConfig } from "../lib/razorpay";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
 import { personName } from "../lib/person-name";
+import { tokensForMinor } from "../lib/ai/models";
+import { budgetFor } from "../lib/ai/budget";
+import { ListAiTopupsResponse } from "@workspace/api-zod";
 
 /**
  * Taking money.
@@ -196,17 +199,29 @@ router.get(
   "/ai/topups",
   requireWorkspace,
   requireCapability("ai_topup.purchase"),
-  async (_req: AuthRequest, res): Promise<void> => {
-    res.json({
-      packs: TOPUP_PACKS.map((p) => ({
-        code: p.code,
-        label: p.label,
-        priceMinor: p.priceMinor,
-        grantMinor: p.grantMinor,
-      })),
-      currency: "INR",
-      paymentsEnabled: paymentsEnabled(),
-    });
+  async (req: AuthRequest, res): Promise<void> => {
+    const c = ctx(req);
+    /*
+     * The tier decides what a rupee buys, so the token figure has to be read
+     * from THIS chamber's budget rather than assumed. A trial chamber is on
+     * the lighter model and gets roughly 2.5x the tokens for the same money —
+     * quoting the full-tier number to them would understate the pack by more
+     * than half.
+     */
+    const { tier } = await budgetFor(c.workspaceId);
+    res.json(
+      ListAiTopupsResponse.parse({
+        packs: TOPUP_PACKS.map((p) => ({
+          code: p.code,
+          label: p.label,
+          priceMinor: p.priceMinor,
+          grantMinor: p.grantMinor,
+          grantTokens: tokensForMinor(p.grantMinor, tier),
+        })),
+        currency: "INR",
+        paymentsEnabled: paymentsEnabled(),
+      }),
+    );
   },
 );
 
