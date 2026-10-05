@@ -1001,7 +1001,9 @@ export const ListAiTopupsResponse = zod.object({
   "grantTokens": zod.number().describe('The grant as the tokens it will buy on this chamber\'s tier, at the same 3:1 blend the budget meter uses. An estimate, for display.\n')
 })),
   "currency": zod.string(),
-  "paymentsEnabled": zod.boolean()
+  "paymentsEnabled": zod.boolean(),
+  "customMinMinor": zod.number().describe('Smallest custom top-up, in paise. Sent so the form can refuse a bad amount before a round trip; the server and the webhook both enforce it regardless.\n'),
+  "customMaxMinor": zod.number().describe('Largest custom top-up, in paise.')
 })
 
 
@@ -1010,7 +1012,8 @@ export const ListAiTopupsResponse = zod.object({
  * @summary Create a payment order for a top-up pack (ai_topup.purchase only)
  */
 export const CreateAiTopupBody = zod.object({
-  "pack": zod.string().describe('A pack `code` from the list endpoint.')
+  "pack": zod.string().optional().describe('A pack `code` from the list endpoint, or `custom` with `amountMinor`. Omitting it and sending `amountMinor` alone is also read as custom.\n'),
+  "amountMinor": zod.number().optional().describe('For a custom top-up: whole rupees in paise, within `customMinMinor`..`customMaxMinor`. Ignored when `pack` names one of the catalogue packs.\n')
 })
 
 export const CreateAiTopupResponse = zod.object({

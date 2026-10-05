@@ -425,5 +425,95 @@ check(
   `got ${clientCheckout.status}`,
 );
 
+/* ─────────── Drafting top-ups: the packs, and an amount of your own ───────
+ *
+ * The bounds are the whole safety story for a custom amount. A PACK is
+ * validated by recomputing its price from the catalogue, so a client naming
+ * its own figure is refused by construction. A custom amount has no
+ * catalogue row, so order creation is the first of two gates — the webhook
+ * re-checks the CAPTURED amount against the same bounds — and this is where
+ * the first gate gets pinned.
+ */
+section("Drafting top-ups");
+
+const packs = await call("/ai/topups", { token: as(owner), wsToken: ws });
+check("an admin can see the top-up packs", packs.status === 200, `got ${packs.status}`);
+check(
+  "...each priced in tokens as well as rupees",
+  (packs.data?.packs ?? []).every((p) => Number.isInteger(p.grantTokens) && p.grantTokens > 0),
+  JSON.stringify((packs.data?.packs ?? []).map((p) => [p.code, p.grantTokens])),
+);
+check(
+  "...sold at cost, so the grant equals the price",
+  (packs.data?.packs ?? []).every((p) => p.grantMinor === p.priceMinor),
+);
+check(
+  "...and the custom bounds come with them",
+  Number.isInteger(packs.data?.customMinMinor) && Number.isInteger(packs.data?.customMaxMinor),
+  JSON.stringify([packs.data?.customMinMinor, packs.data?.customMaxMinor]),
+);
+
+const min = packs.data?.customMinMinor ?? 10_000;
+const max = packs.data?.customMaxMinor ?? 2_500_000;
+
+/*
+ * Payments are not configured in preview, so a VALID request gets as far as
+ * 503 "payments unavailable" and an INVALID one is refused with 400 before
+ * that. The two status codes are therefore the assertion: 400 means the
+ * amount was rejected on its merits, 503 means it was accepted and only the
+ * provider was missing.
+ */
+const tryAmount = (amountMinor) =>
+  call("/ai/topups", {
+    token: as(owner),
+    wsToken: ws,
+    method: "POST",
+    body: { pack: "custom", amountMinor },
+  });
+
+check("a custom amount below the floor is refused", (await tryAmount(min - 100)).status === 400);
+check("...and one above the ceiling", (await tryAmount(max + 100)).status === 400);
+check("...and paise rather than whole rupees", (await tryAmount(min + 50)).status === 400);
+check("...and a negative amount", (await tryAmount(-50_000)).status === 400);
+check("...and a non-number", (await tryAmount("50000")).status === 400);
+
+const atFloor = await tryAmount(min);
+check(
+  "an amount exactly at the floor is accepted on its merits",
+  atFloor.status === 503,
+  `got ${atFloor.status} ${JSON.stringify(atFloor.data)}`,
+);
+const atCeiling = await tryAmount(max);
+check("...and one exactly at the ceiling", atCeiling.status === 503, `got ${atCeiling.status}`);
+
+const unknownPack = await call("/ai/topups", {
+  token: as(owner),
+  wsToken: ws,
+  method: "POST",
+  body: { pack: "enormous" },
+});
+check(
+  "an unknown pack code is still refused",
+  unknownPack.status === 400,
+  `got ${unknownPack.status}`,
+);
+
+const clientTopup = await call("/ai/topups", {
+  token: as(client),
+  wsToken: clientS.workspaceToken,
+  method: "POST",
+  body: { pack: "custom", amountMinor: min },
+});
+check(
+  "a client cannot buy drafting for the chamber (403)",
+  clientTopup.status === 403,
+  `got ${clientTopup.status}`,
+);
+const clientPacks = await call("/ai/topups", {
+  token: as(client),
+  wsToken: clientS.workspaceToken,
+});
+check("...nor even see the packs (403)", clientPacks.status === 403, `got ${clientPacks.status}`);
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

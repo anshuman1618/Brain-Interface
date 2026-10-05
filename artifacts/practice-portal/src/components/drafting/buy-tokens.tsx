@@ -9,6 +9,7 @@ import {
   type AiTopupPack,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,7 @@ import { Coins } from "lucide-react";
 export function BuyTokens({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const [paying, setPaying] = useState<string | null>(null);
+  const [custom, setCustom] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -51,10 +53,13 @@ export function BuyTokens({ compact = false }: { compact?: boolean }) {
   const { data: billing } = useGetBillingConfig();
   const createTopup = useCreateAiTopup();
 
-  const buy = async (pack: AiTopupPack) => {
-    setPaying(pack.code);
+  const buy = async (what: AiTopupPack | { amountMinor: number }) => {
+    const isPack = "code" in what;
+    setPaying(isPack ? what.code : "custom");
     try {
-      const order = await createTopup.mutateAsync({ data: { pack: pack.code } });
+      const order = await createTopup.mutateAsync({
+        data: isPack ? { pack: what.code } : { pack: "custom", amountMinor: what.amountMinor },
+      });
       await loadCheckout();
       if (!window.Razorpay) throw new Error("checkout unavailable");
       const rzp = new window.Razorpay({
@@ -63,7 +68,7 @@ export function BuyTokens({ compact = false }: { compact?: boolean }) {
         amount: order.amountMinor,
         currency: order.currency,
         name: "LEX Practice",
-        description: pack.label,
+        description: isPack ? what.label : "Drafting top-up",
         handler: () => {
           /*
            * The widget closing happily is not the grant. The webhook writes
@@ -97,6 +102,35 @@ export function BuyTokens({ compact = false }: { compact?: boolean }) {
   // or the deployment sells nothing. Either way there is nothing to offer.
   if (!data || data.packs.length === 0) return null;
 
+  /*
+   * The typed amount, in paise, or null when it is not a usable figure.
+   *
+   * Bounds come from the server rather than being written again here. They
+   * are enforced at order creation and once more in the webhook, so this is
+   * only about not sending a request that was always going to be refused.
+   */
+  const typed = Number(custom);
+  const customMinor =
+    custom !== "" &&
+    Number.isInteger(typed) &&
+    typed > 0 &&
+    typed * 100 >= data.customMinMinor &&
+    typed * 100 <= data.customMaxMinor
+      ? typed * 100
+      : null;
+
+  /*
+   * Tokens per paisa, taken from a pack the SERVER priced rather than from a
+   * rate written again in the browser. The blend and the tier both live in
+   * `tokensForMinor`; copying either here would mean two places to be wrong
+   * and one of them invisible to the suites.
+   */
+  const ref = data.packs[0];
+  const customTokens =
+    customMinor !== null && ref && ref.grantMinor > 0
+      ? Math.floor((ref.grantTokens / ref.grantMinor) * customMinor)
+      : 0;
+
   return (
     <>
       <Button
@@ -128,13 +162,8 @@ export function BuyTokens({ compact = false }: { compact?: boolean }) {
                 onClick={() => void buy(p)}
                 className="flex w-full items-center justify-between gap-4 rounded-[var(--radius)] bg-card p-4 text-left shadow-sm transition-shadow hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
               >
-                <span>
-                  <span className="block text-base font-semibold">
-                    about {formatTokens(p.grantTokens)} tokens
-                  </span>
-                  <span className="block text-2xs text-muted-foreground">
-                    Carries forward. Spent at the same rate as the monthly allowance.
-                  </span>
+                <span className="text-base font-semibold">
+                  about {formatTokens(p.grantTokens)} tokens
                 </span>
                 <span className="shrink-0 text-right">
                   <span className="block text-sm font-medium">{formatMinor(p.priceMinor)}</span>
@@ -147,6 +176,66 @@ export function BuyTokens({ compact = false }: { compact?: boolean }) {
           </div>
 
           {/*
+            An amount the buyer chooses, because the three packs are a
+            convenience rather than a price list — a chamber that wants ₹700
+            of drafting should not have to buy ₹1,000 of it.
+
+            Rupees in, tokens shown. The charge is in rupees and so is the
+            receipt, so that is what gets typed; the token figure is the
+            answer to "will this be enough", recomputed live from the same
+            per-chamber rate the packs use. Bounds come from the server and
+            are enforced there and in the webhook as well — this only saves a
+            round trip on an amount that was never going to be accepted.
+          */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (customMinor !== null) void buy({ amountMinor: customMinor });
+            }}
+            className="rounded-[var(--radius)] bg-card p-4 shadow-sm"
+          >
+            <label
+              htmlFor="topup-custom"
+              className="block font-mono text-2xs uppercase tracking-wider text-muted-foreground"
+            >
+              Or an amount of your own
+            </label>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  ₹
+                </span>
+                <Input
+                  id="topup-custom"
+                  inputMode="numeric"
+                  value={custom}
+                  onChange={(e) => setCustom(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder={String(Math.round(data.customMinMinor / 100))}
+                  className="w-36 rounded-lg pl-7"
+                />
+              </div>
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                className="rounded-lg font-mono uppercase tracking-wider"
+                disabled={customMinor === null || !data.paymentsEnabled || paying !== null}
+              >
+                {paying === "custom" ? "Opening…" : "Buy"}
+              </Button>
+            </div>
+            <p
+              className={`mt-2 text-2xs leading-relaxed ${
+                custom && customMinor === null ? "text-destructive" : "text-muted-foreground"
+              }`}
+            >
+              {customMinor !== null
+                ? `about ${formatTokens(customTokens)} tokens, all-in`
+                : `Whole rupees, ${formatMinor(data.customMinMinor)} to ${formatMinor(data.customMaxMinor)}.`}
+            </p>
+          </form>
+
+          {/*
             "All-in" is a statement of fact, not a marketing line, and it is
             the honest form of "tax inclusive" for this business today. Terms
             §6: prices are exclusive of GST, which is added if and when we are
@@ -155,12 +244,7 @@ export function BuyTokens({ compact = false }: { compact?: boolean }) {
             break out. What a chamber pays is what is shown.
           */}
           <p className="text-2xs leading-relaxed text-muted-foreground">
-            The price shown is the whole amount — nothing is added at checkout. No GST is charged,
-            and none may be claimed as input credit, because LEX Practice is not GST-registered. See{" "}
-            <a href="/legal/terms" className="underline underline-offset-2">
-              Terms §6
-            </a>
-            .
+            The price shown is the whole amount — nothing is added at checkout.
           </p>
 
           {!data.paymentsEnabled && (

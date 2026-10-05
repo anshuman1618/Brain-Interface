@@ -1425,11 +1425,17 @@ export interface AiTopupPacks {
   packs: AiTopupPack[];
   currency: string;
   paymentsEnabled: boolean;
+  /** Smallest custom top-up, in paise. Sent so the form can refuse a bad amount before a round trip; the server and the webhook both enforce it regardless. */
+  customMinMinor: number;
+  /** Largest custom top-up, in paise. */
+  customMaxMinor: number;
 }
 
 export interface AiTopupInput {
-  /** A pack `code` from the list endpoint. */
-  pack: string;
+  /** A pack `code` from the list endpoint, or `custom` with `amountMinor`. Omitting it and sending `amountMinor` alone is also read as custom. */
+  pack?: string;
+  /** For a custom top-up: whole rupees in paise, within `customMinMinor`..`customMaxMinor`. Ignored when `pack` names one of the catalogue packs. */
+  amountMinor?: number;
 }
 
 export type CheckoutOrderPlan = typeof CheckoutOrderPlan[keyof typeof CheckoutOrderPlan];

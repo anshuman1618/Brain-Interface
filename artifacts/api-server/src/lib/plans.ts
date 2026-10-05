@@ -380,6 +380,35 @@ export function topupPack(code: string): TopupPack | null {
   return TOPUP_PACKS.find((p) => p.code === code) ?? null;
 }
 
+/**
+ * A top-up for an amount the buyer chose, rather than one of the three packs.
+ *
+ * The packs cover the common cases; a chamber that wants ₹700 should not have
+ * to buy ₹1,000. Still sold at cost, so the grant equals the price here too.
+ *
+ * **The bounds are the whole safety story.** A pack is validated by
+ * recomputing its price from the catalogue above and comparing — the webhook
+ * trusts the pack code only as a label. A custom amount has no catalogue
+ * entry to recompute from, so the grant is taken from what the provider says
+ * was actually CAPTURED, and these two numbers are what keep that honest. A
+ * floor, so the payment fee does not exceed the purchase; a ceiling, because
+ * an unbounded grant written by a webhook is an unbounded liability, and
+ * anybody wanting more than this should be talking to a person.
+ */
+export const CUSTOM_TOPUP_MIN_MINOR = 10_000; // ₹100
+export const CUSTOM_TOPUP_MAX_MINOR = 2_500_000; // ₹25,000
+
+/** Whole rupees only, inside the bounds. Used at order time AND in the webhook. */
+export function isValidCustomTopup(minor: unknown): minor is number {
+  return (
+    typeof minor === "number" &&
+    Number.isInteger(minor) &&
+    minor % 100 === 0 &&
+    minor >= CUSTOM_TOPUP_MIN_MINOR &&
+    minor <= CUSTOM_TOPUP_MAX_MINOR
+  );
+}
+
 /** Every plan's allowance, for the pricing screen and the quota display. */
 export function limitsCatalogue(): Record<SubscriptionPlan, PlanLimits> {
   return { ...LIMITS };

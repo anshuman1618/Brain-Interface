@@ -23,7 +23,15 @@ import {
   quote,
   topupPack,
   TOPUP_PACKS,
+  CUSTOM_TOPUP_MIN_MINOR,
+  CUSTOM_TOPUP_MAX_MINOR,
+  isValidCustomTopup,
 } from "../lib/plans";
+
+/** Paise as a plain rupee string, for a message and an audit line. */
+function formatRupees(minor: number): string {
+  return `₹${(minor / 100).toLocaleString("en-IN")}`;
+}
 import { createOrder, paymentsEnabled, razorpayConfig } from "../lib/razorpay";
 import { recordAudit } from "../lib/audit";
 import { logger } from "../lib/logger";
@@ -220,6 +228,8 @@ router.get(
         })),
         currency: "INR",
         paymentsEnabled: paymentsEnabled(),
+        customMinMinor: CUSTOM_TOPUP_MIN_MINOR,
+        customMaxMinor: CUSTOM_TOPUP_MAX_MINOR,
       }),
     );
   },
@@ -231,8 +241,40 @@ router.post(
   requireCapability("ai_topup.purchase"),
   async (req: AuthRequest, res): Promise<void> => {
     const c = ctx(req);
-    const pack = topupPack(String((req.body as { pack?: string })?.pack ?? ""));
-    if (!pack) {
+    const body = (req.body ?? {}) as { pack?: string; amountMinor?: unknown };
+
+    /*
+     * Either one of the three packs, or an amount the buyer chose.
+     *
+     * A custom amount is validated HERE and again in the webhook, against the
+     * same `isValidCustomTopup`. Twice, because the two checks answer
+     * different questions: this one refuses to create an order nobody should
+     * be able to pay, and the webhook's refuses to grant on one that somehow
+     * was. Neither makes the other redundant — an order can be created by
+     * this server and paid days later, and the webhook is where the money
+     * actually becomes drafting budget.
+     */
+    const custom =
+      body.pack === "custom" || (body.pack === undefined && body.amountMinor !== undefined);
+    const pack = custom ? null : topupPack(String(body.pack ?? ""));
+
+    let amountMinor: number;
+    let label: string;
+    if (custom) {
+      const raw = typeof body.amountMinor === "number" ? body.amountMinor : NaN;
+      if (!isValidCustomTopup(raw)) {
+        res.status(400).json({
+          error: "invalid_request",
+          message: `Choose a whole-rupee amount between ${formatRupees(CUSTOM_TOPUP_MIN_MINOR)} and ${formatRupees(CUSTOM_TOPUP_MAX_MINOR)}.`,
+        });
+        return;
+      }
+      amountMinor = raw;
+      label = `${formatRupees(raw)} drafting top-up`;
+    } else if (pack) {
+      amountMinor = pack.priceMinor;
+      label = pack.label;
+    } else {
       res.status(400).json({ error: "invalid_request", message: "Unknown top-up pack." });
       return;
     }
@@ -246,15 +288,16 @@ router.post(
 
     try {
       const order = await createOrder({
-        amountMinor: pack.priceMinor,
+        amountMinor,
         currency: "INR",
         receipt: `ws${c.workspaceId}-ai-${Date.now()}`,
         // `aiTopup` is what the webhook forks on. The name and clerk id are
         // carried so the grant records who bought it; neither is trusted for
-        // anything but display.
+        // anything but display. No amount is carried for a custom top-up —
+        // the webhook uses what was CAPTURED, which cannot be edited here.
         notes: {
           workspaceId: String(c.workspaceId),
-          aiTopup: pack.code,
+          aiTopup: pack ? pack.code : "custom",
           boughtBy: c.user.clerkId,
           boughtByName: personName(c.user),
         },
@@ -262,14 +305,14 @@ router.post(
 
       await recordAudit(req, c, {
         action: "billing.checkout_started",
-        summary: `Started payment for a drafting top-up (${pack.label})`,
+        summary: `Started payment for a drafting top-up (${label})`,
       });
 
       res.json({
         orderId: order.id,
         amountMinor: order.amountMinor,
         currency: order.currency,
-        pack: pack.code,
+        pack: pack ? pack.code : "custom",
       });
     } catch (err) {
       logger.error({ err, workspaceId: c.workspaceId }, "Could not create a top-up order");
@@ -478,8 +521,25 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
    */
   const packCode = notes["aiTopup"];
   if (packCode) {
-    const pack = topupPack(packCode);
-    if (!Number.isInteger(workspaceId) || !pack) {
+    /*
+     * Two shapes of top-up, and they are validated differently on purpose.
+     *
+     * A PACK is checked the way a plan is: the code is a label, the price is
+     * recomputed from `TOPUP_PACKS`, and an order paid for less than the pack
+     * costs grants nothing.
+     *
+     * A CUSTOM amount has no catalogue row to recompute from. So the grant is
+     * taken from `paidMinor` — the amount the PROVIDER says it captured —
+     * rather than from anything this server put in the notes. That is the
+     * stronger of the two, not a relaxation: notes travel with the order and
+     * could in principle be edited at the provider, whereas the captured
+     * amount is the money that actually moved. The bounds are re-checked here
+     * so a captured amount outside them grants nothing either.
+     */
+    const isCustom = packCode === "custom";
+    const pack = isCustom ? null : topupPack(packCode);
+
+    if (!Number.isInteger(workspaceId) || (!pack && !isCustom)) {
       await recordEvent({
         ...base,
         workspaceId: null,
@@ -489,7 +549,8 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
       res.json({ received: true });
       return;
     }
-    if (paidMinor !== pack.priceMinor) {
+
+    if (pack && paidMinor !== pack.priceMinor) {
       await recordEvent({
         ...base,
         workspaceId,
@@ -500,11 +561,29 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
       return;
     }
 
+    if (isCustom && !isValidCustomTopup(paidMinor)) {
+      await recordEvent({
+        ...base,
+        workspaceId,
+        outcome: "rejected",
+        detail: `custom top-up captured ${paidMinor}, outside ${CUSTOM_TOPUP_MIN_MINOR}-${CUSTOM_TOPUP_MAX_MINOR}`,
+      });
+      res.json({ received: true });
+      return;
+    }
+
+    // Sold at cost either way, so the grant equals what was paid.
+    const grantMinor = pack ? pack.grantMinor : (paidMinor as number);
+    const priceMinor = pack ? pack.priceMinor : (paidMinor as number);
+    const label = pack
+      ? pack.label
+      : `₹${(priceMinor / 100).toLocaleString("en-IN")} drafting top-up`;
+
     await db.insert(aiTopupsTable).values({
       workspaceId,
-      pack: pack.code,
-      priceMinor: pack.priceMinor,
-      grantMinor: pack.grantMinor,
+      pack: pack ? pack.code : "custom",
+      priceMinor,
+      grantMinor,
       orderId,
       paymentId: base.paymentId,
       boughtByClerkId: notes["boughtBy"] ?? "",
@@ -515,9 +594,12 @@ export async function handleRazorpayWebhook(req: AuthRequest, res: import("expre
       ...base,
       workspaceId,
       outcome: "applied",
-      detail: `drafting top-up: ${pack.label}`,
+      detail: `drafting top-up: ${label}`,
     });
-    logger.info({ workspaceId, pack: pack.code }, "Drafting budget topped up");
+    logger.info(
+      { workspaceId, pack: pack ? pack.code : "custom", grantMinor },
+      "Drafting budget topped up",
+    );
     res.json({ received: true });
     return;
   }

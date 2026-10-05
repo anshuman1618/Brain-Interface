@@ -7,6 +7,8 @@
  */
 
 export interface AiTopupInput {
-  /** A pack `code` from the list endpoint. */
-  pack: string;
+  /** A pack `code` from the list endpoint, or `custom` with `amountMinor`. Omitting it and sending `amountMinor` alone is also read as custom. */
+  pack?: string;
+  /** For a custom top-up: whole rupees in paise, within `customMinMinor`..`customMaxMinor`. Ignored when `pack` names one of the catalogue packs. */
+  amountMinor?: number;
 }

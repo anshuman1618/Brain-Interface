@@ -11,4 +11,8 @@ export interface AiTopupPacks {
   packs: AiTopupPack[];
   currency: string;
   paymentsEnabled: boolean;
+  /** Smallest custom top-up, in paise. Sent so the form can refuse a bad amount before a round trip; the server and the webhook both enforce it regardless. */
+  customMinMinor: number;
+  /** Largest custom top-up, in paise. */
+  customMaxMinor: number;
 }

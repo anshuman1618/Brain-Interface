@@ -4190,7 +4190,7 @@ components:
 
     AiTopupPacks:
       type: object
-      required: [packs, currency, paymentsEnabled]
+      required: [packs, currency, paymentsEnabled, customMinMinor, customMaxMinor]
       properties:
         packs:
           type: array
@@ -4200,6 +4200,15 @@ components:
           type: string
         paymentsEnabled:
           type: boolean
+        customMinMinor:
+          type: integer
+          description: >
+            Smallest custom top-up, in paise. Sent so the form can refuse a
+            bad amount before a round trip; the server and the webhook both
+            enforce it regardless.
+        customMaxMinor:
+          type: integer
+          description: Largest custom top-up, in paise.
 
     AiTopupPack:
       type: object
@@ -4228,11 +4237,19 @@ components:
 
     AiTopupInput:
       type: object
-      required: [pack]
       properties:
         pack:
           type: string
-          description: A pack `code` from the list endpoint.
+          description: >
+            A pack `code` from the list endpoint, or `custom` with
+            `amountMinor`. Omitting it and sending `amountMinor` alone is also
+            read as custom.
+        amountMinor:
+          type: integer
+          description: >
+            For a custom top-up: whole rupees in paise, within
+            `customMinMinor`..`customMaxMinor`. Ignored when `pack` names one
+            of the catalogue packs.
 
     CheckoutOrder:
       type: object
